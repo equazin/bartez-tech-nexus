@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Mail, Phone, MapPin, Send } from "lucide-react";
+import { Mail, Phone, MapPin, Send, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,83 +22,98 @@ const Contact = () => {
     }, 1000);
   };
 
+  const contactInfo = [
+    { icon: Mail, label: "Email", value: "info@barteztecnologia.com", href: "mailto:info@barteztecnologia.com" },
+    { icon: Phone, label: "Teléfono", value: "+54 11 1234-5678", href: "tel:+541112345678" },
+    { icon: MapPin, label: "Ubicación", value: "Buenos Aires, Argentina" },
+    { icon: Clock, label: "Horario", value: "Lun-Vie 9:00-18:00 | Sáb 9:00-13:00" },
+  ];
+
   return (
     <Layout>
-      <section className="py-20 lg:py-28">
-        <div className="container mx-auto px-4 lg:px-8">
+      <section className="relative py-20 lg:py-28">
+        <div className="absolute inset-0 hero-radial" />
+        <div className="relative container mx-auto px-4 lg:px-8">
           <SectionHeading
             badge="Contacto"
-            title="Póngase en"
-            highlight="contacto"
-            description="Estamos listos para ayudarle. Complete el formulario o contáctenos directamente."
+            title="Hablemos sobre su"
+            highlight="proyecto"
+            description="Nuestro equipo está listo para asesorarlo. Complete el formulario o contáctenos directamente."
+            large
           />
+        </div>
+      </section>
 
-          <div className="grid gap-10 lg:grid-cols-2">
+      <section className="pb-24 lg:pb-32">
+        <div className="container mx-auto px-4 lg:px-8">
+          <div className="grid gap-8 lg:grid-cols-5">
+            {/* Form */}
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
+              className="lg:col-span-3"
             >
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleSubmit} className="card-enterprise rounded-xl p-8 lg:p-10 space-y-5">
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-foreground">Nombre</label>
-                    <Input required placeholder="Su nombre" className="bg-card border-border" maxLength={100} />
+                    <label className="mb-2 block text-sm font-medium text-foreground">Nombre *</label>
+                    <Input required placeholder="Su nombre" className="input-enterprise" maxLength={100} />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-foreground">Empresa</label>
-                    <Input placeholder="Nombre de la empresa" className="bg-card border-border" maxLength={100} />
+                    <label className="mb-2 block text-sm font-medium text-foreground">Empresa</label>
+                    <Input placeholder="Nombre de la empresa" className="input-enterprise" maxLength={100} />
                   </div>
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-foreground">Email</label>
-                  <Input required type="email" placeholder="correo@empresa.com" className="bg-card border-border" maxLength={255} />
+                  <label className="mb-2 block text-sm font-medium text-foreground">Email *</label>
+                  <Input required type="email" placeholder="correo@empresa.com" className="input-enterprise" maxLength={255} />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-foreground">Teléfono</label>
-                  <Input placeholder="+54 11 1234-5678" className="bg-card border-border" maxLength={30} />
+                  <label className="mb-2 block text-sm font-medium text-foreground">Teléfono</label>
+                  <Input placeholder="+54 11 1234-5678" className="input-enterprise" maxLength={30} />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-foreground">Mensaje</label>
-                  <Textarea required placeholder="¿En qué podemos ayudarle?" rows={5} className="bg-card border-border" maxLength={1000} />
+                  <label className="mb-2 block text-sm font-medium text-foreground">Mensaje *</label>
+                  <Textarea required placeholder="¿En qué podemos ayudarle?" rows={5} className="input-enterprise resize-none" maxLength={1000} />
                 </div>
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 sm:w-auto"
+                  className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 h-11 px-7 text-sm w-full sm:w-auto"
                 >
-                  {loading ? "Enviando..." : "Enviar Mensaje"} <Send size={16} className="ml-2" />
+                  {loading ? "Enviando..." : "Enviar Mensaje"} <Send size={14} className="ml-2" />
                 </Button>
               </form>
             </motion.div>
 
+            {/* Contact info */}
             <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              className="space-y-6"
+              transition={{ delay: 0.15 }}
+              className="lg:col-span-2 space-y-4"
             >
-              {[
-                { icon: Mail, label: "Email", value: "info@barteztecnologia.com" },
-                { icon: Phone, label: "Teléfono", value: "+54 11 1234-5678" },
-                { icon: MapPin, label: "Ubicación", value: "Buenos Aires, Argentina" },
-              ].map((item) => (
-                <div key={item.label} className="flex items-start gap-4 rounded-xl border border-border/50 bg-card p-5">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
-                    <item.icon size={20} />
-                  </div>
-                  <div>
-                    <h4 className="font-display font-semibold text-foreground">{item.label}</h4>
-                    <p className="text-sm text-muted-foreground">{item.value}</p>
+              {contactInfo.map((item) => (
+                <div key={item.label} className="card-enterprise rounded-xl p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="icon-container h-10 w-10 text-primary shrink-0">
+                      <item.icon size={18} />
+                    </div>
+                    <div>
+                      <h4 className="font-display text-sm font-semibold text-foreground">{item.label}</h4>
+                      {item.href ? (
+                        <a href={item.href} className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                          {item.value}
+                        </a>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">{item.value}</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
-
-              <div className="rounded-xl border border-border/50 bg-card p-5">
-                <h4 className="font-display font-semibold text-foreground mb-2">Horario de Atención</h4>
-                <p className="text-sm text-muted-foreground">Lunes a Viernes: 9:00 - 18:00</p>
-                <p className="text-sm text-muted-foreground">Sábados: 9:00 - 13:00</p>
-              </div>
             </motion.div>
           </div>
         </div>
