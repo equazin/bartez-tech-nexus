@@ -1,55 +1,104 @@
 import { motion } from "framer-motion";
-import { Award, Users, Target, Lightbulb } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Award, Users, Target, Lightbulb, ArrowRight, Building2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import Layout from "@/components/Layout";
 import SectionHeading from "@/components/SectionHeading";
 
 const values = [
-  { icon: Award, title: "Excelencia", desc: "Nos comprometemos con la calidad en cada producto y servicio que ofrecemos." },
-  { icon: Users, title: "Confianza", desc: "Construimos relaciones de largo plazo basadas en la transparencia y el cumplimiento." },
-  { icon: Target, title: "Innovación", desc: "Nos mantenemos a la vanguardia de la tecnología para ofrecer las mejores soluciones." },
-  { icon: Lightbulb, title: "Compromiso", desc: "Entendemos las necesidades de cada cliente y trabajamos para superarlas." },
+  { icon: Award, title: "Excelencia", desc: "Nos comprometemos con la calidad en cada producto y servicio que ofrecemos a nuestros clientes." },
+  { icon: Users, title: "Confianza", desc: "Construimos relaciones de largo plazo basadas en la transparencia, el cumplimiento y los resultados." },
+  { icon: Target, title: "Innovación", desc: "Nos mantenemos a la vanguardia tecnológica para ofrecer siempre las mejores soluciones del mercado." },
+  { icon: Lightbulb, title: "Compromiso", desc: "Entendemos las necesidades de cada cliente y trabajamos sin descanso para superarlas." },
+];
+
+const milestones = [
+  { year: "2009", event: "Fundación de Bartez Tecnología en Buenos Aires" },
+  { year: "2013", event: "Expansión al mercado corporativo y sector público" },
+  { year: "2017", event: "Alianzas con Dell, HP, Lenovo y Cisco" },
+  { year: "2020", event: "Lanzamiento de servicios de consultoría IT" },
+  { year: "2024", event: "+500 empresas confían en nuestras soluciones" },
 ];
 
 const About = () => {
   return (
     <Layout>
-      <section className="py-20 lg:py-28">
-        <div className="container mx-auto px-4 lg:px-8">
+      <section className="relative py-20 lg:py-28">
+        <div className="absolute inset-0 hero-radial" />
+        <div className="relative container mx-auto px-4 lg:px-8">
           <SectionHeading
-            badge="Nosotros"
-            title="Sobre Bartez"
-            highlight="Tecnología"
-            description="Somos una empresa argentina dedicada a brindar soluciones tecnológicas integrales para empresas de todos los tamaños."
+            badge="Sobre Nosotros"
+            title="Impulsamos empresas con"
+            highlight="tecnología"
+            description="Más de 15 años acompañando el crecimiento tecnológico de empresas argentinas."
+            large
           />
+        </div>
+      </section>
 
+      <section className="pb-24 lg:pb-32">
+        <div className="container mx-auto px-4 lg:px-8">
+          {/* Story */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="mx-auto max-w-3xl rounded-xl border border-border/50 bg-card p-8 text-center mb-16"
+            className="mx-auto max-w-3xl card-enterprise rounded-xl p-8 lg:p-10 text-center mb-20"
           >
+            <div className="icon-container-lg h-14 w-14 text-primary mx-auto mb-6">
+              <Building2 size={28} />
+            </div>
             <p className="text-muted-foreground leading-relaxed text-lg">
-              Con más de 15 años de experiencia en el mercado, Bartez Tecnología se ha consolidado como un referente en la provisión de hardware, infraestructura y servicios IT para el sector corporativo en Argentina. Nuestro equipo de profesionales certificados trabaja junto a nuestros clientes para diseñar e implementar las mejores soluciones tecnológicas.
+              Desde 2009, Bartez Tecnología se ha consolidado como un referente en la provisión de hardware, infraestructura y servicios IT para el sector corporativo en Argentina. Nuestro equipo de profesionales certificados trabaja junto a cada cliente para diseñar e implementar soluciones que maximicen la productividad y la seguridad de sus operaciones.
             </p>
           </motion.div>
 
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Values */}
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-20">
             {values.map((val, i) => (
               <motion.div
                 key={val.title}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="rounded-xl border border-border/50 bg-card p-6 text-center"
+                transition={{ delay: i * 0.1, duration: 0.5 }}
+                className="card-enterprise rounded-xl p-7 text-center"
               >
-                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <val.icon size={28} />
+                <div className="icon-container h-12 w-12 text-primary mx-auto mb-4">
+                  <val.icon size={22} />
                 </div>
-                <h3 className="font-display text-lg font-semibold text-foreground">{val.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{val.desc}</p>
+                <h3 className="font-display text-base font-semibold text-foreground">{val.title}</h3>
+                <p className="mt-2.5 text-sm text-muted-foreground leading-relaxed">{val.desc}</p>
               </motion.div>
             ))}
+          </div>
+
+          {/* Timeline */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="card-enterprise rounded-xl p-8 lg:p-10"
+          >
+            <h3 className="font-display text-xl font-semibold text-foreground mb-8">Nuestra Trayectoria</h3>
+            <div className="space-y-6">
+              {milestones.map((m, i) => (
+                <div key={m.year} className="flex items-start gap-5">
+                  <span className="font-display text-lg font-bold text-primary shrink-0 w-14">{m.year}</span>
+                  <div className="flex-1 border-l border-border/40 pl-5 pb-2">
+                    <p className="text-sm text-secondary-foreground">{m.event}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          <div className="mt-16 text-center">
+            <Link to="/contacto">
+              <Button className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 h-11 px-7 text-sm">
+                Contactar al Equipo <ArrowRight size={14} className="ml-2" />
+              </Button>
+            </Link>
           </div>
         </div>
       </section>

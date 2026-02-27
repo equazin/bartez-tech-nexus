@@ -1,13 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, ChevronDown } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 
 const navLinks = [
   { label: "Inicio", href: "/" },
   { label: "Productos", href: "/productos" },
-  { label: "Soluciones Corporativas", href: "/soluciones-corporativas" },
+  { label: "Soluciones", href: "/soluciones-corporativas" },
   { label: "Servicios IT", href: "/servicios-it" },
   { label: "Empresas", href: "/empresas" },
   { label: "Nosotros", href: "/nosotros" },
@@ -16,40 +16,65 @@ const navLinks = [
 
 const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
 
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4 lg:px-8">
-        <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-primary">
-            <span className="font-display text-lg font-bold text-primary-foreground">B</span>
+    <nav
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        scrolled
+          ? "bg-glass-strong border-b border-border/30"
+          : "bg-transparent border-b border-transparent"
+      }`}
+    >
+      <div className="container mx-auto flex h-[72px] items-center justify-between px-4 lg:px-8">
+        <Link to="/" className="flex items-center gap-2.5 group">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-primary transition-transform group-hover:scale-105">
+            <span className="font-display text-base font-bold text-primary-foreground">B</span>
           </div>
-          <span className="font-display text-lg font-semibold tracking-tight text-foreground">
-            Bartez <span className="text-gradient">Tecnología</span>
-          </span>
+          <div className="flex flex-col">
+            <span className="font-display text-base font-bold tracking-tight text-foreground leading-none">
+              BARTEZ
+            </span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground leading-none mt-0.5">
+              Tecnología
+            </span>
+          </div>
         </Link>
 
         {/* Desktop Nav */}
-        <div className="hidden items-center gap-1 lg:flex">
+        <div className="hidden items-center gap-0.5 lg:flex">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               to={link.href}
-              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors hover:text-primary ${
+              className={`relative rounded-md px-3.5 py-2 text-[13px] font-medium transition-colors ${
                 location.pathname === link.href
-                  ? "text-primary"
-                  : "text-muted-foreground"
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {link.label}
+              {location.pathname === link.href && (
+                <motion.div
+                  layoutId="nav-indicator"
+                  className="absolute bottom-0 left-3.5 right-3.5 h-[2px] bg-gradient-primary rounded-full"
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
+                />
+              )}
             </Link>
           ))}
         </div>
 
         <div className="hidden items-center gap-3 lg:flex">
           <Link to="/cotizacion">
-            <Button size="sm" className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90">
+            <Button size="sm" className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 glow-sm h-9 px-5 text-[13px]">
               Solicitar Cotización
             </Button>
           </Link>
@@ -57,11 +82,11 @@ const Navbar = () => {
 
         {/* Mobile toggle */}
         <button
-          className="lg:hidden text-foreground"
+          className="lg:hidden text-foreground p-2 rounded-lg hover:bg-secondary transition-colors"
           onClick={() => setMobileOpen(!mobileOpen)}
           aria-label="Toggle menu"
         >
-          {mobileOpen ? <X size={24} /> : <Menu size={24} />}
+          {mobileOpen ? <X size={22} /> : <Menu size={22} />}
         </button>
       </div>
 
@@ -72,7 +97,8 @@ const Navbar = () => {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="border-t border-border/50 bg-background lg:hidden"
+            transition={{ duration: 0.2 }}
+            className="border-t border-border/30 bg-glass-strong lg:hidden overflow-hidden"
           >
             <div className="container mx-auto flex flex-col gap-1 px-4 py-4">
               {navLinks.map((link) => (
@@ -80,17 +106,17 @@ const Navbar = () => {
                   key={link.href}
                   to={link.href}
                   onClick={() => setMobileOpen(false)}
-                  className={`rounded-md px-3 py-2.5 text-sm font-medium transition-colors hover:bg-secondary ${
+                  className={`rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
                     location.pathname === link.href
-                      ? "text-primary bg-secondary"
-                      : "text-muted-foreground"
+                      ? "text-foreground bg-secondary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
                   }`}
                 >
                   {link.label}
                 </Link>
               ))}
               <Link to="/cotizacion" onClick={() => setMobileOpen(false)}>
-                <Button className="mt-2 w-full bg-gradient-primary font-semibold text-primary-foreground">
+                <Button className="mt-3 w-full bg-gradient-primary font-semibold text-primary-foreground h-11">
                   Solicitar Cotización
                 </Button>
               </Link>

@@ -1,29 +1,44 @@
+import { motion } from "framer-motion";
+
 interface SectionHeadingProps {
   badge?: string;
   title: string;
   highlight?: string;
   description?: string;
   center?: boolean;
+  large?: boolean;
 }
 
-const SectionHeading = ({ badge, title, highlight, description, center = true }: SectionHeadingProps) => {
+const SectionHeading = ({ badge, title, highlight, description, center = true, large = false }: SectionHeadingProps) => {
   return (
-    <div className={`mb-12 ${center ? "text-center" : ""}`}>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.5 }}
+      className={`mb-16 lg:mb-20 ${center ? "text-center" : ""}`}
+    >
       {badge && (
-        <span className="mb-4 inline-block rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-medium uppercase tracking-wider text-primary">
+        <span className="enterprise-badge mb-5 inline-flex">
           {badge}
         </span>
       )}
-      <h2 className="font-display text-3xl font-bold tracking-tight text-foreground md:text-4xl lg:text-5xl">
+      <h2 className={`font-display font-bold tracking-tight text-foreground ${
+        large 
+          ? "text-4xl md:text-5xl lg:text-6xl" 
+          : "text-3xl md:text-4xl lg:text-5xl"
+      }`}>
         {title}{" "}
         {highlight && <span className="text-gradient">{highlight}</span>}
       </h2>
       {description && (
-        <p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground leading-relaxed">
+        <p className={`mt-5 text-muted-foreground leading-relaxed ${
+          center ? "mx-auto max-w-2xl" : "max-w-xl"
+        } ${large ? "text-lg" : "text-base"}`}>
           {description}
         </p>
       )}
-    </div>
+    </motion.div>
   );
 };
 
