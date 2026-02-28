@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, Shield, Zap, Server, Monitor, Headphones, BarChart3, CheckCircle2, Building2, Network, Cpu, TrendingUp, Globe, Award } from "lucide-react";
+import { ArrowRight, Shield, Zap, Server, Monitor, Headphones, BarChart3, CheckCircle2, Building2, Network, Cpu, TrendingUp, Globe, Award, Briefcase, Settings, PhoneCall } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Layout from "@/components/Layout";
 import SectionHeading from "@/components/SectionHeading";
+import EnterpriseCTA from "@/components/EnterpriseCTA";
 import heroBg from "@/assets/hero-bg.png";
 
 const fadeUp = {
@@ -45,32 +46,31 @@ const trustItems = [
   "Soporte Post-Venta",
 ];
 
+const corporateSolutions = [
+  { icon: Building2, title: "Soluciones para Empresas", desc: "Equipamiento integral de oficinas, data centers y puestos de trabajo con las mejores marcas del mercado.", link: "/soluciones-corporativas" },
+  { icon: Network, title: "Infraestructura IT Corporativa", desc: "Redes LAN/WAN, WiFi empresarial, servidores y virtualización diseñados para su operación.", link: "/soluciones-corporativas" },
+  { icon: Settings, title: "Consultoría Tecnológica", desc: "Análisis, planificación y roadmap tecnológico para potenciar el crecimiento de su organización.", link: "/servicios-it" },
+  { icon: Briefcase, title: "Cotización Corporativa", desc: "Precios especiales por volumen, cuenta corriente, facturación A/B y ejecutivo de cuenta dedicado.", link: "/cotizacion" },
+];
+
 const Index = () => {
   return (
     <Layout>
       {/* Hero */}
       <section className="relative overflow-hidden min-h-[90vh] flex items-center">
-        {/* Background layers */}
         <div className="absolute inset-0">
           <img src={heroBg} alt="" className="h-full w-full object-cover opacity-30" loading="eager" />
           <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/70 to-background" />
           <div className="absolute inset-0 hero-radial" />
         </div>
-
-        {/* Grid overlay */}
         <div className="absolute inset-0 hero-grid opacity-40" />
 
-        {/* Content */}
         <div className="relative container mx-auto px-4 py-32 md:py-40 lg:py-48 lg:px-8">
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            className="max-w-4xl"
-          >
+          <motion.div initial="hidden" animate="visible" className="max-w-4xl">
             <motion.div variants={fadeUp} custom={0}>
               <span className="enterprise-badge mb-8 inline-flex">
                 <Globe size={12} />
-                Soluciones IT Corporativas
+                Partner Tecnológico para Empresas
               </span>
             </motion.div>
 
@@ -79,9 +79,9 @@ const Index = () => {
               custom={1}
               className="font-display text-4xl font-extrabold leading-[1.05] tracking-tight text-foreground sm:text-5xl md:text-6xl lg:text-7xl"
             >
-              Tecnología que impulsa{" "}
+              Su aliado estratégico en{" "}
               <br className="hidden md:block" />
-              <span className="text-gradient">el futuro de su empresa</span>
+              <span className="text-gradient">tecnología corporativa</span>
             </motion.h1>
 
             <motion.p
@@ -89,24 +89,23 @@ const Index = () => {
               custom={2}
               className="mt-7 max-w-xl text-lg text-muted-foreground leading-relaxed md:text-xl"
             >
-              Hardware empresarial, infraestructura de redes, servidores y consultoría IT. 
-              Soluciones integrales respaldadas por las mejores marcas del mercado.
+              Hardware empresarial, infraestructura de redes, servidores y consultoría IT.
+              Soluciones integrales para empresas que demandan confiabilidad y resultados.
             </motion.p>
 
             <motion.div variants={fadeUp} custom={3} className="mt-10 flex flex-wrap gap-4">
               <Link to="/cotizacion">
                 <Button size="lg" className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 glow-sm h-12 px-8 text-sm">
-                  Solicitar Cotización <ArrowRight className="ml-2" size={16} />
+                  Solicitar Cotización Corporativa <ArrowRight className="ml-2" size={16} />
                 </Button>
               </Link>
-              <Link to="/productos">
+              <Link to="/soluciones-corporativas">
                 <Button size="lg" variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-12 px-8 text-sm">
-                  Explorar Productos
+                  Soluciones para Empresas
                 </Button>
               </Link>
             </motion.div>
 
-            {/* Mini trust */}
             <motion.div
               variants={fadeUp}
               custom={4}
@@ -147,149 +146,194 @@ const Index = () => {
         <div className="section-divider" />
       </section>
 
-      {/* Product Categories */}
+      {/* Corporate Solutions — NEW B2B SECTION */}
       <section className="py-24 lg:py-32">
         <div className="container mx-auto px-4 lg:px-8">
           <SectionHeading
-            badge="Catálogo de Productos"
-            title="Hardware empresarial de"
-            highlight="alto rendimiento"
-            description="Equipamiento tecnológico de las mejores marcas para cada área de su organización."
+            badge="Soluciones Corporativas"
+            title="Tecnología a medida para"
+            highlight="su empresa"
+            description="No somos un retail. Somos el partner tecnológico que su empresa necesita para operar, crecer y competir."
             large
           />
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {productCategories.map((cat, i) => (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {corporateSolutions.map((sol, i) => (
               <motion.div
-                key={cat.title}
+                key={sol.title}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.07, duration: 0.5 }}
+                transition={{ delay: i * 0.08, duration: 0.5 }}
               >
-                <Link
-                  to="/productos"
-                  className="group card-enterprise flex flex-col rounded-xl p-7"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="icon-container h-12 w-12 text-primary">
-                      <cat.icon size={22} />
-                    </div>
-                    <ArrowRight size={16} className="text-muted-foreground/30 transition-all group-hover:text-primary group-hover:translate-x-1" />
+                <Link to={sol.link} className="group card-enterprise flex flex-col rounded-xl p-7 h-full">
+                  <div className="icon-container h-12 w-12 text-primary mb-5">
+                    <sol.icon size={22} />
                   </div>
-                  <h3 className="mt-5 font-display text-lg font-semibold text-foreground">{cat.title}</h3>
-                  <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{cat.desc}</p>
-                  <span className="mt-4 text-xs font-medium text-primary/70">{cat.count}</span>
+                  <h3 className="font-display text-base font-semibold text-foreground">{sol.title}</h3>
+                  <p className="mt-2.5 text-sm text-muted-foreground leading-relaxed flex-1">{sol.desc}</p>
+                  <span className="mt-5 inline-flex items-center text-sm font-medium text-primary transition-all group-hover:gap-2 gap-1">
+                    Más información <ArrowRight size={14} />
+                  </span>
                 </Link>
               </motion.div>
             ))}
           </div>
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            className="mt-12 text-center"
-          >
-            <Link to="/productos">
-              <Button variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-11 px-6 text-sm">
-                Ver Catálogo Completo <ArrowRight size={14} className="ml-2" />
-              </Button>
-            </Link>
-          </motion.div>
         </div>
       </section>
 
-      {/* Services */}
+      {/* Product Categories */}
       <section className="relative">
         <div className="section-divider" />
         <div className="bg-surface py-24 lg:py-32">
           <div className="container mx-auto px-4 lg:px-8">
-            <div className="grid gap-16 lg:grid-cols-2 lg:items-start">
-              <div className="lg:sticky lg:top-32">
-                <SectionHeading
-                  badge="Servicios Profesionales"
-                  title="Servicios IT para empresas"
-                  highlight="que escalan"
-                  description="Desde la consultoría inicial hasta el soporte continuo, acompañamos a su empresa en cada etapa de su crecimiento tecnológico."
-                  center={false}
-                />
+            <SectionHeading
+              badge="Catálogo de Productos"
+              title="Hardware empresarial de"
+              highlight="alto rendimiento"
+              description="Equipamiento tecnológico de las mejores marcas para cada área de su organización."
+              large
+            />
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {productCategories.map((cat, i) => (
+                <motion.div
+                  key={cat.title}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.07, duration: 0.5 }}
+                >
+                  <Link to="/productos" className="group card-enterprise flex flex-col rounded-xl p-7">
+                    <div className="flex items-start justify-between">
+                      <div className="icon-container h-12 w-12 text-primary">
+                        <cat.icon size={22} />
+                      </div>
+                      <ArrowRight size={16} className="text-muted-foreground/30 transition-all group-hover:text-primary group-hover:translate-x-1" />
+                    </div>
+                    <h3 className="mt-5 font-display text-lg font-semibold text-foreground">{cat.title}</h3>
+                    <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{cat.desc}</p>
+                    <span className="mt-4 text-xs font-medium text-primary/70">{cat.count}</span>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+            <motion.div
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              viewport={{ once: true }}
+              className="mt-12 text-center"
+            >
+              <Link to="/productos">
+                <Button variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-11 px-6 text-sm">
+                  Ver Catálogo Completo <ArrowRight size={14} className="ml-2" />
+                </Button>
+              </Link>
+            </motion.div>
+          </div>
+        </div>
+        <div className="section-divider" />
+      </section>
+
+      {/* Services */}
+      <section className="py-24 lg:py-32">
+        <div className="container mx-auto px-4 lg:px-8">
+          <div className="grid gap-16 lg:grid-cols-2 lg:items-start">
+            <div className="lg:sticky lg:top-32">
+              <SectionHeading
+                badge="Servicios Profesionales"
+                title="Servicios IT para empresas"
+                highlight="que escalan"
+                description="Desde la consultoría inicial hasta el soporte continuo, acompañamos a su empresa en cada etapa de su crecimiento tecnológico."
+                center={false}
+              />
+              <div className="flex flex-wrap gap-3">
                 <Link to="/servicios-it">
                   <Button className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 h-11 px-6 text-sm">
                     Conocer Servicios <ArrowRight size={14} className="ml-2" />
                   </Button>
                 </Link>
+                <Link to="/cotizacion">
+                  <Button variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-11 px-6 text-sm">
+                    Solicitar Cotización
+                  </Button>
+                </Link>
               </div>
+            </div>
 
-              <div className="space-y-4">
-                {services.map((svc, i) => (
-                  <motion.div
-                    key={svc.title}
-                    initial={{ opacity: 0, x: 20 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: i * 0.1, duration: 0.5 }}
-                    className="card-enterprise rounded-xl p-6 lg:p-7"
-                  >
-                    <div className="flex items-start gap-5">
-                      <span className="font-display text-3xl font-extrabold text-border/80">{svc.number}</span>
-                      <div>
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className="icon-container h-9 w-9 text-primary">
-                            <svc.icon size={16} />
-                          </div>
-                          <h3 className="font-display text-base font-semibold text-foreground">{svc.title}</h3>
+            <div className="space-y-4">
+              {services.map((svc, i) => (
+                <motion.div
+                  key={svc.title}
+                  initial={{ opacity: 0, x: 20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.1, duration: 0.5 }}
+                  className="card-enterprise rounded-xl p-6 lg:p-7"
+                >
+                  <div className="flex items-start gap-5">
+                    <span className="font-display text-3xl font-extrabold text-border/80">{svc.number}</span>
+                    <div>
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="icon-container h-9 w-9 text-primary">
+                          <svc.icon size={16} />
                         </div>
-                        <p className="text-sm text-muted-foreground leading-relaxed">{svc.desc}</p>
+                        <h3 className="font-display text-base font-semibold text-foreground">{svc.title}</h3>
                       </div>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{svc.desc}</p>
                     </div>
-                  </motion.div>
-                ))}
-              </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* B2B Partner CTA */}
+      <section className="relative">
+        <div className="section-divider" />
+        <div className="bg-surface py-24 lg:py-32">
+          <div className="container mx-auto px-4 lg:px-8">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <EnterpriseCTA
+                badge="Partner B2B"
+                badgeIcon={Briefcase}
+                title="¿Necesita equipar"
+                highlight="su empresa?"
+                description="Precios especiales por volumen, cuenta corriente, facturación A/B y un ejecutivo de cuenta dedicado a su organización."
+                primaryLabel="Solicitar Cotización B2B"
+                primaryTo="/cotizacion"
+                variant="compact"
+              />
+              <EnterpriseCTA
+                badge="Consultoría IT"
+                badgeIcon={Settings}
+                title="¿Planifica su"
+                highlight="transformación digital?"
+                description="Nuestro equipo de consultores certificados diseña el roadmap tecnológico que su empresa necesita para escalar."
+                primaryLabel="Hablar con un Consultor"
+                primaryTo="/contacto"
+                variant="compact"
+              />
             </div>
           </div>
         </div>
         <div className="section-divider" />
       </section>
 
-      {/* Enterprise CTA */}
+      {/* Main Enterprise CTA */}
       <section className="py-24 lg:py-32">
         <div className="container mx-auto px-4 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="relative overflow-hidden rounded-2xl border border-border/40 bg-card p-12 md:p-20"
-          >
-            {/* Background effects */}
-            <div className="absolute inset-0 hero-grid opacity-20" />
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-primary/5 blur-[100px] rounded-full" />
-
-            <div className="relative text-center">
-              <span className="enterprise-badge mb-6 inline-flex">
-                <TrendingUp size={12} />
-                Potencie su Infraestructura
-              </span>
-              <h2 className="font-display text-3xl font-bold text-foreground md:text-4xl lg:text-5xl tracking-tight">
-                ¿Listo para transformar la
-                <br className="hidden sm:block" />
-                <span className="text-gradient"> tecnología de su empresa?</span>
-              </h2>
-              <p className="mx-auto mt-5 max-w-lg text-muted-foreground leading-relaxed">
-                Nuestro equipo de especialistas está preparado para diseñar la solución tecnológica que su empresa necesita.
-              </p>
-              <div className="mt-10 flex flex-wrap justify-center gap-4">
-                <Link to="/cotizacion">
-                  <Button size="lg" className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 glow-sm h-12 px-8 text-sm">
-                    Solicitar Cotización
-                  </Button>
-                </Link>
-                <Link to="/contacto">
-                  <Button size="lg" variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-12 px-8 text-sm">
-                    Hablar con un Especialista
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </motion.div>
+          <EnterpriseCTA
+            badge="Potencie su Infraestructura"
+            badgeIcon={TrendingUp}
+            title="¿Listo para transformar la"
+            highlight="tecnología de su empresa?"
+            description="Más de 500 empresas ya confían en nosotros. Nuestro equipo de especialistas está preparado para diseñar la solución que su organización necesita."
+            primaryLabel="Solicitar Cotización"
+            primaryTo="/cotizacion"
+            secondaryLabel="Hablar con un Especialista"
+            secondaryTo="/contacto"
+          />
         </div>
       </section>
 

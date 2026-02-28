@@ -1,9 +1,10 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { Award, Users, Target, Lightbulb, ArrowRight, Building2 } from "lucide-react";
+import { Award, Users, Target, Lightbulb, ArrowRight, Building2, Briefcase, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Layout from "@/components/Layout";
 import SectionHeading from "@/components/SectionHeading";
+import EnterpriseCTA from "@/components/EnterpriseCTA";
 
 const values = [
   { icon: Award, title: "Excelencia", desc: "Nos comprometemos con la calidad en cada producto y servicio que ofrecemos a nuestros clientes." },
@@ -93,12 +94,43 @@ const About = () => {
             </div>
           </motion.div>
 
-          <div className="mt-16 text-center">
-            <Link to="/contacto">
-              <Button className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 h-11 px-7 text-sm">
-                Contactar al Equipo <ArrowRight size={14} className="ml-2" />
-              </Button>
-            </Link>
+          {/* Why choose us */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="mt-20 card-enterprise rounded-xl p-8 lg:p-10"
+          >
+            <h3 className="font-display text-xl font-semibold text-foreground mb-6">¿Por qué elegirnos como su partner IT?</h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {[
+                "Más de 500 empresas nos eligen",
+                "Distribuidores autorizados de las principales marcas",
+                "Equipo de consultores certificados",
+                "SLA y soporte con tiempos garantizados",
+                "Facturación A y B — Cuenta corriente",
+                "Implementación y soporte en todo el país",
+              ].map((item) => (
+                <div key={item} className="flex items-start gap-2.5 text-sm text-secondary-foreground">
+                  <Shield size={15} className="text-primary mt-0.5 shrink-0" />
+                  {item}
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          <div className="mt-20">
+            <EnterpriseCTA
+              badge="Trabaje con Nosotros"
+              badgeIcon={Briefcase}
+              title="Convierta a Bartez en su"
+              highlight="partner tecnológico"
+              description="Únase a las más de 500 empresas que confían en nuestras soluciones de infraestructura, equipamiento y consultoría IT."
+              primaryLabel="Solicitar Cotización Corporativa"
+              primaryTo="/cotizacion"
+              secondaryLabel="Contactar al Equipo Comercial"
+              secondaryTo="/contacto"
+            />
           </div>
         </div>
       </section>

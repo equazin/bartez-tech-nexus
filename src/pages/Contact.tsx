@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Mail, Phone, MapPin, Send, Clock } from "lucide-react";
+import { Mail, Phone, MapPin, Send, Clock, Building2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import Layout from "@/components/Layout";
 import SectionHeading from "@/components/SectionHeading";
+import { Link } from "react-router-dom";
 
 const Contact = () => {
   const { toast } = useToast();
@@ -116,6 +117,29 @@ const Contact = () => {
               ))}
             </motion.div>
           </div>
+
+          {/* Corporate shortcut */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="mt-12 card-enterprise rounded-xl p-6 lg:p-8 flex flex-col sm:flex-row items-center justify-between gap-4"
+          >
+            <div className="flex items-center gap-4">
+              <div className="icon-container h-12 w-12 text-primary shrink-0">
+                <Building2 size={22} />
+              </div>
+              <div>
+                <h3 className="font-display text-base font-semibold text-foreground">¿Es una consulta corporativa?</h3>
+                <p className="text-sm text-muted-foreground">Solicite una cotización formal con precios especiales para empresas.</p>
+              </div>
+            </div>
+            <Link to="/cotizacion" className="shrink-0">
+              <Button className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 h-11 px-6 text-sm">
+                Cotización Corporativa <ArrowRight size={14} className="ml-2" />
+              </Button>
+            </Link>
+          </motion.div>
         </div>
       </section>
     </Layout>

@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Monitor, Laptop, Gamepad2, Server, Network, Mouse, Cpu, ArrowRight } from "lucide-react";
+import { Monitor, Laptop, Gamepad2, Server, Network, Mouse, Cpu, ArrowRight, Building2, PhoneCall } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Layout from "@/components/Layout";
 import SectionHeading from "@/components/SectionHeading";
+import EnterpriseCTA from "@/components/EnterpriseCTA";
 
 const categories = [
   { icon: Monitor, title: "Desktop PCs", desc: "Equipos de escritorio para oficinas, estaciones de trabajo y uso profesional. Configuraciones personalizadas según las necesidades de su empresa.", features: ["Equipos corporativos", "Workstations", "All-in-One", "Configuración a medida"], count: "120+ modelos" },
@@ -18,7 +19,6 @@ const categories = [
 const Products = () => {
   return (
     <Layout>
-      {/* Hero */}
       <section className="relative py-20 lg:py-28">
         <div className="absolute inset-0 hero-radial" />
         <div className="relative container mx-auto px-4 lg:px-8">
@@ -32,7 +32,33 @@ const Products = () => {
         </div>
       </section>
 
-      {/* Categories */}
+      {/* Enterprise procurement banner */}
+      <section className="pb-12">
+        <div className="container mx-auto px-4 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="card-enterprise rounded-xl p-6 lg:p-8 flex flex-col sm:flex-row items-center justify-between gap-4"
+          >
+            <div className="flex items-center gap-4">
+              <div className="icon-container h-12 w-12 text-primary shrink-0">
+                <Building2 size={22} />
+              </div>
+              <div>
+                <h3 className="font-display text-base font-semibold text-foreground">¿Compra para su empresa?</h3>
+                <p className="text-sm text-muted-foreground">Acceda a precios corporativos, financiación y un ejecutivo de cuenta dedicado.</p>
+              </div>
+            </div>
+            <Link to="/cotizacion" className="shrink-0">
+              <Button className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 h-11 px-6 text-sm">
+                Cotización Corporativa <ArrowRight size={14} className="ml-2" />
+              </Button>
+            </Link>
+          </motion.div>
+        </div>
+      </section>
+
       <section className="pb-24 lg:pb-32">
         <div className="container mx-auto px-4 lg:px-8">
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -72,19 +98,20 @@ const Products = () => {
           </div>
 
           {/* CTA */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="mt-16 text-center"
-          >
-            <p className="text-muted-foreground mb-6">¿No encuentra lo que busca? Contáctenos para soluciones personalizadas.</p>
-            <Link to="/cotizacion">
-              <Button className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 h-11 px-7 text-sm">
-                Cotizar Productos <ArrowRight size={14} className="ml-2" />
-              </Button>
-            </Link>
-          </motion.div>
+          <div className="mt-20">
+            <EnterpriseCTA
+              badge="Compras Corporativas"
+              badgeIcon={Building2}
+              title="¿Necesita equipar múltiples"
+              highlight="puestos de trabajo?"
+              description="Cotice por volumen y acceda a precios preferenciales, financiación y entrega programada para su empresa."
+              primaryLabel="Solicitar Cotización Corporativa"
+              primaryTo="/cotizacion"
+              secondaryLabel="Hablar con Ventas Corporativas"
+              secondaryTo="/contacto"
+              variant="compact"
+            />
+          </div>
         </div>
       </section>
     </Layout>
