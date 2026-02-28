@@ -1,9 +1,10 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { HandshakeIcon, ArrowRight, CheckCircle2, Building2, Users, TrendingUp, Shield } from "lucide-react";
+import { HandshakeIcon, ArrowRight, CheckCircle2, Building2, Users, TrendingUp, Shield, PhoneCall } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Layout from "@/components/Layout";
 import SectionHeading from "@/components/SectionHeading";
+import EnterpriseCTA from "@/components/EnterpriseCTA";
 
 const benefits = [
   "Precios especiales para volumen",
@@ -101,12 +102,18 @@ const B2BSolutions = () => {
             </motion.div>
           </div>
 
-          <div className="mt-16 text-center">
-            <Link to="/cotizacion">
-              <Button className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 glow-sm h-11 px-7 text-sm">
-                Solicitar Información B2B <ArrowRight size={14} className="ml-2" />
-              </Button>
-            </Link>
+          <div className="mt-20">
+            <EnterpriseCTA
+              badge="Comience Hoy"
+              badgeIcon={PhoneCall}
+              title="Conviértase en partner de"
+              highlight="Bartez Tecnología"
+              description="Acceda a precios preferenciales, soporte prioritario, cuenta corriente y un ejecutivo comercial dedicado a su cuenta."
+              primaryLabel="Quiero ser Partner B2B"
+              primaryTo="/cotizacion"
+              secondaryLabel="Contactar Ventas Corporativas"
+              secondaryTo="/contacto"
+            />
           </div>
         </div>
       </section>

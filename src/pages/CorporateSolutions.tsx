@@ -1,9 +1,10 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { Building2, Network, Shield, Server, Monitor, HeadphonesIcon, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Building2, Network, Shield, Server, Monitor, HeadphonesIcon, ArrowRight, CheckCircle2, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Layout from "@/components/Layout";
 import SectionHeading from "@/components/SectionHeading";
+import EnterpriseCTA from "@/components/EnterpriseCTA";
 
 const solutions = [
   { icon: Building2, title: "Equipamiento de Oficinas", desc: "Provisión completa de equipos para oficinas. PCs, notebooks, monitores, periféricos y mobiliario tecnológico.", number: "01" },
@@ -85,12 +86,18 @@ const CorporateSolutions = () => {
             </div>
           </motion.div>
 
-          <div className="mt-16 text-center">
-            <Link to="/cotizacion">
-              <Button className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 glow-sm h-11 px-7 text-sm">
-                Consultar por Soluciones <ArrowRight size={14} className="ml-2" />
-              </Button>
-            </Link>
+          <div className="mt-20">
+            <EnterpriseCTA
+              badge="Soluciones a Medida"
+              badgeIcon={Briefcase}
+              title="Diseñamos la infraestructura que"
+              highlight="su empresa necesita"
+              description="Relevamiento, diseño, implementación y soporte continuo. Todo en un solo partner tecnológico."
+              primaryLabel="Solicitar Propuesta Corporativa"
+              primaryTo="/cotizacion"
+              secondaryLabel="Hablar con un Consultor"
+              secondaryTo="/contacto"
+            />
           </div>
         </div>
       </section>

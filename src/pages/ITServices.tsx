@@ -1,9 +1,10 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { Wrench, Monitor, Network, Shield, Cloud, Headphones, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Wrench, Monitor, Network, Shield, Cloud, Headphones, ArrowRight, CheckCircle2, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Layout from "@/components/Layout";
 import SectionHeading from "@/components/SectionHeading";
+import EnterpriseCTA from "@/components/EnterpriseCTA";
 
 const services = [
   { icon: Wrench, title: "Mantenimiento Preventivo", desc: "Planes de mantenimiento para equipos y redes. Minimice tiempos de inactividad y maximice la vida útil de su inversión tecnológica.", highlights: ["Planes mensuales", "Reportes de estado", "Actualizaciones"] },
@@ -58,12 +59,18 @@ const ITServices = () => {
             ))}
           </div>
 
-          <div className="mt-16 text-center">
-            <Link to="/contacto">
-              <Button className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 glow-sm h-11 px-7 text-sm">
-                Consultar Servicios <ArrowRight size={14} className="ml-2" />
-              </Button>
-            </Link>
+          <div className="mt-20">
+            <EnterpriseCTA
+              badge="Consultoría Tecnológica"
+              badgeIcon={TrendingUp}
+              title="¿Su empresa necesita un"
+              highlight="partner IT confiable?"
+              description="Diseñamos planes de soporte, mantenimiento y consultoría a medida. SLA garantizado y equipo certificado."
+              primaryLabel="Solicitar Propuesta de Servicios"
+              primaryTo="/cotizacion"
+              secondaryLabel="Contactar un Especialista"
+              secondaryTo="/contacto"
+            />
           </div>
         </div>
       </section>
