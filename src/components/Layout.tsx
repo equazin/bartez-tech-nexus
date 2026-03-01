@@ -12,9 +12,9 @@ const Layout = ({ children }: { children: ReactNode }) => {
   }, [pathname]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background noise-overlay">
       <Navbar />
-      <main className="pt-[72px]">{children}</main>
+      <main className="pt-[96px] lg:pt-[96px]">{children}</main>
       <Footer />
       <WhatsAppButton />
     </div>

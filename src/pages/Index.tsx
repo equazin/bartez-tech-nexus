@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, Shield, Zap, Server, Monitor, Headphones, BarChart3, CheckCircle2, Building2, Network, Cpu, TrendingUp, Globe, Award, Briefcase, Settings, PhoneCall } from "lucide-react";
+import { ArrowRight, Shield, Zap, Server, Monitor, Headphones, BarChart3, CheckCircle2, Building2, Network, Cpu, TrendingUp, Globe, Award, Briefcase, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Layout from "@/components/Layout";
 import SectionHeading from "@/components/SectionHeading";
@@ -60,19 +60,19 @@ const Index = () => {
   return (
     <Layout>
       {/* Hero */}
-      <section className="relative overflow-hidden min-h-[90vh] flex items-center">
+      <section className="relative overflow-hidden min-h-[85vh] flex items-center">
         <div className="absolute inset-0">
-          <img src={heroBg} alt="" className="h-full w-full object-cover opacity-30" loading="eager" />
-          <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/70 to-background" />
+          <img src={heroBg} alt="" className="h-full w-full object-cover opacity-25" loading="eager" />
+          <div className="absolute inset-0 bg-gradient-to-b from-background/30 via-background/70 to-background" />
           <div className="absolute inset-0 hero-radial" />
         </div>
-        <div className="absolute inset-0 hero-grid opacity-40" />
+        <div className="absolute inset-0 hero-grid opacity-30" />
 
-        <div className="relative container mx-auto px-4 py-32 md:py-40 lg:py-48 lg:px-8">
-          <motion.div initial="hidden" animate="visible" className="max-w-4xl">
+        <div className="relative container mx-auto px-4 py-28 md:py-36 lg:py-44 lg:px-8">
+          <motion.div initial="hidden" animate="visible" className="max-w-3xl">
             <motion.div variants={fadeUp} custom={0}>
-              <span className="enterprise-badge mb-8 inline-flex">
-                <Globe size={12} />
+              <span className="enterprise-badge mb-7 inline-flex">
+                <Globe size={11} />
                 Partner Tecnológico para Empresas
               </span>
             </motion.div>
@@ -80,7 +80,7 @@ const Index = () => {
             <motion.h1
               variants={fadeUp}
               custom={1}
-              className="font-display text-4xl font-extrabold leading-[1.05] tracking-tight text-foreground sm:text-5xl md:text-6xl lg:text-7xl"
+              className="font-display text-3xl font-extrabold leading-[1.08] tracking-tight text-foreground sm:text-4xl md:text-5xl lg:text-6xl"
             >
               Su aliado estratégico en{" "}
               <br className="hidden md:block" />
@@ -90,20 +90,20 @@ const Index = () => {
             <motion.p
               variants={fadeUp}
               custom={2}
-              className="mt-7 max-w-xl text-lg text-muted-foreground leading-relaxed md:text-xl"
+              className="mt-6 max-w-lg text-base text-muted-foreground leading-relaxed md:text-lg"
             >
               Hardware empresarial, infraestructura de redes, servidores y consultoría IT.
               Soluciones integrales para empresas que demandan confiabilidad y resultados.
             </motion.p>
 
-            <motion.div variants={fadeUp} custom={3} className="mt-10 flex flex-wrap gap-4">
+            <motion.div variants={fadeUp} custom={3} className="mt-9 flex flex-wrap gap-3">
               <Link to="/cotizacion">
-                <Button size="lg" className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 glow-sm h-12 px-8 text-sm">
-                  Solicitar Cotización Corporativa <ArrowRight className="ml-2" size={16} />
+                <Button size="lg" className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 glow-sm h-11 px-7 text-sm">
+                  Solicitar Cotización Corporativa <ArrowRight className="ml-2" size={14} />
                 </Button>
               </Link>
               <Link to="/soluciones-corporativas">
-                <Button size="lg" variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-12 px-8 text-sm">
+                <Button size="lg" variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-11 px-7 text-sm">
                   Soluciones para Empresas
                 </Button>
               </Link>
@@ -112,10 +112,10 @@ const Index = () => {
             <motion.div
               variants={fadeUp}
               custom={4}
-              className="mt-16 flex flex-wrap items-center gap-x-8 gap-y-3"
+              className="mt-14 flex flex-wrap items-center gap-x-8 gap-y-3"
             >
               {["Dell", "HP", "Lenovo", "Cisco", "Intel"].map((brand) => (
-                <span key={brand} className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground/60">
+                <span key={brand} className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/50">
                   {brand}
                 </span>
               ))}
@@ -128,8 +128,8 @@ const Index = () => {
       <section className="relative">
         <div className="section-divider" />
         <div className="bg-surface">
-          <div className="container mx-auto px-4 py-16 lg:px-8 lg:py-20">
-            <div className="grid grid-cols-2 gap-10 md:grid-cols-4">
+          <div className="container mx-auto px-4 py-14 lg:px-8 lg:py-16">
+            <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
               {stats.map((stat, i) => (
                 <motion.div
                   key={stat.label}
@@ -139,8 +139,8 @@ const Index = () => {
                   transition={{ delay: i * 0.1, duration: 0.5 }}
                   className="text-center"
                 >
-                  <div className="stat-number text-4xl md:text-5xl">{stat.value}</div>
-                  <div className="mt-2 text-sm text-muted-foreground">{stat.label}</div>
+                  <div className="stat-number text-3xl md:text-4xl lg:text-5xl">{stat.value}</div>
+                  <div className="mt-2 text-xs text-muted-foreground">{stat.label}</div>
                 </motion.div>
               ))}
             </div>
@@ -150,7 +150,7 @@ const Index = () => {
       </section>
 
       {/* Corporate Solutions */}
-      <section className="py-24 lg:py-32">
+      <section className="py-20 lg:py-28">
         <div className="container mx-auto px-4 lg:px-8">
           <SectionHeading
             badge="Soluciones Corporativas"
@@ -159,23 +159,23 @@ const Index = () => {
             description="No somos un retail. Somos el partner tecnológico que su empresa necesita para operar, crecer y competir."
             large
           />
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {corporateSolutions.map((sol, i) => (
               <motion.div
                 key={sol.title}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
+                viewport={{ once: true, margin: "-40px" }}
                 transition={{ delay: i * 0.08, duration: 0.5 }}
               >
-                <Link to={sol.link} className="group card-enterprise flex flex-col rounded-xl p-7 h-full">
-                  <div className="icon-container h-12 w-12 text-primary mb-5">
-                    <sol.icon size={22} />
+                <Link to={sol.link} className="group card-enterprise flex flex-col rounded-xl p-6 lg:p-7 h-full">
+                  <div className="icon-container h-11 w-11 text-primary mb-4">
+                    <sol.icon size={20} />
                   </div>
-                  <h3 className="font-display text-base font-semibold text-foreground">{sol.title}</h3>
-                  <p className="mt-2.5 text-sm text-muted-foreground leading-relaxed flex-1">{sol.desc}</p>
-                  <span className="mt-5 inline-flex items-center text-sm font-medium text-primary transition-all group-hover:gap-2 gap-1">
-                    Más información <ArrowRight size={14} />
+                  <h3 className="font-display text-sm font-semibold text-foreground">{sol.title}</h3>
+                  <p className="mt-2 text-xs text-muted-foreground leading-relaxed flex-1">{sol.desc}</p>
+                  <span className="mt-4 inline-flex items-center text-xs font-medium text-primary transition-all group-hover:gap-2 gap-1">
+                    Más información <ArrowRight size={12} />
                   </span>
                 </Link>
               </motion.div>
@@ -187,7 +187,7 @@ const Index = () => {
       {/* Product Categories */}
       <section className="relative">
         <div className="section-divider" />
-        <div className="bg-surface py-24 lg:py-32">
+        <div className="bg-surface py-20 lg:py-28">
           <div className="container mx-auto px-4 lg:px-8">
             <SectionHeading
               badge="Catálogo de Productos"
@@ -196,25 +196,25 @@ const Index = () => {
               description="Equipamiento tecnológico de las mejores marcas para cada área de su organización."
               large
             />
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {productCategories.map((cat, i) => (
                 <motion.div
                   key={cat.title}
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
+                  viewport={{ once: true, margin: "-40px" }}
                   transition={{ delay: i * 0.07, duration: 0.5 }}
                 >
-                  <Link to="/productos" className="group card-enterprise flex flex-col rounded-xl p-7">
+                  <Link to="/productos" className="group card-enterprise flex flex-col rounded-xl p-6">
                     <div className="flex items-start justify-between">
-                      <div className="icon-container h-12 w-12 text-primary">
-                        <cat.icon size={22} />
+                      <div className="icon-container h-11 w-11 text-primary">
+                        <cat.icon size={20} />
                       </div>
-                      <ArrowRight size={16} className="text-muted-foreground/30 transition-all group-hover:text-primary group-hover:translate-x-1" />
+                      <ArrowRight size={14} className="text-muted-foreground/20 transition-all group-hover:text-primary group-hover:translate-x-1" />
                     </div>
-                    <h3 className="mt-5 font-display text-lg font-semibold text-foreground">{cat.title}</h3>
-                    <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{cat.desc}</p>
-                    <span className="mt-4 text-xs font-medium text-primary/70">{cat.count}</span>
+                    <h3 className="mt-4 font-display text-base font-semibold text-foreground">{cat.title}</h3>
+                    <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">{cat.desc}</p>
+                    <span className="mt-3 text-[11px] font-medium text-primary/60">{cat.count}</span>
                   </Link>
                 </motion.div>
               ))}
@@ -223,11 +223,11 @@ const Index = () => {
               initial={{ opacity: 0 }}
               whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
-              className="mt-12 text-center"
+              className="mt-10 text-center"
             >
               <Link to="/productos">
-                <Button variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-11 px-6 text-sm">
-                  Ver Catálogo Completo <ArrowRight size={14} className="ml-2" />
+                <Button variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-10 px-6 text-sm">
+                  Ver Catálogo Completo <ArrowRight size={13} className="ml-2" />
                 </Button>
               </Link>
             </motion.div>
@@ -237,9 +237,9 @@ const Index = () => {
       </section>
 
       {/* Services */}
-      <section className="py-24 lg:py-32">
+      <section className="py-20 lg:py-28">
         <div className="container mx-auto px-4 lg:px-8">
-          <div className="grid gap-16 lg:grid-cols-2 lg:items-start">
+          <div className="grid gap-14 lg:grid-cols-2 lg:items-start">
             <div className="lg:sticky lg:top-32">
               <SectionHeading
                 badge="Servicios Profesionales"
@@ -250,38 +250,38 @@ const Index = () => {
               />
               <div className="flex flex-wrap gap-3">
                 <Link to="/servicios-it">
-                  <Button className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 h-11 px-6 text-sm">
-                    Conocer Servicios <ArrowRight size={14} className="ml-2" />
+                  <Button className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 h-10 px-6 text-sm">
+                    Conocer Servicios <ArrowRight size={13} className="ml-2" />
                   </Button>
                 </Link>
                 <Link to="/cotizacion">
-                  <Button variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-11 px-6 text-sm">
+                  <Button variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-10 px-6 text-sm">
                     Solicitar Cotización
                   </Button>
                 </Link>
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               {services.map((svc, i) => (
                 <motion.div
                   key={svc.title}
                   initial={{ opacity: 0, x: 20 }}
                   whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
+                  viewport={{ once: true, margin: "-40px" }}
                   transition={{ delay: i * 0.1, duration: 0.5 }}
-                  className="card-enterprise rounded-xl p-6 lg:p-7"
+                  className="card-enterprise rounded-xl p-5 lg:p-6"
                 >
-                  <div className="flex items-start gap-5">
-                    <span className="font-display text-3xl font-extrabold text-border/80">{svc.number}</span>
+                  <div className="flex items-start gap-4">
+                    <span className="font-display text-2xl font-extrabold text-border/70 shrink-0">{svc.number}</span>
                     <div>
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="icon-container h-9 w-9 text-primary">
-                          <svc.icon size={16} />
+                      <div className="flex items-center gap-2.5 mb-1.5">
+                        <div className="icon-container h-8 w-8 text-primary">
+                          <svc.icon size={14} />
                         </div>
-                        <h3 className="font-display text-base font-semibold text-foreground">{svc.title}</h3>
+                        <h3 className="font-display text-sm font-semibold text-foreground">{svc.title}</h3>
                       </div>
-                      <p className="text-sm text-muted-foreground leading-relaxed">{svc.desc}</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{svc.desc}</p>
                     </div>
                   </div>
                 </motion.div>
@@ -303,9 +303,9 @@ const Index = () => {
       {/* B2B Partner CTA */}
       <section className="relative">
         <div className="section-divider" />
-        <div className="bg-surface py-24 lg:py-32">
+        <div className="bg-surface py-20 lg:py-28">
           <div className="container mx-auto px-4 lg:px-8">
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid gap-5 lg:grid-cols-2">
               <EnterpriseCTA
                 badge="Partner B2B"
                 badgeIcon={Briefcase}
@@ -333,7 +333,7 @@ const Index = () => {
       </section>
 
       {/* Main Enterprise CTA */}
-      <section className="py-24 lg:py-32">
+      <section className="py-20 lg:py-28">
         <div className="container mx-auto px-4 lg:px-8">
           <EnterpriseCTA
             badge="Potencie su Infraestructura"
@@ -352,12 +352,12 @@ const Index = () => {
       {/* Trust Footer Bar */}
       <section className="relative">
         <div className="section-divider" />
-        <div className="bg-surface py-12">
+        <div className="bg-surface py-10">
           <div className="container mx-auto px-4 lg:px-8 text-center">
-            <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
+            <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
               {trustItems.map((item) => (
-                <span key={item} className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <CheckCircle2 size={14} className="text-primary/70" />
+                <span key={item} className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <CheckCircle2 size={12} className="text-primary/60" />
                   {item}
                 </span>
               ))}
