@@ -1,0 +1,60 @@
+import { motion } from "framer-motion";
+import { Quote } from "lucide-react";
+import SectionHeading from "./SectionHeading";
+
+const testimonials = [
+  {
+    quote: "Bartez Tecnología equipó nuestras 12 sucursales con infraestructura de red y puestos de trabajo en tiempo récord. Su equipo técnico es de primer nivel.",
+    author: "María González",
+    role: "CTO",
+    company: "Grupo Financiero del Sur",
+  },
+  {
+    quote: "Llevamos 8 años trabajando con Bartez como nuestro partner IT. La calidad del soporte y los tiempos de respuesta son excepcionales.",
+    author: "Carlos Méndez",
+    role: "Director de Tecnología",
+    company: "Laboratorios Pharma Plus",
+  },
+  {
+    quote: "La consultoría de infraestructura que nos brindaron transformó nuestra operación. Redujimos costos un 35% y mejoramos el uptime al 99.9%.",
+    author: "Laura Vásquez",
+    role: "Gerente de Operaciones IT",
+    company: "Logística Nacional S.A.",
+  },
+];
+
+const ClientTestimonials = () => {
+  return (
+    <section className="py-24 lg:py-32">
+      <div className="container mx-auto px-4 lg:px-8">
+        <SectionHeading
+          badge="Clientes Corporativos"
+          title="Lo que dicen nuestros"
+          highlight="clientes"
+          description="La confianza de empresas líderes respalda nuestra trayectoria de más de 15 años."
+        />
+        <div className="grid gap-5 md:grid-cols-3">
+          {testimonials.map((t, i) => (
+            <motion.div
+              key={t.author}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1, duration: 0.5 }}
+              className="card-enterprise rounded-xl p-7 lg:p-8 flex flex-col"
+            >
+              <Quote size={24} className="text-primary/30 mb-4" />
+              <p className="text-sm text-secondary-foreground leading-relaxed flex-1">"{t.quote}"</p>
+              <div className="mt-6 pt-5 border-t border-border/40">
+                <p className="font-display text-sm font-semibold text-foreground">{t.author}</p>
+                <p className="text-xs text-muted-foreground">{t.role} — {t.company}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default ClientTestimonials;

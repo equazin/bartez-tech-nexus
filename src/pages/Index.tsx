@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import Layout from "@/components/Layout";
 import SectionHeading from "@/components/SectionHeading";
 import EnterpriseCTA from "@/components/EnterpriseCTA";
+import CorporateClients from "@/components/CorporateClients";
+import IndustriesServed from "@/components/IndustriesServed";
+import ClientTestimonials from "@/components/ClientTestimonials";
 import heroBg from "@/assets/hero-bg.png";
 
 const fadeUp = {
@@ -146,7 +149,7 @@ const Index = () => {
         <div className="section-divider" />
       </section>
 
-      {/* Corporate Solutions — NEW B2B SECTION */}
+      {/* Corporate Solutions */}
       <section className="py-24 lg:py-32">
         <div className="container mx-auto px-4 lg:px-8">
           <SectionHeading
@@ -288,6 +291,15 @@ const Index = () => {
         </div>
       </section>
 
+      {/* Corporate Clients & Trust */}
+      <CorporateClients />
+
+      {/* Industries Served */}
+      <IndustriesServed />
+
+      {/* Client Testimonials */}
+      <ClientTestimonials />
+
       {/* B2B Partner CTA */}
       <section className="relative">
         <div className="section-divider" />
@@ -337,7 +349,7 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Trust */}
+      {/* Trust Footer Bar */}
       <section className="relative">
         <div className="section-divider" />
         <div className="bg-surface py-12">
