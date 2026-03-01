@@ -25,34 +25,38 @@ const testimonials = [
 
 const ClientTestimonials = () => {
   return (
-    <section className="py-24 lg:py-32">
-      <div className="container mx-auto px-4 lg:px-8">
-        <SectionHeading
-          badge="Clientes Corporativos"
-          title="Lo que dicen nuestros"
-          highlight="clientes"
-          description="La confianza de empresas líderes respalda nuestra trayectoria de más de 15 años."
-        />
-        <div className="grid gap-5 md:grid-cols-3">
-          {testimonials.map((t, i) => (
-            <motion.div
-              key={t.author}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1, duration: 0.5 }}
-              className="card-enterprise rounded-xl p-7 lg:p-8 flex flex-col"
-            >
-              <Quote size={24} className="text-primary/30 mb-4" />
-              <p className="text-sm text-secondary-foreground leading-relaxed flex-1">"{t.quote}"</p>
-              <div className="mt-6 pt-5 border-t border-border/40">
-                <p className="font-display text-sm font-semibold text-foreground">{t.author}</p>
-                <p className="text-xs text-muted-foreground">{t.role} — {t.company}</p>
-              </div>
-            </motion.div>
-          ))}
+    <section className="relative">
+      <div className="section-divider" />
+      <div className="bg-surface py-20 lg:py-28">
+        <div className="container mx-auto px-4 lg:px-8">
+          <SectionHeading
+            badge="Clientes Corporativos"
+            title="Lo que dicen nuestros"
+            highlight="clientes"
+            description="La confianza de empresas líderes respalda nuestra trayectoria de más de 15 años."
+          />
+          <div className="grid gap-4 md:grid-cols-3">
+            {testimonials.map((t, i) => (
+              <motion.div
+                key={t.author}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ delay: i * 0.1, duration: 0.5 }}
+                className="card-glass rounded-xl p-6 lg:p-7 flex flex-col"
+              >
+                <Quote size={20} className="text-primary/25 mb-3" />
+                <p className="text-xs text-secondary-foreground leading-relaxed flex-1">"{t.quote}"</p>
+                <div className="mt-5 pt-4 border-t border-border/30">
+                  <p className="font-display text-xs font-semibold text-foreground">{t.author}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">{t.role} — {t.company}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
         </div>
       </div>
+      <div className="section-divider" />
     </section>
   );
 };

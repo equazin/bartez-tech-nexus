@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -26,69 +26,88 @@ const Navbar = () => {
   }, []);
 
   return (
-    <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled
-          ? "bg-glass-strong border-b border-border/30"
-          : "bg-transparent border-b border-transparent"
-      }`}
-    >
-      <div className="container mx-auto flex h-[72px] items-center justify-between px-4 lg:px-8">
-        <Link to="/" className="flex items-center gap-2.5 group">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-primary transition-transform group-hover:scale-105">
-            <span className="font-display text-base font-bold text-primary-foreground">B</span>
+    <header className="fixed top-0 left-0 right-0 z-50">
+      {/* Top utility bar */}
+      <div className="hidden lg:block border-b border-border/20 bg-background/80 backdrop-blur-sm">
+        <div className="container mx-auto flex items-center justify-between px-4 lg:px-8 h-8">
+          <span className="text-[11px] text-muted-foreground">
+            Partner tecnológico para empresas · 15+ años de experiencia
+          </span>
+          <div className="flex items-center gap-5">
+            <a href="tel:+541112345678" className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors">
+              <Phone size={10} />
+              +54 11 1234-5678
+            </a>
+            <span className="text-[11px] text-muted-foreground">Lun-Vie 9:00 – 18:00</span>
           </div>
-          <div className="flex flex-col">
-            <span className="font-display text-base font-bold tracking-tight text-foreground leading-none">
-              BARTEZ
-            </span>
-            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground leading-none mt-0.5">
-              Tecnología
-            </span>
-          </div>
-        </Link>
-
-        {/* Desktop Nav */}
-        <div className="hidden items-center gap-0.5 lg:flex">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              to={link.href}
-              className={`relative rounded-md px-3.5 py-2 text-[13px] font-medium transition-colors ${
-                location.pathname === link.href
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {link.label}
-              {location.pathname === link.href && (
-                <motion.div
-                  layoutId="nav-indicator"
-                  className="absolute bottom-0 left-3.5 right-3.5 h-[2px] bg-gradient-primary rounded-full"
-                  transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
-                />
-              )}
-            </Link>
-          ))}
         </div>
-
-        <div className="hidden items-center gap-3 lg:flex">
-          <Link to="/cotizacion">
-            <Button size="sm" className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 glow-sm h-9 px-5 text-[13px]">
-              Solicitar Cotización
-            </Button>
-          </Link>
-        </div>
-
-        {/* Mobile toggle */}
-        <button
-          className="lg:hidden text-foreground p-2 rounded-lg hover:bg-secondary transition-colors"
-          onClick={() => setMobileOpen(!mobileOpen)}
-          aria-label="Toggle menu"
-        >
-          {mobileOpen ? <X size={22} /> : <Menu size={22} />}
-        </button>
       </div>
+
+      {/* Main nav */}
+      <nav
+        className={`transition-all duration-300 ${
+          scrolled
+            ? "bg-glass-strong border-b border-border/30 shadow-lg shadow-background/50"
+            : "bg-transparent border-b border-transparent"
+        }`}
+      >
+        <div className="container mx-auto flex h-16 items-center justify-between px-4 lg:px-8">
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-primary transition-transform group-hover:scale-105">
+              <span className="font-display text-sm font-bold text-primary-foreground">B</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-display text-sm font-bold tracking-tight text-foreground leading-none">
+                BARTEZ
+              </span>
+              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground leading-none mt-0.5">
+                Tecnología
+              </span>
+            </div>
+          </Link>
+
+          {/* Desktop Nav */}
+          <div className="hidden items-center gap-0.5 lg:flex">
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                to={link.href}
+                className={`relative rounded-md px-3 py-2 text-[13px] font-medium transition-colors ${
+                  location.pathname === link.href
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {link.label}
+                {location.pathname === link.href && (
+                  <motion.div
+                    layoutId="nav-indicator"
+                    className="absolute bottom-0 left-3 right-3 h-[2px] bg-gradient-primary rounded-full"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
+                  />
+                )}
+              </Link>
+            ))}
+          </div>
+
+          <div className="hidden items-center gap-3 lg:flex">
+            <Link to="/cotizacion">
+              <Button size="sm" className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 glow-sm h-9 px-5 text-[13px]">
+                Solicitar Cotización
+              </Button>
+            </Link>
+          </div>
+
+          {/* Mobile toggle */}
+          <button
+            className="lg:hidden text-foreground p-2 rounded-lg hover:bg-secondary transition-colors"
+            onClick={() => setMobileOpen(!mobileOpen)}
+            aria-label="Toggle menu"
+          >
+            {mobileOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
+        </div>
+      </nav>
 
       {/* Mobile Nav */}
       <AnimatePresence>
@@ -124,7 +143,7 @@ const Navbar = () => {
           </motion.div>
         )}
       </AnimatePresence>
-    </nav>
+    </header>
   );
 };
 

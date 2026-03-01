@@ -95,7 +95,7 @@ const QuoteRequest = () => {
 
   return (
     <Layout>
-      <section className="relative py-20 lg:py-28">
+      <section className="page-hero">
         <div className="absolute inset-0 hero-radial" />
         <div className="relative container mx-auto px-4 lg:px-8">
           <SectionHeading
