@@ -27,7 +27,7 @@ const Contact = () => {
     { icon: Mail, label: "Email", value: "info@barteztecnologia.com", href: "mailto:info@barteztecnologia.com" },
     { icon: Phone, label: "Teléfono", value: "+54 11 1234-5678", href: "tel:+541112345678" },
     { icon: MapPin, label: "Ubicación", value: "Buenos Aires, Argentina" },
-    { icon: Clock, label: "Horario", value: "Lun-Vie 9:00-18:00 | Sáb 9:00-13:00" },
+    { icon: Clock, label: "Horario", value: "Lun-Vie 9:00-18:00" },
   ];
 
   return (
@@ -36,10 +36,10 @@ const Contact = () => {
         <div className="absolute inset-0 hero-radial" />
         <div className="relative container mx-auto px-4 lg:px-8">
           <SectionHeading
-            badge="Contacto"
-            title="Hablemos sobre su"
-            highlight="proyecto"
-            description="Nuestro equipo está listo para asesorarlo. Complete el formulario o contáctenos directamente."
+            badge="Contacto Corporativo"
+            title="Hablemos sobre la tecnología de"
+            highlight="su empresa"
+            description="Nuestro equipo de consultores está listo para entender sus necesidades y proponer la mejor solución."
             large
           />
         </div>
@@ -48,7 +48,6 @@ const Contact = () => {
       <section className="pb-24 lg:pb-32">
         <div className="container mx-auto px-4 lg:px-8">
           <div className="grid gap-8 lg:grid-cols-5">
-            {/* Form */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -75,8 +74,8 @@ const Contact = () => {
                   <Input placeholder="+54 11 1234-5678" className="input-enterprise" maxLength={30} />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-foreground">Mensaje *</label>
-                  <Textarea required placeholder="¿En qué podemos ayudarle?" rows={5} className="input-enterprise resize-none" maxLength={1000} />
+                  <label className="mb-2 block text-sm font-medium text-foreground">¿En qué podemos ayudarle? *</label>
+                  <Textarea required placeholder="Describa brevemente su situación tecnológica o consulta..." rows={5} className="input-enterprise resize-none" maxLength={1000} />
                 </div>
                 <Button
                   type="submit"
@@ -88,7 +87,6 @@ const Contact = () => {
               </form>
             </motion.div>
 
-            {/* Contact info */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -118,7 +116,6 @@ const Contact = () => {
             </motion.div>
           </div>
 
-          {/* Corporate shortcut */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -130,13 +127,13 @@ const Contact = () => {
                 <Building2 size={22} />
               </div>
               <div>
-                <h3 className="font-display text-base font-semibold text-foreground">¿Es una consulta corporativa?</h3>
-                <p className="text-sm text-muted-foreground">Solicite una cotización formal con precios especiales para empresas.</p>
+                <h3 className="font-display text-base font-semibold text-foreground">¿Necesita una evaluación tecnológica?</h3>
+                <p className="text-sm text-muted-foreground">Solicite un diagnóstico sin cargo de su infraestructura IT actual.</p>
               </div>
             </div>
-            <Link to="/cotizacion" className="shrink-0">
+            <Link to="/evaluacion-tecnologica" className="shrink-0">
               <Button className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 h-11 px-6 text-sm">
-                Cotización Corporativa <ArrowRight size={14} className="ml-2" />
+                Evaluación Tecnológica <ArrowRight size={14} className="ml-2" />
               </Button>
             </Link>
           </motion.div>

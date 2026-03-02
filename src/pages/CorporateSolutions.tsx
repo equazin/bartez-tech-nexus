@@ -1,26 +1,19 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { Building2, Network, Shield, Server, Monitor, HeadphonesIcon, ArrowRight, CheckCircle2, Briefcase } from "lucide-react";
+import { Building2, Network, Shield, Server, Monitor, HeadphonesIcon, ArrowRight, Briefcase, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Layout from "@/components/Layout";
 import SectionHeading from "@/components/SectionHeading";
 import EnterpriseCTA from "@/components/EnterpriseCTA";
+import WorkMethodology from "@/components/WorkMethodology";
 
 const solutions = [
-  { icon: Building2, title: "Equipamiento de Oficinas", desc: "Provisión completa de equipos para oficinas. PCs, notebooks, monitores, periféricos y mobiliario tecnológico.", number: "01" },
-  { icon: Network, title: "Redes Corporativas", desc: "Diseño e implementación de redes LAN/WAN, WiFi empresarial, VPN y conectividad segura.", number: "02" },
-  { icon: Server, title: "Data Center", desc: "Soluciones de infraestructura de servidores, almacenamiento y virtualización para su centro de datos.", number: "03" },
-  { icon: Shield, title: "Ciberseguridad", desc: "Protección integral de datos, firewalls, antivirus corporativo y políticas de seguridad.", number: "04" },
-  { icon: Monitor, title: "Salas de Reuniones", desc: "Equipamiento audiovisual, sistemas de videoconferencia y colaboración para salas de reuniones.", number: "05" },
-  { icon: HeadphonesIcon, title: "Soporte Dedicado", desc: "Mesa de ayuda, soporte on-site y mantenimiento preventivo con SLA garantizado.", number: "06" },
-];
-
-const processSteps = [
-  "Relevamiento de necesidades",
-  "Diseño de la solución",
-  "Propuesta y cotización",
-  "Implementación",
-  "Soporte continuo",
+  { icon: Server, title: "Infraestructura IT", desc: "Diseño e implementación de servidores, almacenamiento, virtualización y data centers. Infraestructura que soporta la operación crítica de su empresa.", number: "01" },
+  { icon: Network, title: "Redes Corporativas", desc: "Redes LAN/WAN, WiFi empresarial, VPN y seguridad perimetral. Conectividad confiable para todas las áreas de su organización.", number: "02" },
+  { icon: Monitor, title: "Equipamiento de Puestos de Trabajo", desc: "Provisión integral de estaciones de trabajo, notebooks, monitores y periféricos configurados y listos para operar.", number: "03" },
+  { icon: Shield, title: "Ciberseguridad Corporativa", desc: "Protección integral de datos, firewalls, políticas de seguridad, backup automatizado y planes de recuperación ante desastres.", number: "04" },
+  { icon: Lightbulb, title: "Modernización de Infraestructura", desc: "Actualización tecnológica planificada. Migramos su infraestructura a estándares modernos con mínimo impacto operativo.", number: "05" },
+  { icon: HeadphonesIcon, title: "Continuidad Operativa", desc: "Planes de contingencia, redundancia de sistemas y acuerdos de nivel de servicio (SLA) para garantizar la operación 24/7.", number: "06" },
 ];
 
 const CorporateSolutions = () => {
@@ -31,15 +24,15 @@ const CorporateSolutions = () => {
         <div className="relative container mx-auto px-4 lg:px-8">
           <SectionHeading
             badge="Soluciones Corporativas"
-            title="Tecnología a medida para"
-            highlight="su empresa"
-            description="Diseñamos e implementamos soluciones tecnológicas integrales que se adaptan a la escala y complejidad de su organización."
+            title="Infraestructura tecnológica para"
+            highlight="su organización"
+            description="Diseñamos, implementamos y mantenemos la infraestructura IT que su empresa necesita. Soluciones integrales con visión de largo plazo."
             large
           />
         </div>
       </section>
 
-      <section className="pb-24 lg:pb-32">
+      <section className="pb-16 lg:pb-20">
         <div className="container mx-auto px-4 lg:px-8">
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             {solutions.map((sol, i) => (
@@ -62,43 +55,31 @@ const CorporateSolutions = () => {
               </motion.div>
             ))}
           </div>
+        </div>
+      </section>
 
-          {/* Process */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="mt-20 card-enterprise rounded-xl p-8 lg:p-10"
-          >
-            <h3 className="font-display text-xl font-semibold text-foreground mb-6">Nuestro Proceso</h3>
-            <div className="flex flex-col sm:flex-row gap-4 sm:gap-0">
-              {processSteps.map((step, i) => (
-                <div key={step} className="flex items-center gap-3 sm:flex-1">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-primary text-xs font-bold text-primary-foreground">
-                    {i + 1}
-                  </div>
-                  <span className="text-sm text-secondary-foreground">{step}</span>
-                  {i < processSteps.length - 1 && (
-                    <div className="hidden sm:block flex-1 h-px bg-border/40 mx-3" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </motion.div>
+      {/* Work Methodology */}
+      <section className="relative">
+        <div className="section-divider" />
+        <div className="bg-surface">
+          <WorkMethodology />
+        </div>
+        <div className="section-divider" />
+      </section>
 
-          <div className="mt-20">
-            <EnterpriseCTA
-              badge="Soluciones a Medida"
-              badgeIcon={Briefcase}
-              title="Diseñamos la infraestructura que"
-              highlight="su empresa necesita"
-              description="Relevamiento, diseño, implementación y soporte continuo. Todo en un solo partner tecnológico."
-              primaryLabel="Solicitar Propuesta Corporativa"
-              primaryTo="/cotizacion"
-              secondaryLabel="Hablar con un Consultor"
-              secondaryTo="/contacto"
-            />
-          </div>
+      <section className="py-20 lg:py-28">
+        <div className="container mx-auto px-4 lg:px-8">
+          <EnterpriseCTA
+            badge="Comience con una Evaluación"
+            badgeIcon={Briefcase}
+            title="Diseñamos la infraestructura que"
+            highlight="su empresa necesita"
+            description="Evaluación tecnológica, diseño de solución, implementación y soporte continuo. Todo en un solo partner tecnológico."
+            primaryLabel="Solicitar Evaluación Tecnológica"
+            primaryTo="/evaluacion-tecnologica"
+            secondaryLabel="Hablar con un Consultor"
+            secondaryTo="/contacto"
+          />
         </div>
       </section>
     </Layout>

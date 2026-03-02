@@ -6,10 +6,11 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const navLinks = [
   { label: "Inicio", href: "/" },
-  { label: "Productos", href: "/productos" },
   { label: "Soluciones", href: "/soluciones-corporativas" },
+  { label: "Industrias", href: "/soluciones-por-industria" },
+  { label: "Tecnología", href: "/tecnologia" },
   { label: "Servicios IT", href: "/servicios-it" },
-  { label: "Empresas", href: "/empresas" },
+  { label: "Partnership", href: "/partnership" },
   { label: "Nosotros", href: "/nosotros" },
   { label: "Contacto", href: "/contacto" },
 ];
@@ -31,7 +32,7 @@ const Navbar = () => {
       <div className="hidden lg:block border-b border-border/20 bg-background/80 backdrop-blur-sm">
         <div className="container mx-auto flex items-center justify-between px-4 lg:px-8 h-8">
           <span className="text-[11px] text-muted-foreground">
-            Partner tecnológico para empresas · 15+ años de experiencia
+            Departamento IT externo para empresas · 15+ años de experiencia
           </span>
           <div className="flex items-center gap-5">
             <a href="tel:+541112345678" className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors">
@@ -91,9 +92,9 @@ const Navbar = () => {
           </div>
 
           <div className="hidden items-center gap-3 lg:flex">
-            <Link to="/cotizacion">
+            <Link to="/evaluacion-tecnologica">
               <Button size="sm" className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 glow-sm h-9 px-5 text-[13px]">
-                Solicitar Cotización
+                Evaluación Tecnológica
               </Button>
             </Link>
           </div>
@@ -134,9 +135,9 @@ const Navbar = () => {
                   {link.label}
                 </Link>
               ))}
-              <Link to="/cotizacion" onClick={() => setMobileOpen(false)}>
+              <Link to="/evaluacion-tecnologica" onClick={() => setMobileOpen(false)}>
                 <Button className="mt-3 w-full bg-gradient-primary font-semibold text-primary-foreground h-11">
-                  Solicitar Cotización
+                  Evaluación Tecnológica
                 </Button>
               </Link>
             </div>

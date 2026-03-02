@@ -8,6 +8,7 @@ import Products from "./pages/Products";
 import CorporateSolutions from "./pages/CorporateSolutions";
 import ITServices from "./pages/ITServices";
 import B2BSolutions from "./pages/B2BSolutions";
+import IndustrySolutions from "./pages/IndustrySolutions";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
 import QuoteRequest from "./pages/QuoteRequest";
@@ -23,12 +24,16 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/tecnologia" element={<Products />} />
           <Route path="/productos" element={<Products />} />
           <Route path="/soluciones-corporativas" element={<CorporateSolutions />} />
           <Route path="/servicios-it" element={<ITServices />} />
+          <Route path="/partnership" element={<B2BSolutions />} />
           <Route path="/empresas" element={<B2BSolutions />} />
+          <Route path="/soluciones-por-industria" element={<IndustrySolutions />} />
           <Route path="/nosotros" element={<About />} />
           <Route path="/contacto" element={<Contact />} />
+          <Route path="/evaluacion-tecnologica" element={<QuoteRequest />} />
           <Route path="/cotizacion" element={<QuoteRequest />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
