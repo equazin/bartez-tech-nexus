@@ -15,7 +15,7 @@ export default {
   	extend: {
   		fontFamily: {
   			sans: [
-  				'Work Sans',
+  				'Space Grotesk',
   				'ui-sans-serif',
   				'system-ui',
   				'-apple-system',
@@ -42,7 +42,7 @@ export default {
   				'serif'
   			],
   			mono: [
-  				'Inconsolata',
+  				'Space Mono',
   				'ui-monospace',
   				'SFMono-Regular',
   				'Menlo',
@@ -167,7 +167,7 @@ export default {
   					transform: 'translateX(0)'
   				}
   			},
-  			'float': {
+  			float: {
   				'0%, 100%': {
   					transform: 'translateY(0)'
   				},
@@ -191,7 +191,7 @@ export default {
   			'fade-out': 'fade-out 0.3s ease-out',
   			'scale-in': 'scale-in 0.2s ease-out',
   			'slide-in-right': 'slide-in-right 0.3s ease-out',
-  			'float': 'float 6s ease-in-out infinite',
+  			float: 'float 6s ease-in-out infinite',
   			'pulse-glow': 'pulse-glow 3s ease-in-out infinite'
   		},
   		boxShadow: {
