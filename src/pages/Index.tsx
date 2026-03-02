@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, Shield, Zap, Server, Monitor, Headphones, BarChart3, CheckCircle2, Building2, Network, Cpu, TrendingUp, Globe, Award, Briefcase, Settings } from "lucide-react";
+import { ArrowRight, Shield, Server, Monitor, Headphones, CheckCircle2, Building2, Network, TrendingUp, Globe, Briefcase, Settings, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Layout from "@/components/Layout";
 import SectionHeading from "@/components/SectionHeading";
@@ -8,6 +8,7 @@ import EnterpriseCTA from "@/components/EnterpriseCTA";
 import CorporateClients from "@/components/CorporateClients";
 import IndustriesServed from "@/components/IndustriesServed";
 import ClientTestimonials from "@/components/ClientTestimonials";
+import WorkMethodology from "@/components/WorkMethodology";
 import heroBg from "@/assets/hero-bg.png";
 
 const fadeUp = {
@@ -18,25 +19,25 @@ const fadeUp = {
   }),
 };
 
-const productCategories = [
-  { icon: Monitor, title: "Desktop PCs", desc: "Estaciones de trabajo y equipos corporativos de alto rendimiento.", count: "120+ modelos" },
-  { icon: Monitor, title: "Notebooks", desc: "Laptops empresariales para equipos de trabajo móvil.", count: "80+ modelos" },
-  { icon: Zap, title: "Gaming PCs", desc: "Computadoras gamer con las últimas GPUs del mercado.", count: "45+ configuraciones" },
-  { icon: Server, title: "Servidores", desc: "Infraestructura de servidores rack, torre y blade.", count: "30+ soluciones" },
-  { icon: Network, title: "Networking", desc: "Switches, routers y equipamiento de red empresarial.", count: "60+ productos" },
-  { icon: Cpu, title: "Componentes", desc: "Procesadores, memorias, almacenamiento y más.", count: "500+ componentes" },
+const corporateSolutions = [
+  { icon: Server, title: "Infraestructura IT", desc: "Diseño e implementación de servidores, almacenamiento y data centers adaptados a su operación.", link: "/soluciones-corporativas" },
+  { icon: Network, title: "Redes Corporativas", desc: "Conectividad LAN/WAN, WiFi empresarial, VPN y seguridad perimetral para su organización.", link: "/soluciones-corporativas" },
+  { icon: Monitor, title: "Equipamiento Corporativo", desc: "Provisión integral de estaciones de trabajo, notebooks y periféricos para toda su empresa.", link: "/tecnologia" },
+  { icon: Settings, title: "Consultoría Tecnológica", desc: "Análisis, planificación y roadmap tecnológico para potenciar el crecimiento de su organización.", link: "/servicios-it" },
+  { icon: Shield, title: "Ciberseguridad", desc: "Protección integral de datos, firewalls, backup y políticas de seguridad corporativa.", link: "/servicios-it" },
+  { icon: Headphones, title: "Soporte IT Continuo", desc: "Mesa de ayuda, mantenimiento preventivo y soporte on-site con SLA garantizado.", link: "/servicios-it" },
 ];
 
 const services = [
-  { icon: Building2, title: "Consultoría IT", desc: "Asesoramiento estratégico para la transformación digital de su organización.", number: "01" },
-  { icon: Server, title: "Infraestructura", desc: "Diseño e implementación de data centers, servidores y almacenamiento.", number: "02" },
-  { icon: Shield, title: "Ciberseguridad", desc: "Protección integral: firewalls, auditorías y políticas de seguridad.", number: "03" },
-  { icon: Headphones, title: "Soporte 24/7", desc: "Mesa de ayuda, soporte on-site y mantenimiento con SLA garantizado.", number: "04" },
+  { icon: ClipboardCheck, title: "Evaluación Tecnológica", desc: "Diagnosticamos su infraestructura actual e identificamos oportunidades de mejora y optimización.", number: "01" },
+  { icon: Building2, title: "Gestión de Infraestructura", desc: "Administramos y mantenemos su entorno IT como un departamento de tecnología dedicado.", number: "02" },
+  { icon: Shield, title: "Seguridad y Continuidad", desc: "Protegemos sus datos, sistemas y operaciones con planes de contingencia y recuperación.", number: "03" },
+  { icon: Headphones, title: "Soporte Permanente", desc: "Equipo técnico certificado disponible con tiempos de respuesta garantizados por SLA.", number: "04" },
 ];
 
 const stats = [
   { value: "500+", label: "Empresas confían en nosotros" },
-  { value: "15", label: "Años de trayectoria" },
+  { value: "15+", label: "Años de trayectoria" },
   { value: "98%", label: "Índice de satisfacción" },
   { value: "24/7", label: "Soporte disponible" },
 ];
@@ -44,16 +45,9 @@ const stats = [
 const trustItems = [
   "Distribuidores Autorizados",
   "Garantía Oficial de Fábrica",
-  "Envíos a Todo el País",
+  "Cobertura en Todo el País",
   "Facturación A y B",
-  "Soporte Post-Venta",
-];
-
-const corporateSolutions = [
-  { icon: Building2, title: "Soluciones para Empresas", desc: "Equipamiento integral de oficinas, data centers y puestos de trabajo con las mejores marcas del mercado.", link: "/soluciones-corporativas" },
-  { icon: Network, title: "Infraestructura IT Corporativa", desc: "Redes LAN/WAN, WiFi empresarial, servidores y virtualización diseñados para su operación.", link: "/soluciones-corporativas" },
-  { icon: Settings, title: "Consultoría Tecnológica", desc: "Análisis, planificación y roadmap tecnológico para potenciar el crecimiento de su organización.", link: "/servicios-it" },
-  { icon: Briefcase, title: "Cotización Corporativa", desc: "Precios especiales por volumen, cuenta corriente, facturación A/B y ejecutivo de cuenta dedicado.", link: "/cotizacion" },
+  "Soporte Post-Implementación",
 ];
 
 const Index = () => {
@@ -73,7 +67,7 @@ const Index = () => {
             <motion.div variants={fadeUp} custom={0}>
               <span className="enterprise-badge mb-7 inline-flex">
                 <Globe size={11} />
-                Partner Tecnológico para Empresas
+                Departamento IT Externo para Empresas
               </span>
             </motion.div>
 
@@ -82,9 +76,9 @@ const Index = () => {
               custom={1}
               className="font-display text-3xl font-extrabold leading-[1.08] tracking-tight text-foreground sm:text-4xl md:text-5xl lg:text-6xl"
             >
-              Su aliado estratégico en{" "}
+              Su partner tecnológico{" "}
               <br className="hidden md:block" />
-              <span className="text-gradient">tecnología corporativa</span>
+              <span className="text-gradient">de confianza</span>
             </motion.h1>
 
             <motion.p
@@ -92,19 +86,19 @@ const Index = () => {
               custom={2}
               className="mt-6 max-w-lg text-base text-muted-foreground leading-relaxed md:text-lg"
             >
-              Hardware empresarial, infraestructura de redes, servidores y consultoría IT.
-              Soluciones integrales para empresas que demandan confiabilidad y resultados.
+              Gestionamos la infraestructura tecnológica de su empresa. 
+              Servidores, redes, equipamiento, seguridad y soporte continuo — todo en un solo partner.
             </motion.p>
 
             <motion.div variants={fadeUp} custom={3} className="mt-9 flex flex-wrap gap-3">
-              <Link to="/cotizacion">
+              <Link to="/evaluacion-tecnologica">
                 <Button size="lg" className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 glow-sm h-11 px-7 text-sm">
-                  Solicitar Cotización Corporativa <ArrowRight className="ml-2" size={14} />
+                  Solicitar Evaluación Tecnológica <ArrowRight className="ml-2" size={14} />
                 </Button>
               </Link>
               <Link to="/soluciones-corporativas">
                 <Button size="lg" variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-11 px-7 text-sm">
-                  Soluciones para Empresas
+                  Conocer Nuestras Soluciones
                 </Button>
               </Link>
             </motion.div>
@@ -153,13 +147,13 @@ const Index = () => {
       <section className="py-20 lg:py-28">
         <div className="container mx-auto px-4 lg:px-8">
           <SectionHeading
-            badge="Soluciones Corporativas"
-            title="Tecnología a medida para"
-            highlight="su empresa"
-            description="No somos un retail. Somos el partner tecnológico que su empresa necesita para operar, crecer y competir."
+            badge="Soluciones Integrales"
+            title="Todo lo que su empresa necesita en"
+            highlight="tecnología"
+            description="No somos una tienda de computación. Somos el departamento IT externo que su empresa necesita para operar, crecer y competir."
             large
           />
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {corporateSolutions.map((sol, i) => (
               <motion.div
                 key={sol.title}
@@ -184,68 +178,25 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Product Categories */}
+      {/* Work Methodology */}
       <section className="relative">
         <div className="section-divider" />
         <div className="bg-surface py-20 lg:py-28">
-          <div className="container mx-auto px-4 lg:px-8">
-            <SectionHeading
-              badge="Catálogo de Productos"
-              title="Hardware empresarial de"
-              highlight="alto rendimiento"
-              description="Equipamiento tecnológico de las mejores marcas para cada área de su organización."
-              large
-            />
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {productCategories.map((cat, i) => (
-                <motion.div
-                  key={cat.title}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: "-40px" }}
-                  transition={{ delay: i * 0.07, duration: 0.5 }}
-                >
-                  <Link to="/productos" className="group card-enterprise flex flex-col rounded-xl p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="icon-container h-11 w-11 text-primary">
-                        <cat.icon size={20} />
-                      </div>
-                      <ArrowRight size={14} className="text-muted-foreground/20 transition-all group-hover:text-primary group-hover:translate-x-1" />
-                    </div>
-                    <h3 className="mt-4 font-display text-base font-semibold text-foreground">{cat.title}</h3>
-                    <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">{cat.desc}</p>
-                    <span className="mt-3 text-[11px] font-medium text-primary/60">{cat.count}</span>
-                  </Link>
-                </motion.div>
-              ))}
-            </div>
-            <motion.div
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true }}
-              className="mt-10 text-center"
-            >
-              <Link to="/productos">
-                <Button variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-10 px-6 text-sm">
-                  Ver Catálogo Completo <ArrowRight size={13} className="ml-2" />
-                </Button>
-              </Link>
-            </motion.div>
-          </div>
+          <WorkMethodology />
         </div>
         <div className="section-divider" />
       </section>
 
-      {/* Services */}
+      {/* Services — Technology Partnership */}
       <section className="py-20 lg:py-28">
         <div className="container mx-auto px-4 lg:px-8">
           <div className="grid gap-14 lg:grid-cols-2 lg:items-start">
             <div className="lg:sticky lg:top-32">
               <SectionHeading
-                badge="Servicios Profesionales"
-                title="Servicios IT para empresas"
-                highlight="que escalan"
-                description="Desde la consultoría inicial hasta el soporte continuo, acompañamos a su empresa en cada etapa de su crecimiento tecnológico."
+                badge="Partnership Tecnológico"
+                title="Su departamento IT,"
+                highlight="sin contratarlo"
+                description="Nos integramos a su operación como un equipo de tecnología externo. Planificamos, implementamos y mantenemos su infraestructura con compromiso de largo plazo."
                 center={false}
               />
               <div className="flex flex-wrap gap-3">
@@ -254,9 +205,9 @@ const Index = () => {
                     Conocer Servicios <ArrowRight size={13} className="ml-2" />
                   </Button>
                 </Link>
-                <Link to="/cotizacion">
+                <Link to="/evaluacion-tecnologica">
                   <Button variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-10 px-6 text-sm">
-                    Solicitar Cotización
+                    Evaluación Gratuita
                   </Button>
                 </Link>
               </div>
@@ -307,20 +258,20 @@ const Index = () => {
           <div className="container mx-auto px-4 lg:px-8">
             <div className="grid gap-5 lg:grid-cols-2">
               <EnterpriseCTA
-                badge="Partner B2B"
+                badge="Gestión IT Integral"
                 badgeIcon={Briefcase}
-                title="¿Necesita equipar"
-                highlight="su empresa?"
-                description="Precios especiales por volumen, cuenta corriente, facturación A/B y un ejecutivo de cuenta dedicado a su organización."
-                primaryLabel="Solicitar Cotización B2B"
-                primaryTo="/cotizacion"
+                title="¿Necesita un partner"
+                highlight="tecnológico confiable?"
+                description="Nos convertimos en su departamento IT externo. Infraestructura, soporte, seguridad y planificación tecnológica — todo bajo un mismo acuerdo."
+                primaryLabel="Solicitar Evaluación"
+                primaryTo="/evaluacion-tecnologica"
                 variant="compact"
               />
               <EnterpriseCTA
-                badge="Consultoría IT"
+                badge="Transformación Digital"
                 badgeIcon={Settings}
-                title="¿Planifica su"
-                highlight="transformación digital?"
+                title="¿Planifica modernizar"
+                highlight="su infraestructura?"
                 description="Nuestro equipo de consultores certificados diseña el roadmap tecnológico que su empresa necesita para escalar."
                 primaryLabel="Hablar con un Consultor"
                 primaryTo="/contacto"
@@ -336,13 +287,13 @@ const Index = () => {
       <section className="py-20 lg:py-28">
         <div className="container mx-auto px-4 lg:px-8">
           <EnterpriseCTA
-            badge="Potencie su Infraestructura"
+            badge="Comience Hoy"
             badgeIcon={TrendingUp}
-            title="¿Listo para transformar la"
+            title="¿Listo para profesionalizar la"
             highlight="tecnología de su empresa?"
-            description="Más de 500 empresas ya confían en nosotros. Nuestro equipo de especialistas está preparado para diseñar la solución que su organización necesita."
-            primaryLabel="Solicitar Cotización"
-            primaryTo="/cotizacion"
+            description="Más de 500 empresas ya confían en nosotros como su partner tecnológico. Solicite una evaluación sin cargo y descubra cómo podemos optimizar su infraestructura."
+            primaryLabel="Solicitar Evaluación Tecnológica"
+            primaryTo="/evaluacion-tecnologica"
             secondaryLabel="Hablar con un Especialista"
             secondaryTo="/contacto"
           />

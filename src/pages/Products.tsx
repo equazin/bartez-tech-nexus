@@ -1,19 +1,18 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Monitor, Laptop, Gamepad2, Server, Network, Mouse, Cpu, ArrowRight, Building2, PhoneCall } from "lucide-react";
+import { Monitor, Laptop, Server, Network, Cpu, Mouse, ArrowRight, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Layout from "@/components/Layout";
 import SectionHeading from "@/components/SectionHeading";
 import EnterpriseCTA from "@/components/EnterpriseCTA";
 
 const categories = [
-  { icon: Monitor, title: "Desktop PCs", desc: "Equipos de escritorio para oficinas, estaciones de trabajo y uso profesional. Configuraciones personalizadas según las necesidades de su empresa.", features: ["Equipos corporativos", "Workstations", "All-in-One", "Configuración a medida"], count: "120+ modelos" },
-  { icon: Laptop, title: "Notebooks", desc: "Laptops corporativas de las mejores marcas. Ideales para equipos de trabajo móvil y ejecutivos.", features: ["Ultrabooks", "Notebooks corporativas", "Laptops de alto rendimiento", "Equipos refurbished"], count: "80+ modelos" },
-  { icon: Gamepad2, title: "Gaming PCs", desc: "Computadoras gamer de alta performance con las últimas GPU y procesadores del mercado.", features: ["PCs Gamer armadas", "Notebooks Gaming", "Monitores gaming", "Accesorios gamer"], count: "45+ configuraciones" },
-  { icon: Network, title: "Networking", desc: "Equipamiento completo para redes empresariales. Switches, routers, access points y más.", features: ["Switches gestionables", "Routers empresariales", "Access Points", "Cableado estructurado"], count: "60+ productos" },
-  { icon: Server, title: "Servidores & Infraestructura", desc: "Soluciones de servidor para empresas de todos los tamaños. Rack, torre y blade.", features: ["Servidores rack", "Servidores torre", "Storage", "UPS y energía"], count: "30+ soluciones" },
-  { icon: Mouse, title: "Periféricos", desc: "Teclados, mouse, monitores, auriculares y todos los accesorios que su equipo necesita.", features: ["Monitores", "Teclados y mouse", "Auriculares", "Webcams"], count: "200+ productos" },
-  { icon: Cpu, title: "Componentes", desc: "Procesadores, memorias, discos, placas de video y todos los componentes para armar o actualizar equipos.", features: ["Procesadores", "Memorias RAM", "Discos SSD/HDD", "Placas de video"], count: "500+ componentes" },
+  { icon: Monitor, title: "Equipos de Escritorio", desc: "Estaciones de trabajo corporativas, workstations y equipos all-in-one para cada rol en su organización.", features: ["Equipos corporativos", "Workstations profesionales", "All-in-One", "Configuración a medida"] },
+  { icon: Laptop, title: "Notebooks Corporativas", desc: "Laptops empresariales de las mejores marcas. Ideales para equipos de trabajo móvil, ejecutivos y trabajo remoto.", features: ["Ultrabooks empresariales", "Notebooks corporativas", "Laptops de alto rendimiento", "Equipos certificados"] },
+  { icon: Server, title: "Servidores e Infraestructura", desc: "Soluciones de servidor para empresas de todos los tamaños. Infraestructura que soporta su operación crítica.", features: ["Servidores rack y torre", "Almacenamiento empresarial", "UPS y energía", "Virtualización"] },
+  { icon: Network, title: "Networking y Conectividad", desc: "Equipamiento completo para redes empresariales. Conectividad segura y de alto rendimiento.", features: ["Switches gestionables", "Routers empresariales", "Access Points", "Cableado estructurado"] },
+  { icon: Cpu, title: "Componentes y Upgrades", desc: "Procesadores, memorias, almacenamiento y componentes para ampliar o actualizar la infraestructura existente.", features: ["Procesadores", "Memorias RAM", "Discos SSD/NVMe", "Componentes de servidor"] },
+  { icon: Mouse, title: "Periféricos y Accesorios", desc: "Monitores, teclados, docking stations y todo lo necesario para equipar puestos de trabajo productivos.", features: ["Monitores profesionales", "Docking stations", "Periféricos", "Videoconferencia"] },
 ];
 
 const Products = () => {
@@ -23,16 +22,16 @@ const Products = () => {
         <div className="absolute inset-0 hero-radial" />
         <div className="relative container mx-auto px-4 lg:px-8">
           <SectionHeading
-            badge="Catálogo de Productos"
-            title="Equipamiento tecnológico"
-            highlight="profesional"
-            description="Hardware de las mejores marcas del mercado para satisfacer las necesidades de cada área de su organización."
+            badge="Tecnología Corporativa"
+            title="Equipamiento tecnológico para"
+            highlight="su empresa"
+            description="Provisión integral de hardware de las mejores marcas del mercado. Cada solución se adapta a las necesidades específicas de su organización."
             large
           />
         </div>
       </section>
 
-      {/* Enterprise procurement banner */}
+      {/* Enterprise banner */}
       <section className="pb-12">
         <div className="container mx-auto px-4 lg:px-8">
           <motion.div
@@ -46,13 +45,13 @@ const Products = () => {
                 <Building2 size={22} />
               </div>
               <div>
-                <h3 className="font-display text-base font-semibold text-foreground">¿Compra para su empresa?</h3>
-                <p className="text-sm text-muted-foreground">Acceda a precios corporativos, financiación y un ejecutivo de cuenta dedicado.</p>
+                <h3 className="font-display text-base font-semibold text-foreground">¿Necesita equipar su empresa?</h3>
+                <p className="text-sm text-muted-foreground">Solicite una evaluación tecnológica y reciba una propuesta integral adaptada a su operación.</p>
               </div>
             </div>
-            <Link to="/cotizacion" className="shrink-0">
+            <Link to="/evaluacion-tecnologica" className="shrink-0">
               <Button className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 h-11 px-6 text-sm">
-                Cotización Corporativa <ArrowRight size={14} className="ml-2" />
+                Evaluación Tecnológica <ArrowRight size={14} className="ml-2" />
               </Button>
             </Link>
           </motion.div>
@@ -71,11 +70,8 @@ const Products = () => {
                 transition={{ delay: i * 0.07, duration: 0.5 }}
                 className="group card-enterprise rounded-xl p-7"
               >
-                <div className="flex items-start justify-between mb-5">
-                  <div className="icon-container-lg h-14 w-14 text-primary">
-                    <cat.icon size={26} />
-                  </div>
-                  <span className="text-xs font-medium text-primary/60">{cat.count}</span>
+                <div className="icon-container-lg h-14 w-14 text-primary mb-5">
+                  <cat.icon size={26} />
                 </div>
                 <h3 className="font-display text-xl font-semibold text-foreground">{cat.title}</h3>
                 <p className="mt-2.5 text-sm text-muted-foreground leading-relaxed">{cat.desc}</p>
@@ -88,26 +84,25 @@ const Products = () => {
                   ))}
                 </ul>
                 <Link
-                  to="/cotizacion"
+                  to="/evaluacion-tecnologica"
                   className="mt-6 inline-flex items-center text-sm font-medium text-primary transition-all hover:gap-2 gap-1"
                 >
-                  Solicitar cotización <ArrowRight size={14} />
+                  Consultar disponibilidad <ArrowRight size={14} />
                 </Link>
               </motion.div>
             ))}
           </div>
 
-          {/* CTA */}
           <div className="mt-20">
             <EnterpriseCTA
-              badge="Compras Corporativas"
+              badge="Provisión Integral"
               badgeIcon={Building2}
               title="¿Necesita equipar múltiples"
               highlight="puestos de trabajo?"
-              description="Cotice por volumen y acceda a precios preferenciales, financiación y entrega programada para su empresa."
-              primaryLabel="Solicitar Cotización Corporativa"
-              primaryTo="/cotizacion"
-              secondaryLabel="Hablar con Ventas Corporativas"
+              description="Diseñamos la solución de equipamiento completa para su organización. Desde la evaluación hasta la implementación y soporte continuo."
+              primaryLabel="Solicitar Evaluación Tecnológica"
+              primaryTo="/evaluacion-tecnologica"
+              secondaryLabel="Hablar con un Especialista"
               secondaryTo="/contacto"
               variant="compact"
             />
