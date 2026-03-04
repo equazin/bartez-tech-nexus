@@ -2,12 +2,11 @@ import { MessageCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
 const WhatsAppButton = () => {
-  const phoneNumber = "5411123456789";
-  const message = encodeURIComponent("Hola, me gustaría recibir información sobre sus productos y servicios.");
+  const message = encodeURIComponent("Hola, quiero hacer una consulta sobre soluciones tecnológicas para empresas.");
 
   return (
     <motion.a
-      href={`https://wa.me/${phoneNumber}?text=${message}`}
+      href={`https://wa.me/5493415104902?text=${message}`}
       target="_blank"
       rel="noopener noreferrer"
       initial={{ scale: 0 }}

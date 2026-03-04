@@ -15,8 +15,8 @@
     --popover: 222 20% 7%;
     --popover-foreground: 210 20% 95%;
 
-    --primary: 207 90% 54%;
-    --primary-foreground: 222 25% 4%;
+    --primary: 152 56% 40%;
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 222 16% 12%;
     --secondary-foreground: 210 15% 80%;
@@ -24,33 +24,33 @@
     --muted: 222 14% 14%;
     --muted-foreground: 215 12% 50%;
 
-    --accent: 185 70% 50%;
-    --accent-foreground: 222 25% 4%;
+    --accent: 152 40% 35%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 222 14% 14%;
     --input: 222 14% 14%;
-    --ring: 207 90% 54%;
+    --ring: 152 56% 40%;
 
     --radius: 0.625rem;
 
     --sidebar-background: 222 20% 5%;
     --sidebar-foreground: 210 15% 80%;
-    --sidebar-primary: 207 90% 54%;
-    --sidebar-primary-foreground: 222 25% 4%;
+    --sidebar-primary: 152 56% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 222 16% 12%;
     --sidebar-accent-foreground: 210 15% 80%;
     --sidebar-border: 222 14% 14%;
-    --sidebar-ring: 207 90% 54%;
+    --sidebar-ring: 152 56% 40%;
 
     /* Premium tokens */
-    --glow: 207 90% 54%;
+    --glow: 152 56% 40%;
     --surface: 222 20% 5.5%;
     --surface-elevated: 222 18% 9%;
-    --gradient-start: 207 90% 54%;
-    --gradient-end: 185 70% 50%;
+    --gradient-start: 152 56% 40%;
+    --gradient-end: 160 45% 50%;
     --glass: 222 20% 8%;
     --glass-border: 222 14% 18%;
     --success: 152 60% 45%;

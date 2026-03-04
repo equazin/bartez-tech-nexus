@@ -24,9 +24,9 @@ const Contact = () => {
   };
 
   const contactInfo = [
-    { icon: Mail, label: "Email", value: "info@barteztecnologia.com", href: "mailto:info@barteztecnologia.com" },
-    { icon: Phone, label: "Teléfono", value: "+54 11 1234-5678", href: "tel:+541112345678" },
-    { icon: MapPin, label: "Ubicación", value: "Buenos Aires, Argentina" },
+    { icon: Mail, label: "Email", value: "contacto@bartez.com.ar", href: "mailto:contacto@bartez.com.ar" },
+    { icon: Phone, label: "Teléfono / WhatsApp", value: "+54 9 341 510-4902", href: "https://wa.me/5493415104902" },
+    { icon: MapPin, label: "Ubicación", value: "Rosario, Santa Fe, Argentina" },
     { icon: Clock, label: "Horario", value: "Lun-Vie 9:00-18:00" },
   ];
 

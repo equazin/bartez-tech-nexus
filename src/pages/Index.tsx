@@ -96,9 +96,9 @@ const Index = () => {
                   Solicitar Evaluación Tecnológica <ArrowRight className="ml-2" size={14} />
                 </Button>
               </Link>
-              <Link to="/soluciones-corporativas">
+              <Link to="/contacto">
                 <Button size="lg" variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-11 px-7 text-sm">
-                  Conocer Nuestras Soluciones
+                  Hablar con un Especialista
                 </Button>
               </Link>
             </motion.div>
@@ -108,7 +108,7 @@ const Index = () => {
               custom={4}
               className="mt-14 flex flex-wrap items-center gap-x-8 gap-y-3"
             >
-              {["Dell", "HP", "Lenovo", "Cisco", "Intel"].map((brand) => (
+              {["Intel", "AMD", "Lenovo", "Dell", "HP", "Cisco", "Microsoft"].map((brand) => (
                 <span key={brand} className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/50">
                   {brand}
                 </span>

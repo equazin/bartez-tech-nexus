@@ -1,29 +1,51 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Phone } from "lucide-react";
+import { Menu, X, Phone, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 
-const navLinks = [
+const mainLinks = [
   { label: "Inicio", href: "/" },
-  { label: "Soluciones", href: "/soluciones-corporativas" },
+  { label: "Soluciones y Equipamiento", href: "/soluciones-corporativas" },
   { label: "Industrias", href: "/soluciones-por-industria" },
-  { label: "Tecnología", href: "/tecnologia" },
   { label: "Servicios IT", href: "/servicios-it" },
-  { label: "Partnership", href: "/partnership" },
-  { label: "Nosotros", href: "/nosotros" },
+  { label: "Soporte", href: "/partnership" },
   { label: "Contacto", href: "/contacto" },
+];
+
+const moreLinks = [
+  { label: "Tecnología", href: "/tecnologia" },
+  { label: "Partnership", href: "/partnership" },
+  { label: "Área Clientes", href: "/contacto" },
+  { label: "Nosotros", href: "/nosotros" },
 ];
 
 const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
+  const moreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    setMobileOpen(false);
+    setMoreOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   return (
@@ -35,9 +57,9 @@ const Navbar = () => {
             Departamento IT externo para empresas · 15+ años de experiencia
           </span>
           <div className="flex items-center gap-5">
-            <a href="tel:+541112345678" className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors">
+            <a href="https://wa.me/5493415104902" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors">
               <Phone size={10} />
-              +54 11 1234-5678
+              +54 9 341 510-4902
             </a>
             <span className="text-[11px] text-muted-foreground">Lun-Vie 9:00 – 18:00</span>
           </div>
@@ -69,9 +91,9 @@ const Navbar = () => {
 
           {/* Desktop Nav */}
           <div className="hidden items-center gap-0.5 lg:flex">
-            {navLinks.map((link) => (
+            {mainLinks.map((link) => (
               <Link
-                key={link.href}
+                key={link.href + link.label}
                 to={link.href}
                 className={`relative rounded-md px-3 py-2 text-[13px] font-medium transition-colors ${
                   location.pathname === link.href
@@ -89,12 +111,43 @@ const Navbar = () => {
                 )}
               </Link>
             ))}
+
+            {/* More dropdown */}
+            <div ref={moreRef} className="relative">
+              <button
+                onClick={() => setMoreOpen(!moreOpen)}
+                className="flex items-center gap-1 rounded-md px-3 py-2 text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Más <ChevronDown size={13} className={`transition-transform ${moreOpen ? "rotate-180" : ""}`} />
+              </button>
+              <AnimatePresence>
+                {moreOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-full mt-1 w-48 rounded-xl bg-glass-strong border border-border/40 shadow-xl overflow-hidden"
+                  >
+                    {moreLinks.map((link) => (
+                      <Link
+                        key={link.href + link.label}
+                        to={link.href}
+                        className="block px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+                      >
+                        {link.label}
+                      </Link>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
           <div className="hidden items-center gap-3 lg:flex">
             <Link to="/evaluacion-tecnologica">
               <Button size="sm" className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 glow-sm h-9 px-5 text-[13px]">
-                Evaluación Tecnológica
+                Solicitar Evaluación Tecnológica
               </Button>
             </Link>
           </div>
@@ -121,9 +174,9 @@ const Navbar = () => {
             className="border-t border-border/30 bg-glass-strong lg:hidden overflow-hidden"
           >
             <div className="container mx-auto flex flex-col gap-1 px-4 py-4">
-              {navLinks.map((link) => (
+              {mainLinks.map((link) => (
                 <Link
-                  key={link.href}
+                  key={link.href + link.label}
                   to={link.href}
                   onClick={() => setMobileOpen(false)}
                   className={`rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
@@ -135,9 +188,22 @@ const Navbar = () => {
                   {link.label}
                 </Link>
               ))}
+              <div className="border-t border-border/30 mt-2 pt-2">
+                <span className="px-4 py-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60">Más</span>
+                {moreLinks.map((link) => (
+                  <Link
+                    key={link.href + link.label}
+                    to={link.href}
+                    onClick={() => setMobileOpen(false)}
+                    className="block rounded-lg px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
               <Link to="/evaluacion-tecnologica" onClick={() => setMobileOpen(false)}>
                 <Button className="mt-3 w-full bg-gradient-primary font-semibold text-primary-foreground h-11">
-                  Evaluación Tecnológica
+                  Solicitar Evaluación Tecnológica
                 </Button>
               </Link>
             </div>

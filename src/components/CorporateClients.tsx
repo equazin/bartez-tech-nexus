@@ -17,12 +17,16 @@ const expertise = [
 ];
 
 const partnerBrands = [
+  { name: "Intel", tier: "Technology Partner" },
+  { name: "AMD", tier: "Solutions Partner" },
+  { name: "Lenovo", tier: "Authorized Partner" },
   { name: "Dell Technologies", tier: "Platinum Partner" },
   { name: "HP Enterprise", tier: "Gold Partner" },
-  { name: "Lenovo", tier: "Authorized Partner" },
   { name: "Cisco Systems", tier: "Select Partner" },
-  { name: "Intel", tier: "Technology Partner" },
+  { name: "Ubiquiti", tier: "Authorized Reseller" },
+  { name: "Mikrotik", tier: "Certified Partner" },
   { name: "Microsoft", tier: "Silver Partner" },
+  { name: "VMware", tier: "Solutions Partner" },
 ];
 
 const CorporateClients = () => {
@@ -101,11 +105,11 @@ const CorporateClients = () => {
           >
             <div className="text-center mb-8">
               <h3 className="font-display text-lg font-bold text-foreground md:text-xl">
-                Alianzas estratégicas con <span className="text-gradient">líderes globales</span>
+                Tecnologías y partners con los que <span className="text-gradient">trabajamos</span>
               </h3>
               <p className="mt-2 text-xs text-muted-foreground">Distribuidores autorizados con acceso directo a fábrica, garantía oficial y soporte técnico especializado.</p>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
               {partnerBrands.map((brand, i) => (
                 <motion.div
                   key={brand.name}
