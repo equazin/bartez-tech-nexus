@@ -1,4 +1,5 @@
 {
+  "cleanUrls": true,
   "redirects": [
     { "source": "/arrepentimiento", "destination": "/", "permanent": true },
     { "source": "/arrepentimiento/:path*", "destination": "/", "permanent": true },
