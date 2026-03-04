@@ -74,14 +74,13 @@ const Navbar = () => {
 >
   <div className="container mx-auto flex h-16 items-center justify-between px-4 lg:px-8">
     <Link to="/" className="flex items-center gap-2.5 group">
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-primary transition-transform group-hover:scale-105 overflow-hidden">
-        <img
-          src="/icon.png"
-          alt="Bartez"
-          className="h-6 w-6 object-contain"
-        />
-      </div>
-
+<div className="flex h-8 w-8 items-center justify-center transition-transform group-hover:scale-105 overflow-hidden">
+  <img
+    src="/icon.png"
+    alt="Bartez"
+    className="h-full w-full object-contain"
+  />
+</div>
       <div className="flex flex-col">
         <span className="font-display text-sm font-bold tracking-tight text-foreground leading-none">
           BARTEZ
