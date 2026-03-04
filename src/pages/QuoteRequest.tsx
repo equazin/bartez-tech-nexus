@@ -325,11 +325,11 @@ const QuoteRequest = () => {
                 <h4 className="font-display text-base font-semibold text-foreground mb-2">¿Prefiere hablar directamente?</h4>
                 <p className="text-sm text-muted-foreground mb-4">Nuestro equipo está disponible para atenderlo.</p>
                 <div className="space-y-2 text-sm">
-                  <a href="tel:+541112345678" className="flex items-center gap-2 text-primary hover:underline">
-                    📞 +54 11 1234-5678
+                  <a href="https://wa.me/5493415104902" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary hover:underline">
+                    📞 +54 9 341 510-4902
                   </a>
-                  <a href="mailto:info@barteztecnologia.com" className="flex items-center gap-2 text-primary hover:underline">
-                    ✉️ info@barteztecnologia.com
+                  <a href="mailto:contacto@bartez.com.ar" className="flex items-center gap-2 text-primary hover:underline">
+                    ✉️ contacto@bartez.com.ar
                   </a>
                 </div>
               </div>
