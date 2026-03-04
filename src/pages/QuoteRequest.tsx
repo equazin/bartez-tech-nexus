@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Send, ClipboardCheck, Building2, Server, Wrench, Network, Monitor, CheckCircle2, Shield, Clock } from "lucide-react";
+import { Send, Building2, Server, Wrench, Network, Monitor, CheckCircle2, Shield, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -45,12 +45,15 @@ const QuoteRequest = () => {
     const need = searchParams.get("necesidad");
     return need ? [need] : [];
   });
+
+  // ✅ FIX: los Select de shadcn no entran en FormData con name=""
+  const [selectedCompanySize, setSelectedCompanySize] = useState("");
+  const [selectedUrgency, setSelectedUrgency] = useState("");
+
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const toggleNeed = (id: string) => {
-    setSelectedNeeds((prev) =>
-      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
-    );
+    setSelectedNeeds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
   };
 
   const validate = (form: FormData): boolean => {
@@ -70,23 +73,100 @@ const QuoteRequest = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  // ✅ FIX: ahora manda mail real usando /api/contact (igual que Contact)
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
+
     if (!validate(form)) return;
 
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+
+    try {
+      const name = String(form.get("name") || "").trim();
+      const company = String(form.get("company") || "").trim();
+      const email = String(form.get("email") || "").trim();
+      const phone = String(form.get("phone") || "").trim();
+      const role = String(form.get("role") || "").trim();
+      const workstations = String(form.get("workstations") || "").trim();
+      const detail = String(form.get("detail") || "").trim();
+
+      const typeLabel = projectTypes.find((t) => t.id === selectedType)?.label || selectedType || "-";
+      const needsLabels =
+        selectedNeeds.length > 0
+          ? selectedNeeds.map((id) => needsAreas.find((a) => a.id === id)?.label || id).join(", ")
+          : "-";
+
+      const companySize = selectedCompanySize || "-";
+      const urgency = selectedUrgency || "-";
+
+      const fullMessage = [
+        "SOLICITUD DE EVALUACIÓN TECNOLÓGICA",
+        "",
+        `Tipo de proyecto: ${typeLabel}`,
+        `Áreas de necesidad: ${needsLabels}`,
+        "",
+        "DATOS DE CONTACTO",
+        `Nombre: ${name}`,
+        `Empresa: ${company}`,
+        `Email: ${email}`,
+        `Teléfono: ${phone || "-"}`,
+        `Cargo/Rol: ${role || "-"}`,
+        `Tamaño empresa: ${companySize}`,
+        `Puestos de trabajo: ${workstations || "-"}`,
+        `Urgencia: ${urgency}`,
+        "",
+        "DETALLE",
+        detail,
+      ].join("\n");
+
+      const r = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${name} (Evaluación)`,
+          email,
+          message: fullMessage,
+        }),
+      });
+
+      let json: any = null;
+      try {
+        json = await r.json();
+      } catch {
+        json = null;
+      }
+
+      if (!r.ok || !json?.ok) {
+        toast({
+          title: "No se pudo enviar",
+          description: json?.error || `Error ${r.status}. Reintentá en unos minutos.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
       toast({
         title: "✅ Solicitud recibida",
-        description: "Nuestro equipo se pondrá en contacto en las próximas 24-48 horas hábiles para coordinar la evaluación.",
+        description:
+          "Nuestro equipo se pondrá en contacto en las próximas 24-48 horas hábiles para coordinar la evaluación.",
       });
+
       (e.target as HTMLFormElement).reset();
       setSelectedType("");
       setSelectedNeeds([]);
+      setSelectedCompanySize("");
+      setSelectedUrgency("");
       setErrors({});
-    }, 1200);
+    } catch {
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo enviar la solicitud. Reintentá en unos minutos.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -118,7 +198,9 @@ const QuoteRequest = () => {
                 {/* Step 1: Project Type */}
                 <div className="card-enterprise rounded-xl p-8">
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-primary text-xs font-bold text-primary-foreground">1</div>
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-primary text-xs font-bold text-primary-foreground">
+                      1
+                    </div>
                     <h3 className="font-display text-lg font-semibold text-foreground">Tipo de Proyecto</h3>
                   </div>
                   {errors.type && <p className="text-destructive text-sm mb-3">{errors.type}</p>}
@@ -134,7 +216,11 @@ const QuoteRequest = () => {
                             : "border-border/40 bg-card hover:border-border/80"
                         }`}
                       >
-                        <div className={`icon-container h-10 w-10 shrink-0 ${selectedType === pt.id ? "text-primary" : "text-muted-foreground"}`}>
+                        <div
+                          className={`icon-container h-10 w-10 shrink-0 ${
+                            selectedType === pt.id ? "text-primary" : "text-muted-foreground"
+                          }`}
+                        >
                           <pt.icon size={18} />
                         </div>
                         <div>
@@ -149,7 +235,9 @@ const QuoteRequest = () => {
                 {/* Step 2: Areas of Need */}
                 <div className="card-enterprise rounded-xl p-8">
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-primary text-xs font-bold text-primary-foreground">2</div>
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-primary text-xs font-bold text-primary-foreground">
+                      2
+                    </div>
                     <h3 className="font-display text-lg font-semibold text-foreground">Áreas de Necesidad</h3>
                     <span className="text-xs text-muted-foreground">(opcional, múltiple)</span>
                   </div>
@@ -177,7 +265,9 @@ const QuoteRequest = () => {
                 {/* Step 3: Company & Contact */}
                 <div className="card-enterprise rounded-xl p-8">
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-primary text-xs font-bold text-primary-foreground">3</div>
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-primary text-xs font-bold text-primary-foreground">
+                      3
+                    </div>
                     <h3 className="font-display text-lg font-semibold text-foreground">Datos de la Empresa</h3>
                   </div>
                   <div className="space-y-5">
@@ -189,14 +279,28 @@ const QuoteRequest = () => {
                       </div>
                       <div>
                         <label className="mb-2 block text-sm font-medium text-foreground">Empresa *</label>
-                        <Input name="company" required placeholder="Nombre de la empresa" className="input-enterprise" maxLength={100} />
+                        <Input
+                          name="company"
+                          required
+                          placeholder="Nombre de la empresa"
+                          className="input-enterprise"
+                          maxLength={100}
+                        />
                         {errors.company && <p className="text-destructive text-xs mt-1">{errors.company}</p>}
                       </div>
                     </div>
+
                     <div className="grid gap-5 sm:grid-cols-2">
                       <div>
                         <label className="mb-2 block text-sm font-medium text-foreground">Email corporativo *</label>
-                        <Input name="email" required type="email" placeholder="correo@empresa.com" className="input-enterprise" maxLength={255} />
+                        <Input
+                          name="email"
+                          required
+                          type="email"
+                          placeholder="correo@empresa.com"
+                          className="input-enterprise"
+                          maxLength={255}
+                        />
                         {errors.email && <p className="text-destructive text-xs mt-1">{errors.email}</p>}
                       </div>
                       <div>
@@ -204,14 +308,22 @@ const QuoteRequest = () => {
                         <Input name="phone" placeholder="+54 11 1234-5678" className="input-enterprise" maxLength={30} />
                       </div>
                     </div>
+
                     <div className="grid gap-5 sm:grid-cols-2">
                       <div>
                         <label className="mb-2 block text-sm font-medium text-foreground">Cargo / Rol</label>
-                        <Input name="role" placeholder="Ej: Gerente de IT, Director de Operaciones" className="input-enterprise" maxLength={80} />
+                        <Input
+                          name="role"
+                          placeholder="Ej: Gerente de IT, Director de Operaciones"
+                          className="input-enterprise"
+                          maxLength={80}
+                        />
                       </div>
                       <div>
                         <label className="mb-2 block text-sm font-medium text-foreground">Tamaño de la empresa</label>
-                        <Select name="company_size">
+
+                        {/* ✅ FIX: Select controlado por estado */}
+                        <Select value={selectedCompanySize} onValueChange={setSelectedCompanySize}>
                           <SelectTrigger className="input-enterprise">
                             <SelectValue placeholder="Cantidad de empleados" />
                           </SelectTrigger>
@@ -225,14 +337,24 @@ const QuoteRequest = () => {
                         </Select>
                       </div>
                     </div>
+
                     <div className="grid gap-5 sm:grid-cols-2">
                       <div>
                         <label className="mb-2 block text-sm font-medium text-foreground">Cantidad de puestos de trabajo</label>
-                        <Input name="workstations" type="number" placeholder="Ej: 25" className="input-enterprise" min={1} max={99999} />
+                        <Input
+                          name="workstations"
+                          type="number"
+                          placeholder="Ej: 25"
+                          className="input-enterprise"
+                          min={1}
+                          max={99999}
+                        />
                       </div>
                       <div>
                         <label className="mb-2 block text-sm font-medium text-foreground">Urgencia</label>
-                        <Select name="urgency">
+
+                        {/* ✅ FIX: Select controlado por estado */}
+                        <Select value={selectedUrgency} onValueChange={setSelectedUrgency}>
                           <SelectTrigger className="input-enterprise">
                             <SelectValue placeholder="Plazo del proyecto" />
                           </SelectTrigger>
@@ -251,7 +373,9 @@ const QuoteRequest = () => {
                 {/* Step 4: Details */}
                 <div className="card-enterprise rounded-xl p-8">
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-primary text-xs font-bold text-primary-foreground">4</div>
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-primary text-xs font-bold text-primary-foreground">
+                      4
+                    </div>
                     <h3 className="font-display text-lg font-semibold text-foreground">Descripción de la Situación</h3>
                   </div>
                   <Textarea
@@ -271,7 +395,8 @@ const QuoteRequest = () => {
                   disabled={loading}
                   className="w-full bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 glow-sm h-13 px-8 text-base"
                 >
-                  {loading ? "Enviando solicitud..." : "Solicitar Evaluación Tecnológica"} <Send size={16} className="ml-2" />
+                  {loading ? "Enviando solicitud..." : "Solicitar Evaluación Tecnológica"}{" "}
+                  <Send size={16} className="ml-2" />
                 </Button>
               </motion.form>
             </div>
@@ -325,7 +450,12 @@ const QuoteRequest = () => {
                 <h4 className="font-display text-base font-semibold text-foreground mb-2">¿Prefiere hablar directamente?</h4>
                 <p className="text-sm text-muted-foreground mb-4">Nuestro equipo está disponible para atenderlo.</p>
                 <div className="space-y-2 text-sm">
-                  <a href="https://wa.me/5493415104902" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary hover:underline">
+                  <a
+                    href="https://wa.me/5493415104902"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-primary hover:underline"
+                  >
                     📞 +54 9 341 510-4902
                   </a>
                   <a href="mailto:contacto@bartez.com.ar" className="flex items-center gap-2 text-primary hover:underline">
