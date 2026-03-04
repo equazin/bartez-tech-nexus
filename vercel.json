@@ -1,28 +1,23 @@
 {
   "redirects": [
+    {
+      "source": "/sitemap.xml",
+      "has": [{ "type": "host", "value": "bartez.com.ar" }],
+      "destination": "https://www.bartez.com.ar/sitemap.xml",
+      "permanent": true
+    },
+    {
+      "source": "/robots.txt",
+      "has": [{ "type": "host", "value": "bartez.com.ar" }],
+      "destination": "https://www.bartez.com.ar/robots.txt",
+      "permanent": true
+    },
+
     { "source": "/producto/:slug*", "destination": "/", "permanent": true },
     { "source": "/arrepentimiento", "destination": "/", "permanent": true },
     { "source": "/arrepentimiento/:path*", "destination": "/", "permanent": true }
   ],
   "rewrites": [
-    { "source": "/sitemap.xml", "destination": "/sitemap.xml" },
-    { "source": "/robots.txt", "destination": "/robots.txt" },
     { "source": "/(.*)", "destination": "/" }
-  ],
-  "headers": [
-    {
-      "source": "/sitemap.xml",
-      "headers": [
-        { "key": "Content-Type", "value": "application/xml; charset=utf-8" },
-        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
-      ]
-    },
-    {
-      "source": "/robots.txt",
-      "headers": [
-        { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
-        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
-      ]
-    }
   ]
 }
