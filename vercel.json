@@ -1,23 +1,12 @@
 {
   "redirects": [
-    {
-      "source": "/sitemap.xml",
-      "has": [{ "type": "host", "value": "bartez.com.ar" }],
-      "destination": "https://www.bartez.com.ar/sitemap.xml",
-      "permanent": true
-    },
-    {
-      "source": "/robots.txt",
-      "has": [{ "type": "host", "value": "bartez.com.ar" }],
-      "destination": "https://www.bartez.com.ar/robots.txt",
-      "permanent": true
-    },
-
     { "source": "/producto/:slug*", "destination": "/", "permanent": true },
     { "source": "/arrepentimiento", "destination": "/", "permanent": true },
     { "source": "/arrepentimiento/:path*", "destination": "/", "permanent": true }
   ],
   "rewrites": [
+    { "source": "/sitemap.xml", "destination": "/sitemap.xml" },
+    { "source": "/robots.txt", "destination": "/robots.txt" },
     { "source": "/(.*)", "destination": "/" }
   ]
 }
