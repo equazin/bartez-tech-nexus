@@ -7,7 +7,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { name, email, message } = req.body || {};
+    const { name, email, message, subject } = req.body || {};
+
     if (!name || !email || !message) {
       return res.status(400).json({ ok: false, error: "Faltan campos" });
     }
@@ -15,18 +16,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT || 465),
-      secure: true, // 465 = SSL
+      secure: Number(process.env.SMTP_PORT || 465) === 465, // 465 SSL directo
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
     });
 
+    const safeSubject =
+      typeof subject === "string" && subject.trim().length > 0
+        ? subject.trim()
+        : `Nueva solicitud de contacto: ${name}`;
+
     await transporter.sendMail({
-      from: `"Web Bartez" <${process.env.SMTP_USER}>`,
+      from: `"Bartez Soluciones IT" <${process.env.SMTP_USER}>`,
       to: "contacto@bartez.com.ar",
       replyTo: email,
-      subject: `Nuevo contacto web: ${name}`,
+      subject: safeSubject,
       text: `Nombre: ${name}\nEmail: ${email}\n\nMensaje:\n${message}`,
     });
 

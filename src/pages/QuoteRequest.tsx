@@ -123,11 +123,12 @@ const QuoteRequest = () => {
       const r = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: `${name} (Evaluación)`,
-          email,
-          message: fullMessage,
-        }),
+body: JSON.stringify({
+  subject: "Solicitud de evaluación tecnológica",
+  name: `${name} (Evaluación)`,
+  email,
+  message: fullMessage,
+}),
       });
 
       let json: any = null;
