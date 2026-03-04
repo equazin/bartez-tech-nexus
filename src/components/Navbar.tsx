@@ -66,28 +66,24 @@ const Navbar = () => {
 
       {/* Main nav */}
       <nav
-        className={`transition-all duration-300 ${
-          scrolled
-            ? "bg-glass-strong border-b border-border/30 shadow-lg shadow-background/50"
-            : "bg-transparent border-b border-transparent"
-        }`}
-      >
-             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-primary transition-transform group-hover:scale-105 overflow-hidden">
-                <img
-                 src="/icon.png"
-                 alt="Bartez"
-                 className="h-6 w-6 object-contain"
-                />
-             </div>
-            <div className="flex flex-col">
-              <span className="font-display text-sm font-bold tracking-tight text-foreground leading-none">
-                BARTEZ
-              </span>
-              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground leading-none mt-0.5">
-                Tecnología
-              </span>
-            </div>
-          </Link>
+<Link to="/" className="flex items-center gap-2.5 group">
+  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-primary transition-transform group-hover:scale-105 overflow-hidden">
+    <img
+      src="/icon.png"
+      alt="Bartez"
+      className="h-6 w-6 object-contain"
+    />
+  </div>
+
+  <div className="flex flex-col">
+    <span className="font-display text-sm font-bold tracking-tight text-foreground leading-none">
+      BARTEZ
+    </span>
+    <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground leading-none mt-0.5">
+      Tecnología
+    </span>
+  </div>
+</Link>
 
           {/* Desktop Nav */}
           <div className="hidden items-center gap-0.5 lg:flex">
