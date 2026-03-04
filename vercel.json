@@ -1,8 +1,9 @@
 {
   "redirects": [
-    { "source": "/producto/:slug*", "destination": "/", "permanent": true },
     { "source": "/arrepentimiento", "destination": "/", "permanent": true },
-    { "source": "/arrepentimiento/:path*", "destination": "/", "permanent": true }
+    { "source": "/arrepentimiento/:path*", "destination": "/", "permanent": true },
+
+    { "source": "/producto/:slug*", "destination": "/", "permanent": true }
   ],
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/sitemap.xml" },
