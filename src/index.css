@@ -139,9 +139,46 @@
   .card-enterprise:hover {
     border-color: hsl(var(--primary) / 0.2);
     box-shadow: 
-      0 8px 40px -12px hsl(var(--glow) / 0.1),
+      0 8px 40px -12px hsl(var(--glow) / 0.12),
       0 0 0 1px hsl(var(--primary) / 0.06);
-    transform: translateY(-3px);
+    transform: translateY(-3px) scale(1.01);
+  }
+
+  /* Button micro-interactions */
+  .btn-interactive {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-interactive:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px -4px hsl(var(--glow) / 0.25);
+  }
+
+  .btn-interactive:active {
+    transform: translateY(0.5px) scale(0.98);
+    box-shadow: none;
+  }
+
+  /* Nav link hover underline */
+  .nav-link-hover {
+    position: relative;
+  }
+
+  .nav-link-hover::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    right: 50%;
+    height: 2px;
+    background: linear-gradient(90deg, hsl(var(--gradient-start)), hsl(var(--gradient-end)));
+    border-radius: 1px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .nav-link-hover:hover::after {
+    left: 12px;
+    right: 12px;
   }
 
   /* Glass card */

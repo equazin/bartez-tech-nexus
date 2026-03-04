@@ -95,7 +95,7 @@ const Navbar = () => {
               <Link
                 key={link.href + link.label}
                 to={link.href}
-                className={`relative rounded-md px-3 py-2 text-[13px] font-medium transition-colors ${
+                className={`nav-link-hover relative rounded-md px-3 py-2 text-[13px] font-medium transition-colors duration-200 ${
                   location.pathname === link.href
                     ? "text-foreground"
                     : "text-muted-foreground hover:text-foreground"
@@ -146,7 +146,7 @@ const Navbar = () => {
 
           <div className="hidden items-center gap-3 lg:flex">
             <Link to="/evaluacion-tecnologica">
-              <Button size="sm" className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 glow-sm h-9 px-5 text-[13px]">
+              <Button size="sm" className="bg-gradient-primary btn-interactive font-semibold text-primary-foreground hover:opacity-90 glow-sm h-9 px-5 text-[13px]">
                 Solicitar Evaluación Tecnológica
               </Button>
             </Link>

@@ -93,6 +93,16 @@ const Products = () => {
             ))}
           </div>
 
+          {/* Equipamiento Tecnológico subsection */}
+          <div className="mt-16 mb-12">
+            <SectionHeading
+              badge="Equipamiento Tecnológico"
+              title="Provisión profesional de"
+              highlight="equipamiento"
+              description="Provisión de equipamiento tecnológico profesional con asesoramiento previo e integración en entornos empresariales."
+            />
+          </div>
+
           <div className="mt-20">
             <EnterpriseCTA
               badge="Provisión Integral"

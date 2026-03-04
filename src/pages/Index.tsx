@@ -67,7 +67,7 @@ const Index = () => {
             <motion.div variants={fadeUp} custom={0}>
               <span className="enterprise-badge mb-7 inline-flex">
                 <Globe size={11} />
-                Departamento IT Externo para Empresas
+                Bartez Tecnología · Empresas
               </span>
             </motion.div>
 
@@ -76,9 +76,9 @@ const Index = () => {
               custom={1}
               className="font-display text-3xl font-extrabold leading-[1.08] tracking-tight text-foreground sm:text-4xl md:text-5xl lg:text-6xl"
             >
-              Su partner tecnológico{" "}
+              Soluciones Tecnológicas{" "}
               <br className="hidden md:block" />
-              <span className="text-gradient">de confianza</span>
+              <span className="text-gradient">para Empresas</span>
             </motion.h1>
 
             <motion.p
@@ -86,27 +86,35 @@ const Index = () => {
               custom={2}
               className="mt-6 max-w-lg text-base text-muted-foreground leading-relaxed md:text-lg"
             >
-              Gestionamos la infraestructura tecnológica de su empresa. 
-              Servidores, redes, equipamiento, seguridad y soporte continuo — todo en un solo partner.
+              Infraestructura, soporte y provisión de equipamiento con foco en continuidad operativa y planificación IT.
             </motion.p>
 
             <motion.div variants={fadeUp} custom={3} className="mt-9 flex flex-wrap gap-3">
               <Link to="/evaluacion-tecnologica">
-                <Button size="lg" className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 glow-sm h-11 px-7 text-sm">
+                <Button size="lg" className="bg-gradient-primary btn-interactive font-semibold text-primary-foreground hover:opacity-90 glow-sm h-11 px-7 text-sm">
                   Solicitar Evaluación Tecnológica <ArrowRight className="ml-2" size={14} />
                 </Button>
               </Link>
-              <Link to="/contacto">
-                <Button size="lg" variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-11 px-7 text-sm">
+              <a href="https://wa.me/5493415104902?text=Hola%2C%20quiero%20hacer%20una%20consulta%20sobre%20soluciones%20tecnol%C3%B3gicas%20para%20empresas." target="_blank" rel="noopener noreferrer">
+                <Button size="lg" variant="outline" className="btn-interactive border-border/60 text-foreground hover:bg-secondary h-11 px-7 text-sm">
                   Hablar con un Especialista
                 </Button>
-              </Link>
+              </a>
+            </motion.div>
+
+            <motion.div variants={fadeUp} custom={4} className="mt-10 flex flex-wrap gap-x-6 gap-y-2">
+              {["15+ años acompañando empresas", "Soporte remoto y en sitio", "Implementación y proyectos llave en mano"].map((item) => (
+                <span key={item} className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <CheckCircle2 size={13} className="text-primary/70 shrink-0" />
+                  {item}
+                </span>
+              ))}
             </motion.div>
 
             <motion.div
               variants={fadeUp}
-              custom={4}
-              className="mt-14 flex flex-wrap items-center gap-x-8 gap-y-3"
+              custom={5}
+              className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-3"
             >
               {["Intel", "AMD", "Lenovo", "Dell", "HP", "Cisco", "Microsoft"].map((brand) => (
                 <span key={brand} className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/50">
@@ -277,6 +285,69 @@ const Index = () => {
                 primaryTo="/contacto"
                 variant="compact"
               />
+            </div>
+          </div>
+        </div>
+        <div className="section-divider" />
+      </section>
+
+      {/* Hardware Supply Section */}
+      <section className="py-20 lg:py-28">
+        <div className="container mx-auto px-4 lg:px-8">
+          <SectionHeading
+            badge="Equipamiento Tecnológico"
+            title="Provisión de Equipamiento"
+            highlight="Tecnológico"
+            description="Además de soluciones IT, Bartez provee equipamiento tecnológico para empresas y profesionales, incluyendo notebooks corporativas, servidores, networking y hardware especializado."
+          />
+          <div className="flex justify-center">
+            <a href="https://wa.me/5493415104902?text=Hola%2C%20quiero%20consultar%20por%20equipamiento%20tecnol%C3%B3gico." target="_blank" rel="noopener noreferrer">
+              <Button className="bg-gradient-primary btn-interactive font-semibold text-primary-foreground hover:opacity-90 glow-sm h-11 px-7 text-sm">
+                Consultar Equipamiento <ArrowRight className="ml-2" size={14} />
+              </Button>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* B2B y Provisión Mayorista */}
+      <section className="relative">
+        <div className="section-divider" />
+        <div className="bg-surface py-20 lg:py-28">
+          <div className="container mx-auto px-4 lg:px-8">
+            <SectionHeading
+              badge="Canal Mayorista"
+              title="B2B y Provisión"
+              highlight="Mayorista"
+              description="Bartez también trabaja bajo modalidad B2B y provisión mayorista, acompañando a empresas, integradores y revendedores en el suministro de equipamiento tecnológico y soluciones IT."
+            />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 max-w-4xl mx-auto mb-10">
+              {[
+                "Provisión mayorista de equipamiento tecnológico",
+                "Disponibilidad de hardware corporativo",
+                "Asesoramiento técnico para proyectos",
+                "Equipamiento para integradores y empresas",
+                "Atención personalizada para clientes habituales",
+              ].map((item, i) => (
+                <motion.div
+                  key={item}
+                  initial={{ opacity: 0, y: 16 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.08, duration: 0.45 }}
+                  className="flex items-start gap-3 card-enterprise rounded-xl p-5"
+                >
+                  <CheckCircle2 size={16} className="text-primary shrink-0 mt-0.5" />
+                  <span className="text-sm text-secondary-foreground">{item}</span>
+                </motion.div>
+              ))}
+            </div>
+            <div className="flex justify-center">
+              <a href="https://wa.me/5493415104902?text=Hola%2C%20quiero%20consultar%20sobre%20provisi%C3%B3n%20mayorista%20de%20equipamiento." target="_blank" rel="noopener noreferrer">
+                <Button className="bg-gradient-primary btn-interactive font-semibold text-primary-foreground hover:opacity-90 glow-sm h-11 px-7 text-sm">
+                  Consultar Canal Mayorista <ArrowRight className="ml-2" size={14} />
+                </Button>
+              </a>
             </div>
           </div>
         </div>
