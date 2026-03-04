@@ -9,14 +9,12 @@ const mainLinks = [
   { label: "Soluciones y Equipamiento", href: "/soluciones-corporativas" },
   { label: "Industrias", href: "/soluciones-por-industria" },
   { label: "Servicios IT", href: "/servicios-it" },
-  { label: "Soporte", href: "/partnership" },
   { label: "Contacto", href: "/contacto" },
 ];
 
 const moreLinks = [
   { label: "Tecnología", href: "/tecnologia" },
   { label: "Partnership", href: "/partnership" },
-  { label: "Área Clientes", href: "/contacto" },
   { label: "Nosotros", href: "/nosotros" },
 ];
 
