@@ -74,7 +74,7 @@ const Navbar = () => {
 >
   <div className="container mx-auto flex h-16 items-center justify-between px-4 lg:px-8">
     <Link to="/" className="flex items-center gap-2.5 group">
-<div className="flex h-8 w-8 items-center justify-center transition-transform group-hover:scale-105 overflow-hidden">
+<div className="flex h-12 w-12 items-center justify-center transition-transform group-hover:scale-105 overflow-hidden">
   <img
     src="/icon.png"
     alt="Bartez"
