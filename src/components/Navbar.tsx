@@ -61,7 +61,7 @@ const Navbar = () => {
               <Phone size={10} />
               +54 9 341 510-4902
             </a>
-            <span className="text-[11px] text-muted-foreground">Lun-Vie 9:00 – 18:00</span>
+            <span className="text-[11px] text-muted-foreground">Lun-Vie 9:00 – 16:00</span>
           </div>
         </div>
       </div>
