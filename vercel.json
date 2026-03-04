@@ -1,4 +1,16 @@
 {
+  "redirects": [
+    {
+      "source": "/producto/:slug*",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/arrepentimiento",
+      "destination": "/",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/" }
   ]
