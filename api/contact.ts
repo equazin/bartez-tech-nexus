@@ -42,16 +42,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-// await fetch("https://script.google.com/macros/s/AKfycbxlRVccJ9cCgbrjWFCu6sWmkG90HCZO1izY0e26dnla9xZMBiT0wpZvmWgt-G_P8svC/exec", {
-// method:"POST",
-// headers:{
-//   "Content-Type":"application/json"
-// },
-// body: JSON.stringify({
-//   name,
-//   email,
-//   phone,
-//   company,
-//   message
-// })
-// })
+await fetch("https://script.google.com/macros/s/AKfycbxlRVccJ9cCgbrjWFCu6sWmkG90HCZO1izY0e26dnla9xZMBiT0wpZvmWgt-G_P8svC/exec", {
+  method: "POST",
+  body: JSON.stringify({
+    name,
+    email,
+    phone,
+    company,
+    message
+  })
+})
