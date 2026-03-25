@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 
 const Login = () => {
   const navigate = useNavigate();
-  const { session, loading, signIn } = useAuth();
+  const { session, loading, isAdmin, signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -17,9 +17,9 @@ const Login = () => {
 
   useEffect(() => {
     if (!loading && session) {
-      navigate("/b2b-portal");
+      navigate(isAdmin ? "/admin" : "/b2b-portal");
     }
-  }, [session, loading, navigate]);
+  }, [session, loading, isAdmin, navigate]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

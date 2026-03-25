@@ -6,7 +6,8 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useProducts } from "@/hooks/useProducts";
 import { useOrders } from "@/hooks/useOrders";
-import { LogOut, ShoppingCart, Search, LayoutGrid, List, Package, ClipboardList, CheckCircle2, XCircle, Clock, X, Plus, Minus } from "lucide-react";
+import { LogOut, ShoppingCart, Search, LayoutGrid, List, Package, ClipboardList, CheckCircle2, XCircle, Clock, X, Plus, Minus, ShieldCheck } from "lucide-react";
+import { Link } from "react-router-dom";
 
 type CartItem = {
   product: any;
@@ -41,7 +42,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function B2BPortal() {
   const navigate = useNavigate();
-  const { profile, signOut } = useAuth();
+  const { profile, isAdmin, signOut } = useAuth();
   const { products, loading: productsLoading } = useProducts();
   const { orders, addOrder } = useOrders();
 
@@ -297,6 +298,16 @@ export default function B2BPortal() {
               </span>
             )}
           </button>
+
+          {/* Admin */}
+          {isAdmin && (
+            <Link to="/admin"
+              className="flex items-center gap-1.5 text-xs text-[#FF6A00] hover:text-white transition px-2 py-2 rounded-lg hover:bg-[#232323]"
+            >
+              <ShieldCheck size={14} />
+              <span className="hidden md:inline">Admin</span>
+            </Link>
+          )}
 
           {/* Logout */}
           <button
