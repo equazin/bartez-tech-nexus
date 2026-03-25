@@ -2,7 +2,7 @@ import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter, DrawerClose,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import { FileDown, Loader2 } from "lucide-react";
+import { FileDown, Loader2, ShoppingCart, Minus, Plus, X } from "lucide-react";
 import { generateQuotePDF } from "@/components/QuotePDF";
 import { UserProfile } from "@/lib/supabase";
 
@@ -43,46 +43,75 @@ export function CartDrawer({
     });
   }
 
+  const itemCount = cartItems.reduce((s, i) => s + i.quantity, 0);
+
   return (
     <Drawer open={open} onOpenChange={(o) => !o && onClose()} direction="right">
-      <DrawerContent className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-[#181818] border-l border-[#222] shadow-2xl flex flex-col">
+      <DrawerContent className="fixed right-0 top-0 bottom-0 w-full max-w-sm bg-[#111] border-l border-[#1e1e1e] shadow-2xl flex flex-col">
 
-        <DrawerHeader className="flex items-center justify-between border-b border-[#222] px-6 py-4">
-          <DrawerTitle className="text-lg font-extrabold text-[#FF6A00]">
-            Carrito {cartItems.length > 0 && <span className="text-sm text-gray-400 font-normal">({cartItems.length} items)</span>}
-          </DrawerTitle>
+        {/* Header */}
+        <DrawerHeader className="flex items-center justify-between border-b border-[#1e1e1e] px-5 py-4 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <ShoppingCart size={16} className="text-[#FF6A00]" />
+            <DrawerTitle className="text-base font-bold text-white">
+              Carrito
+            </DrawerTitle>
+            {itemCount > 0 && (
+              <span className="text-xs text-gray-600 bg-[#1e1e1e] px-2 py-0.5 rounded-full font-medium">
+                {itemCount} {itemCount === 1 ? "item" : "items"}
+              </span>
+            )}
+          </div>
           <DrawerClose asChild>
-            <button className="text-gray-500 hover:text-white transition text-lg leading-none">✕</button>
+            <button className="text-gray-600 hover:text-white transition p-1.5 rounded-lg hover:bg-[#1e1e1e]">
+              <X size={15} />
+            </button>
           </DrawerClose>
         </DrawerHeader>
 
         {/* Items */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+        <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2">
           {cartItems.length === 0 ? (
-            <div className="text-center text-gray-500 mt-16 text-sm">El carrito está vacío.</div>
+            <div className="flex flex-col items-center justify-center flex-1 text-gray-600 py-16">
+              <ShoppingCart size={32} className="mb-3 opacity-20" />
+              <p className="text-sm font-medium text-gray-500">El carrito está vacío</p>
+              <p className="text-xs text-gray-700 mt-1">Agregá productos del catálogo</p>
+            </div>
           ) : (
             cartItems.map((item) => (
-              <div key={item.product.id} className="bg-[#232323] rounded-xl p-3 border border-[#2a2a2a]">
+              <div key={item.product.id}
+                className="bg-[#1a1a1a] border border-[#242424] rounded-xl p-3 hover:border-[#2a2a2a] transition-colors">
                 <div className="flex items-start gap-3">
-                  <img src={item.product.image} alt={item.product.name}
-                    className="h-12 w-12 object-contain rounded-lg bg-[#1a1a1a] shrink-0" />
+                  {/* Image */}
+                  <div className="h-12 w-12 bg-[#111] rounded-lg flex items-center justify-center shrink-0 border border-[#222]">
+                    <img src={item.product.image} alt={item.product.name}
+                      className="max-h-10 max-w-10 object-contain" />
+                  </div>
+                  {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-white line-clamp-1">{item.product.name}</p>
-                    <p className="text-xs text-gray-500">{item.product.category}</p>
-                    <p className="text-sm font-semibold text-[#FF6A00] mt-1">${item.unitPrice.toLocaleString()} c/u</p>
+                    <p className="text-sm font-semibold text-white line-clamp-1 leading-tight">{item.product.name}</p>
+                    <p className="text-[11px] text-gray-600 mt-0.5">{item.product.category}</p>
+                    <p className="text-xs font-bold text-[#FF6A00] mt-1 tabular-nums">
+                      ${item.unitPrice.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} c/u
+                    </p>
                   </div>
                 </div>
-                {/* Qty controls + subtotal */}
+
+                {/* Qty + subtotal */}
                 <div className="flex items-center justify-between mt-2.5">
                   <div className="flex items-center gap-1">
                     <button onClick={() => onRemoveFromCart(item.product)}
-                      className="h-7 w-7 bg-[#1a1a1a] hover:bg-[#333] text-white rounded-lg text-sm font-bold transition">−</button>
-                    <span className="w-7 text-center text-white font-bold text-sm">{item.quantity}</span>
+                      className="h-7 w-7 bg-[#252525] hover:bg-[#2e2e2e] active:scale-95 text-white rounded-lg transition-all flex items-center justify-center">
+                      <Minus size={11} />
+                    </button>
+                    <span className="w-8 text-center text-white font-bold text-sm tabular-nums">{item.quantity}</span>
                     <button onClick={() => onAddToCart(item.product)}
-                      className="h-7 w-7 bg-[#FF6A00] hover:bg-[#FF8C1A] text-white rounded-lg text-sm font-bold transition">+</button>
+                      className="h-7 w-7 bg-[#FF6A00] hover:bg-[#FF8C1A] active:scale-95 text-white rounded-lg transition-all flex items-center justify-center">
+                      <Plus size={11} />
+                    </button>
                   </div>
-                  <span className="text-base font-extrabold text-[#FF6A00]">
-                    ${item.totalPrice.toLocaleString()}
+                  <span className="text-sm font-extrabold text-white tabular-nums">
+                    ${item.totalPrice.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>
@@ -91,39 +120,39 @@ export function CartDrawer({
         </div>
 
         {/* Footer */}
-        <DrawerFooter className="border-t border-[#222] px-4 py-4 bg-[#141414] space-y-3">
-          {cartItems.length > 0 && (
-            <>
-              <div className="flex justify-between font-extrabold text-white text-lg">
-                <span>Total</span>
-                <span className="text-[#FF6A00]">${cartTotal.toLocaleString()}</span>
-              </div>
+        {cartItems.length > 0 && (
+          <DrawerFooter className="border-t border-[#1e1e1e] px-4 py-4 bg-[#0e0e0e] space-y-2.5 shrink-0">
+            {/* Total */}
+            <div className="flex justify-between items-baseline">
+              <span className="text-sm text-gray-500 font-medium">Total</span>
+              <span className="text-xl font-extrabold text-[#FF6A00] tabular-nums">
+                ${cartTotal.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
 
-              {/* Exportar PDF */}
-              <Button
-                variant="outline"
-                className="w-full border-[#333] text-gray-300 hover:text-white hover:border-[#FF6A00]/50 gap-2 text-sm"
-                onClick={handleExportPDF}
-              >
-                <FileDown size={15} />
-                Exportar cotización PDF
-              </Button>
+            {/* Export PDF */}
+            <button
+              onClick={handleExportPDF}
+              className="w-full flex items-center justify-center gap-2 border border-[#2a2a2a] hover:border-[#FF6A00]/30 text-gray-400 hover:text-white bg-transparent hover:bg-[#1a1a1a] rounded-xl py-2.5 text-sm transition-all"
+            >
+              <FileDown size={14} />
+              Exportar cotización PDF
+            </button>
 
-              {/* Confirmar */}
-              <Button
-                disabled={confirming}
-                onClick={onConfirmOrder}
-                className="w-full bg-gradient-to-br from-[#FF6A00] to-[#FF8C1A] text-white font-bold rounded-lg h-11 disabled:opacity-50 disabled:pointer-events-none gap-2"
-              >
-                {confirming ? (
-                  <><Loader2 size={15} className="animate-spin" /> Confirmando...</>
-                ) : (
-                  "Confirmar pedido"
-                )}
-              </Button>
-            </>
-          )}
-        </DrawerFooter>
+            {/* Confirm */}
+            <button
+              disabled={confirming}
+              onClick={onConfirmOrder}
+              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[#FF6A00] to-[#FF8C1A] hover:brightness-110 active:scale-[0.98] text-white font-bold rounded-xl py-3 text-sm transition-all disabled:opacity-50 disabled:pointer-events-none"
+            >
+              {confirming ? (
+                <><Loader2 size={14} className="animate-spin" /> Confirmando pedido...</>
+              ) : (
+                "Confirmar pedido"
+              )}
+            </button>
+          </DrawerFooter>
+        )}
       </DrawerContent>
     </Drawer>
   );
