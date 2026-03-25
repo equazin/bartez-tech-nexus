@@ -15,11 +15,19 @@ export const supabase = createClient(
 );
 
 export type UserRole = "client" | "admin";
+export type ClientType = "mayorista" | "reseller" | "empresa";
+
+export const CLIENT_TYPE_MARGINS: Record<ClientType, number> = {
+  mayorista: 10,
+  reseller:  20,
+  empresa:   15,
+};
 
 export interface UserProfile {
   id: string;
   company_name: string;
   contact_name: string;
   default_margin: number;
+  client_type: ClientType;
   role: UserRole;
 }

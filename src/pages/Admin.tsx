@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { CLIENT_TYPE_MARGINS, ClientType } from "@/lib/supabase";
 import { Product } from "@/models/products";
 import Layout from "@/components/Layout";
 import ProductForm from "@/components/admin/ProductForm";
 import ProductImport from "@/components/admin/ProductImport";
-import { CheckCircle2, XCircle, Clock, Trash2, RefreshCw } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, Trash2, RefreshCw, Save, Users } from "lucide-react";
 
 interface SupabaseOrder {
   id: string;
@@ -14,6 +15,21 @@ interface SupabaseOrder {
   status: string;
   created_at: string;
 }
+
+interface ClientProfile {
+  id: string;
+  company_name: string;
+  contact_name: string;
+  client_type: ClientType;
+  default_margin: number;
+  role: string;
+}
+
+const CLIENT_TYPE_LABELS: Record<ClientType, string> = {
+  mayorista: "Mayorista",
+  reseller:  "Revendedor",
+  empresa:   "Empresa",
+};
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; className: string }> = {
@@ -28,11 +44,15 @@ function StatusBadge({ status }: { status: string }) {
 const Admin = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<SupabaseOrder[]>([]);
+  const [clients, setClients] = useState<ClientProfile[]>([]);
+  const [editingClients, setEditingClients] = useState<Record<string, Partial<ClientProfile>>>({});
+  const [savingClient, setSavingClient] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<SupabaseOrder | null>(null);
   const [importResult, setImportResult] = useState<{ imported: number; errors: string[] } | null>(null);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [loadingOrders, setLoadingOrders] = useState(true);
-  const [activeTab, setActiveTab] = useState<"products" | "orders">("products");
+  const [loadingClients, setLoadingClients] = useState(true);
+  const [activeTab, setActiveTab] = useState<"products" | "orders" | "clients">("products");
 
   async function fetchProducts() {
     setLoadingProducts(true);
@@ -48,8 +68,52 @@ const Admin = () => {
     setLoadingOrders(false);
   }
 
-  useEffect(() => { fetchProducts(); fetchOrders(); }, []);
+  async function fetchClients() {
+    setLoadingClients(true);
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, company_name, contact_name, client_type, default_margin, role")
+      .order("company_name");
+    if (data) setClients(data as ClientProfile[]);
+    setLoadingClients(false);
+  }
 
+  useEffect(() => { fetchProducts(); fetchOrders(); fetchClients(); }, []);
+
+  // ── Edición inline de clientes ──
+  function startEdit(client: ClientProfile) {
+    setEditingClients((prev) => ({
+      ...prev,
+      [client.id]: { client_type: client.client_type, default_margin: client.default_margin },
+    }));
+  }
+
+  function updateEdit(id: string, field: keyof ClientProfile, value: any) {
+    setEditingClients((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
+  }
+
+  function applyTypeMargin(id: string, type: ClientType) {
+    setEditingClients((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], client_type: type, default_margin: CLIENT_TYPE_MARGINS[type] },
+    }));
+  }
+
+  async function saveClient(id: string) {
+    const edits = editingClients[id];
+    if (!edits) return;
+    setSavingClient(id);
+    const { error } = await supabase.from("profiles").update(edits).eq("id", id);
+    setSavingClient(null);
+    if (!error) {
+      setClients((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, ...edits } : c))
+      );
+      setEditingClients((prev) => { const { [id]: _, ...rest } = prev; return rest; });
+    }
+  }
+
+  // ── Órdenes ──
   async function updateOrderStatus(orderId: string, status: "approved" | "rejected") {
     const { error } = await supabase
       .from("orders")
@@ -82,7 +146,7 @@ const Admin = () => {
 
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold">Panel Admin</h1>
-            <button onClick={() => { fetchProducts(); fetchOrders(); }}
+            <button onClick={() => { fetchProducts(); fetchOrders(); fetchClients(); }}
               className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition">
               <RefreshCw size={14} /> Actualizar
             </button>
@@ -93,6 +157,7 @@ const Admin = () => {
             {[
               { id: "products", label: `Productos (${products.length})` },
               { id: "orders",   label: `Pedidos (${orders.length})` },
+              { id: "clients",  label: `Clientes (${clients.length})` },
             ].map(({ id, label }) => (
               <button key={id} onClick={() => setActiveTab(id as any)}
                 className={`px-5 py-2.5 text-sm font-medium border-b-2 transition ${
@@ -213,7 +278,6 @@ const Admin = () => {
                 )}
               </div>
 
-              {/* Detalle pedido */}
               {selectedOrder && (
                 <div className="card-enterprise rounded-xl p-6">
                   <div className="flex items-center justify-between mb-4">
@@ -264,6 +328,126 @@ const Admin = () => {
                       </button>
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── CLIENTES ── */}
+          {activeTab === "clients" && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Editá el tipo y margen de cada cliente. Al cambiar el tipo se sugiere el margen por defecto, pero podés ajustarlo manualmente.
+              </p>
+
+              {loadingClients ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 bg-secondary/40 rounded-xl animate-pulse" />)}
+                </div>
+              ) : clients.length === 0 ? (
+                <div className="flex flex-col items-center py-16 text-muted-foreground text-sm gap-2">
+                  <Users size={36} className="opacity-30" />
+                  <p>No hay clientes registrados todavía.</p>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-border/40 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-secondary/50">
+                      <tr>
+                        {["Empresa", "Contacto", "Tipo", "Margen %", ""].map(h => (
+                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clients.map((client) => {
+                        const isEditing = !!editingClients[client.id];
+                        const edits = editingClients[client.id] ?? {};
+                        const currentType = (edits.client_type ?? client.client_type) as ClientType;
+                        const currentMargin = edits.default_margin ?? client.default_margin;
+
+                        return (
+                          <tr key={client.id} className="border-t border-border/20 hover:bg-secondary/10 transition">
+                            <td className="px-4 py-3 font-medium">{client.company_name || "—"}</td>
+                            <td className="px-4 py-3 text-muted-foreground text-xs">{client.contact_name || "—"}</td>
+
+                            {/* Tipo */}
+                            <td className="px-4 py-3">
+                              {isEditing ? (
+                                <select
+                                  value={currentType}
+                                  onChange={(e) => applyTypeMargin(client.id, e.target.value as ClientType)}
+                                  className="bg-background border border-border rounded-lg px-2 py-1 text-xs outline-none focus:border-primary"
+                                >
+                                  {(Object.keys(CLIENT_TYPE_LABELS) as ClientType[]).map((t) => (
+                                    <option key={t} value={t}>{CLIENT_TYPE_LABELS[t]}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${
+                                  currentType === "mayorista"
+                                    ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
+                                    : currentType === "empresa"
+                                    ? "bg-purple-500/15 text-purple-400 border-purple-500/30"
+                                    : "bg-orange-500/15 text-orange-400 border-orange-500/30"
+                                }`}>
+                                  {CLIENT_TYPE_LABELS[currentType] ?? currentType}
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Margen */}
+                            <td className="px-4 py-3">
+                              {isEditing ? (
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number" min="0" max="100"
+                                    value={currentMargin}
+                                    onChange={(e) => updateEdit(client.id, "default_margin", Number(e.target.value))}
+                                    className="w-16 bg-background border border-border rounded-lg px-2 py-1 text-xs outline-none focus:border-primary text-center"
+                                  />
+                                  <span className="text-xs text-muted-foreground">%</span>
+                                </div>
+                              ) : (
+                                <span className="font-semibold text-primary">{client.default_margin}%</span>
+                              )}
+                            </td>
+
+                            {/* Acciones */}
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                {isEditing ? (
+                                  <>
+                                    <button
+                                      onClick={() => saveClient(client.id)}
+                                      disabled={savingClient === client.id}
+                                      className="flex items-center gap-1 text-xs bg-primary text-primary-foreground px-2.5 py-1 rounded-lg font-semibold disabled:opacity-50 transition hover:opacity-90"
+                                    >
+                                      <Save size={12} />
+                                      {savingClient === client.id ? "Guardando..." : "Guardar"}
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingClients((prev) => { const { [client.id]: _, ...rest } = prev; return rest; })}
+                                      className="text-xs text-muted-foreground hover:text-foreground transition px-2 py-1"
+                                    >
+                                      Cancelar
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    onClick={() => startEdit(client)}
+                                    className="text-xs text-muted-foreground hover:text-foreground transition px-2 py-1 rounded-lg hover:bg-secondary"
+                                  >
+                                    Editar
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
