@@ -98,20 +98,32 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   const formatARS = useCallback((usdValue: number) => fmtARS(usdValue, exchangeRate.rate), [exchangeRate.rate]);
 
   /**
-   * Stub for future API integration.
-   * Swap the body for a real fetch when ready.
-   * Example APIs: bluelytics.com.ar, argentinadatos.com, DolarApi.
+   * Fetches the current USD blue rate from dolarapi.com.
+   * Endpoint: GET https://dolarapi.com/v1/dolares/blue
+   * Response: { compra, venta, casa, nombre, moneda, fechaActualizacion }
+   * Using `venta` (sell price) as the reference rate for pricing.
+   *
+   * To switch rate type change the endpoint:
+   *   /dolares/oficial    → official/bank rate
+   *   /dolares/blue       → parallel/informal market
+   *   /dolares/mayorista  → wholesale rate
+   *   /dolares/tarjeta    → credit card rate
    */
   const fetchExchangeRate = useCallback(async () => {
     try {
-      // TODO: replace with real API call, e.g.:
-      // const res = await fetch("https://api.bluelytics.com.ar/v2/latest");
-      // const json = await res.json();
-      // const rate = json.blue.value_sell;  // or official, MEP, etc.
-      // setExchangeRate({ rate, source: "api", updatedAt: new Date().toISOString() });
-      console.info("[CurrencyContext] fetchExchangeRate: stub — connect a real API here");
+      const res = await fetch("https://dolarapi.com/v1/dolares/blue");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const rate = json.venta as number;
+      if (!rate || rate <= 0) throw new Error("Valor inválido en respuesta");
+      setExchangeRate({
+        rate,
+        source: "api",
+        updatedAt: json.fechaActualizacion ?? new Date().toISOString(),
+      });
     } catch (err) {
       console.error("[CurrencyContext] fetchExchangeRate failed:", err);
+      throw err; // re-throw so callers can show UI feedback
     }
   }, [setExchangeRate]);
 

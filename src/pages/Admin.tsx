@@ -60,6 +60,20 @@ const Admin = () => {
   const { exchangeRate, setExchangeRate, fetchExchangeRate } = useCurrency();
   const [editingRate, setEditingRate] = useState(false);
   const [rateInput, setRateInput] = useState(String(exchangeRate.rate));
+  const [fetchingRate, setFetchingRate] = useState(false);
+  const [fetchRateError, setFetchRateError] = useState("");
+
+  async function handleFetchRate() {
+    setFetchingRate(true);
+    setFetchRateError("");
+    try {
+      await fetchExchangeRate();
+    } catch {
+      setFetchRateError("No se pudo obtener la cotización. Intentá de nuevo.");
+    } finally {
+      setFetchingRate(false);
+    }
+  }
 
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<SupabaseOrder[]>([]);
@@ -378,15 +392,22 @@ const Admin = () => {
                 </div>
               )}
 
-              <div className="ml-auto flex items-center gap-2">
+              <div className="ml-auto flex items-center gap-2.5">
+                {fetchRateError && (
+                  <span className="text-[11px] text-red-400">{fetchRateError}</span>
+                )}
                 <button
-                  onClick={fetchExchangeRate}
-                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white transition px-2.5 py-1.5 rounded-lg hover:bg-[#2a2a2a] border border-transparent hover:border-[#333]"
-                  title="Conectar API de cotización"
+                  onClick={handleFetchRate}
+                  disabled={fetchingRate}
+                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white disabled:opacity-50 transition px-2.5 py-1.5 rounded-lg hover:bg-[#2a2a2a] border border-transparent hover:border-[#333]"
                 >
-                  <RefreshCw size={11} /> Actualizar (API)
+                  <RefreshCw size={11} className={fetchingRate ? "animate-spin" : ""} />
+                  {fetchingRate ? "Actualizando..." : "Cotización blue"}
                 </button>
-                <div className="h-2 w-2 rounded-full bg-amber-400" title="Cotización manual — sin API conectada" />
+                <div
+                  className={`h-2 w-2 rounded-full ${exchangeRate.source === "api" ? "bg-green-400" : "bg-amber-400"}`}
+                  title={exchangeRate.source === "api" ? "Cotización via API" : "Cotización manual"}
+                />
               </div>
             </div>
 
