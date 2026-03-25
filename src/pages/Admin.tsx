@@ -8,7 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import {
   CheckCircle2, XCircle, Clock, Trash2, RefreshCw, Save,
-  Users, Package, ClipboardList, LogOut, LayoutGrid, ShieldCheck,
+  Users, Package, ClipboardList, LogOut, ShieldCheck, UserPlus, X,
 } from "lucide-react";
 
 interface SupabaseOrder {
@@ -60,6 +60,10 @@ const Admin = () => {
   const [clients, setClients] = useState<ClientProfile[]>([]);
   const [editingClients, setEditingClients] = useState<Record<string, Partial<ClientProfile>>>({});
   const [savingClient, setSavingClient] = useState<string | null>(null);
+  const [showNewClient, setShowNewClient] = useState(false);
+  const [newClient, setNewClient] = useState({ email: "", password: "", company_name: "", contact_name: "", client_type: "reseller" as ClientType, default_margin: 20, role: "client" as "client" | "admin" });
+  const [creatingClient, setCreatingClient] = useState(false);
+  const [createError, setCreateError] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<SupabaseOrder | null>(null);
   const [importResult, setImportResult] = useState<{ imported: number; errors: string[] } | null>(null);
   const [loadingProducts, setLoadingProducts] = useState(true);
@@ -94,6 +98,38 @@ const Admin = () => {
   useEffect(() => { fetchProducts(); fetchOrders(); fetchClients(); }, []);
 
   const pendingOrders = orders.filter((o) => o.status === "pending").length;
+
+  // ── Crear cliente ──
+  async function handleCreateClient() {
+    setCreateError("");
+    if (!newClient.email || !newClient.password) {
+      setCreateError("Email y contraseña son obligatorios.");
+      return;
+    }
+    setCreatingClient(true);
+    const { data, error } = await supabase.auth.signUp({
+      email: newClient.email,
+      password: newClient.password,
+    });
+    if (error || !data.user) {
+      setCreateError(error?.message || "Error al crear el usuario.");
+      setCreatingClient(false);
+      return;
+    }
+    // Actualizar el perfil creado por el trigger
+    await supabase.from("profiles").update({
+      company_name: newClient.company_name,
+      contact_name: newClient.contact_name,
+      client_type: newClient.client_type,
+      default_margin: newClient.default_margin,
+      role: newClient.role,
+    }).eq("id", data.user.id);
+
+    setCreatingClient(false);
+    setShowNewClient(false);
+    setNewClient({ email: "", password: "", company_name: "", contact_name: "", client_type: "reseller", default_margin: 20, role: "client" });
+    fetchClients();
+  }
 
   // ── Clientes ──
   function startEdit(client: ClientProfile) {
@@ -389,9 +425,102 @@ const Admin = () => {
         {/* ── CLIENTES ── */}
         {activeTab === "clients" && (
           <div className="space-y-4 max-w-4xl">
-            <p className="text-sm text-gray-500">
-              Editá el tipo y margen de cada cliente. Al cambiar el tipo se sugiere el margen por defecto.
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-500">Editá el tipo y margen de cada cliente.</p>
+              <button
+                onClick={() => { setShowNewClient(true); setCreateError(""); }}
+                className="flex items-center gap-2 bg-[#FF6A00] hover:bg-[#FF8C1A] text-white text-sm font-bold px-4 py-2 rounded-lg transition"
+              >
+                <UserPlus size={15} /> Nuevo Cliente
+              </button>
+            </div>
+
+            {/* Modal nuevo cliente */}
+            {showNewClient && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+                <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl w-full max-w-md shadow-2xl">
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-[#2a2a2a]">
+                    <h3 className="font-bold text-white">Nuevo Cliente</h3>
+                    <button onClick={() => setShowNewClient(false)} className="text-gray-500 hover:text-white transition">
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <div className="px-6 py-5 space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2">
+                        <label className="text-xs text-gray-400 mb-1 block">Email *</label>
+                        <input type="email" value={newClient.email}
+                          onChange={(e) => setNewClient((p) => ({ ...p, email: e.target.value }))}
+                          className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]"
+                          placeholder="cliente@empresa.com" />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-xs text-gray-400 mb-1 block">Contraseña *</label>
+                        <input type="text" value={newClient.password}
+                          onChange={(e) => setNewClient((p) => ({ ...p, password: e.target.value }))}
+                          className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]"
+                          placeholder="Mínimo 6 caracteres" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-400 mb-1 block">Empresa</label>
+                        <input type="text" value={newClient.company_name}
+                          onChange={(e) => setNewClient((p) => ({ ...p, company_name: e.target.value }))}
+                          className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]"
+                          placeholder="Distribuidora XYZ" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-400 mb-1 block">Contacto</label>
+                        <input type="text" value={newClient.contact_name}
+                          onChange={(e) => setNewClient((p) => ({ ...p, contact_name: e.target.value }))}
+                          className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]"
+                          placeholder="Juan Pérez" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-400 mb-1 block">Tipo</label>
+                        <select value={newClient.client_type}
+                          onChange={(e) => {
+                            const t = e.target.value as ClientType;
+                            setNewClient((p) => ({ ...p, client_type: t, default_margin: CLIENT_TYPE_MARGINS[t] }));
+                          }}
+                          className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]">
+                          <option value="reseller">Revendedor</option>
+                          <option value="mayorista">Mayorista</option>
+                          <option value="empresa">Empresa</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-400 mb-1 block">Margen %</label>
+                        <input type="number" min="0" max="100" value={newClient.default_margin}
+                          onChange={(e) => setNewClient((p) => ({ ...p, default_margin: Number(e.target.value) }))}
+                          className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00] text-center" />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-xs text-gray-400 mb-1 block">Rol</label>
+                        <select value={newClient.role}
+                          onChange={(e) => setNewClient((p) => ({ ...p, role: e.target.value as "client" | "admin" }))}
+                          className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]">
+                          <option value="client">Cliente</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {createError && (
+                      <p className="text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">{createError}</p>
+                    )}
+
+                    <button
+                      onClick={handleCreateClient}
+                      disabled={creatingClient}
+                      className="w-full bg-[#FF6A00] hover:bg-[#FF8C1A] text-white font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-50"
+                    >
+                      {creatingClient ? "Creando..." : "Crear Cliente"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
 
             {loadingClients ? (
               <div className="space-y-2">
