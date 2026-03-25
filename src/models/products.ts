@@ -1,14 +1,21 @@
 export interface Product {
-	id: number;
-	name: string;
-	description: string;
-	image: string;
-	cost_price: number;
-	category: string;
-	stock: number;
-	supplier_id?: number;
-	supplier_multiplier?: number;
-	sku?: string;
+  id: number;
+  name: string;
+  description: string;
+  image: string;
+  cost_price: number;
+  category: string;
+  stock: number;
+  sku?: string;
+  supplier_id?: number;
+  supplier_name?: string;
+  supplier_multiplier?: number;
+  stock_min?: number;
+  external_id?: string;
+  active?: boolean;
+  featured?: boolean;
+  specs?: Record<string, string>;
+  tags?: string[];
 }
 
 export const products: Product[] = [
