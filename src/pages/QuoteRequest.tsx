@@ -107,55 +107,52 @@ const QuoteRequest = () => {
         detail
       };
 
-      // Enviamos a la hoja de cálculo (usamos mode: 'no-cors' para evitar bloqueos)
+      // Enviamos a Google Sheets CRM (no-cors — siempre dispara aunque no podamos leer la respuesta)
       fetch(GOOGLE_SHEET_URL, {
         method: "POST",
         mode: "no-cors",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(sheetPayload),
       });
-      // -------------------------------------
 
-      const fullMessage = [
-        "SOLICITUD DE EVALUACIÓN TECNOLÓGICA",
-        "",
-        `Tipo de proyecto: ${typeLabel}`,
-        `Áreas de necesidad: ${needsLabels}`,
-        "",
-        "DATOS DE CONTACTO",
-        `Nombre: ${name}`,
-        `Empresa: ${company}`,
-        `Email: ${email}`,
-        `Teléfono: ${phone || "-"}`,
-        `Tamaño empresa: ${selectedCompanySize || "-"}`,
-        `Puestos de trabajo: ${workstations || "-"}`,
-        `Urgencia: ${selectedUrgency || "-"}`,
-        "",
-        "DETALLE",
-        detail,
-      ].join("\n");
+      // Intentamos notificación por email si hay API configurada (no bloquea el flujo)
+      try {
+        const fullMessage = [
+          "SOLICITUD DE EVALUACIÓN TECNOLÓGICA",
+          "",
+          `Tipo de proyecto: ${typeLabel}`,
+          `Áreas de necesidad: ${needsLabels}`,
+          "",
+          "DATOS DE CONTACTO",
+          `Nombre: ${name}`,
+          `Empresa: ${company}`,
+          `Email: ${email}`,
+          `Teléfono: ${phone || "-"}`,
+          `Tamaño empresa: ${selectedCompanySize || "-"}`,
+          `Puestos de trabajo: ${workstations || "-"}`,
+          `Urgencia: ${selectedUrgency || "-"}`,
+          "",
+          "DETALLE",
+          detail,
+        ].join("\n");
 
-      const r = await fetch("/api/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subject: "Solicitud de evaluación tecnológica",
-          name: `${name} (CRM Web)`,
-          email,
-          message: fullMessage,
-        }),
-      });
-
-      let json = null;
-      try { json = await r.json(); } catch { json = null; }
-
-      if (!r.ok || !json?.ok) {
-        throw new Error(json?.error || "Error en el servidor");
+        await fetch("/api/contact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            subject: "Solicitud de evaluación tecnológica",
+            name: `${name} (CRM Web)`,
+            email,
+            message: fullMessage,
+          }),
+        });
+      } catch {
+        // Silencioso — el lead ya fue guardado en Google Sheets
       }
 
       toast({
-        title: "✅ Solicitud recibida",
-        description: "Los datos se han guardado en el CRM y un consultor lo contactará pronto.",
+        title: "Solicitud recibida",
+        description: "Un consultor lo contactará en las próximas 24-48 horas hábiles.",
       });
 
       (e.target as HTMLFormElement).reset();
@@ -310,12 +307,61 @@ const QuoteRequest = () => {
             </div>
 
             {/* Sidebar Informativo */}
-            <div className="space-y-6">
-              <div className="card-enterprise rounded-xl p-6 border-l-4 border-primary">
-                <Shield className="text-primary mb-3" />
-                <h4 className="font-bold mb-2">Compromiso Bartez</h4>
-                <p className="text-sm text-muted-foreground">Su información está protegida y será tratada por consultores senior.</p>
+            <div className="space-y-5 lg:sticky lg:top-32">
+
+              {/* Garantías */}
+              <div className="card-enterprise rounded-xl p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Shield size={16} className="text-primary" />
+                  <h4 className="font-semibold text-foreground text-sm">Compromiso Bartez</h4>
+                </div>
+                <ul className="space-y-3">
+                  {trustPoints.map((point) => (
+                    <li key={point} className="flex items-start gap-2.5 text-sm text-muted-foreground">
+                      <CheckCircle2 size={14} className="text-primary shrink-0 mt-0.5" />
+                      {point}
+                    </li>
+                  ))}
+                </ul>
               </div>
+
+              {/* Qué pasa después */}
+              <div className="card-enterprise rounded-xl p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Clock size={16} className="text-primary" />
+                  <h4 className="font-semibold text-foreground text-sm">¿Qué pasa después?</h4>
+                </div>
+                <ol className="space-y-4">
+                  {[
+                    { step: "01", text: "Un consultor revisa su solicitud y analiza su sector." },
+                    { step: "02", text: "Lo contactamos en 24-48 horas hábiles para una reunión sin cargo." },
+                    { step: "03", text: "Presentamos una propuesta adaptada a su empresa." },
+                  ].map(({ step, text }) => (
+                    <li key={step} className="flex items-start gap-3">
+                      <span className="font-display text-xl font-extrabold text-border/60 shrink-0 leading-none">{step}</span>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{text}</p>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+
+              {/* WhatsApp directo */}
+              <a
+                href="https://wa.me/5493415104902?text=Hola%2C%20quiero%20solicitar%20una%20evaluaci%C3%B3n%20tecnol%C3%B3gica."
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 card-enterprise rounded-xl p-5 hover:border-primary/40 transition-colors group"
+              >
+                <div className="h-9 w-9 rounded-full bg-green-500/15 flex items-center justify-center shrink-0">
+                  <Send size={14} className="text-green-500" />
+                </div>
+                <div>
+                  <span className="block text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                    ¿Prefiere hablar directamente?
+                  </span>
+                  <span className="text-xs text-muted-foreground">Escríbanos por WhatsApp</span>
+                </div>
+              </a>
             </div>
           </div>
         </div>

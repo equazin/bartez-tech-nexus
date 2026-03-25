@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, Shield, Server, Monitor, Headphones, CheckCircle2, Building2, Network, TrendingUp, Globe, Briefcase, Settings, ClipboardCheck } from "lucide-react";
+import { ArrowRight, Shield, Server, Monitor, Headphones, CheckCircle2, Building2, Network, TrendingUp, Globe, Briefcase, Settings, ClipboardCheck, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Layout from "@/components/Layout";
 import SectionHeading from "@/components/SectionHeading";
@@ -126,12 +126,12 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Stats */}
+      {/* Stats + Brands */}
       <section className="relative">
         <div className="section-divider" />
         <div className="bg-surface">
           <div className="container mx-auto px-4 py-14 lg:px-8 lg:py-16">
-            <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
+            <div className="grid grid-cols-2 gap-8 md:grid-cols-4 mb-12">
               {stats.map((stat, i) => (
                 <motion.div
                   key={stat.label}
@@ -145,6 +145,19 @@ const Index = () => {
                   <div className="mt-2 text-xs text-muted-foreground">{stat.label}</div>
                 </motion.div>
               ))}
+            </div>
+            {/* Logos de marcas distribuidas */}
+            <div className="border-t border-border/20 pt-10">
+              <p className="text-center text-[11px] uppercase tracking-[0.2em] text-muted-foreground/50 font-semibold mb-6">
+                Distribuidores autorizados
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
+                {["Dell", "HP", "Lenovo", "Cisco", "Microsoft", "Intel", "AMD", "Fortinet", "Ubiquiti"].map((brand) => (
+                  <span key={brand} className="text-sm font-bold uppercase tracking-[0.15em] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors">
+                    {brand}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -291,63 +304,77 @@ const Index = () => {
         <div className="section-divider" />
       </section>
 
-      {/* Hardware Supply Section */}
-      <section className="py-20 lg:py-28">
-        <div className="container mx-auto px-4 lg:px-8">
-          <SectionHeading
-            badge="Equipamiento Tecnológico"
-            title="Provisión de Equipamiento"
-            highlight="Tecnológico"
-            description="Además de soluciones IT, Bartez provee equipamiento tecnológico para empresas y profesionales, incluyendo notebooks corporativas, servidores, networking y hardware especializado."
-          />
-          <div className="flex justify-center">
-            <a href="https://wa.me/5493415104902?text=Hola%2C%20quiero%20consultar%20por%20equipamiento%20tecnol%C3%B3gico." target="_blank" rel="noopener noreferrer">
-              <Button className="bg-gradient-primary btn-interactive font-semibold text-primary-foreground hover:opacity-90 glow-sm h-11 px-7 text-sm">
-                Consultar Equipamiento <ArrowRight className="ml-2" size={14} />
-              </Button>
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* B2B y Provisión Mayorista */}
+      {/* Equipamiento + Canal Mayorista — sección unificada */}
       <section className="relative">
         <div className="section-divider" />
         <div className="bg-surface py-20 lg:py-28">
           <div className="container mx-auto px-4 lg:px-8">
             <SectionHeading
-              badge="Canal Mayorista"
-              title="B2B y Provisión"
-              highlight="Mayorista"
-              description="Bartez también trabaja bajo modalidad B2B y provisión mayorista, acompañando a empresas, integradores y revendedores en el suministro de equipamiento tecnológico y soluciones IT."
+              badge="Para empresas e integradores"
+              title="Equipamiento y"
+              highlight="Canal Mayorista"
+              description="Proveemos hardware corporativo y trabajamos bajo modalidad B2B con empresas, integradores y revendedores en todo el país."
             />
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 max-w-4xl mx-auto mb-10">
-              {[
-                "Provisión mayorista de equipamiento tecnológico",
-                "Disponibilidad de hardware corporativo",
-                "Asesoramiento técnico para proyectos",
-                "Equipamiento para integradores y empresas",
-                "Atención personalizada para clientes habituales",
-              ].map((item, i) => (
-                <motion.div
-                  key={item}
-                  initial={{ opacity: 0, y: 16 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.08, duration: 0.45 }}
-                  className="flex items-start gap-3 card-enterprise rounded-xl p-5"
-                >
-                  <CheckCircle2 size={16} className="text-primary shrink-0 mt-0.5" />
-                  <span className="text-sm text-secondary-foreground">{item}</span>
-                </motion.div>
-              ))}
-            </div>
-            <div className="flex justify-center">
-              <a href="https://wa.me/5493415104902?text=Hola%2C%20quiero%20consultar%20sobre%20provisi%C3%B3n%20mayorista%20de%20equipamiento." target="_blank" rel="noopener noreferrer">
-                <Button className="bg-gradient-primary btn-interactive font-semibold text-primary-foreground hover:opacity-90 glow-sm h-11 px-7 text-sm">
-                  Consultar Canal Mayorista <ArrowRight className="ml-2" size={14} />
-                </Button>
-              </a>
+            <div className="grid gap-6 lg:grid-cols-2 max-w-5xl mx-auto">
+              {/* Col 1: Equipamiento */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5 }}
+                className="card-enterprise rounded-2xl p-8"
+              >
+                <div className="icon-container h-11 w-11 text-primary mb-5">
+                  <Monitor size={20} />
+                </div>
+                <h3 className="font-display text-lg font-semibold text-foreground mb-2">Equipamiento Corporativo</h3>
+                <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
+                  Notebooks, servidores, networking y hardware especializado para toda su empresa, con garantía oficial de fábrica y soporte post-entrega.
+                </p>
+                <ul className="space-y-2 mb-6">
+                  {["Distribuidores autorizados Dell, HP, Lenovo, Cisco", "Stock disponible y entrega en todo el país", "Cotizaciones en 24hs hábiles"].map(item => (
+                    <li key={item} className="flex items-start gap-2 text-sm text-secondary-foreground">
+                      <CheckCircle2 size={14} className="text-primary shrink-0 mt-0.5" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <a href="https://wa.me/5493415104902?text=Hola%2C%20quiero%20consultar%20por%20equipamiento%20tecnol%C3%B3gico." target="_blank" rel="noopener noreferrer">
+                  <Button className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 h-10 px-5 text-sm">
+                    Consultar equipamiento <ArrowRight size={13} className="ml-2" />
+                  </Button>
+                </a>
+              </motion.div>
+
+              {/* Col 2: Canal Mayorista */}
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.1 }}
+                className="card-enterprise rounded-2xl p-8"
+              >
+                <div className="icon-container h-11 w-11 text-primary mb-5">
+                  <Briefcase size={20} />
+                </div>
+                <h3 className="font-display text-lg font-semibold text-foreground mb-2">Canal B2B y Mayorista</h3>
+                <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
+                  Acompañamos a integradores y revendedores con precios preferenciales, soporte técnico y condiciones especiales para proyectos de escala.
+                </p>
+                <ul className="space-y-2 mb-6">
+                  {["Precios mayoristas para integradores", "Asesoramiento técnico para proyectos", "Atención personalizada y cuenta dedicada"].map(item => (
+                    <li key={item} className="flex items-start gap-2 text-sm text-secondary-foreground">
+                      <CheckCircle2 size={14} className="text-primary shrink-0 mt-0.5" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <a href="https://wa.me/5493415104902?text=Hola%2C%20quiero%20consultar%20sobre%20provisi%C3%B3n%20mayorista%20de%20equipamiento." target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-10 px-5 text-sm">
+                    Consultar canal mayorista <ArrowRight size={13} className="ml-2" />
+                  </Button>
+                </a>
+              </motion.div>
             </div>
           </div>
         </div>
