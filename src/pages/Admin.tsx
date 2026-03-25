@@ -64,6 +64,29 @@ const Admin = () => {
   const [newClient, setNewClient] = useState({ email: "", password: "", company_name: "", contact_name: "", client_type: "reseller" as ClientType, default_margin: 20, role: "client" as "client" | "admin" });
   const [creatingClient, setCreatingClient] = useState(false);
   const [createError, setCreateError] = useState("");
+
+  function generatePassword() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$";
+    const pwd = Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+    setNewClient((p) => ({ ...p, password: pwd }));
+  }
+
+  function downloadSampleCSV() {
+    const header = "name,sku,category,cost_price,stock,description,image";
+    const rows = [
+      "Laptop Dell Latitude 5540,LAT5540,Equipamiento,850000,10,Laptop empresarial Intel i5 13va gen,https://example.com/img.jpg",
+      "Switch TP-Link 24 Puertos,TL-SG1024,Redes,45000,5,Switch no administrable Gigabit 24 puertos,",
+      "UPS 1500VA APC,SMC1500I,Infraestructura,120000,3,UPS línea interactiva 1500VA/900W,",
+    ];
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "productos_ejemplo.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
   const [selectedOrder, setSelectedOrder] = useState<SupabaseOrder | null>(null);
   const [importResult, setImportResult] = useState<{ imported: number; errors: string[] } | null>(null);
   const [loadingProducts, setLoadingProducts] = useState(true);
@@ -264,7 +287,13 @@ const Admin = () => {
                 <ProductForm onAdd={(p) => setProducts((prev) => [p, ...prev])} />
               </div>
               <div className="bg-[#232323] border border-[#2a2a2a] rounded-xl p-5">
-                <h2 className="text-sm font-bold text-white mb-4">Importar CSV</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-sm font-bold text-white">Importar CSV</h2>
+                  <button onClick={downloadSampleCSV}
+                    className="text-xs text-gray-400 hover:text-[#FF6A00] transition flex items-center gap-1">
+                    ↓ Descargar CSV de ejemplo
+                  </button>
+                </div>
                 <ProductImport onImport={(r) => { setImportResult(r); fetchProducts(); }} />
                 {importResult && (
                   <div className="mt-3 text-sm">
@@ -456,10 +485,16 @@ const Admin = () => {
                       </div>
                       <div className="col-span-2">
                         <label className="text-xs text-gray-400 mb-1 block">Contraseña *</label>
-                        <input type="text" value={newClient.password}
-                          onChange={(e) => setNewClient((p) => ({ ...p, password: e.target.value }))}
-                          className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]"
-                          placeholder="Mínimo 6 caracteres" />
+                        <div className="flex gap-2">
+                          <input type="text" value={newClient.password}
+                            onChange={(e) => setNewClient((p) => ({ ...p, password: e.target.value }))}
+                            className="flex-1 bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00] font-mono"
+                            placeholder="Mínimo 6 caracteres" />
+                          <button type="button" onClick={generatePassword}
+                            className="shrink-0 bg-[#2a2a2a] hover:bg-[#333] text-[#FF6A00] text-xs font-bold px-3 rounded-lg border border-[#333] transition">
+                            Generar
+                          </button>
+                        </div>
                       </div>
                       <div>
                         <label className="text-xs text-gray-400 mb-1 block">Empresa</label>
