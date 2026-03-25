@@ -29,7 +29,7 @@ const Login = () => {
     const { error } = await signIn(email, password);
 
     if (error) {
-      setError("Credenciales inválidas. Verificá tu email y contraseña.");
+      setError(error);
       setSubmitting(false);
     }
     // Si no hay error, el AuthContext detecta la sesión y el useEffect redirige
