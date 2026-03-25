@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { FileDown, Loader2, ShoppingCart, Minus, Plus, X } from "lucide-react";
 import { generateQuotePDF } from "@/components/QuotePDF";
 import { UserProfile } from "@/lib/supabase";
+import { useCurrency } from "@/context/CurrencyContext";
 
 interface CartDrawerProps {
   open: boolean;
@@ -24,6 +25,7 @@ export function CartDrawer({
   open, onClose, cartItems, cartTotal, profile,
   onAddToCart, onRemoveFromCart, onConfirmOrder, confirming,
 }: CartDrawerProps) {
+  const { formatPrice, formatUSD, formatARS, currency, exchangeRate } = useCurrency();
 
   function handleExportPDF() {
     generateQuotePDF({
@@ -92,7 +94,10 @@ export function CartDrawer({
                     <p className="text-sm font-semibold text-white line-clamp-1 leading-tight">{item.product.name}</p>
                     <p className="text-[11px] text-gray-600 mt-0.5">{item.product.category}</p>
                     <p className="text-xs font-bold text-[#FF6A00] mt-1 tabular-nums">
-                      ${item.unitPrice.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} c/u
+                      {formatPrice(item.unitPrice)} c/u
+                    </p>
+                    <p className="text-[10px] text-gray-700 font-mono tabular-nums">
+                      {currency === "USD" ? formatARS(item.unitPrice) : formatUSD(item.unitPrice)} c/u
                     </p>
                   </div>
                 </div>
@@ -110,9 +115,14 @@ export function CartDrawer({
                       <Plus size={11} />
                     </button>
                   </div>
-                  <span className="text-sm font-extrabold text-white tabular-nums">
-                    ${item.totalPrice.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
+                  <div className="text-right">
+                    <div className="text-sm font-extrabold text-white tabular-nums">
+                      {formatPrice(item.totalPrice)}
+                    </div>
+                    <div className="text-[10px] text-gray-700 font-mono">
+                      {currency === "USD" ? formatARS(item.totalPrice) : formatUSD(item.totalPrice)}
+                    </div>
+                  </div>
                 </div>
               </div>
             ))
@@ -123,11 +133,21 @@ export function CartDrawer({
         {cartItems.length > 0 && (
           <DrawerFooter className="border-t border-[#1e1e1e] px-4 py-4 bg-[#0e0e0e] space-y-2.5 shrink-0">
             {/* Total */}
-            <div className="flex justify-between items-baseline">
-              <span className="text-sm text-gray-500 font-medium">Total</span>
-              <span className="text-xl font-extrabold text-[#FF6A00] tabular-nums">
-                ${cartTotal.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
+            <div className="flex justify-between items-start">
+              <div>
+                <span className="text-sm text-gray-500 font-medium">Total</span>
+                <div className="text-[10px] text-gray-700 font-mono mt-0.5">
+                  {currency === "USD" ? formatARS(cartTotal) : formatUSD(cartTotal)}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-xl font-extrabold text-[#FF6A00] tabular-nums">
+                  {formatPrice(cartTotal)}
+                </div>
+                <div className="text-[10px] text-gray-600 mt-0.5">
+                  @ {exchangeRate.rate.toLocaleString("es-AR")} ARS/USD
+                </div>
+              </div>
             </div>
 
             {/* Export PDF */}

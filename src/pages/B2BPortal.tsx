@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useProducts } from "@/hooks/useProducts";
 import { useOrders } from "@/hooks/useOrders";
+import { useCurrency } from "@/context/CurrencyContext";
 import {
   LogOut, ShoppingCart, Search, LayoutGrid, List, Package,
   ClipboardList, CheckCircle2, XCircle, Clock, X, Plus, Minus,
@@ -91,6 +92,7 @@ export default function B2BPortal() {
   const { profile, isAdmin, signOut } = useAuth();
   const { products, loading: productsLoading } = useProducts();
   const { orders, addOrder } = useOrders();
+  const { currency, setCurrency, formatPrice, formatUSD, formatARS, exchangeRate } = useCurrency();
 
   const defaultMargin = profile?.default_margin ?? 20;
   const clientName = profile?.company_name ?? profile?.contact_name ?? "Cliente";
@@ -283,11 +285,15 @@ export default function B2BPortal() {
               <p className="text-sm text-gray-400 mb-4 leading-relaxed">{p.description}</p>
             )}
 
-            <div className="flex items-baseline gap-2 mb-5">
-              <span className="text-2xl font-extrabold text-[#FF6A00]">
-                ${finalPrice.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-              <span className="text-xs text-gray-600">precio cliente</span>
+            <div className="mb-5">
+              <div className="text-2xl font-extrabold text-[#FF6A00]">{formatPrice(finalPrice)}</div>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="text-xs text-gray-600">precio cliente</span>
+                <span className="text-gray-700">·</span>
+                <span className="text-xs text-gray-600 font-mono">
+                  {currency === "USD" ? formatARS(finalPrice) : formatUSD(finalPrice)}
+                </span>
+              </div>
             </div>
 
             {outOfStock ? (
@@ -353,6 +359,23 @@ export default function B2BPortal() {
         </div>
 
         <div className="flex items-center gap-1.5 ml-auto">
+          {/* Currency selector */}
+          <div className="flex items-center bg-[#1a1a1a] border border-[#252525] rounded-lg p-1 gap-0.5">
+            {(["USD", "ARS"] as const).map((c) => (
+              <button
+                key={c}
+                onClick={() => setCurrency(c)}
+                className={`px-2.5 py-1 rounded text-xs font-bold transition ${
+                  currency === c
+                    ? "bg-[#FF6A00] text-white"
+                    : "text-gray-600 hover:text-gray-300"
+                }`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+
           {/* Vista */}
           <div className="hidden md:flex items-center bg-[#1a1a1a] border border-[#252525] rounded-lg p-1 gap-0.5">
             <button onClick={() => setViewMode("grid")}
@@ -583,8 +606,11 @@ export default function B2BPortal() {
                             {product.sku && <span className="font-mono ml-1 text-gray-700">· {product.sku}</span>}
                           </p>
                           <div className="mb-2"><StockBadge stock={product.stock} /></div>
-                          <div className="text-lg text-[#FF6A00] font-extrabold">
-                            ${finalPrice.toLocaleString("es-AR")}
+                          <div className="text-lg text-[#FF6A00] font-extrabold leading-tight">
+                            {formatPrice(finalPrice)}
+                          </div>
+                          <div className="text-[10px] text-gray-600 font-mono mt-0.5">
+                            {currency === "USD" ? formatARS(finalPrice) : formatUSD(finalPrice)}
                           </div>
                         </div>
 
@@ -669,10 +695,13 @@ export default function B2BPortal() {
                           </div>
 
                           {/* Price */}
-                          <div className="text-right shrink-0 hidden sm:block min-w-[90px]">
-                            <span className="text-base font-extrabold text-[#FF6A00] tabular-nums">
-                              ${finalPrice.toLocaleString("es-AR")}
-                            </span>
+                          <div className="text-right shrink-0 hidden sm:block min-w-[100px]">
+                            <div className="text-base font-extrabold text-[#FF6A00] tabular-nums leading-tight">
+                              {formatPrice(finalPrice)}
+                            </div>
+                            <div className="text-[10px] text-gray-600 font-mono mt-0.5">
+                              {currency === "USD" ? formatARS(finalPrice) : formatUSD(finalPrice)}
+                            </div>
                           </div>
                         </div>
 
@@ -748,16 +777,21 @@ export default function B2BPortal() {
                               <span className="text-gray-600 shrink-0">×{p.quantity}</span>
                             </div>
                             <span className="text-[#FF6A00] font-semibold tabular-nums shrink-0 ml-4">
-                              ${p.total_price?.toLocaleString("es-AR")}
+                              {formatPrice(p.total_price ?? 0)}
                             </span>
                           </div>
                         ))}
                       </div>
                       {/* Total */}
                       <div className="flex justify-between items-center border-t border-[#1e1e1e] px-5 py-3 bg-[#161616]">
-                        <span className="text-sm text-gray-500 font-medium">Total del pedido</span>
+                        <div>
+                          <span className="text-sm text-gray-500 font-medium">Total del pedido</span>
+                          <div className="text-[10px] text-gray-700 font-mono">
+                            {currency === "USD" ? formatARS(order.total) : formatUSD(order.total)}
+                          </div>
+                        </div>
                         <span className="text-lg font-extrabold text-[#FF6A00] tabular-nums">
-                          ${order.total.toLocaleString("es-AR")}
+                          {formatPrice(order.total)}
                         </span>
                       </div>
                     </div>

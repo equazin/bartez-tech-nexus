@@ -7,9 +7,11 @@ import ProductImport from "@/components/admin/ProductImport";
 import ProductTable from "@/components/admin/ProductTable";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { useCurrency } from "@/context/CurrencyContext";
 import {
   CheckCircle2, XCircle, Clock, Trash2, RefreshCw, Save,
   Users, Package, ClipboardList, LogOut, ShieldCheck, UserPlus, X,
+  DollarSign, Pencil, Check,
 } from "lucide-react";
 
 interface SupabaseOrder {
@@ -55,6 +57,9 @@ type Tab = "products" | "orders" | "clients";
 const Admin = () => {
   const { signOut } = useAuth();
   const navigate = useNavigate();
+  const { exchangeRate, setExchangeRate, fetchExchangeRate } = useCurrency();
+  const [editingRate, setEditingRate] = useState(false);
+  const [rateInput, setRateInput] = useState(String(exchangeRate.rate));
 
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<SupabaseOrder[]>([]);
@@ -306,6 +311,85 @@ const Admin = () => {
         {/* ── PRODUCTOS ── */}
         {activeTab === "products" && (
           <div className="space-y-6 max-w-6xl">
+
+            {/* ── Cotización del dólar ── */}
+            <div className="bg-[#232323] border border-[#2a2a2a] rounded-xl px-5 py-4 flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="h-8 w-8 rounded-lg bg-[#FF6A00]/10 border border-[#FF6A00]/20 flex items-center justify-center">
+                  <DollarSign size={14} className="text-[#FF6A00]" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Cotización USD</p>
+                  <p className="text-[10px] text-gray-700">
+                    {exchangeRate.source === "api" ? "API" : "Manual"} ·{" "}
+                    {new Date(exchangeRate.updatedAt).toLocaleDateString("es-AR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+              </div>
+
+              {editingRate ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500 text-sm">1 USD =</span>
+                  <input
+                    type="number"
+                    value={rateInput}
+                    onChange={(e) => setRateInput(e.target.value)}
+                    className="w-28 bg-[#1a1a1a] border border-[#FF6A00]/40 rounded-lg px-2 py-1 text-white text-sm font-mono outline-none focus:border-[#FF6A00]"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const r = Number(rateInput);
+                        if (r > 0) { setExchangeRate({ rate: r, source: "manual", updatedAt: new Date().toISOString() }); }
+                        setEditingRate(false);
+                      }
+                      if (e.key === "Escape") setEditingRate(false);
+                    }}
+                  />
+                  <span className="text-gray-500 text-sm">ARS</span>
+                  <button
+                    onClick={() => {
+                      const r = Number(rateInput);
+                      if (r > 0) { setExchangeRate({ rate: r, source: "manual", updatedAt: new Date().toISOString() }); }
+                      setEditingRate(false);
+                    }}
+                    className="h-7 w-7 bg-green-600 hover:bg-green-500 text-white rounded-lg flex items-center justify-center transition"
+                  >
+                    <Check size={13} />
+                  </button>
+                  <button onClick={() => setEditingRate(false)}
+                    className="h-7 w-7 bg-[#2a2a2a] hover:bg-[#333] text-gray-400 rounded-lg flex items-center justify-center transition">
+                    <X size={13} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl font-extrabold text-white tabular-nums">
+                      {exchangeRate.rate.toLocaleString("es-AR")}
+                    </span>
+                    <span className="text-sm text-gray-500">ARS / USD</span>
+                  </div>
+                  <button
+                    onClick={() => { setRateInput(String(exchangeRate.rate)); setEditingRate(true); }}
+                    className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white border border-[#333] hover:border-[#444] bg-[#1a1a1a] hover:bg-[#222] px-2.5 py-1.5 rounded-lg transition"
+                  >
+                    <Pencil size={11} /> Editar
+                  </button>
+                </div>
+              )}
+
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  onClick={fetchExchangeRate}
+                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white transition px-2.5 py-1.5 rounded-lg hover:bg-[#2a2a2a] border border-transparent hover:border-[#333]"
+                  title="Conectar API de cotización"
+                >
+                  <RefreshCw size={11} /> Actualizar (API)
+                </button>
+                <div className="h-2 w-2 rounded-full bg-amber-400" title="Cotización manual — sin API conectada" />
+              </div>
+            </div>
+
             <div className="grid md:grid-cols-2 gap-6">
               <div className="bg-[#232323] border border-[#2a2a2a] rounded-xl p-5">
                 <h2 className="text-sm font-bold text-white mb-4">Agregar producto</h2>
