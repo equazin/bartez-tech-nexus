@@ -339,6 +339,22 @@ export default function B2BPortal() {
         ))}
       </div>
 
+      {/* BANNER ADMIN */}
+      {isAdmin && (
+        <div className="flex items-center justify-between bg-[#FF6A00]/10 border-b border-[#FF6A00]/20 px-4 md:px-6 py-2">
+          <div className="flex items-center gap-2 text-[#FF6A00] text-xs font-semibold">
+            <ShieldCheck size={14} />
+            Estás viendo el portal como administrador
+          </div>
+          <Link
+            to="/admin"
+            className="flex items-center gap-1.5 bg-[#FF6A00] hover:bg-[#FF8C1A] text-white text-xs font-bold px-3 py-1.5 rounded-lg transition"
+          >
+            <ShieldCheck size={12} /> Ir al Panel Admin
+          </Link>
+        </div>
+      )}
+
       {orderSuccess && (
         <div className="mx-4 mt-4 bg-green-900/30 border border-green-500/40 rounded-xl p-3 text-green-400 text-sm font-medium flex items-center gap-2">
           <CheckCircle2 size={16} />
