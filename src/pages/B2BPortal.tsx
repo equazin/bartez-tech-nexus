@@ -246,12 +246,12 @@ export default function B2BPortal() {
         onClick={() => setSelectedProduct(null)}
       >
         <div
-          className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden"
+          className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#242424]">
-            <div className="flex items-center gap-2">
+          {/* Header — fixed */}
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#242424] shrink-0">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-gray-500 bg-[#242424] px-2 py-0.5 rounded-full font-medium">{p.category}</span>
               {p.featured && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
@@ -260,42 +260,99 @@ export default function B2BPortal() {
               )}
             </div>
             <button onClick={() => setSelectedProduct(null)}
-              className="text-gray-600 hover:text-white transition p-1 rounded-lg hover:bg-[#2a2a2a]">
+              className="text-gray-600 hover:text-white transition p-1 rounded-lg hover:bg-[#2a2a2a] shrink-0">
               <X size={16} />
             </button>
           </div>
 
-          {/* Image */}
-          <div className="bg-[#111] flex items-center justify-center h-56 px-8">
-            <img src={p.image} alt={p.name} className="max-h-44 max-w-full object-contain drop-shadow-xl" />
+          {/* Scrollable body */}
+          <div className="overflow-y-auto flex-1">
+            {/* Image */}
+            <div className="bg-[#111] flex items-center justify-center h-52 px-8 shrink-0">
+              <img src={p.image} alt={p.name} className="max-h-40 max-w-full object-contain drop-shadow-xl" />
+            </div>
+
+            {/* Info */}
+            <div className="px-5 pt-4 pb-2">
+              <div className="flex items-start justify-between gap-3 mb-1">
+                <h2 className="text-base font-extrabold text-white leading-tight">{p.name}</h2>
+                <StockBadge stock={p.stock} />
+              </div>
+
+              <div className="flex items-center gap-3 mb-4">
+                {p.sku && <span className="text-[11px] text-gray-600 font-mono bg-[#222] px-2 py-0.5 rounded">SKU: {p.sku}</span>}
+                {p.stock > 0 && (
+                  <span className="text-[11px] text-gray-600">{p.stock} en depósito</span>
+                )}
+                {p.stock_min > 0 && (
+                  <span className="text-[11px] text-gray-700">mín. {p.stock_min}</span>
+                )}
+              </div>
+
+              {/* Price */}
+              <div className="bg-[#141414] border border-[#252525] rounded-xl px-4 py-3 mb-4 flex items-center justify-between">
+                <div>
+                  <div className="text-2xl font-extrabold text-[#FF6A00] tabular-nums leading-none">
+                    {formatPrice(finalPrice)}
+                  </div>
+                  <div className="text-[11px] text-gray-600 font-mono mt-1">
+                    {currency === "USD" ? formatARS(finalPrice) : formatUSD(finalPrice)}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] text-gray-600 mb-1">Moneda</div>
+                  <div className="flex items-center bg-[#1e1e1e] border border-[#2a2a2a] rounded-lg p-0.5 gap-0.5">
+                    {(["USD", "ARS"] as const).map((c) => (
+                      <button key={c} onClick={() => setCurrency(c)}
+                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${currency === c ? "bg-[#FF6A00] text-white" : "text-gray-500 hover:text-gray-300"}`}>
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Description */}
+              {p.description && (
+                <div className="mb-4">
+                  <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Descripción</p>
+                  <p className="text-sm text-gray-400 leading-relaxed whitespace-pre-line">{p.description}</p>
+                </div>
+              )}
+
+              {/* Specs */}
+              {p.specs && Object.keys(p.specs).length > 0 && (
+                <div className="mb-4">
+                  <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Especificaciones</p>
+                  <div className="rounded-xl border border-[#242424] overflow-hidden">
+                    {Object.entries(p.specs).map(([k, v], i) => (
+                      <div key={k} className={`flex text-xs ${i % 2 === 0 ? "bg-[#141414]" : "bg-[#111]"}`}>
+                        <span className="text-gray-500 px-3 py-2 w-2/5 shrink-0 font-medium">{k}</span>
+                        <span className="text-gray-300 px-3 py-2 flex-1">{String(v)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Tags */}
+              {p.tags && p.tags.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Tags</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {p.tags.map((t: string) => (
+                      <span key={t} className="text-[11px] px-2 py-0.5 rounded-full bg-[#FF6A00]/10 text-[#FF6A00] border border-[#FF6A00]/20 font-medium">
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Info */}
-          <div className="px-5 py-5">
-            <div className="flex items-start justify-between gap-3 mb-1.5">
-              <h2 className="text-lg font-extrabold text-white leading-tight">{p.name}</h2>
-              <StockBadge stock={p.stock} />
-            </div>
-
-            {p.sku && (
-              <p className="text-xs text-gray-600 mb-3 font-mono">SKU: {p.sku}</p>
-            )}
-
-            {p.description && (
-              <p className="text-sm text-gray-400 mb-4 leading-relaxed">{p.description}</p>
-            )}
-
-            <div className="mb-5">
-              <div className="text-2xl font-extrabold text-[#FF6A00]">{formatPrice(finalPrice)}</div>
-              <div className="flex items-center gap-1.5 mt-1">
-                <span className="text-xs text-gray-600">precio cliente</span>
-                <span className="text-gray-700">·</span>
-                <span className="text-xs text-gray-600 font-mono">
-                  {currency === "USD" ? formatARS(finalPrice) : formatUSD(finalPrice)}
-                </span>
-              </div>
-            </div>
-
+          {/* Footer — cart controls, fixed */}
+          <div className="px-5 py-4 border-t border-[#242424] shrink-0">
             {outOfStock ? (
               <div className="w-full bg-[#2a2a2a] text-gray-500 font-bold h-11 rounded-xl text-sm flex items-center justify-center">
                 Sin stock disponible
@@ -359,24 +416,7 @@ export default function B2BPortal() {
         </div>
 
         <div className="flex items-center gap-1.5 ml-auto">
-          {/* Currency selector */}
-          <div className="flex items-center bg-[#1a1a1a] border border-[#252525] rounded-lg p-1 gap-0.5">
-            {(["USD", "ARS"] as const).map((c) => (
-              <button
-                key={c}
-                onClick={() => setCurrency(c)}
-                className={`px-2.5 py-1 rounded text-xs font-bold transition ${
-                  currency === c
-                    ? "bg-[#FF6A00] text-white"
-                    : "text-gray-600 hover:text-gray-300"
-                }`}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-
-          {/* Vista */}
+          {/* Vista + Moneda — agrupados */}
           <div className="hidden md:flex items-center bg-[#1a1a1a] border border-[#252525] rounded-lg p-1 gap-0.5">
             <button onClick={() => setViewMode("grid")}
               className={`p-1.5 rounded transition ${viewMode === "grid" ? "bg-[#FF6A00] text-white" : "text-gray-600 hover:text-gray-300"}`}>
@@ -386,6 +426,13 @@ export default function B2BPortal() {
               className={`p-1.5 rounded transition ${viewMode === "list" ? "bg-[#FF6A00] text-white" : "text-gray-600 hover:text-gray-300"}`}>
               <List size={13} />
             </button>
+            <div className="w-px h-4 bg-[#333] mx-0.5" />
+            {(["USD", "ARS"] as const).map((c) => (
+              <button key={c} onClick={() => setCurrency(c)}
+                className={`px-2 py-1 rounded text-[11px] font-bold transition ${currency === c ? "bg-[#FF6A00] text-white" : "text-gray-600 hover:text-gray-300"}`}>
+                {c}
+              </button>
+            ))}
           </div>
 
           {/* Carrito */}
