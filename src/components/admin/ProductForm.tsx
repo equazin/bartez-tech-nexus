@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 const SUPABASE_URL = "https://mfetwdftkiqydbwiqyfi.supabase.co";
+const DRAFT_KEY = "bartez_product_draft";
 
 interface Category { id: number; name: string; parent_id: number | null; }
 interface Spec { key: string; value: string; }
@@ -36,27 +37,35 @@ function Toggle({ value, onChange, label, activeColor = "bg-green-500" }: {
   );
 }
 
+function loadDraft() {
+  try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); }
+  catch { return null; }
+}
+
 export default function ProductForm({ onAdd }: { onAdd: (product: Product) => void }) {
-  /* ── form state ───────────────────────────────────────── */
-  const [name, setName]                     = useState("");
-  const [sku, setSku]                       = useState("");
-  const [description, setDescription]      = useState("");
-  const [costPrice, setCostPrice]          = useState("");
-  const [supplierId, setSupplierId]        = useState("");
-  const [supplierMult, setSupplierMult]    = useState("1");
-  const [categoryId, setCategoryId]        = useState("");
-  const [subcategoryId, setSubcategoryId] = useState("");
+  const saved = loadDraft();
+
+  /* ── form state (restored from draft if available) ────── */
+  const [name, setName]                     = useState(saved?.name ?? "");
+  const [sku, setSku]                       = useState(saved?.sku ?? "");
+  const [description, setDescription]      = useState(saved?.description ?? "");
+  const [costPrice, setCostPrice]          = useState(saved?.costPrice ?? "");
+  const [supplierId, setSupplierId]        = useState(saved?.supplierId ?? "");
+  const [supplierMult, setSupplierMult]    = useState(saved?.supplierMult ?? "1");
+  const [categoryId, setCategoryId]        = useState(saved?.categoryId ?? "");
+  const [subcategoryId, setSubcategoryId] = useState(saved?.subcategoryId ?? "");
   const [newCatName, setNewCatName]        = useState("");
   const [addingCat, setAddingCat]          = useState(false);
-  const [stock, setStock]                  = useState("");
-  const [stockMin, setStockMin]            = useState("0");
-  const [active, setActive]                = useState(true);
-  const [featured, setFeatured]            = useState(false);
-  const [specs, setSpecs]                  = useState<Spec[]>([]);
-  const [tags, setTags]                    = useState<string[]>([]);
+  const [stock, setStock]                  = useState(saved?.stock ?? "");
+  const [stockMin, setStockMin]            = useState(saved?.stockMin ?? "0");
+  const [active, setActive]                = useState(saved?.active ?? true);
+  const [featured, setFeatured]            = useState(saved?.featured ?? false);
+  const [specs, setSpecs]                  = useState<Spec[]>(saved?.specs ?? []);
+  const [tags, setTags]                    = useState<string[]>(saved?.tags ?? []);
   const [tagInput, setTagInput]            = useState("");
   const [imageFile, setImageFile]          = useState<File | null>(null);
   const [imagePreview, setImagePreview]    = useState("");
+  const [hasDraft]                         = useState(() => !!saved && Object.values(saved).some(Boolean));
 
   /* ── ui state ─────────────────────────────────────────── */
   const [categories, setCategories] = useState<Category[]>([]);
@@ -82,6 +91,17 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
       .order("parent_id", { nullsFirst: true }).order("name")
       .then(({ data }) => { if (data) setCategories(data as Category[]); });
   }, []);
+
+  /* ── persist draft to localStorage on every change ───── */
+  useEffect(() => {
+    const draft = { name, sku, description, costPrice, supplierId, supplierMult,
+      categoryId, subcategoryId, stock, stockMin, active, featured, specs, tags };
+    // Only save if there's something meaningful
+    if (Object.values(draft).some((v) => v !== "" && v !== "0" && v !== "1" && v !== true && !(Array.isArray(v) && v.length === 0))) {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    }
+  }, [name, sku, description, costPrice, supplierId, supplierMult,
+      categoryId, subcategoryId, stock, stockMin, active, featured, specs, tags]);
 
   /* ── sku uniqueness debounce ──────────────────────────── */
   useEffect(() => {
@@ -220,6 +240,7 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
   }
 
   function resetForm() {
+    localStorage.removeItem(DRAFT_KEY);
     setName(""); setSku(""); setDescription(""); setCostPrice("");
     setSupplierId(""); setSupplierMult("1"); setCategoryId(""); setSubcategoryId("");
     setStock(""); setStockMin("0"); setActive(true); setFeatured(false);
@@ -232,7 +253,14 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
     <form onSubmit={handleSubmit} className="space-y-4 text-white">
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
-        <h3 className="font-bold text-base">Nuevo producto</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="font-bold text-base">Nuevo producto</h3>
+          {hasDraft && (
+            <span className="text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-full font-medium">
+              Borrador restaurado
+            </span>
+          )}
+        </div>
         {success && (
           <span className="text-xs text-green-400 bg-green-400/10 border border-green-400/20 px-3 py-1 rounded-full">
             Producto guardado

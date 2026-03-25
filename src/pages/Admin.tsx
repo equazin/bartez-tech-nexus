@@ -77,14 +77,14 @@ const Admin = () => {
   }
 
   function downloadSampleCSV() {
-    const header = "name,sku,category,cost_price,stock,description,image";
+    const header = "name,sku,cost_price,category,stock,stock_min,description,image,supplier_id,supplier_multiplier,featured,active,tags,external_id";
     const rows = [
-      "Laptop Dell Latitude 5540,LAT5540,Equipamiento,850000,10,Laptop empresarial Intel i5 13va gen,https://example.com/img.jpg",
-      "Switch TP-Link 24 Puertos,TL-SG1024,Redes,45000,5,Switch no administrable Gigabit 24 puertos,",
-      "UPS 1500VA APC,SMC1500I,Infraestructura,120000,3,UPS línea interactiva 1500VA/900W,",
+      'Laptop Dell Latitude 5540,LAT5540,850000,Equipamiento,10,3,Laptop empresarial Intel i5 13va gen,https://example.com/img.jpg,,1,false,true,"laptop,dell,i5",',
+      'Switch TP-Link 24 Puertos,TL-SG1024,45000,Redes,5,2,Switch no administrable Gigabit 24 puertos,,,,false,true,"switch,gigabit,tp-link",',
+      'UPS 1500VA APC,SMC1500I,120000,Infraestructura,3,1,UPS línea interactiva 1500VA/900W,,,,true,true,"ups,apc,rack",SMC1500I-AR',
     ];
     const csv = [header, ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
