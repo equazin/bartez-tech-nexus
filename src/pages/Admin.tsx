@@ -58,6 +58,10 @@ const Admin = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<SupabaseOrder[]>([]);
   const [clients, setClients] = useState<ClientProfile[]>([]);
+  const [categories, setCategories] = useState<{ id: number; name: string; parent_id: number | null }[]>([]);
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatParent, setNewCatParent] = useState("");
+  const [savingCat, setSavingCat] = useState(false);
   const [editingClients, setEditingClients] = useState<Record<string, Partial<ClientProfile>>>({});
   const [savingClient, setSavingClient] = useState<string | null>(null);
   const [showNewClient, setShowNewClient] = useState(false);
@@ -118,7 +122,27 @@ const Admin = () => {
     setLoadingClients(false);
   }
 
-  useEffect(() => { fetchProducts(); fetchOrders(); fetchClients(); }, []);
+  async function fetchCategories() {
+    const { data } = await supabase.from("categories").select("*").order("parent_id", { ascending: true }).order("name");
+    if (data) setCategories(data);
+  }
+
+  useEffect(() => { fetchProducts(); fetchOrders(); fetchClients(); fetchCategories(); }, []);
+
+  async function addCategory() {
+    if (!newCatName.trim()) return;
+    setSavingCat(true);
+    await supabase.from("categories").insert({ name: newCatName.trim(), parent_id: newCatParent ? Number(newCatParent) : null });
+    setNewCatName(""); setNewCatParent("");
+    setSavingCat(false);
+    fetchCategories();
+  }
+
+  async function deleteCategory(id: number) {
+    if (!confirm("¿Eliminar esta categoría?")) return;
+    await supabase.from("categories").delete().eq("id", id);
+    fetchCategories();
+  }
 
   const pendingOrders = orders.filter((o) => o.status === "pending").length;
 
@@ -305,6 +329,45 @@ const Admin = () => {
                     )}
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Categorías */}
+            <div className="bg-[#232323] border border-[#2a2a2a] rounded-xl p-5">
+              <h2 className="text-sm font-bold text-white mb-4">Categorías y Subcategorías</h2>
+              <div className="flex gap-2 mb-4">
+                <input
+                  value={newCatName} onChange={(e) => setNewCatName(e.target.value)}
+                  placeholder="Nombre de categoría"
+                  className="flex-1 bg-[#1a1a1a] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]"
+                />
+                <select value={newCatParent} onChange={(e) => setNewCatParent(e.target.value)}
+                  className="bg-[#1a1a1a] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]">
+                  <option value="">Categoría raíz</option>
+                  {categories.filter((c) => c.parent_id === null).map((c) => (
+                    <option key={c.id} value={c.id}>Sub de: {c.name}</option>
+                  ))}
+                </select>
+                <button onClick={addCategory} disabled={savingCat || !newCatName.trim()}
+                  className="bg-[#FF6A00] hover:bg-[#FF8C1A] text-white text-sm font-bold px-4 rounded-lg transition disabled:opacity-40">
+                  + Agregar
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {categories.filter((c) => c.parent_id === null).map((parent) => (
+                  <div key={parent.id} className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-2 min-w-[140px]">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-sm font-semibold text-white">{parent.name}</span>
+                      <button onClick={() => deleteCategory(parent.id)} className="text-gray-600 hover:text-red-400 transition"><Trash2 size={12} /></button>
+                    </div>
+                    {categories.filter((c) => c.parent_id === parent.id).map((sub) => (
+                      <div key={sub.id} className="flex items-center justify-between text-xs text-gray-400 pl-2 border-l border-[#333] mt-1">
+                        <span>↳ {sub.name}</span>
+                        <button onClick={() => deleteCategory(sub.id)} className="text-gray-600 hover:text-red-400 transition ml-2"><Trash2 size={11} /></button>
+                      </div>
+                    ))}
+                  </div>
+                ))}
               </div>
             </div>
 
