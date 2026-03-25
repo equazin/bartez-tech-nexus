@@ -1,0 +1,255 @@
+import { useState, useEffect, useRef } from "react";
+import { supabase } from "@/lib/supabase";
+import { Product } from "@/models/products";
+import { X, Upload, Star, Tag, Loader2 } from "lucide-react";
+
+const SUPABASE_URL = "https://mfetwdftkiqydbwiqyfi.supabase.co";
+
+interface Category { id: number; name: string; parent_id: number | null; }
+interface Props {
+  product: Product & { featured?: boolean; tags?: string[]; active?: boolean };
+  categories: Category[];
+  onSave: (updated: Product) => void;
+  onClose: () => void;
+}
+
+export default function ProductEditModal({ product, categories, onSave, onClose }: Props) {
+  const [form, setForm] = useState({
+    name:               product.name,
+    sku:                product.sku || "",
+    description:        product.description || "",
+    cost_price:         String(product.cost_price),
+    stock:              String(product.stock),
+    category:           product.category || "",
+    image:              product.image || "",
+    featured:           product.featured ?? false,
+    active:             (product as any).active !== false,
+    tags:               (product.tags ?? []).join(", "),
+    supplier_id:        String(product.supplier_id || ""),
+    supplier_multiplier: String(product.supplier_multiplier || ""),
+  });
+  const [imageFile, setImageFile]   = useState<File | null>(null);
+  const [imagePreview, setPreview]  = useState(product.image || "");
+  const [dragging, setDragging]     = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const [error, setError]           = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const rootCats = categories.filter((c) => c.parent_id === null);
+  const subCats  = categories.filter((c) => c.parent_id !== null && rootCats.some((r) => r.name === form.category));
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  function set(field: string, value: any) {
+    setForm((p) => ({ ...p, [field]: value }));
+  }
+
+  function handleImageFile(file: File) {
+    if (!file.type.startsWith("image/")) return;
+    setImageFile(file);
+    setPreview(URL.createObjectURL(file));
+  }
+
+  async function uploadImage(file: File): Promise<string> {
+    const ext  = file.name.split(".").pop();
+    const path = `${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("products").upload(path, file, { upsert: true });
+    if (error) throw error;
+    return `${SUPABASE_URL}/storage/v1/object/public/products/${path}`;
+  }
+
+  async function handleSave() {
+    setError("");
+    if (!form.name.trim()) { setError("El nombre es obligatorio."); return; }
+    const cost_price = Number(form.cost_price);
+    if (isNaN(cost_price) || cost_price <= 0) { setError("Precio inválido."); return; }
+
+    setSaving(true);
+    let imageUrl = form.image;
+    if (imageFile) {
+      try { imageUrl = await uploadImage(imageFile); }
+      catch (e: any) { setError("Error subiendo imagen: " + e.message); setSaving(false); return; }
+    }
+
+    const payload = {
+      name:               form.name.trim(),
+      sku:                form.sku.trim() || null,
+      description:        form.description,
+      cost_price,
+      stock:              Number(form.stock) || 0,
+      category:           form.category || "General",
+      image:              imageUrl || "/placeholder.png",
+      featured:           form.featured,
+      active:             form.active,
+      tags:               form.tags.split(",").map((t) => t.trim()).filter(Boolean),
+      supplier_id:        form.supplier_id ? Number(form.supplier_id) : null,
+      supplier_multiplier: form.supplier_multiplier ? Number(form.supplier_multiplier) : null,
+    };
+
+    const { data, error: sbErr } = await supabase
+      .from("products").update(payload).eq("id", product.id).select().single();
+
+    setSaving(false);
+    if (sbErr) { setError(sbErr.message); return; }
+    onSave(data as Product);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      onClick={onClose}>
+      <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2a2a2a] shrink-0">
+          <div>
+            <h3 className="font-bold text-white text-base">Editar producto</h3>
+            <p className="text-xs text-gray-500 mt-0.5">ID #{product.id} · {product.sku || "sin SKU"}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition"><X size={18} /></button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+
+          {/* Image */}
+          <div>
+            <label className="text-xs text-gray-400 mb-1.5 block">Imagen</label>
+            <div className="flex gap-4 items-start">
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleImageFile(f); }}
+                onClick={() => fileRef.current?.click()}
+                className={`relative flex items-center justify-center rounded-xl border-2 border-dashed cursor-pointer transition h-28 w-28 shrink-0 ${
+                  dragging ? "border-[#FF6A00] bg-[#FF6A00]/5" : "border-[#333] hover:border-[#FF6A00]/50 bg-[#151515]"
+                }`}>
+                {imagePreview
+                  ? <img src={imagePreview} className="h-full w-full object-contain rounded-xl p-1" />
+                  : <Upload size={20} className="text-gray-600" />}
+              </div>
+              <div className="flex-1 space-y-2">
+                <input ref={fileRef} type="file" accept="image/*" className="hidden"
+                  onChange={(e) => { if (e.target.files?.[0]) handleImageFile(e.target.files[0]); }} />
+                <input value={form.image} onChange={(e) => { set("image", e.target.value); setPreview(e.target.value); }}
+                  placeholder="O pegá una URL de imagen"
+                  className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#FF6A00]" />
+                <p className="text-[11px] text-gray-600">Arrastrá una imagen o pegá URL · JPG, PNG, WEBP · máx 5MB</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Name + SKU */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2 sm:col-span-1">
+              <label className="text-xs text-gray-400 mb-1 block">Nombre *</label>
+              <input value={form.name} onChange={(e) => set("name", e.target.value)}
+                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">SKU</label>
+              <input value={form.sku} onChange={(e) => set("sku", e.target.value)}
+                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00] font-mono" />
+            </div>
+          </div>
+
+          {/* Price + Stock + Category */}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">Precio costo *</label>
+              <input type="number" min="0" value={form.cost_price} onChange={(e) => set("cost_price", e.target.value)}
+                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">Stock</label>
+              <input type="number" min="0" value={form.stock} onChange={(e) => set("stock", e.target.value)}
+                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">Categoría</label>
+              <select value={form.category} onChange={(e) => set("category", e.target.value)}
+                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]">
+                <option value="">— Sin categoría —</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.parent_id !== null ? "  ↳ " : ""}{c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Supplier */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">ID Proveedor</label>
+              <input type="number" value={form.supplier_id} onChange={(e) => set("supplier_id", e.target.value)}
+                placeholder="Opcional"
+                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">Multiplicador proveedor</label>
+              <input type="number" step="0.01" value={form.supplier_multiplier} onChange={(e) => set("supplier_multiplier", e.target.value)}
+                placeholder="Ej: 1.15"
+                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]" />
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="text-xs text-gray-400 mb-1 block">Descripción</label>
+            <textarea value={form.description} onChange={(e) => set("description", e.target.value)} rows={3}
+              className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00] resize-none" />
+          </div>
+
+          {/* Tags */}
+          <div>
+            <label className="text-xs text-gray-400 mb-1 flex items-center gap-1"><Tag size={11} /> Tags (separados por coma)</label>
+            <input value={form.tags} onChange={(e) => set("tags", e.target.value)}
+              placeholder="wifi, gigabit, rack, nuevo..."
+              className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]" />
+          </div>
+
+          {/* Toggles */}
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <div onClick={() => set("featured", !form.featured)}
+                className={`w-9 h-5 rounded-full transition ${form.featured ? "bg-yellow-500" : "bg-[#333]"} relative`}>
+                <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${form.featured ? "left-4" : "left-0.5"}`} />
+              </div>
+              <span className="text-xs text-gray-400 flex items-center gap-1"><Star size={11} /> Destacado</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <div onClick={() => set("active", !form.active)}
+                className={`w-9 h-5 rounded-full transition ${form.active ? "bg-green-500" : "bg-[#333]"} relative`}>
+                <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${form.active ? "left-4" : "left-0.5"}`} />
+              </div>
+              <span className="text-xs text-gray-400">Activo</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-[#2a2a2a] shrink-0 flex items-center justify-between gap-3">
+          {error && <p className="text-red-400 text-xs flex-1">{error}</p>}
+          <div className="flex gap-2 ml-auto">
+            <button onClick={onClose}
+              className="px-4 py-2 text-sm text-gray-400 hover:text-white rounded-lg hover:bg-[#2a2a2a] transition">
+              Cancelar
+            </button>
+            <button onClick={handleSave} disabled={saving}
+              className="flex items-center gap-2 px-5 py-2 bg-[#FF6A00] hover:bg-[#FF8C1A] text-white text-sm font-bold rounded-lg transition disabled:opacity-50">
+              {saving && <Loader2 size={14} className="animate-spin" />}
+              {saving ? "Guardando..." : "Guardar cambios"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

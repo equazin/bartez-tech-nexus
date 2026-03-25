@@ -4,6 +4,7 @@ import { CLIENT_TYPE_MARGINS, ClientType } from "@/lib/supabase";
 import { Product } from "@/models/products";
 import ProductForm from "@/components/admin/ProductForm";
 import ProductImport from "@/components/admin/ProductImport";
+import ProductTable from "@/components/admin/ProductTable";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import {
@@ -376,48 +377,7 @@ const Admin = () => {
                 {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-10 bg-[#232323] rounded-lg animate-pulse" />)}
               </div>
             ) : (
-              <div className="bg-[#232323] border border-[#2a2a2a] rounded-xl overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-[#1a1a1a]">
-                    <tr>
-                      {["Nombre", "SKU", "Precio costo", "Categoría", "Stock", "Estado", ""].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {products.map((p) => (
-                      <tr key={p.id} className="border-t border-[#2a2a2a] hover:bg-[#2a2a2a]/40 transition">
-                        <td className="px-4 py-3 font-medium text-white">{p.name}</td>
-                        <td className="px-4 py-3 text-gray-500 text-xs font-mono">{p.sku || "—"}</td>
-                        <td className="px-4 py-3 text-gray-300">${p.cost_price.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-gray-500">{p.category}</td>
-                        <td className="px-4 py-3">
-                          <span className={`text-xs font-semibold ${
-                            p.stock === 0 ? "text-red-400" : p.stock <= 3 ? "text-yellow-400" : "text-green-400"
-                          }`}>{p.stock}u</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <button onClick={() => toggleActive(p)}
-                            className={`text-xs px-2 py-0.5 rounded-full font-semibold border transition ${
-                              (p as any).active !== false
-                                ? "bg-green-500/15 text-green-400 border-green-500/30 hover:bg-red-500/15 hover:text-red-400 hover:border-red-500/30"
-                                : "bg-red-500/15 text-red-400 border-red-500/30 hover:bg-green-500/15 hover:text-green-400 hover:border-green-500/30"
-                            }`}>
-                            {(p as any).active !== false ? "Activo" : "Inactivo"}
-                          </button>
-                        </td>
-                        <td className="px-4 py-3">
-                          <button onClick={() => deleteProduct(p.id)}
-                            className="text-gray-600 hover:text-red-400 transition">
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ProductTable products={products} categories={categories} onRefresh={fetchProducts} />
             )}
           </div>
         )}
