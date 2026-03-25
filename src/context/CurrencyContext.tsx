@@ -111,7 +111,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
    */
   const fetchExchangeRate = useCallback(async () => {
     try {
-      const res = await fetch("https://dolarapi.com/v1/dolares/blue");
+      const res = await fetch("https://dolarapi.com/v1/dolares/oficial");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       const rate = json.venta as number;

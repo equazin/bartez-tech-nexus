@@ -402,7 +402,7 @@ const Admin = () => {
                   className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white disabled:opacity-50 transition px-2.5 py-1.5 rounded-lg hover:bg-[#2a2a2a] border border-transparent hover:border-[#333]"
                 >
                   <RefreshCw size={11} className={fetchingRate ? "animate-spin" : ""} />
-                  {fetchingRate ? "Actualizando..." : "Cotización blue"}
+                  {fetchingRate ? "Actualizando..." : "Cotización oficial"}
                 </button>
                 <div
                   className={`h-2 w-2 rounded-full ${exchangeRate.source === "api" ? "bg-green-400" : "bg-amber-400"}`}
