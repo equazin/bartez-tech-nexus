@@ -21,11 +21,9 @@ interface CartDrawerProps {
 }
 
 export function CartDrawer({
-  open, onClose, cartItems, cartTotal, globalMargin, profile,
-  onAddToCart, onRemoveFromCart, onMarginChange, onConfirmOrder, confirming,
+  open, onClose, cartItems, cartTotal, profile,
+  onAddToCart, onRemoveFromCart, onConfirmOrder, confirming,
 }: CartDrawerProps) {
-
-  const costTotal = cartItems.reduce((s, i) => s + i.cost * i.quantity, 0);
 
   function handleExportPDF() {
     generateQuotePDF({
@@ -71,22 +69,10 @@ export function CartDrawer({
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-white line-clamp-1">{item.product.name}</p>
                     <p className="text-xs text-gray-500">{item.product.category}</p>
-                    {/* Margen por producto */}
-                    <div className="flex items-center gap-1.5 mt-1.5">
-                      <span className="text-[10px] text-gray-500">Margen:</span>
-                      <input
-                        type="number" min="0" max="100"
-                        value={item.margin}
-                        onChange={(e) => onMarginChange?.(item.product.id, Number(e.target.value))}
-                        className="w-12 bg-[#1a1a1a] border border-[#333] text-[#FF6A00] font-bold text-xs rounded px-1.5 py-0.5 outline-none text-center"
-                      />
-                      <span className="text-[10px] text-gray-500">%</span>
-                      <span className="text-[10px] text-gray-600 ml-1 line-through">${item.cost.toLocaleString()}</span>
-                      <span className="text-[10px] text-[#FF6A00] font-semibold">→ ${item.unitPrice.toLocaleString()}</span>
-                    </div>
+                    <p className="text-sm font-semibold text-[#FF6A00] mt-1">${item.unitPrice.toLocaleString()} c/u</p>
                   </div>
                 </div>
-                {/* Controles qty + subtotal */}
+                {/* Qty controls + subtotal */}
                 <div className="flex items-center justify-between mt-2.5">
                   <div className="flex items-center gap-1">
                     <button onClick={() => onRemoveFromCart(item.product)}
@@ -108,20 +94,9 @@ export function CartDrawer({
         <DrawerFooter className="border-t border-[#222] px-4 py-4 bg-[#141414] space-y-3">
           {cartItems.length > 0 && (
             <>
-              {/* Resumen costos */}
-              <div className="space-y-1.5 text-sm">
-                <div className="flex justify-between text-gray-400">
-                  <span>Costo total</span>
-                  <span>${costTotal.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between font-extrabold text-white text-lg">
-                  <span>Total cliente</span>
-                  <span className="text-[#FF6A00]">${cartTotal.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-xs text-green-400">
-                  <span>Ganancia estimada</span>
-                  <span>+${(cartTotal - costTotal).toLocaleString()}</span>
-                </div>
+              <div className="flex justify-between font-extrabold text-white text-lg">
+                <span>Total</span>
+                <span className="text-[#FF6A00]">${cartTotal.toLocaleString()}</span>
               </div>
 
               {/* Exportar PDF */}

@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useProducts } from "@/hooks/useProducts";
 import { useOrders } from "@/hooks/useOrders";
-import { LogOut, ShoppingCart, Search, LayoutGrid, List, Package, ClipboardList, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { LogOut, ShoppingCart, Search, LayoutGrid, List, Package, ClipboardList, CheckCircle2, XCircle, Clock, X, Plus, Minus } from "lucide-react";
 
 type CartItem = {
   product: any;
@@ -49,7 +49,6 @@ export default function B2BPortal() {
   const clientName = profile?.company_name ?? profile?.contact_name ?? "Cliente";
   const cartKey = `b2b_cart_${profile?.id || "guest"}`;
 
-  // Estado persistente del carrito
   const [cart, setCart] = useState<Record<number, number>>(() => {
     try { return JSON.parse(localStorage.getItem(cartKey) || "{}"); }
     catch { return {}; }
@@ -60,23 +59,21 @@ export default function B2BPortal() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [activeTab, setActiveTab] = useState<"catalog" | "orders">("catalog");
   const [cartOpen, setCartOpen] = useState(false);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
 
-  // Persistir carrito
   useEffect(() => {
     localStorage.setItem(cartKey, JSON.stringify(cart));
   }, [cart, cartKey]);
 
-  // Sincronizar margen del perfil
   useEffect(() => {
     if (profile?.default_margin) setGlobalMargin(profile.default_margin);
   }, [profile?.default_margin]);
 
-  // SEO oculto
   useEffect(() => {
     const meta = document.createElement("meta");
     meta.name = "robots";
@@ -166,13 +163,91 @@ export default function B2BPortal() {
 
   const handleLogout = async () => { await signOut(); navigate("/login"); };
 
+  // ─── PRODUCT MODAL ────────────────────────────────────────────────────
+  const productModal = selectedProduct && (() => {
+    const p = selectedProduct;
+    const margin = productMargins[p.id] ?? globalMargin;
+    const finalPrice = p.cost_price * (1 + margin / 100);
+    const inCart = cart[p.id] || 0;
+    const outOfStock = p.stock === 0;
+
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+        onClick={() => setSelectedProduct(null)}
+      >
+        <div
+          className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-[#2a2a2a]">
+            <span className="text-xs text-gray-500 font-mono">{p.category}</span>
+            <button onClick={() => setSelectedProduct(null)}
+              className="text-gray-500 hover:text-white transition">
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Image */}
+          <div className="bg-[#151515] flex items-center justify-center h-56 px-8">
+            <img src={p.image} alt={p.name} className="max-h-44 max-w-full object-contain" />
+          </div>
+
+          {/* Info */}
+          <div className="px-5 py-5">
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <h2 className="text-lg font-extrabold text-white leading-tight">{p.name}</h2>
+              <StockBadge stock={p.stock} />
+            </div>
+
+            {p.sku && (
+              <p className="text-xs text-gray-500 mb-3">SKU: <span className="font-mono text-gray-400">{p.sku}</span></p>
+            )}
+
+            {p.description && (
+              <p className="text-sm text-gray-400 mb-4 leading-relaxed">{p.description}</p>
+            )}
+
+            <div className="text-2xl font-extrabold text-[#FF6A00] mb-5">
+              ${finalPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+
+            {/* Cart controls */}
+            {outOfStock ? (
+              <Button disabled className="w-full bg-[#FF6A00]/40 text-white font-bold h-11 text-sm disabled:opacity-100 disabled:pointer-events-none">
+                Sin stock
+              </Button>
+            ) : inCart > 0 ? (
+              <div className="flex items-center gap-3">
+                <button onClick={() => onRemoveFromCart(p)}
+                  className="h-11 w-11 bg-[#2a2a2a] hover:bg-[#333] text-white rounded-xl font-bold transition flex items-center justify-center">
+                  <Minus size={16} />
+                </button>
+                <span className="flex-1 text-center text-white font-extrabold text-xl">{inCart}</span>
+                <button onClick={() => onAddToCart(p)}
+                  className="h-11 w-11 bg-[#FF6A00] hover:bg-[#FF8C1A] text-white rounded-xl font-bold transition flex items-center justify-center">
+                  <Plus size={16} />
+                </button>
+              </div>
+            ) : (
+              <Button onClick={() => onAddToCart(p)}
+                className="w-full bg-gradient-to-br from-[#FF6A00] to-[#FF8C1A] text-white font-bold h-11 text-sm">
+                Agregar al carrito
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  })();
+
   // ─── RENDER ───────────────────────────────────────────────────────────
   return (
     <div className="flex min-h-screen bg-[#181818] flex-col">
 
       {/* TOPBAR */}
       <header className="flex items-center gap-3 px-4 md:px-6 py-3 bg-[#141414] border-b border-[#222] flex-wrap">
-        {/* Logo + cliente */}
         <div className="flex items-center gap-2.5 shrink-0">
           <img src="/icon.png" alt="Bartez" className="h-8 w-8 object-contain" />
           <div>
@@ -181,7 +256,6 @@ export default function B2BPortal() {
           </div>
         </div>
 
-        {/* Búsqueda */}
         <div className="flex-1 min-w-[160px] max-w-md relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
@@ -208,17 +282,6 @@ export default function B2BPortal() {
             >
               <List size={14} />
             </button>
-          </div>
-
-          {/* Margen global */}
-          <div className="hidden md:flex items-center gap-1.5 bg-[#232323] rounded-lg px-3 py-1.5">
-            <span className="text-xs text-gray-400">Margen:</span>
-            <input
-              type="number" min="0" max="100" value={globalMargin}
-              onChange={(e) => setGlobalMargin(Number(e.target.value))}
-              className="w-12 bg-transparent text-[#FF6A00] font-bold text-sm outline-none text-center"
-            />
-            <span className="text-xs text-gray-400">%</span>
           </div>
 
           {/* Carrito */}
@@ -297,7 +360,7 @@ export default function B2BPortal() {
             </div>
 
             <div>
-              <h3 className="text-[10px] font-semibold uppercase tracking-widest text-gray-500 mb-2">Precio costo</h3>
+              <h3 className="text-[10px] font-semibold uppercase tracking-widest text-gray-500 mb-2">Precio</h3>
               <div className="flex flex-col gap-2">
                 <Input type="number" placeholder="Mínimo" value={minPrice} onChange={(e) => setMinPrice(e.target.value)}
                   className="bg-[#232323] border-[#333] text-white text-sm h-8" />
@@ -317,7 +380,7 @@ export default function B2BPortal() {
               {productsLoading ? (
                 <div className={`grid gap-4 ${viewMode === "grid" ? "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"}`}>
                   {Array.from({ length: 8 }).map((_, i) => (
-                    <div key={i} className="bg-[#232323] rounded-xl h-64 animate-pulse" />
+                    <div key={i} className="bg-[#232323] rounded-xl h-20 animate-pulse" />
                   ))}
                 </div>
               ) : filteredProducts.length === 0 ? (
@@ -338,22 +401,23 @@ export default function B2BPortal() {
                       <div key={product.id} className={`bg-[#232323] border rounded-xl p-4 transition-all flex flex-col ${
                         outOfStock ? "border-[#2a2a2a] opacity-60" : "border-[#2a2a2a] hover:border-[#FF6A00]/40"
                       }`}>
-                        <div className="relative">
-                          <img src={product.image} alt={product.name}
-                            className="h-32 w-full object-contain rounded-lg bg-[#1a1a1a] p-2" />
-                          {inCart > 0 && (
-                            <span className="absolute top-2 right-2 h-5 w-5 rounded-full bg-[#FF6A00] text-white text-[10px] font-black flex items-center justify-center">
-                              {inCart}
-                            </span>
-                          )}
-                        </div>
-                        <h3 className="font-bold mt-2 text-sm text-white leading-tight line-clamp-2">{product.name}</h3>
-                        <p className="text-[11px] text-gray-500 mt-0.5">{product.category}{product.sku && ` · ${product.sku}`}</p>
-                        <div className="mt-1"><StockBadge stock={product.stock} /></div>
-                        <div className="mt-auto pt-3">
-                          <span className="line-through text-xs text-gray-600">${product.cost_price.toLocaleString()}</span>
-                          <div className="text-lg text-[#FF6A00] font-extrabold">${finalPrice.toLocaleString()}</div>
-                          <span className="text-[10px] text-gray-600">margen {margin}%</span>
+                        {/* Clickable area → modal */}
+                        <div className="cursor-pointer" onClick={() => setSelectedProduct(product)}>
+                          <div className="relative">
+                            <img src={product.image} alt={product.name}
+                              className="h-32 w-full object-contain rounded-lg bg-[#1a1a1a] p-2" />
+                            {inCart > 0 && (
+                              <span className="absolute top-2 right-2 h-5 w-5 rounded-full bg-[#FF6A00] text-white text-[10px] font-black flex items-center justify-center">
+                                {inCart}
+                              </span>
+                            )}
+                          </div>
+                          <h3 className="font-bold mt-2 text-sm text-white leading-tight line-clamp-2">{product.name}</h3>
+                          <p className="text-[11px] text-gray-500 mt-0.5">{product.category}{product.sku && ` · ${product.sku}`}</p>
+                          <div className="mt-1"><StockBadge stock={product.stock} /></div>
+                          <div className="mt-auto pt-3">
+                            <div className="text-lg text-[#FF6A00] font-extrabold">${finalPrice.toLocaleString()}</div>
+                          </div>
                         </div>
                         <div className="mt-2 flex gap-1.5">
                           {inCart > 0 ? (
@@ -389,16 +453,19 @@ export default function B2BPortal() {
                       <div key={product.id} className={`flex items-center gap-4 bg-[#232323] border rounded-xl px-4 py-3 transition ${
                         outOfStock ? "border-[#2a2a2a] opacity-60" : "border-[#2a2a2a] hover:border-[#FF6A00]/40"
                       }`}>
-                        <img src={product.image} alt={product.name}
-                          className="h-12 w-12 shrink-0 object-contain rounded-lg bg-[#1a1a1a] p-1" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-white truncate">{product.name}</p>
-                          <p className="text-xs text-gray-500">{product.category}{product.sku && ` · ${product.sku}`}</p>
-                        </div>
-                        <StockBadge stock={product.stock} />
-                        <div className="text-right shrink-0 hidden sm:block">
-                          <span className="line-through text-xs text-gray-600 block">${product.cost_price.toLocaleString()}</span>
-                          <span className="text-base font-extrabold text-[#FF6A00]">${finalPrice.toLocaleString()}</span>
+                        {/* Clickable area → modal */}
+                        <div className="flex items-center gap-4 flex-1 min-w-0 cursor-pointer"
+                          onClick={() => setSelectedProduct(product)}>
+                          <img src={product.image} alt={product.name}
+                            className="h-12 w-12 shrink-0 object-contain rounded-lg bg-[#1a1a1a] p-1" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-white truncate">{product.name}</p>
+                            <p className="text-xs text-gray-500">{product.category}{product.sku && ` · ${product.sku}`}</p>
+                          </div>
+                          <StockBadge stock={product.stock} />
+                          <div className="text-right shrink-0 hidden sm:block">
+                            <span className="text-base font-extrabold text-[#FF6A00]">${finalPrice.toLocaleString()}</span>
+                          </div>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           {inCart > 0 ? (
@@ -484,6 +551,9 @@ export default function B2BPortal() {
         onConfirmOrder={handleConfirmOrder}
         confirming={orderSubmitting}
       />
+
+      {/* MODAL PRODUCTO */}
+      {productModal}
     </div>
   );
 }
