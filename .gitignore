@@ -24,3 +24,4 @@ dist-ssr
 *.sw?
 .env
 .claude/settings.json
+.mcp.json
