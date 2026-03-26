@@ -25,3 +25,4 @@ dist-ssr
 .env
 .claude/settings.json
 .mcp.json
+.vercel
