@@ -62,27 +62,27 @@ function StatusBadge({ status }: { status: string }) {
 // ── Skeleton row ───────────────────────────────────────────────────────────
 function SkeletonRow() {
   return (
-    <div className="flex items-center gap-4 bg-[#1e1e1e] border border-[#262626] rounded-xl px-4 py-3 animate-pulse">
-      <div className="h-14 w-14 rounded-xl bg-[#2a2a2a] shrink-0" />
+    <div className="flex items-center gap-4 bg-[#111] border border-[#1a1a1a] rounded-xl px-4 py-3 animate-pulse">
+      <div className="h-14 w-14 rounded-xl bg-[#1c1c1c] shrink-0" />
       <div className="flex-1 space-y-2">
-        <div className="h-3.5 bg-[#2a2a2a] rounded w-2/3" />
-        <div className="h-2.5 bg-[#252525] rounded w-1/3" />
+        <div className="h-3.5 bg-[#1c1c1c] rounded w-2/3" />
+        <div className="h-2.5 bg-[#171717] rounded w-1/3" />
       </div>
-      <div className="h-5 w-16 bg-[#252525] rounded-full" />
-      <div className="h-6 w-20 bg-[#2a2a2a] rounded" />
-      <div className="h-8 w-20 bg-[#2a2a2a] rounded-lg" />
+      <div className="h-5 w-16 bg-[#171717] rounded-full" />
+      <div className="h-6 w-20 bg-[#1c1c1c] rounded" />
+      <div className="h-8 w-20 bg-[#1c1c1c] rounded-lg" />
     </div>
   );
 }
 
 function SkeletonCard() {
   return (
-    <div className="bg-[#1e1e1e] border border-[#262626] rounded-xl p-4 animate-pulse">
-      <div className="h-32 w-full bg-[#2a2a2a] rounded-lg mb-3" />
-      <div className="h-3.5 bg-[#2a2a2a] rounded w-3/4 mb-2" />
-      <div className="h-2.5 bg-[#252525] rounded w-1/2 mb-3" />
-      <div className="h-6 bg-[#2a2a2a] rounded w-1/3 mb-3" />
-      <div className="h-8 bg-[#2a2a2a] rounded-lg" />
+    <div className="bg-[#111] border border-[#1a1a1a] rounded-xl p-4 animate-pulse">
+      <div className="h-32 w-full bg-[#1c1c1c] rounded-lg mb-3" />
+      <div className="h-3.5 bg-[#1c1c1c] rounded w-3/4 mb-2" />
+      <div className="h-2.5 bg-[#171717] rounded w-1/2 mb-3" />
+      <div className="h-6 bg-[#1c1c1c] rounded w-1/3 mb-3" />
+      <div className="h-8 bg-[#1c1c1c] rounded-lg" />
     </div>
   );
 }
@@ -246,11 +246,11 @@ export default function B2BPortal() {
         onClick={() => setSelectedProduct(null)}
       >
         <div
-          className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]"
+          className="bg-[#111] border border-[#1f1f1f] rounded-2xl w-full max-w-lg shadow-2xl shadow-black/60 flex flex-col max-h-[90vh]"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header — fixed */}
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#242424] shrink-0">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#1a1a1a] shrink-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-gray-500 bg-[#242424] px-2 py-0.5 rounded-full font-medium">{p.category}</span>
               {p.featured && (
@@ -268,7 +268,7 @@ export default function B2BPortal() {
           {/* Scrollable body */}
           <div className="overflow-y-auto flex-1">
             {/* Image */}
-            <div className="bg-[#111] flex items-center justify-center h-52 px-8 shrink-0">
+            <div className="bg-[#0a0a0a] flex items-center justify-center h-52 px-8 shrink-0">
               <img src={p.image} alt={p.name} className="max-h-40 max-w-full object-contain drop-shadow-xl" />
             </div>
 
@@ -280,7 +280,7 @@ export default function B2BPortal() {
               </div>
 
               <div className="flex items-center gap-3 mb-4">
-                {p.sku && <span className="text-[11px] text-gray-600 font-mono bg-[#222] px-2 py-0.5 rounded">SKU: {p.sku}</span>}
+                {p.sku && <span className="text-[11px] text-[#525252] font-mono bg-[#171717] border border-[#222] px-2 py-0.5 rounded">SKU: {p.sku}</span>}
                 {p.stock > 0 && (
                   <span className="text-[11px] text-gray-600">{p.stock} en depósito</span>
                 )}
@@ -290,21 +290,21 @@ export default function B2BPortal() {
               </div>
 
               {/* Price */}
-              <div className="bg-[#141414] border border-[#252525] rounded-xl px-4 py-3 mb-4 flex items-center justify-between">
+              <div className="bg-[#0d0d0d] border border-[#1f1f1f] rounded-xl px-4 py-3 mb-4 flex items-center justify-between">
                 <div>
                   <div className="text-2xl font-extrabold text-[#FF6A00] tabular-nums leading-none">
                     {formatPrice(finalPrice)}
                   </div>
-                  <div className="text-[11px] text-gray-600 font-mono mt-1">
+                  <div className="text-[11px] text-[#525252] font-mono mt-1">
                     {currency === "USD" ? formatARS(finalPrice) : formatUSD(finalPrice)}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-[10px] text-gray-600 mb-1">Moneda</div>
-                  <div className="flex items-center bg-[#1e1e1e] border border-[#2a2a2a] rounded-lg p-0.5 gap-0.5">
+                  <div className="text-[10px] text-[#525252] mb-1">Moneda</div>
+                  <div className="flex items-center bg-[#171717] border border-[#262626] rounded-lg p-0.5 gap-0.5">
                     {(["USD", "ARS"] as const).map((c) => (
                       <button key={c} onClick={() => setCurrency(c)}
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${currency === c ? "bg-[#FF6A00] text-white" : "text-gray-500 hover:text-gray-300"}`}>
+                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${currency === c ? "bg-[#FF6A00] text-white" : "text-[#525252] hover:text-[#a3a3a3]"}`}>
                         {c}
                       </button>
                     ))}
@@ -324,9 +324,9 @@ export default function B2BPortal() {
               {p.specs && Object.keys(p.specs).length > 0 && (
                 <div className="mb-4">
                   <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Especificaciones</p>
-                  <div className="rounded-xl border border-[#242424] overflow-hidden">
+                  <div className="rounded-xl border border-[#1f1f1f] overflow-hidden">
                     {Object.entries(p.specs).map(([k, v], i) => (
-                      <div key={k} className={`flex text-xs ${i % 2 === 0 ? "bg-[#141414]" : "bg-[#111]"}`}>
+                      <div key={k} className={`flex text-xs ${i % 2 === 0 ? "bg-[#0d0d0d]" : "bg-[#0a0a0a]"}`}>
                         <span className="text-gray-500 px-3 py-2 w-2/5 shrink-0 font-medium">{k}</span>
                         <span className="text-gray-300 px-3 py-2 flex-1">{String(v)}</span>
                       </div>
@@ -341,7 +341,7 @@ export default function B2BPortal() {
                   <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Tags</p>
                   <div className="flex flex-wrap gap-1.5">
                     {p.tags.map((t: string) => (
-                      <span key={t} className="text-[11px] px-2 py-0.5 rounded-full bg-[#FF6A00]/10 text-[#FF6A00] border border-[#FF6A00]/20 font-medium">
+                      <span key={t} className="text-[11px] px-2 py-0.5 rounded-full bg-[#1c1c1c] text-[#a3a3a3] border border-[#262626] font-medium">
                         {t}
                       </span>
                     ))}
@@ -352,27 +352,27 @@ export default function B2BPortal() {
           </div>
 
           {/* Footer — cart controls, fixed */}
-          <div className="px-5 py-4 border-t border-[#242424] shrink-0">
+          <div className="px-5 py-4 border-t border-[#1a1a1a] shrink-0">
             {outOfStock ? (
-              <div className="w-full bg-[#2a2a2a] text-gray-500 font-bold h-11 rounded-xl text-sm flex items-center justify-center">
+              <div className="w-full bg-[#1c1c1c] text-[#525252] font-medium h-11 rounded-xl text-sm flex items-center justify-center border border-[#222]">
                 Sin stock disponible
               </div>
             ) : inCart > 0 ? (
               <div className="flex items-center gap-3">
                 <button onClick={() => onRemoveFromCart(p)}
-                  className="h-11 w-11 bg-[#2a2a2a] hover:bg-[#333] text-white rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center">
+                  className="h-11 w-11 bg-[#1c1c1c] hover:bg-[#252525] text-white rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center border border-[#262626]">
                   <Minus size={16} />
                 </button>
                 <span className="flex-1 text-center text-white font-extrabold text-xl">{inCart}</span>
                 <button onClick={() => handleAddToCart(p)}
-                  className="h-11 w-11 bg-[#FF6A00] hover:bg-[#FF8C1A] text-white rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center">
+                  className="h-11 w-11 bg-[#FF6A00] hover:bg-[#e85c00] text-white rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center">
                   <Plus size={16} />
                 </button>
               </div>
             ) : (
               <button
                 onClick={() => handleAddToCart(p)}
-                className="w-full bg-gradient-to-r from-[#FF6A00] to-[#FF8C1A] hover:brightness-110 text-white font-bold h-11 rounded-xl text-sm transition-all active:scale-[0.98]"
+                className="w-full bg-[#FF6A00] hover:bg-[#e85c00] text-white font-bold h-11 rounded-xl text-sm transition-all active:scale-[0.98]"
               >
                 Agregar al carrito
               </button>
@@ -385,15 +385,15 @@ export default function B2BPortal() {
 
   // ─── RENDER ───────────────────────────────────────────────────────────
   return (
-    <div className="flex min-h-screen bg-[#161616] flex-col">
+    <div className="flex min-h-screen bg-[#0a0a0a] flex-col">
 
       {/* TOPBAR */}
-      <header className="flex items-center gap-3 px-4 md:px-6 py-2.5 bg-[#111] border-b border-[#1e1e1e] flex-wrap">
+      <header className="flex items-center gap-3 px-4 md:px-6 py-2.5 bg-[#0d0d0d] border-b border-[#1a1a1a] flex-wrap">
         <div className="flex items-center gap-2.5 shrink-0">
           <img src="/icon.png" alt="Bartez" className="h-8 w-8 object-contain" />
           <div>
             <span className="font-bold text-white text-sm leading-none">Portal B2B</span>
-            <span className="block text-[11px] text-[#FF6A00] leading-none mt-0.5 font-medium">{clientName}</span>
+            <span className="block text-[11px] text-[#737373] leading-none mt-0.5 font-medium">{clientName}</span>
           </div>
         </div>
 
@@ -405,7 +405,7 @@ export default function B2BPortal() {
             placeholder="Buscar productos, SKU, marca..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-[#1a1a1a] border border-[#272727] text-white text-sm rounded-xl pl-9 pr-8 py-2 outline-none focus:border-[#FF6A00]/60 focus:ring-2 focus:ring-[#FF6A00]/10 placeholder:text-gray-600 transition"
+            className="w-full bg-[#0d0d0d] border border-[#222] text-white text-sm rounded-xl pl-9 pr-8 py-2 outline-none focus:border-[#404040] focus:ring-1 focus:ring-white/5 placeholder:text-[#525252] transition"
           />
           {search && (
             <button onClick={() => setSearch("")}
@@ -417,19 +417,19 @@ export default function B2BPortal() {
 
         <div className="flex items-center gap-1.5 ml-auto">
           {/* Vista + Moneda — agrupados */}
-          <div className="hidden md:flex items-center bg-[#1a1a1a] border border-[#252525] rounded-lg p-1 gap-0.5">
+          <div className="hidden md:flex items-center bg-[#0d0d0d] border border-[#1f1f1f] rounded-lg p-1 gap-0.5">
             <button onClick={() => setViewMode("grid")}
-              className={`p-1.5 rounded transition ${viewMode === "grid" ? "bg-[#FF6A00] text-white" : "text-gray-600 hover:text-gray-300"}`}>
+              className={`p-1.5 rounded transition ${viewMode === "grid" ? "bg-[#262626] text-white" : "text-[#525252] hover:text-[#a3a3a3]"}`}>
               <LayoutGrid size={13} />
             </button>
             <button onClick={() => setViewMode("list")}
-              className={`p-1.5 rounded transition ${viewMode === "list" ? "bg-[#FF6A00] text-white" : "text-gray-600 hover:text-gray-300"}`}>
+              className={`p-1.5 rounded transition ${viewMode === "list" ? "bg-[#262626] text-white" : "text-[#525252] hover:text-[#a3a3a3]"}`}>
               <List size={13} />
             </button>
-            <div className="w-px h-4 bg-[#333] mx-0.5" />
+            <div className="w-px h-4 bg-[#262626] mx-0.5" />
             {(["USD", "ARS"] as const).map((c) => (
               <button key={c} onClick={() => setCurrency(c)}
-                className={`px-2 py-1 rounded text-[11px] font-bold transition ${currency === c ? "bg-[#FF6A00] text-white" : "text-gray-600 hover:text-gray-300"}`}>
+                className={`px-2 py-1 rounded text-[11px] font-bold transition ${currency === c ? "bg-[#262626] text-white" : "text-[#525252] hover:text-[#a3a3a3]"}`}>
                 {c}
               </button>
             ))}
@@ -467,7 +467,7 @@ export default function B2BPortal() {
       </header>
 
       {/* TABS */}
-      <div className="flex border-b border-[#1e1e1e] bg-[#111] px-4 md:px-6">
+      <div className="flex border-b border-[#1a1a1a] bg-[#0d0d0d] px-4 md:px-6">
         {[
           { id: "catalog", label: "Catálogo", icon: Package },
           { id: "orders",  label: `Mis Pedidos${orders.length ? ` (${orders.length})` : ""}`, icon: ClipboardList },
@@ -478,7 +478,7 @@ export default function B2BPortal() {
             className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition ${
               activeTab === id
                 ? "border-[#FF6A00] text-white"
-                : "border-transparent text-gray-600 hover:text-gray-400"
+                : "border-transparent text-[#525252] hover:text-[#a3a3a3]"
             }`}
           >
             <Icon size={13} /> {label}
@@ -488,13 +488,13 @@ export default function B2BPortal() {
 
       {/* BANNER ADMIN */}
       {isAdmin && (
-        <div className="flex items-center justify-between bg-[#FF6A00]/8 border-b border-[#FF6A00]/15 px-4 md:px-6 py-2">
-          <div className="flex items-center gap-2 text-[#FF6A00] text-xs font-medium">
+        <div className="flex items-center justify-between bg-[#111] border-b border-[#1a1a1a] px-4 md:px-6 py-2">
+          <div className="flex items-center gap-2 text-[#737373] text-xs font-medium">
             <ShieldCheck size={13} />
             Vista de administrador
           </div>
           <Link to="/admin"
-            className="flex items-center gap-1.5 bg-[#FF6A00] hover:bg-[#FF8C1A] text-white text-xs font-bold px-3 py-1.5 rounded-lg transition">
+            className="flex items-center gap-1.5 bg-[#1c1c1c] hover:bg-[#262626] text-[#a3a3a3] hover:text-white text-xs font-medium px-3 py-1.5 rounded-lg border border-[#262626] hover:border-[#333] transition">
             <ShieldCheck size={11} /> Panel Admin
           </Link>
         </div>
@@ -511,13 +511,13 @@ export default function B2BPortal() {
 
         {/* SIDEBAR */}
         {activeTab === "catalog" && (
-          <aside className="hidden md:flex flex-col w-52 bg-[#111] border-r border-[#1e1e1e] p-3 gap-4 shrink-0">
+          <aside className="hidden md:flex flex-col w-52 bg-[#0d0d0d] border-r border-[#1a1a1a] p-3 gap-4 shrink-0">
 
             {/* Clear filters */}
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="flex items-center gap-1.5 text-xs text-[#FF6A00] hover:text-white border border-[#FF6A00]/30 hover:border-[#FF6A00]/60 bg-[#FF6A00]/5 hover:bg-[#FF6A00]/10 rounded-lg px-3 py-1.5 transition font-medium"
+                className="flex items-center gap-1.5 text-xs text-[#a3a3a3] hover:text-white border border-[#262626] hover:border-[#333] bg-transparent hover:bg-[#1c1c1c] rounded-lg px-3 py-1.5 transition font-medium"
               >
                 <SlidersHorizontal size={11} /> Limpiar filtros
               </button>
@@ -525,7 +525,7 @@ export default function B2BPortal() {
 
             {/* Categorías */}
             <div>
-              <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 px-1">Categoría</h3>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#525252] mb-2 px-1">Categoría</h3>
               <div className="flex flex-col gap-0.5">
                 {categories.map((c) => {
                   const isActive = categoryFilter === c;
@@ -536,13 +536,13 @@ export default function B2BPortal() {
                       onClick={() => setCategoryFilter(c)}
                       className={`flex items-center justify-between text-left text-sm px-2.5 py-1.5 rounded-lg transition group ${
                         isActive
-                          ? "bg-[#FF6A00]/12 text-[#FF6A00] font-semibold border-l-2 border-[#FF6A00]"
-                          : "text-gray-500 hover:text-gray-200 hover:bg-[#1a1a1a] border-l-2 border-transparent"
+                          ? "bg-[#171717] text-white font-medium border-l-2 border-[#FF6A00]"
+                          : "text-[#737373] hover:text-[#e5e5e5] hover:bg-[#171717] border-l-2 border-transparent"
                       }`}
                     >
                       <span className="truncate">{c === "all" ? "Todas" : c}</span>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1 shrink-0 ${
-                        isActive ? "bg-[#FF6A00]/20 text-[#FF6A00]" : "bg-[#222] text-gray-600 group-hover:bg-[#2a2a2a]"
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1 shrink-0 ${
+                        isActive ? "bg-[#262626] text-white" : "bg-[#1a1a1a] text-[#525252] group-hover:bg-[#222]"
                       }`}>
                         {count}
                       </span>
@@ -554,19 +554,19 @@ export default function B2BPortal() {
 
             {/* Precio */}
             <div>
-              <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2 px-1">Precio</h3>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#525252] mb-2 px-1">Precio</h3>
               <div className="flex flex-col gap-1.5">
                 <div className="relative">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-600 text-xs">$</span>
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#525252] text-xs">$</span>
                   <input type="number" placeholder="Mínimo" value={minPrice}
                     onChange={(e) => setMinPrice(e.target.value)}
-                    className="w-full bg-[#1a1a1a] border border-[#252525] text-white text-xs rounded-lg pl-6 pr-2 py-1.5 outline-none focus:border-[#FF6A00]/50 placeholder:text-gray-700 transition" />
+                    className="w-full bg-[#0d0d0d] border border-[#222] text-white text-xs rounded-lg pl-6 pr-2 py-1.5 outline-none focus:border-[#404040] placeholder:text-[#404040] transition" />
                 </div>
                 <div className="relative">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-600 text-xs">$</span>
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#525252] text-xs">$</span>
                   <input type="number" placeholder="Máximo" value={maxPrice}
                     onChange={(e) => setMaxPrice(e.target.value)}
-                    className="w-full bg-[#1a1a1a] border border-[#252525] text-white text-xs rounded-lg pl-6 pr-2 py-1.5 outline-none focus:border-[#FF6A00]/50 placeholder:text-gray-700 transition" />
+                    className="w-full bg-[#0d0d0d] border border-[#222] text-white text-xs rounded-lg pl-6 pr-2 py-1.5 outline-none focus:border-[#404040] placeholder:text-[#404040] transition" />
                 </div>
               </div>
             </div>
@@ -624,15 +624,15 @@ export default function B2BPortal() {
                     return (
                       <div
                         key={product.id}
-                        className={`bg-[#1a1a1a] border rounded-xl p-4 flex flex-col transition-all duration-200 ${
+                        className={`bg-[#111] border rounded-xl p-4 flex flex-col transition-all duration-200 ${
                           outOfStock
-                            ? "border-[#222] opacity-50"
-                            : "border-[#252525] hover:border-[#FF6A00]/35 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40"
+                            ? "border-[#1a1a1a] opacity-40"
+                            : "border-[#1f1f1f] hover:border-[#2a2a2a] hover:bg-[#141414] hover:-translate-y-px hover:shadow-lg hover:shadow-black/30"
                         }`}
                       >
                         <div className="cursor-pointer" onClick={() => setSelectedProduct(product)}>
                           <div className="relative mb-3">
-                            <div className="h-32 w-full bg-[#111] rounded-lg flex items-center justify-center overflow-hidden">
+                            <div className="h-32 w-full bg-[#0a0a0a] rounded-lg flex items-center justify-center overflow-hidden">
                               <img src={product.image} alt={product.name}
                                 className="max-h-28 max-w-full object-contain p-2" />
                             </div>
@@ -665,10 +665,10 @@ export default function B2BPortal() {
                           {inCart > 0 ? (
                             <>
                               <button onClick={() => onRemoveFromCart(product)}
-                                className="flex-1 bg-[#252525] hover:bg-[#2e2e2e] active:scale-95 text-white rounded-lg py-1.5 text-sm font-bold transition-all">−</button>
+                                className="flex-1 bg-[#1c1c1c] hover:bg-[#252525] active:scale-95 text-white rounded-lg py-1.5 text-sm font-bold transition-all border border-[#262626]">−</button>
                               <span className="flex items-center justify-center px-3 text-white font-bold text-sm">{inCart}</span>
                               <button onClick={() => handleAddToCart(product)}
-                                className="flex-1 bg-[#FF6A00] hover:bg-[#FF8C1A] active:scale-95 text-white rounded-lg py-1.5 text-sm font-bold transition-all">+</button>
+                                className="flex-1 bg-[#FF6A00] hover:bg-[#e85c00] active:scale-95 text-white rounded-lg py-1.5 text-sm font-bold transition-all">+</button>
                             </>
                           ) : (
                             <button
@@ -703,10 +703,10 @@ export default function B2BPortal() {
                     return (
                       <div
                         key={product.id}
-                        className={`group flex items-center gap-3 bg-[#1a1a1a] border rounded-xl px-3 py-2.5 transition-all duration-150 ${
+                        className={`group flex items-center gap-3 bg-[#111] border rounded-xl px-3 py-2.5 transition-all duration-150 ${
                           outOfStock
-                            ? "border-[#1e1e1e] opacity-50"
-                            : "border-[#252525] hover:border-[#FF6A00]/25 hover:bg-[#1e1e1e]"
+                            ? "border-[#1a1a1a] opacity-40"
+                            : "border-[#1f1f1f] hover:border-[#252525] hover:bg-[#161616]"
                         }`}
                       >
                         {/* Clickable area */}
@@ -715,7 +715,7 @@ export default function B2BPortal() {
                           onClick={() => setSelectedProduct(product)}
                         >
                           {/* Thumbnail */}
-                          <div className="h-14 w-14 shrink-0 bg-[#111] rounded-xl flex items-center justify-center overflow-hidden border border-[#222] group-hover:border-[#2a2a2a] transition-colors">
+                          <div className="h-14 w-14 shrink-0 bg-[#0a0a0a] rounded-xl flex items-center justify-center overflow-hidden border border-[#1a1a1a] group-hover:border-[#222] transition-colors">
                             <img src={product.image} alt={product.name}
                               className="max-h-12 max-w-12 object-contain" />
                           </div>
@@ -731,7 +731,7 @@ export default function B2BPortal() {
                             <div className="flex items-center gap-2">
                               <span className="text-[11px] text-gray-600">{product.category}</span>
                               {product.sku && (
-                                <span className="text-[10px] font-mono text-gray-700 bg-[#222] px-1.5 py-0.5 rounded">{product.sku}</span>
+                                <span className="text-[10px] font-mono text-[#525252] bg-[#171717] px-1.5 py-0.5 rounded">{product.sku}</span>
                               )}
                             </div>
                           </div>
@@ -757,12 +757,12 @@ export default function B2BPortal() {
                           {inCart > 0 ? (
                             <>
                               <button onClick={() => onRemoveFromCart(product)}
-                                className="h-8 w-8 bg-[#252525] hover:bg-[#2e2e2e] active:scale-95 text-white rounded-lg text-sm font-bold transition-all flex items-center justify-center">
+                                className="h-8 w-8 bg-[#1c1c1c] hover:bg-[#252525] active:scale-95 text-white rounded-lg text-sm font-bold transition-all flex items-center justify-center border border-[#262626]">
                                 <Minus size={12} />
                               </button>
                               <span className="w-7 text-center text-white font-bold text-sm tabular-nums">{inCart}</span>
                               <button onClick={() => handleAddToCart(product)}
-                                className="h-8 w-8 bg-[#FF6A00] hover:bg-[#FF8C1A] active:scale-95 text-white rounded-lg text-sm font-bold transition-all flex items-center justify-center">
+                                className="h-8 w-8 bg-[#FF6A00] hover:bg-[#e85c00] active:scale-95 text-white rounded-lg text-sm font-bold transition-all flex items-center justify-center">
                                 <Plus size={12} />
                               </button>
                             </>
@@ -772,8 +772,8 @@ export default function B2BPortal() {
                               onClick={() => handleAddToCart(product)}
                               className={`text-xs h-8 px-3.5 rounded-lg font-bold transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none whitespace-nowrap ${
                                 wasAdded
-                                  ? "bg-green-600 hover:bg-green-600 text-white"
-                                  : "bg-[#FF6A00] hover:bg-[#FF8C1A] text-white"
+                                  ? "bg-green-600/90 text-white"
+                                  : "bg-[#FF6A00] hover:bg-[#e85c00] text-white"
                               }`}
                             >
                               {outOfStock ? "Sin stock" : wasAdded ? "✓ Añadido" : "Añadir"}
@@ -801,9 +801,9 @@ export default function B2BPortal() {
               ) : (
                 <div className="flex flex-col gap-3">
                   {orders.map((order) => (
-                    <div key={order.id} className="bg-[#1a1a1a] border border-[#252525] rounded-xl overflow-hidden">
+                    <div key={order.id} className="bg-[#111] border border-[#1f1f1f] rounded-xl overflow-hidden">
                       {/* Order header */}
-                      <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#222]">
+                      <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#1a1a1a]">
                         <div>
                           <span className="text-xs font-bold text-gray-400">Pedido #{String(order.id).slice(-6).toUpperCase()}</span>
                           <p className="text-[11px] text-gray-600 mt-0.5">
@@ -830,7 +830,7 @@ export default function B2BPortal() {
                         ))}
                       </div>
                       {/* Total */}
-                      <div className="flex justify-between items-center border-t border-[#1e1e1e] px-5 py-3 bg-[#161616]">
+                      <div className="flex justify-between items-center border-t border-[#1a1a1a] px-5 py-3 bg-[#0a0a0a]">
                         <div>
                           <span className="text-sm text-gray-500 font-medium">Total del pedido</span>
                           <div className="text-[10px] text-gray-700 font-mono">

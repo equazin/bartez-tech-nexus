@@ -49,17 +49,17 @@ export function CartDrawer({
 
   return (
     <Drawer open={open} onOpenChange={(o) => !o && onClose()} direction="right">
-      <DrawerContent className="fixed right-0 top-0 bottom-0 w-full max-w-sm bg-[#111] border-l border-[#1e1e1e] shadow-2xl flex flex-col">
+      <DrawerContent className="fixed right-0 top-0 bottom-0 w-full max-w-sm bg-[#0d0d0d] border-l border-[#1a1a1a] shadow-2xl shadow-black/60 flex flex-col">
 
         {/* Header */}
-        <DrawerHeader className="flex items-center justify-between border-b border-[#1e1e1e] px-5 py-4 shrink-0">
+        <DrawerHeader className="flex items-center justify-between border-b border-[#1a1a1a] px-5 py-4 shrink-0">
           <div className="flex items-center gap-2.5">
             <ShoppingCart size={16} className="text-[#FF6A00]" />
             <DrawerTitle className="text-base font-bold text-white">
               Carrito
             </DrawerTitle>
             {itemCount > 0 && (
-              <span className="text-xs text-gray-600 bg-[#1e1e1e] px-2 py-0.5 rounded-full font-medium">
+              <span className="text-xs text-[#525252] bg-[#171717] border border-[#222] px-2 py-0.5 rounded-full font-medium">
                 {itemCount} {itemCount === 1 ? "item" : "items"}
               </span>
             )}
@@ -82,10 +82,10 @@ export function CartDrawer({
           ) : (
             cartItems.map((item) => (
               <div key={item.product.id}
-                className="bg-[#1a1a1a] border border-[#242424] rounded-xl p-3 hover:border-[#2a2a2a] transition-colors">
+                className="bg-[#111] border border-[#1f1f1f] rounded-xl p-3 hover:border-[#252525] hover:bg-[#141414] transition-colors">
                 <div className="flex items-start gap-3">
                   {/* Image */}
-                  <div className="h-12 w-12 bg-[#111] rounded-lg flex items-center justify-center shrink-0 border border-[#222]">
+                  <div className="h-12 w-12 bg-[#0a0a0a] rounded-lg flex items-center justify-center shrink-0 border border-[#1a1a1a]">
                     <img src={item.product.image} alt={item.product.name}
                       className="max-h-10 max-w-10 object-contain" />
                   </div>
@@ -106,12 +106,12 @@ export function CartDrawer({
                 <div className="flex items-center justify-between mt-2.5">
                   <div className="flex items-center gap-1">
                     <button onClick={() => onRemoveFromCart(item.product)}
-                      className="h-7 w-7 bg-[#252525] hover:bg-[#2e2e2e] active:scale-95 text-white rounded-lg transition-all flex items-center justify-center">
+                      className="h-7 w-7 bg-[#1c1c1c] hover:bg-[#252525] active:scale-95 text-white rounded-lg transition-all flex items-center justify-center border border-[#262626]">
                       <Minus size={11} />
                     </button>
                     <span className="w-8 text-center text-white font-bold text-sm tabular-nums">{item.quantity}</span>
                     <button onClick={() => onAddToCart(item.product)}
-                      className="h-7 w-7 bg-[#FF6A00] hover:bg-[#FF8C1A] active:scale-95 text-white rounded-lg transition-all flex items-center justify-center">
+                      className="h-7 w-7 bg-[#FF6A00] hover:bg-[#e85c00] active:scale-95 text-white rounded-lg transition-all flex items-center justify-center">
                       <Plus size={11} />
                     </button>
                   </div>
@@ -131,7 +131,7 @@ export function CartDrawer({
 
         {/* Footer */}
         {cartItems.length > 0 && (
-          <DrawerFooter className="border-t border-[#1e1e1e] px-4 py-4 bg-[#0e0e0e] space-y-2.5 shrink-0">
+          <DrawerFooter className="border-t border-[#1a1a1a] px-4 py-4 bg-[#070707] space-y-2.5 shrink-0">
             {/* Total */}
             <div className="flex justify-between items-start">
               <div>
@@ -153,7 +153,7 @@ export function CartDrawer({
             {/* Export PDF */}
             <button
               onClick={handleExportPDF}
-              className="w-full flex items-center justify-center gap-2 border border-[#2a2a2a] hover:border-[#FF6A00]/30 text-gray-400 hover:text-white bg-transparent hover:bg-[#1a1a1a] rounded-xl py-2.5 text-sm transition-all"
+              className="w-full flex items-center justify-center gap-2 border border-[#1f1f1f] hover:border-[#2e2e2e] text-[#737373] hover:text-white bg-transparent hover:bg-[#171717] rounded-xl py-2.5 text-sm transition-all"
             >
               <FileDown size={14} />
               Exportar cotización PDF
@@ -163,7 +163,7 @@ export function CartDrawer({
             <button
               disabled={confirming}
               onClick={onConfirmOrder}
-              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[#FF6A00] to-[#FF8C1A] hover:brightness-110 active:scale-[0.98] text-white font-bold rounded-xl py-3 text-sm transition-all disabled:opacity-50 disabled:pointer-events-none"
+              className="w-full flex items-center justify-center gap-2 bg-[#FF6A00] hover:bg-[#e85c00] active:scale-[0.98] text-white font-bold rounded-xl py-3 text-sm transition-all disabled:opacity-50 disabled:pointer-events-none"
             >
               {confirming ? (
                 <><Loader2 size={14} className="animate-spin" /> Confirmando pedido...</>

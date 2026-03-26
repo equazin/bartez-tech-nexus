@@ -265,10 +265,10 @@ const Admin = () => {
   ];
 
   return (
-    <div className="flex min-h-screen bg-[#181818] flex-col">
+    <div className="flex min-h-screen bg-[#0a0a0a] flex-col">
 
       {/* TOPBAR */}
-      <header className="flex items-center gap-3 px-4 md:px-6 py-3 bg-[#141414] border-b border-[#222]">
+      <header className="flex items-center gap-3 px-4 md:px-6 py-3 bg-[#0d0d0d] border-b border-[#1a1a1a]">
         <div className="flex items-center gap-2.5">
           <img src="/icon.png" alt="Bartez" className="h-8 w-8 object-contain" />
           <div>
@@ -280,13 +280,13 @@ const Admin = () => {
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={() => { fetchProducts(); fetchOrders(); fetchClients(); }}
-            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition px-3 py-2 rounded-lg hover:bg-[#232323]"
+            className="flex items-center gap-1.5 text-xs text-[#737373] hover:text-white transition px-3 py-2 rounded-lg hover:bg-[#1c1c1c]"
           >
             <RefreshCw size={13} /> Actualizar
           </button>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition px-3 py-2 rounded-lg hover:bg-[#232323]"
+            className="flex items-center gap-1.5 text-xs text-[#737373] hover:text-white transition px-3 py-2 rounded-lg hover:bg-[#1c1c1c]"
           >
             <LogOut size={13} /> Salir
           </button>
@@ -294,7 +294,7 @@ const Admin = () => {
       </header>
 
       {/* TABS */}
-      <div className="flex border-b border-[#222] bg-[#141414] px-4 md:px-6">
+      <div className="flex border-b border-[#1a1a1a] bg-[#0d0d0d] px-4 md:px-6">
         {tabs.map(({ id, label, icon: Icon, badge }) => (
           <button
             key={id}
@@ -302,7 +302,7 @@ const Admin = () => {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition ${
               activeTab === id
                 ? "border-[#FF6A00] text-white"
-                : "border-transparent text-gray-500 hover:text-gray-300"
+                : "border-transparent text-[#525252] hover:text-[#a3a3a3]"
             }`}
           >
             <Icon size={14} />
@@ -311,7 +311,7 @@ const Admin = () => {
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                 id === "orders" && pendingOrders > 0
                   ? "bg-[#FF6A00] text-white"
-                  : "bg-[#2a2a2a] text-gray-400"
+                  : "bg-[#1c1c1c] text-[#525252]"
               }`}>
                 {badge}
               </span>
@@ -327,7 +327,7 @@ const Admin = () => {
           <div className="space-y-6 max-w-6xl">
 
             {/* ── Cotización del dólar ── */}
-            <div className="bg-[#232323] border border-[#2a2a2a] rounded-xl px-5 py-4 flex flex-wrap items-center gap-4">
+            <div className="bg-[#111] border border-[#1f1f1f] rounded-xl px-5 py-4 flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-2 shrink-0">
                 <div className="h-8 w-8 rounded-lg bg-[#FF6A00]/10 border border-[#FF6A00]/20 flex items-center justify-center">
                   <DollarSign size={14} className="text-[#FF6A00]" />
@@ -348,7 +348,7 @@ const Admin = () => {
                     type="number"
                     value={rateInput}
                     onChange={(e) => setRateInput(e.target.value)}
-                    className="w-28 bg-[#1a1a1a] border border-[#FF6A00]/40 rounded-lg px-2 py-1 text-white text-sm font-mono outline-none focus:border-[#FF6A00]"
+                    className="w-28 bg-[#0d0d0d] border border-[#FF6A00]/40 rounded-lg px-2 py-1 text-white text-sm font-mono outline-none focus:border-[#FF6A00]"
                     autoFocus
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
@@ -385,7 +385,7 @@ const Admin = () => {
                   </div>
                   <button
                     onClick={() => { setRateInput(String(exchangeRate.rate)); setEditingRate(true); }}
-                    className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white border border-[#333] hover:border-[#444] bg-[#1a1a1a] hover:bg-[#222] px-2.5 py-1.5 rounded-lg transition"
+                    className="flex items-center gap-1.5 text-xs text-[#737373] hover:text-white border border-[#262626] hover:border-[#333] bg-[#0d0d0d] hover:bg-[#1c1c1c] px-2.5 py-1.5 rounded-lg transition"
                   >
                     <Pencil size={11} /> Editar
                   </button>
@@ -399,7 +399,7 @@ const Admin = () => {
                 <button
                   onClick={handleFetchRate}
                   disabled={fetchingRate}
-                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white disabled:opacity-50 transition px-2.5 py-1.5 rounded-lg hover:bg-[#2a2a2a] border border-transparent hover:border-[#333]"
+                  className="flex items-center gap-1.5 text-xs text-[#737373] hover:text-white disabled:opacity-50 transition px-2.5 py-1.5 rounded-lg hover:bg-[#1c1c1c] border border-transparent hover:border-[#262626]"
                 >
                   <RefreshCw size={11} className={fetchingRate ? "animate-spin" : ""} />
                   {fetchingRate ? "Actualizando..." : "Cotización oficial"}
@@ -412,11 +412,11 @@ const Admin = () => {
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
-              <div className="bg-[#232323] border border-[#2a2a2a] rounded-xl p-5">
+              <div className="bg-[#111] border border-[#1f1f1f] rounded-xl p-5">
                 <h2 className="text-sm font-bold text-white mb-4">Agregar producto</h2>
                 <ProductForm onAdd={(p) => setProducts((prev) => [p, ...prev])} />
               </div>
-              <div className="bg-[#232323] border border-[#2a2a2a] rounded-xl p-5">
+              <div className="bg-[#111] border border-[#1f1f1f] rounded-xl p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-sm font-bold text-white">Importar CSV</h2>
                   <button onClick={downloadSampleCSV}
@@ -439,16 +439,16 @@ const Admin = () => {
             </div>
 
             {/* Categorías */}
-            <div className="bg-[#232323] border border-[#2a2a2a] rounded-xl p-5">
+            <div className="bg-[#111] border border-[#1f1f1f] rounded-xl p-5">
               <h2 className="text-sm font-bold text-white mb-4">Categorías y Subcategorías</h2>
               <div className="flex gap-2 mb-4">
                 <input
                   value={newCatName} onChange={(e) => setNewCatName(e.target.value)}
                   placeholder="Nombre de categoría"
-                  className="flex-1 bg-[#1a1a1a] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]"
+                  className="flex-1 bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040] placeholder:text-[#404040]"
                 />
                 <select value={newCatParent} onChange={(e) => setNewCatParent(e.target.value)}
-                  className="bg-[#1a1a1a] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]">
+                  className="bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040]">
                   <option value="">Categoría raíz</option>
                   {categories.filter((c) => c.parent_id === null).map((c) => (
                     <option key={c.id} value={c.id}>Sub de: {c.name}</option>
@@ -461,13 +461,13 @@ const Admin = () => {
               </div>
               <div className="flex flex-wrap gap-2">
                 {categories.filter((c) => c.parent_id === null).map((parent) => (
-                  <div key={parent.id} className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-2 min-w-[140px]">
+                  <div key={parent.id} className="bg-[#0d0d0d] border border-[#1f1f1f] rounded-lg px-3 py-2 min-w-[140px]">
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <span className="text-sm font-semibold text-white">{parent.name}</span>
                       <button onClick={() => deleteCategory(parent.id)} className="text-gray-600 hover:text-red-400 transition"><Trash2 size={12} /></button>
                     </div>
                     {categories.filter((c) => c.parent_id === parent.id).map((sub) => (
-                      <div key={sub.id} className="flex items-center justify-between text-xs text-gray-400 pl-2 border-l border-[#333] mt-1">
+                      <div key={sub.id} className="flex items-center justify-between text-xs text-[#737373] pl-2 border-l border-[#262626] mt-1">
                         <span>↳ {sub.name}</span>
                         <button onClick={() => deleteCategory(sub.id)} className="text-gray-600 hover:text-red-400 transition ml-2"><Trash2 size={11} /></button>
                       </div>
@@ -479,7 +479,7 @@ const Admin = () => {
 
             {loadingProducts ? (
               <div className="space-y-2">
-                {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-10 bg-[#232323] rounded-lg animate-pulse" />)}
+                {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-10 bg-[#111] rounded-lg animate-pulse" />)}
               </div>
             ) : (
               <ProductTable products={products} categories={categories} onRefresh={fetchProducts} />
@@ -493,7 +493,7 @@ const Admin = () => {
             <div>
               {loadingOrders ? (
                 <div className="space-y-2">
-                  {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-20 bg-[#232323] rounded-xl animate-pulse" />)}
+                  {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-20 bg-[#111] rounded-xl animate-pulse" />)}
                 </div>
               ) : orders.length === 0 ? (
                 <div className="text-center py-20 text-gray-500 text-sm">No hay pedidos todavía.</div>
@@ -503,8 +503,8 @@ const Admin = () => {
                     <div
                       key={order.id}
                       onClick={() => setSelectedOrder(order)}
-                      className={`bg-[#232323] border rounded-xl p-4 cursor-pointer transition hover:border-[#FF6A00]/40 ${
-                        selectedOrder?.id === order.id ? "border-[#FF6A00]/60" : "border-[#2a2a2a]"
+                      className={`bg-[#111] border rounded-xl p-4 cursor-pointer transition hover:border-[#2e2e2e] hover:bg-[#141414] ${
+                        selectedOrder?.id === order.id ? "border-[#333] bg-[#141414]" : "border-[#1f1f1f]"
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -525,7 +525,7 @@ const Admin = () => {
             </div>
 
             {selectedOrder && (
-              <div className="bg-[#232323] border border-[#2a2a2a] rounded-xl p-6">
+              <div className="bg-[#111] border border-[#1f1f1f] rounded-xl p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-bold text-white">Pedido #{String(selectedOrder.id).slice(-8)}</h3>
                   <StatusBadge status={selectedOrder.status} />
@@ -595,8 +595,8 @@ const Admin = () => {
             {/* Modal nuevo cliente */}
             {showNewClient && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-                <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl w-full max-w-md shadow-2xl">
-                  <div className="flex items-center justify-between px-6 py-4 border-b border-[#2a2a2a]">
+                <div className="bg-[#111] border border-[#1f1f1f] rounded-2xl w-full max-w-md shadow-2xl shadow-black/60">
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a1a1a]">
                     <h3 className="font-bold text-white">Nuevo Cliente</h3>
                     <button onClick={() => setShowNewClient(false)} className="text-gray-500 hover:text-white transition">
                       <X size={18} />
@@ -608,7 +608,7 @@ const Admin = () => {
                         <label className="text-xs text-gray-400 mb-1 block">Email *</label>
                         <input type="email" value={newClient.email}
                           onChange={(e) => setNewClient((p) => ({ ...p, email: e.target.value }))}
-                          className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]"
+                          className="w-full bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040]"
                           placeholder="cliente@empresa.com" />
                       </div>
                       <div className="col-span-2">
@@ -616,7 +616,7 @@ const Admin = () => {
                         <div className="flex gap-2">
                           <input type="text" value={newClient.password}
                             onChange={(e) => setNewClient((p) => ({ ...p, password: e.target.value }))}
-                            className="flex-1 bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00] font-mono"
+                            className="flex-1 bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040] font-mono placeholder:text-[#404040]"
                             placeholder="Mínimo 6 caracteres" />
                           <button type="button" onClick={generatePassword}
                             className="shrink-0 bg-[#2a2a2a] hover:bg-[#333] text-[#FF6A00] text-xs font-bold px-3 rounded-lg border border-[#333] transition">
@@ -628,14 +628,14 @@ const Admin = () => {
                         <label className="text-xs text-gray-400 mb-1 block">Empresa</label>
                         <input type="text" value={newClient.company_name}
                           onChange={(e) => setNewClient((p) => ({ ...p, company_name: e.target.value }))}
-                          className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]"
+                          className="w-full bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040]"
                           placeholder="Distribuidora XYZ" />
                       </div>
                       <div>
                         <label className="text-xs text-gray-400 mb-1 block">Contacto</label>
                         <input type="text" value={newClient.contact_name}
                           onChange={(e) => setNewClient((p) => ({ ...p, contact_name: e.target.value }))}
-                          className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]"
+                          className="w-full bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040]"
                           placeholder="Juan Pérez" />
                       </div>
                       <div>
@@ -645,7 +645,7 @@ const Admin = () => {
                             const t = e.target.value as ClientType;
                             setNewClient((p) => ({ ...p, client_type: t, default_margin: CLIENT_TYPE_MARGINS[t] }));
                           }}
-                          className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]">
+                          className="w-full bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040]">
                           <option value="reseller">Revendedor</option>
                           <option value="mayorista">Mayorista</option>
                           <option value="empresa">Empresa</option>
@@ -655,13 +655,13 @@ const Admin = () => {
                         <label className="text-xs text-gray-400 mb-1 block">Margen %</label>
                         <input type="number" min="0" max="100" value={newClient.default_margin}
                           onChange={(e) => setNewClient((p) => ({ ...p, default_margin: Number(e.target.value) }))}
-                          className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00] text-center" />
+                          className="w-full bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040] text-center placeholder:text-[#404040]" />
                       </div>
                       <div className="col-span-2">
                         <label className="text-xs text-gray-400 mb-1 block">Rol</label>
                         <select value={newClient.role}
                           onChange={(e) => setNewClient((p) => ({ ...p, role: e.target.value as "client" | "admin" }))}
-                          className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]">
+                          className="w-full bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040]">
                           <option value="client">Cliente</option>
                           <option value="admin">Admin</option>
                         </select>
@@ -687,7 +687,7 @@ const Admin = () => {
 
             {loadingClients ? (
               <div className="space-y-2">
-                {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-14 bg-[#232323] rounded-xl animate-pulse" />)}
+                {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-14 bg-[#111] rounded-xl animate-pulse" />)}
               </div>
             ) : clients.length === 0 ? (
               <div className="flex flex-col items-center py-20 text-gray-500 text-sm gap-2">
@@ -695,9 +695,9 @@ const Admin = () => {
                 <p>No hay clientes registrados todavía.</p>
               </div>
             ) : (
-              <div className="bg-[#232323] border border-[#2a2a2a] rounded-xl overflow-hidden">
+              <div className="bg-[#111] border border-[#1f1f1f] rounded-xl overflow-hidden">
                 <table className="w-full text-sm">
-                  <thead className="bg-[#1a1a1a]">
+                  <thead className="bg-[#0d0d0d]">
                     <tr>
                       {["Empresa", "Contacto / Email", "Tipo", "Margen %", "Rol", ""].map(h => (
                         <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
@@ -712,7 +712,7 @@ const Admin = () => {
                       const currentMargin = edits.default_margin ?? client.default_margin;
 
                       return (
-                        <tr key={client.id} className="border-t border-[#2a2a2a] hover:bg-[#2a2a2a]/40 transition">
+                        <tr key={client.id} className="border-t border-[#1a1a1a] hover:bg-[#161616] transition">
                           <td className="px-4 py-3 font-medium text-white">{client.company_name || "—"}</td>
                           <td className="px-4 py-3 text-gray-500 text-xs">{client.contact_name || "—"}</td>
 
@@ -722,7 +722,7 @@ const Admin = () => {
                               <select
                                 value={currentType}
                                 onChange={(e) => applyTypeMargin(client.id, e.target.value as ClientType)}
-                                className="bg-[#181818] border border-[#333] rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-[#FF6A00]"
+                                className="bg-[#0d0d0d] border border-[#262626] rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-[#404040]"
                               >
                                 {(Object.keys(CLIENT_TYPE_LABELS) as ClientType[]).map((t) => (
                                   <option key={t} value={t}>{CLIENT_TYPE_LABELS[t]}</option>
@@ -792,7 +792,7 @@ const Admin = () => {
                               ) : (
                                 <button
                                   onClick={() => startEdit(client)}
-                                  className="text-xs text-gray-500 hover:text-white transition px-2 py-1 rounded-lg hover:bg-[#2a2a2a]"
+                                  className="text-xs text-[#737373] hover:text-white transition px-2 py-1 rounded-lg hover:bg-[#1c1c1c]"
                                 >
                                   Editar
                                 </button>
