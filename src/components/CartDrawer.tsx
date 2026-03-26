@@ -2,7 +2,7 @@ import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter, DrawerClose,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import { FileDown, Loader2, ShoppingCart, Minus, Plus, X } from "lucide-react";
+import { FileDown, Loader2, ShoppingCart, Minus, Plus, X, BookmarkPlus } from "lucide-react";
 import { generateQuotePDF } from "@/components/QuotePDF";
 import { UserProfile } from "@/lib/supabase";
 import { useCurrency } from "@/context/CurrencyContext";
@@ -20,12 +20,13 @@ interface CartDrawerProps {
   onRemoveFromCart: (product: any) => void;
   onMarginChange?: (productId: number, margin: number) => void;
   onConfirmOrder?: () => void;
+  onSaveQuote?: () => void;
   confirming?: boolean;
 }
 
 export function CartDrawer({
   open, onClose, cartItems, cartSubtotal, cartIVATotal, cartTotal, profile,
-  onAddToCart, onRemoveFromCart, onConfirmOrder, confirming,
+  onAddToCart, onRemoveFromCart, onConfirmOrder, onSaveQuote, confirming,
 }: CartDrawerProps) {
   const { formatPrice, formatUSD, formatARS, currency, exchangeRate, convertPrice } = useCurrency();
 
@@ -169,14 +170,23 @@ export function CartDrawer({
               </div>
             </div>
 
-            {/* Export PDF */}
-            <button
-              onClick={handleExportPDF}
-              className="w-full flex items-center justify-center gap-2 border border-[#1f1f1f] hover:border-[#2e2e2e] text-[#737373] hover:text-white bg-transparent hover:bg-[#171717] rounded-xl py-2.5 text-sm transition-all"
-            >
-              <FileDown size={14} />
-              Exportar cotización PDF
-            </button>
+            {/* Save quote + Export PDF */}
+            <div className="flex gap-2">
+              <button
+                onClick={onSaveQuote}
+                className="flex-1 flex items-center justify-center gap-2 border border-[#1f1f1f] hover:border-[#2D9F6A]/40 text-[#737373] hover:text-[#2D9F6A] bg-transparent hover:bg-[#0d1f17] rounded-xl py-2.5 text-sm transition-all"
+              >
+                <BookmarkPlus size={14} />
+                Guardar cotización
+              </button>
+              <button
+                onClick={handleExportPDF}
+                className="flex-1 flex items-center justify-center gap-2 border border-[#1f1f1f] hover:border-[#2e2e2e] text-[#737373] hover:text-white bg-transparent hover:bg-[#171717] rounded-xl py-2.5 text-sm transition-all"
+              >
+                <FileDown size={14} />
+                Exportar PDF
+              </button>
+            </div>
 
             {/* Confirm */}
             <button

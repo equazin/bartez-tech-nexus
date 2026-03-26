@@ -6,12 +6,15 @@ import { useAuth } from "@/context/AuthContext";
 import { useProducts } from "@/hooks/useProducts";
 import { supabase } from "@/lib/supabase";
 import { useOrders } from "@/hooks/useOrders";
+import { useQuotes } from "@/hooks/useQuotes";
+import { Quote } from "@/models/quote";
+import { QuoteList } from "@/components/QuoteList";
 import { useCurrency } from "@/context/CurrencyContext";
 import {
   LogOut, ShoppingCart, Search, LayoutGrid, List, Package,
   ClipboardList, CheckCircle2, XCircle, Clock, X, Plus, Minus,
   ShieldCheck, Check, AlertTriangle, AlertCircle, SlidersHorizontal,
-  Star, Sun, Moon, ChevronDown, ChevronRight,
+  Star, Sun, Moon, ChevronDown, ChevronRight, FileText,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -96,6 +99,7 @@ export default function B2BPortal() {
   const { profile, isAdmin, signOut } = useAuth();
   const { products, loading: productsLoading } = useProducts();
   const { orders, addOrder } = useOrders();
+  const { quotes, addQuote, updateStatus: updateQuoteStatus, deleteQuote } = useQuotes(profile?.id || "guest");
   const { currency, setCurrency, formatPrice, formatUSD, formatARS, exchangeRate } = useCurrency();
 
   const defaultMargin = profile?.default_margin ?? 20;
@@ -113,7 +117,7 @@ export default function B2BPortal() {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
-  const [activeTab, setActiveTab] = useState<"catalog" | "orders">("catalog");
+  const [activeTab, setActiveTab] = useState<"catalog" | "orders" | "quotes">("catalog");
   const [cartOpen, setCartOpen] = useState(false);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
@@ -298,6 +302,48 @@ export default function B2BPortal() {
       setTimeout(() => setOrderSuccess(false), 5000);
     }
   };
+
+  function handleSaveQuote() {
+    if (!cartItems.length) return;
+    addQuote({
+      client_id: profile?.id || "guest",
+      client_name: clientName,
+      items: cartItems.map((item) => ({
+        product_id: item.product.id,
+        name: item.product.name,
+        quantity: item.quantity,
+        cost: item.cost,
+        margin: item.margin,
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice,
+        ivaRate: item.ivaRate,
+        ivaAmount: item.ivaAmount,
+        totalWithIVA: item.totalWithIVA,
+      })),
+      subtotal: cartSubtotal,
+      ivaTotal: cartIVATotal,
+      total: cartTotal,
+      currency,
+      status: "draft",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    setCartOpen(false);
+    setActiveTab("quotes");
+  }
+
+  function handleLoadQuote(quote: Quote) {
+    const newCart: Record<number, number> = {};
+    const newMargins: Record<number, number> = {};
+    quote.items.forEach((item) => {
+      newCart[item.product_id] = item.quantity;
+      newMargins[item.product_id] = item.margin;
+    });
+    setCart(newCart);
+    setProductMargins(newMargins);
+    setCartOpen(true);
+    setActiveTab("catalog");
+  }
 
   const handleLogout = async () => { await signOut(); navigate("/login"); };
 
@@ -569,6 +615,7 @@ export default function B2BPortal() {
         {[
           { id: "catalog", label: "Catálogo", icon: Package },
           { id: "orders",  label: `Mis Pedidos${orders.length ? ` (${orders.length})` : ""}`, icon: ClipboardList },
+          { id: "quotes",  label: `Cotizaciones${quotes.length ? ` (${quotes.length})` : ""}`, icon: FileText },
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -975,6 +1022,18 @@ export default function B2BPortal() {
             </>
           )}
 
+          {/* ── COTIZACIONES ── */}
+          {activeTab === "quotes" && (
+            <QuoteList
+              quotes={quotes}
+              isDark={isDark}
+              onLoad={handleLoadQuote}
+              onUpdateStatus={updateQuoteStatus}
+              onDelete={deleteQuote}
+              onGoToCatalog={() => setActiveTab("catalog")}
+            />
+          )}
+
           {/* ── MIS PEDIDOS ── */}
           {activeTab === "orders" && (
             <div className="max-w-3xl">
@@ -1052,6 +1111,7 @@ export default function B2BPortal() {
         onRemoveFromCart={onRemoveFromCart}
         onMarginChange={onMarginChange}
         onConfirmOrder={handleConfirmOrder}
+        onSaveQuote={handleSaveQuote}
         confirming={orderSubmitting}
       />
 
