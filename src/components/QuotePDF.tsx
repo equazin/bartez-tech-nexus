@@ -2,290 +2,193 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import QRCode from "qrcode";
 
-// ── Brand tokens ──────────────────────────────────────────────────────────
-const C = {
-  green:      [45, 159, 106]  as [number, number, number],
-  greenLight: [232, 248, 240] as [number, number, number],
-  greenBorder:[185, 225, 207] as [number, number, number],
-  dark:       [18, 18, 18]    as [number, number, number],
-  charcoal:   [32, 32, 32]    as [number, number, number],
-  text:       [28, 28, 28]    as [number, number, number],
-  muted:      [118, 118, 118] as [number, number, number],
-  subtle:     [165, 165, 165] as [number, number, number],
-  bg:         [248, 248, 248] as [number, number, number],
-  white:      [255, 255, 255] as [number, number, number],
-  border:     [218, 218, 218] as [number, number, number],
-  borderDark: [195, 195, 195] as [number, number, number],
-};
+// ── Colors ────────────────────────────────────────────────────────────────
+type RGB = [number, number, number];
+const GREEN:   RGB = [45, 159, 106];
+const DARK:    RGB = [22, 22, 22];
+const TEXT:    RGB = [38, 38, 38];
+const MUTED:   RGB = [120, 120, 120];
+const SUBTLE:  RGB = [170, 170, 170];
+const BORDER:  RGB = [210, 210, 210];
+const BORDER2: RGB = [180, 180, 180];
+const BG:      RGB = [248, 248, 248];
+const WHITE:   RGB = [255, 255, 255];
 
 const PAGE_W = 210;
 const PAGE_H = 297;
-const M = 15; // margin mm
+const M      = 14;   // left / right margin
+const CW     = PAGE_W - M * 2; // content width = 182mm
 
 // ── Public interface ──────────────────────────────────────────────────────
 export interface QuotePDFOptions {
-  clientName: string;
-  companyName: string;
-  /** URL or base64 data URL of the logo image */
-  logoUrl?: string;
-  logoBase64?: string;
+  clientName:   string;
+  companyName:  string;
+  clientEmail?: string;
+  logoUrl?:     string;
+  logoBase64?:  string;
   products: Array<{
-    name: string;
-    quantity: number;
+    name:          string;
+    quantity:      number;
     /** Unit price sin IVA */
-    price: number;
+    price:         number;
     /** Subtotal sin IVA (price × qty) */
-    total: number;
-    ivaRate?: number;
-    ivaAmount?: number;
+    total:         number;
+    ivaRate?:      number;
+    ivaAmount?:    number;
     totalWithIVA?: number;
-    margin?: number;
-    cost?: number;
+    cost?:         number;
   }>;
-  total: number;
-  /** Pre-computed subtotal sin IVA — if provided, used directly */
-  subtotal?: number;
-  /** Pre-computed IVA total — if provided, used directly */
-  ivaTotal?: number;
-  date: string;
-  showCost: boolean;
-  /** "USD" (default) or "ARS" */
-  currency?: "USD" | "ARS";
-  /** Hide Bartez branding for resale to end clients */
-  whiteLabel?: boolean;
-  /** URL the QR code points to — defaults to www.bartez.com.ar */
-  qrUrl?: string;
-  /** Base64 PNG/JPG of a signature image */
-  signatureImageBase64?: string;
+  total:         number;
+  subtotal?:     number;
+  ivaTotal?:     number;
+  date:          string;
+  showCost:      boolean;
+  currency?:     "USD" | "ARS";
+  whiteLabel?:   boolean;
+  qrUrl?:        string;
   paymentTerms?: string;
   deliveryTerms?: string;
   validityDays?: number;
-  /** Show an IVA breakdown in the total block */
-  iva?: boolean;
-  ivaRate?: number;
+  iva?:          boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-function quoteNumber(): string {
+function quoteNum(): string {
   const n = new Date();
-  const y = n.getFullYear();
-  const m = String(n.getMonth() + 1).padStart(2, "0");
-  const d = String(n.getDate()).padStart(2, "0");
-  const r = String(1000 + Math.floor(Math.random() * 9000));
-  return `COT-${y}${m}${d}-${r}`;
+  const pad = (x: number) => String(x).padStart(2, "0");
+  return `COT-${n.getFullYear()}${pad(n.getMonth() + 1)}${pad(n.getDate())}-${1000 + Math.floor(Math.random() * 9000)}`;
 }
 
-function fmt(value: number, currency: "USD" | "ARS"): string {
-  if (currency === "ARS") return "$ " + Math.round(value).toLocaleString("es-AR");
-  return "USD " + Math.round(value).toLocaleString("en-US");
+function fmt(v: number, cur: "USD" | "ARS"): string {
+  return cur === "ARS"
+    ? "$ " + Math.round(v).toLocaleString("es-AR")
+    : "USD " + Math.round(v).toLocaleString("en-US");
 }
 
-async function fetchAsDataUrl(url: string): Promise<string | null> {
+async function toDataUrl(url: string): Promise<string | null> {
   try {
-    const res = await fetch(url);
+    const res  = await fetch(url);
     if (!res.ok) return null;
     const blob = await res.blob();
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
+    return new Promise((ok) => {
+      const r = new FileReader();
+      r.onload  = () => ok(r.result as string);
+      r.onerror = () => ok(null);
+      r.readAsDataURL(blob);
     });
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-async function buildQR(text: string): Promise<string | null> {
+async function makeQR(url: string): Promise<string | null> {
   try {
-    return await QRCode.toDataURL(text, {
-      width: 140,
-      margin: 1,
-      color: { dark: "#1c1c1c", light: "#ffffff" },
-    });
-  } catch {
-    return null;
-  }
+    return await QRCode.toDataURL(url, { width: 120, margin: 1, color: { dark: "#161616", light: "#ffffff" } });
+  } catch { return null; }
 }
 
-// ── Main export ───────────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────────────
 export async function generateQuotePDF(opts: QuotePDFOptions) {
   const {
-    clientName,
-    companyName,
-    products,
-    date,
-    showCost,
-    currency = "USD",
-    whiteLabel = false,
-    qrUrl = "https://www.bartez.com.ar",
+    clientName, companyName, products, date, showCost,
+    currency    = "USD",
+    whiteLabel  = false,
+    qrUrl       = "https://www.bartez.com.ar",
     validityDays = 7,
-    paymentTerms = "Transferencia bancaria / Cheque",
+    paymentTerms  = "Transferencia bancaria / efectivo",
     deliveryTerms = "A coordinar con el área comercial",
-    iva = false,
+    iva           = false,
+    clientEmail,
   } = opts;
 
-  const qNum       = quoteNumber();
-  const brandName  = whiteLabel ? clientName : companyName;
-  // Use pre-computed totals if provided (from cart), otherwise compute from products
-  const subtotal   = opts.subtotal  ?? products.reduce((s, p) => s + p.total, 0);
-  const ivaAmt     = iva ? (opts.ivaTotal ?? products.reduce((s, p) => s + (p.ivaAmount ?? 0), 0)) : 0;
-  const grandTotal = opts.total;
+  const qn        = quoteNum();
+  const brand     = whiteLabel ? clientName : companyName;
+  const subtotal  = opts.subtotal ?? products.reduce((s, p) => s + p.total, 0);
+  const ivaAmt    = iva ? (opts.ivaTotal ?? products.reduce((s, p) => s + (p.ivaAmount ?? 0), 0)) : 0;
+  const total     = opts.total;
 
-  // Pre-load assets in parallel
-  const [logoData, qrData] = await Promise.all([
-    opts.logoBase64
-      ? Promise.resolve(opts.logoBase64)
-      : opts.logoUrl
-        ? fetchAsDataUrl(opts.logoUrl)
-        : fetchAsDataUrl("/icon.png"),
-    !whiteLabel ? buildQR(qrUrl) : Promise.resolve(null),
+  const [logo, qr] = await Promise.all([
+    opts.logoBase64 ? Promise.resolve(opts.logoBase64)
+      : opts.logoUrl ? toDataUrl(opts.logoUrl)
+      : toDataUrl("/icon.png"),
+    !whiteLabel ? makeQR(qrUrl) : Promise.resolve(null),
   ]);
 
   const doc = new jsPDF({ unit: "mm", format: "a4" });
 
-  // ── Reusable drawing functions ──────────────────────────────────────────
+  // ── tiny helpers ─────────────────────────────────────────────────────────
+  const sf = (size: number, style: "normal" | "bold" | "italic" = "normal") => {
+    doc.setFontSize(size); doc.setFont("helvetica", style);
+  };
+  const sc = (c: RGB) => doc.setTextColor(c[0], c[1], c[2]);
+  const hl = (y: number, x1 = M, x2 = PAGE_W - M, c: RGB = BORDER, lw = 0.3) => {
+    doc.setDrawColor(c[0], c[1], c[2]); doc.setLineWidth(lw); doc.line(x1, y, x2, y);
+  };
+  const img = (d: string, x: number, y: number, w: number, h: number) => {
+    try { doc.addImage(d, "PNG", x, y, w, h); } catch { /* skip */ }
+  };
 
-  function setFont(size: number, style: "normal" | "bold" | "italic" = "normal") {
-    doc.setFontSize(size);
-    doc.setFont("helvetica", style);
-  }
+  // ══════════════════════════════════════════════════════════════════════════
+  // HEADER
+  // ══════════════════════════════════════════════════════════════════════════
+  let y = M;
 
-  function setColor(c: [number, number, number]) {
-    doc.setTextColor(c[0], c[1], c[2]);
-  }
+  // Logo (18×18mm)
+  const logoSize = 18;
+  if (logo) img(logo, M, y, logoSize, logoSize);
+  const lx = logo ? M + logoSize + 4 : M;   // text starts after logo
 
-  function hLine(y: number, x1 = M, x2 = PAGE_W - M, color = C.border, lw = 0.3) {
-    doc.setDrawColor(color[0], color[1], color[2]);
-    doc.setLineWidth(lw);
-    doc.line(x1, y, x2, y);
-  }
-
-  function tryAddImage(data: string, x: number, y: number, w: number, h: number) {
-    try { doc.addImage(data, "PNG", x, y, w, h); } catch { /* skip */ }
-  }
-
-  /** Draw the compact header used on all content pages */
-  function drawHeader() {
-    // Logo
-    if (logoData) tryAddImage(logoData, M, M, 20, 20);
-    const textX = logoData ? M + 24 : M;
-
-    setFont(12, "bold"); setColor(C.dark);
-    doc.text(brandName, textX, M + 8);
-    if (!whiteLabel) {
-      setFont(7.5); setColor(C.muted);
-      doc.text("Soluciones Tecnológicas Empresariales", textX, M + 14);
-    }
-
-    // Right: quote meta
-    const rx = PAGE_W - M;
-    setFont(8.5, "bold"); setColor(C.dark);
-    doc.text(qNum, rx, M + 5, { align: "right" });
-    setFont(8); setColor(C.muted);
-    doc.text(`Fecha: ${date}`, rx, M + 11, { align: "right" });
-    doc.text(`Cliente: ${clientName}`, rx, M + 17, { align: "right" });
-
-    hLine(M + 22, M, PAGE_W - M, C.borderDark, 0.4);
-  }
-
-  /** Draw the footer used on all content pages */
-  function drawFooter(pageNum: number, total: number) {
-    const fy = PAGE_H - 13;
-    hLine(fy - 3);
-    setFont(7.5); setColor(C.muted);
-    if (!whiteLabel) {
-      doc.text(
-        "Bartez Tecnología  ·  ventas@bartez.com.ar  ·  www.bartez.com.ar",
-        PAGE_W / 2, fy + 1, { align: "center" }
-      );
-    }
-    setColor(C.subtle);
-    doc.text(`Página ${pageNum} de ${total}`, PAGE_W - M, fy + 1, { align: "right" });
-  }
-
-  // ════════════════════════════════════════════════════════════════════════
-  // PAGE 1 — COVER
-  // ════════════════════════════════════════════════════════════════════════
-
-  // Top green bar
-  doc.setFillColor(...C.green);
-  doc.rect(0, 0, PAGE_W, 11, "F");
-
-  // Logo centered (large)
-  if (logoData) {
-    tryAddImage(logoData, PAGE_W / 2 - 20, 28, 40, 40);
-  }
-
-  // Company name
-  const namY = logoData ? 82 : 70;
-  setFont(26, "bold"); setColor(C.dark);
-  doc.text(brandName, PAGE_W / 2, namY, { align: "center" });
-
-  // Green accent line
-  doc.setFillColor(...C.green);
-  doc.rect(PAGE_W / 2 - 28, namY + 4, 56, 1.2, "F");
-
+  // Company name + subtitle
+  sf(12, "bold"); sc(DARK);
+  doc.text(brand, lx, y + 6);
   if (!whiteLabel) {
-    setFont(9); setColor(C.muted);
-    doc.text("Soluciones Tecnológicas Empresariales", PAGE_W / 2, namY + 12, { align: "center" });
+    sf(7.5); sc(MUTED);
+    doc.text("Soluciones Tecnológicas Empresariales", lx, y + 12);
   }
 
-  // Main title block
-  setFont(20, "bold"); setColor(C.text);
-  doc.text("Cotización Comercial", PAGE_W / 2, namY + 32, { align: "center" });
+  // Quote number + date (right-aligned)
+  const rx = PAGE_W - M;
+  sf(8.5, "bold"); sc(DARK);
+  doc.text(`Cotización ${qn}`, rx, y + 6, { align: "right" });
+  sf(8); sc(MUTED);
+  doc.text(`Fecha: ${date}`, rx, y + 12, { align: "right" });
 
-  // Quote number badge
-  doc.setFillColor(...C.bg);
-  doc.setDrawColor(...C.border);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(PAGE_W / 2 - 33, namY + 37, 66, 11, 2, 2, "FD");
-  setFont(8); setColor(C.muted);
-  doc.text(qNum, PAGE_W / 2, namY + 44, { align: "center" });
+  y += Math.max(logoSize, 14) + 4;   // ~36
 
-  // Info cards (client + details)
-  const cY = 195;
-  const cardW = (PAGE_W - M * 2 - 5) / 2;
+  // ── separator ────────────────────────────────────────────────────────────
+  hl(y, M, PAGE_W - M, BORDER2, 0.4);
+  y += 7;
 
-  // Left card — client
-  doc.setFillColor(...C.bg);
-  doc.setDrawColor(...C.border);
-  doc.roundedRect(M, cY, cardW, 35, 2.5, 2.5, "FD");
-  setFont(7, "bold"); setColor(C.green);
-  doc.text("PREPARADO PARA", M + 7, cY + 10);
-  setFont(12, "bold"); setColor(C.dark);
-  const clientLines = doc.splitTextToSize(clientName, cardW - 14);
-  doc.text(clientLines, M + 7, cY + 18);
+  // ══════════════════════════════════════════════════════════════════════════
+  // TITLE BLOCK
+  // ══════════════════════════════════════════════════════════════════════════
+  sf(14, "bold"); sc(DARK);
+  doc.text("COTIZACIÓN COMERCIAL", PAGE_W / 2, y, { align: "center" });
+  y += 6;
+  sf(8, "italic"); sc(MUTED);
+  doc.text("Propuesta tecnológica personalizada", PAGE_W / 2, y, { align: "center" });
+  y += 8;
 
-  // Right card — meta
-  const rx2 = M + cardW + 5;
-  doc.setFillColor(...C.bg);
-  doc.setDrawColor(...C.border);
-  doc.roundedRect(rx2, cY, cardW, 35, 2.5, 2.5, "FD");
-  setFont(7, "bold"); setColor(C.green);
-  doc.text("DETALLES", rx2 + 7, cY + 10);
-  setFont(9); setColor(C.text);
-  doc.text(`Fecha de emisión: ${date}`, rx2 + 7, cY + 18);
-  doc.text(`Válida por: ${validityDays} días hábiles`, rx2 + 7, cY + 26);
+  hl(y, M, PAGE_W - M, BORDER, 0.3);
+  y += 7;
 
-  // Bottom green bar
-  doc.setFillColor(...C.green);
-  doc.rect(0, PAGE_H - 19, PAGE_W, 19, "F");
-  if (!whiteLabel) {
-    setFont(8); setColor(C.white);
-    doc.text(
-      "ventas@bartez.com.ar  ·  www.bartez.com.ar",
-      PAGE_W / 2, PAGE_H - 7, { align: "center" }
-    );
+  // ══════════════════════════════════════════════════════════════════════════
+  // CLIENT INFO
+  // ══════════════════════════════════════════════════════════════════════════
+  sf(8.5); sc(TEXT);
+  doc.text(`Cliente:  ${clientName}`, M, y);
+  y += 5.5;
+  if (clientEmail) {
+    doc.text(`Email:    ${clientEmail}`, M, y);
+    y += 5.5;
   }
+  doc.text(`Validez:  ${validityDays} días hábiles`, M, y);
+  y += 7;
 
-  // ════════════════════════════════════════════════════════════════════════
-  // PAGE 2 — CONTENT
-  // ════════════════════════════════════════════════════════════════════════
-  doc.addPage();
-  drawHeader();
+  hl(y, M, PAGE_W - M, BORDER, 0.3);
+  y += 6;
 
-  // ── Product table ────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
+  // PRODUCT TABLE
+  // ══════════════════════════════════════════════════════════════════════════
   const head = [[
     "Producto",
     "Cant.",
@@ -304,161 +207,156 @@ export async function generateQuotePDF(opts: QuotePDFOptions) {
     fmt(p.totalWithIVA ?? p.total, currency),
   ]);
 
-  // Column widths: total content = 180mm
+  // Column widths sum = CW = 182mm
   const colStyles = showCost
-    ? {
-        0: { cellWidth: 52, fontStyle: "bold" as const },
+    ? { 0: { cellWidth: 50, fontStyle: "bold" as const },
         1: { cellWidth: 12, halign: "center" as const },
-        2: { cellWidth: 26, halign: "right" as const },
-        3: { cellWidth: 30, halign: "right" as const },
-        4: { cellWidth: 16, halign: "center" as const },
-        5: { cellWidth: 34, halign: "right" as const },
-      }
-    : {
-        0: { cellWidth: 72, fontStyle: "bold" as const },
+        2: { cellWidth: 24, halign: "right"  as const },
+        3: { cellWidth: 30, halign: "right"  as const },
+        4: { cellWidth: 14, halign: "center" as const },
+        5: { cellWidth: 42, halign: "right"  as const } }
+    : { 0: { cellWidth: 74, fontStyle: "bold" as const },
         1: { cellWidth: 12, halign: "center" as const },
-        2: { cellWidth: 34, halign: "right" as const },
-        3: { cellWidth: 16, halign: "center" as const },
-        4: { cellWidth: 46, halign: "right" as const },
-      };
+        2: { cellWidth: 32, halign: "right"  as const },
+        3: { cellWidth: 14, halign: "center" as const },
+        4: { cellWidth: 50, halign: "right"  as const } };
 
   autoTable(doc, {
-    startY: M + 28,
+    startY: y,
     head,
     body,
     margin: { left: M, right: M },
     styles: {
-      fontSize: 9,
-      cellPadding: { top: 4.5, bottom: 4.5, left: 5, right: 5 },
-      lineColor: C.border,
+      fontSize: 8.5,
+      cellPadding: { top: 3.5, bottom: 3.5, left: 4, right: 4 },
+      lineColor: BORDER,
       lineWidth: 0.2,
-      textColor: C.text,
+      textColor: TEXT,
     },
     headStyles: {
-      fillColor: C.dark,
-      textColor: C.white,
+      fillColor: DARK,
+      textColor: WHITE,
       fontStyle: "bold",
-      fontSize: 8.5,
-      cellPadding: { top: 5.5, bottom: 5.5, left: 5, right: 5 },
+      fontSize: 8,
+      cellPadding: { top: 4, bottom: 4, left: 4, right: 4 },
     },
-    alternateRowStyles: { fillColor: C.bg },
-    bodyStyles: { fillColor: C.white },
+    alternateRowStyles: { fillColor: BG },
+    bodyStyles: { fillColor: WHITE },
     columnStyles: colStyles,
-    tableLineColor: C.border,
+    tableLineColor: BORDER,
     tableLineWidth: 0.2,
     showHead: "everyPage",
     didDrawPage: (data) => {
-      // Re-draw header on continuation pages (autoTable page 2+)
-      if (data.pageNumber > 1) drawHeader();
+      if (data.pageNumber > 1) {
+        // minimal header on continuation pages
+        if (logo) img(logo, M, M, logoSize, logoSize);
+        sf(10, "bold"); sc(DARK); doc.text(brand, lx, M + 6);
+        sf(7.5); sc(MUTED);
+        doc.text(`${qn}  ·  ${date}`, PAGE_W - M, M + 6, { align: "right" });
+        hl(M + logoSize + 2, M, PAGE_W - M, BORDER2, 0.3);
+      }
     },
   });
 
-  let y = ((doc as any).lastAutoTable?.finalY ?? M + 28 + 20) + 10;
+  y = ((doc as any).lastAutoTable?.finalY ?? y + 20) + 6;
 
-  // Ensure enough space for post-table content (~115mm needed)
-  if (y > PAGE_H - 120) {
+  // page-break safety before post-table content (~65mm needed)
+  if (y > PAGE_H - 75) {
     doc.addPage();
-    drawHeader();
-    y = M + 32;
+    if (logo) img(logo, M, M, logoSize, logoSize);
+    sf(10, "bold"); sc(DARK); doc.text(brand, lx, M + 6);
+    hl(M + logoSize + 2, M, PAGE_W - M, BORDER2, 0.3);
+    y = M + logoSize + 8;
   }
 
-  // ── Total block ──────────────────────────────────────────────────────
-  const tbW = 88;
-  const tbX = PAGE_W - M - tbW;
+  // ══════════════════════════════════════════════════════════════════════════
+  // TOTALS  (right-aligned block)
+  // ══════════════════════════════════════════════════════════════════════════
+  const labelX  = PAGE_W - M - 70;
+  const valueX  = PAGE_W - M;
+  const rowH    = 5.5;
 
   if (iva) {
-    doc.setFillColor(...C.bg);
-    doc.setDrawColor(...C.border);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(tbX, y, tbW, 26, 2.5, 2.5, "FD");
+    sf(8.5); sc(MUTED);
+    doc.text("Subtotal:", labelX, y);
+    doc.text(fmt(subtotal, currency), valueX, y, { align: "right" });
+    y += rowH;
 
-    setFont(8.5); setColor(C.muted);
-    doc.text("Subtotal s/IVA", tbX + 8, y + 9);
-    doc.text("IVA", tbX + 8, y + 18);
-    setFont(8.5, "bold"); setColor(C.text);
-    doc.text(fmt(subtotal, currency), tbX + tbW - 7, y + 9, { align: "right" });
-    doc.text(fmt(ivaAmt, currency), tbX + tbW - 7, y + 18, { align: "right" });
-    y += 29;
+    doc.text("IVA:", labelX, y);
+    sc(TEXT);
+    doc.text(fmt(ivaAmt, currency), valueX, y, { align: "right" });
+    y += rowH + 1;
   }
 
-  // Grand total — dark pill
-  doc.setFillColor(...C.dark);
-  doc.roundedRect(tbX, y, tbW, 17, 2.5, 2.5, "F");
-  setFont(8); setColor([160, 160, 160] as any);
-  doc.text("TOTAL", tbX + 8, y + 7);
-  setFont(13, "bold"); setColor(C.white);
-  doc.text(fmt(grandTotal, currency), tbX + tbW - 7, y + 12.5, { align: "right" });
+  // Line above TOTAL FINAL
+  hl(y, labelX - 2, PAGE_W - M, BORDER2, 0.35);
+  y += 5;
 
-  y += 26;
+  sf(10, "bold"); sc(DARK);
+  doc.text("TOTAL FINAL:", labelX, y);
+  doc.text(fmt(total, currency), valueX, y, { align: "right" });
+  y += 10;
 
-  // ── Commercial conditions ────────────────────────────────────────────
-  const condW = (PAGE_W - M * 2 - 6) / 3;
-  const condH = 27;
-  const conditions = [
-    { label: "Validez",       value: `${validityDays} días hábiles` },
-    { label: "Forma de pago", value: paymentTerms },
-    { label: "Entrega",       value: deliveryTerms },
+  // ══════════════════════════════════════════════════════════════════════════
+  // CONDITIONS
+  // ══════════════════════════════════════════════════════════════════════════
+  hl(y, M, PAGE_W - M, BORDER, 0.3);
+  y += 6;
+
+  sf(8.5, "bold"); sc(TEXT);
+  doc.text("Condiciones comerciales:", M, y);
+  y += 5.5;
+
+  sf(8.5); sc(TEXT);
+  const conds = [
+    `Validez de la cotización: ${validityDays} días hábiles`,
+    `Forma de pago: ${paymentTerms}`,
+    `Entrega: ${deliveryTerms}`,
   ];
-
-  conditions.forEach((cond, i) => {
-    const cx = M + i * (condW + 3);
-    doc.setFillColor(...C.greenLight);
-    doc.setDrawColor(...C.greenBorder);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(cx, y, condW, condH, 2, 2, "FD");
-    setFont(7, "bold"); setColor(C.green);
-    doc.text(cond.label.toUpperCase(), cx + 5, y + 9);
-    setFont(8.5); setColor(C.text);
-    const lines = doc.splitTextToSize(cond.value, condW - 10);
-    doc.text(lines, cx + 5, y + 17);
+  conds.forEach((line) => {
+    doc.text(`• ${line}`, M + 2, y);
+    y += 5.2;
   });
+  y += 3;
 
-  y += condH + 14;
+  // ══════════════════════════════════════════════════════════════════════════
+  // THANK-YOU + FOOTER
+  // ══════════════════════════════════════════════════════════════════════════
+  hl(y, M, PAGE_W - M, BORDER, 0.3);
+  y += 7;
 
-  // ── Signature block + QR ─────────────────────────────────────────────
-  const sigX = M;
-  const sigW = 68;
-
-  if (opts.signatureImageBase64) {
-    try {
-      doc.addImage(opts.signatureImageBase64, "PNG", sigX, y, sigW * 0.55, 14);
-    } catch { /* skip */ }
-    y += 16;
-  }
-
-  hLine(y + 16, sigX, sigX + sigW, C.borderDark, 0.5);
-  setFont(8, "bold"); setColor(C.dark);
-  doc.text(brandName, sigX, y + 22);
-  setFont(7.5); setColor(C.muted);
-  doc.text("Área Comercial", sigX, y + 29);
-
-  // QR code — bottom right
-  if (qrData && !whiteLabel) {
-    const qrSize = 24;
-    const qrX = PAGE_W - M - qrSize;
-    try {
-      doc.addImage(qrData, "PNG", qrX, y + 2, qrSize, qrSize);
-      setFont(6.5); setColor(C.muted);
-      doc.text("Visitá nuestro sitio", qrX + qrSize / 2, y + qrSize + 6, { align: "center" });
-    } catch { /* skip */ }
-  }
-
-  y += 40;
-
-  // ── Thank-you line ───────────────────────────────────────────────────
   if (!whiteLabel) {
-    setFont(9, "italic"); setColor(C.muted);
-    doc.text("Gracias por confiar en Bartez Tecnología", PAGE_W / 2, y, { align: "center" });
+    sf(9, "italic"); sc(MUTED);
+    doc.text(`Gracias por confiar en ${brand}`, PAGE_W / 2, y, { align: "center" });
+    y += 10;
   }
 
-  // ── Draw footers on all content pages ────────────────────────────────
-  const totalPages = doc.getNumberOfPages();
-  const contentPages = totalPages - 1; // page 1 is cover
-  for (let i = 2; i <= totalPages; i++) {
-    doc.setPage(i);
-    drawFooter(i - 1, contentPages);
+  // Footer: company info left, QR right
+  sf(8); sc(TEXT);
+  if (!whiteLabel) {
+    doc.text(brand,                    M, y);
+    sf(7.5); sc(MUTED);
+    doc.text("ventas@bartez.com.ar",   M, y + 5);
+    doc.text("www.bartez.com.ar",      M, y + 10);
   }
 
-  // ── Save ─────────────────────────────────────────────────────────────
-  doc.save(`cotizacion_${clientName.replace(/\s+/g, "_")}_${qNum}.pdf`);
+  if (qr && !whiteLabel) {
+    const qrS = 22;
+    const qrX = PAGE_W - M - qrS;
+    img(qr, qrX, y - 2, qrS, qrS);
+    sf(6.5); sc(SUBTLE);
+    doc.text("Visitá nuestro sitio", qrX + qrS / 2, y + qrS + 1, { align: "center" });
+  }
+
+  // ── page numbers on every page ───────────────────────────────────────────
+  const total_pages = doc.getNumberOfPages();
+  if (total_pages > 1) {
+    for (let i = 1; i <= total_pages; i++) {
+      doc.setPage(i);
+      sf(7); sc(SUBTLE);
+      doc.text(`Página ${i} de ${total_pages}`, PAGE_W - M, PAGE_H - M, { align: "right" });
+    }
+  }
+
+  doc.save(`cotizacion_${clientName.replace(/\s+/g, "_")}_${qn}.pdf`);
 }
