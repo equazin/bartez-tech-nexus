@@ -405,7 +405,7 @@ export default function B2BPortal() {
         <div className="flex items-center gap-2.5 shrink-0">
           <img src="/icon.png" alt="Bartez" className="h-8 w-8 object-contain" />
           <div>
-            <span className="font-bold text-white text-sm leading-none">Portal B2B</span>
+            <span className={`font-bold ${dk("text-white", "text-[#171717]")} text-sm leading-none`}>Portal B2B</span>
             <span className="block text-[11px] text-[#737373] leading-none mt-0.5 font-medium">{clientName}</span>
           </div>
         </div>
