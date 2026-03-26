@@ -19,8 +19,11 @@ type CartItem = {
   quantity: number;
   cost: number;
   margin: number;
-  unitPrice: number;
-  totalPrice: number;
+  unitPrice: number;       // sin IVA
+  totalPrice: number;      // sin IVA × qty
+  ivaRate: number;         // 10.5 | 21
+  ivaAmount: number;       // IVA total del ítem
+  totalWithIVA: number;    // con IVA
 };
 
 // ── Stock badge with pill background ──────────────────────────────────────
@@ -180,12 +183,17 @@ export default function B2BPortal() {
         const margin = productMargins[Number(id)] ?? globalMargin;
         const cost = product.cost_price;
         const unitPrice = cost * (1 + margin / 100);
-        return { product, quantity: qty, cost, margin, unitPrice, totalPrice: unitPrice * qty };
+        const totalPrice = unitPrice * qty;
+        const ivaRate = product.iva_rate ?? 21;
+        const ivaAmount = totalPrice * (ivaRate / 100);
+        return { product, quantity: qty, cost, margin, unitPrice, totalPrice, ivaRate, ivaAmount, totalWithIVA: totalPrice + ivaAmount };
       })
       .filter((i): i is CartItem => i !== null);
   }, [cart, products, productMargins, globalMargin]);
 
-  const cartTotal = useMemo(() => cartItems.reduce((s, i) => s + i.totalPrice, 0), [cartItems]);
+  const cartSubtotal = useMemo(() => cartItems.reduce((s, i) => s + i.totalPrice, 0), [cartItems]);
+  const cartIVATotal = useMemo(() => cartItems.reduce((s, i) => s + i.ivaAmount, 0), [cartItems]);
+  const cartTotal = useMemo(() => cartSubtotal + cartIVATotal, [cartSubtotal, cartIVATotal]);
   const cartCount = useMemo(() => Object.values(cart).reduce((s, q) => s + q, 0), [cart]);
 
   // Add to cart with "added" flash feedback
@@ -249,7 +257,10 @@ export default function B2BPortal() {
   const productModal = selectedProduct && (() => {
     const p = selectedProduct;
     const margin = productMargins[p.id] ?? globalMargin;
-    const finalPrice = p.cost_price * (1 + margin / 100);
+    const finalPrice = p.cost_price * (1 + margin / 100);  // sin IVA
+    const ivaRate = p.iva_rate ?? 21;
+    const ivaAmt = finalPrice * (ivaRate / 100);
+    const finalWithIVA = finalPrice + ivaAmt;
     const inCart = cart[p.id] || 0;
     const outOfStock = p.stock === 0;
 
@@ -302,25 +313,38 @@ export default function B2BPortal() {
                 )}
               </div>
 
-              {/* Price */}
-              <div className={`${dk("bg-[#0d0d0d] border-[#1f1f1f]", "bg-[#f9f9f9] border-[#e5e5e5]")} border rounded-xl px-4 py-3 mb-4 flex items-center justify-between`}>
-                <div>
-                  <div className="text-2xl font-extrabold text-[#2D9F6A] tabular-nums leading-none">
-                    {formatPrice(finalPrice)}
+              {/* Price breakdown */}
+              <div className={`${dk("bg-[#0d0d0d] border-[#1f1f1f]", "bg-[#f9f9f9] border-[#e5e5e5]")} border rounded-xl px-4 py-3 mb-4`}>
+                <div className="flex items-start justify-between gap-3">
+                  {/* Price rows */}
+                  <div className="flex-1 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[11px] ${dk("text-[#737373]", "text-[#a3a3a3]")}`}>Precio unitario</span>
+                      <span className="text-base font-extrabold text-[#2D9F6A] tabular-nums">{formatPrice(finalPrice)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[11px] ${dk("text-[#737373]", "text-[#a3a3a3]")}`}>IVA ({ivaRate}%)</span>
+                      <span className={`text-sm font-semibold tabular-nums ${dk("text-[#a3a3a3]", "text-[#737373]")}`}>+ {formatPrice(ivaAmt)}</span>
+                    </div>
+                    <div className={`flex items-center justify-between pt-1.5 border-t ${dk("border-[#222]", "border-[#e5e5e5]")}`}>
+                      <span className={`text-[11px] font-semibold ${dk("text-white", "text-[#171717]")}`}>Precio final</span>
+                      <span className={`text-base font-extrabold tabular-nums ${dk("text-white", "text-[#171717]")}`}>{formatPrice(finalWithIVA)}</span>
+                    </div>
+                    <div className={`text-[10px] ${dk("text-[#525252]", "text-[#a3a3a3]")} font-mono`}>
+                      {currency === "USD" ? formatARS(finalWithIVA) : formatUSD(finalWithIVA)}
+                    </div>
                   </div>
-                  <div className={`text-[11px] ${dk("text-[#525252]", "text-[#a3a3a3]")} font-mono mt-1`}>
-                    {currency === "USD" ? formatARS(finalPrice) : formatUSD(finalPrice)}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className={`text-[10px] ${dk("text-[#525252]", "text-[#a3a3a3]")} mb-1`}>Moneda</div>
-                  <div className={`flex items-center ${dk("bg-[#171717] border-[#262626]", "bg-[#f0f0f0] border-[#e5e5e5]")} border rounded-lg p-0.5 gap-0.5`}>
-                    {(["USD", "ARS"] as const).map((c) => (
-                      <button key={c} onClick={() => setCurrency(c)}
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${currency === c ? "bg-[#2D9F6A] text-white" : dk("text-[#525252] hover:text-[#a3a3a3]", "text-[#737373] hover:text-[#171717]")}`}>
-                        {c}
-                      </button>
-                    ))}
+                  {/* Currency toggle */}
+                  <div className="text-right shrink-0">
+                    <div className={`text-[10px] ${dk("text-[#525252]", "text-[#a3a3a3]")} mb-1`}>Moneda</div>
+                    <div className={`flex items-center ${dk("bg-[#171717] border-[#262626]", "bg-[#f0f0f0] border-[#e5e5e5]")} border rounded-lg p-0.5 gap-0.5`}>
+                      {(["USD", "ARS"] as const).map((c) => (
+                        <button key={c} onClick={() => setCurrency(c)}
+                          className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${currency === c ? "bg-[#2D9F6A] text-white" : dk("text-[#525252] hover:text-[#a3a3a3]", "text-[#737373] hover:text-[#171717]")}`}>
+                          {c}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -674,12 +698,10 @@ export default function B2BPortal() {
                             {product.sku && <span className="font-mono ml-1 text-gray-700">· {product.sku}</span>}
                           </p>
                           <div className="mb-2"><StockBadge stock={product.stock} /></div>
-                          <div className="text-lg text-[#2D9F6A] font-extrabold leading-tight">
+                          <div className="text-lg text-[#2D9F6A] font-extrabold leading-tight tabular-nums">
                             {formatPrice(finalPrice)}
                           </div>
-                          <div className="text-[10px] text-gray-600 font-mono mt-0.5">
-                            {currency === "USD" ? formatARS(finalPrice) : formatUSD(finalPrice)}
-                          </div>
+                          <div className={`text-[10px] ${dk("text-[#525252]", "text-[#a3a3a3]")} mt-0.5`}>sin IVA · {product.iva_rate ?? 21}%</div>
                         </div>
 
                         <div className="mt-3 flex gap-1.5">
@@ -767,9 +789,7 @@ export default function B2BPortal() {
                             <div className="text-base font-extrabold text-[#2D9F6A] tabular-nums leading-tight">
                               {formatPrice(finalPrice)}
                             </div>
-                            <div className="text-[10px] text-gray-600 font-mono mt-0.5">
-                              {currency === "USD" ? formatARS(finalPrice) : formatUSD(finalPrice)}
-                            </div>
+                            <div className={`text-[10px] ${dk("text-[#525252]", "text-[#a3a3a3]")} mt-0.5`}>sin IVA · {product.iva_rate ?? 21}%</div>
                           </div>
                         </div>
 
@@ -877,6 +897,8 @@ export default function B2BPortal() {
         open={cartOpen}
         onClose={() => setCartOpen(false)}
         cartItems={cartItems}
+        cartSubtotal={cartSubtotal}
+        cartIVATotal={cartIVATotal}
         cartTotal={cartTotal}
         globalMargin={globalMargin}
         profile={profile}

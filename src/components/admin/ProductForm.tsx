@@ -50,6 +50,7 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
   const [sku, setSku]                       = useState(saved?.sku ?? "");
   const [description, setDescription]      = useState(saved?.description ?? "");
   const [costPrice, setCostPrice]          = useState(saved?.costPrice ?? "");
+  const [ivaRate, setIvaRate]              = useState<"10.5" | "21">(saved?.ivaRate ?? "21");
   const [supplierId, setSupplierId]        = useState(saved?.supplierId ?? "");
   const [supplierMult, setSupplierMult]    = useState(saved?.supplierMult ?? "1");
   const [categoryId, setCategoryId]        = useState(saved?.categoryId ?? "");
@@ -94,13 +95,14 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
 
   /* ── persist draft to localStorage on every change ───── */
   useEffect(() => {
-    const draft = { name, sku, description, costPrice, supplierId, supplierMult,
+    const draft = { name, sku, description, costPrice, ivaRate, supplierId, supplierMult,
       categoryId, subcategoryId, stock, stockMin, active, featured, specs, tags };
+
     // Only save if there's something meaningful
     if (Object.values(draft).some((v) => v !== "" && v !== "0" && v !== "1" && v !== true && !(Array.isArray(v) && v.length === 0))) {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     }
-  }, [name, sku, description, costPrice, supplierId, supplierMult,
+  }, [name, sku, description, costPrice, ivaRate, supplierId, supplierMult,
       categoryId, subcategoryId, stock, stockMin, active, featured, specs, tags]);
 
   /* ── sku uniqueness debounce ──────────────────────────── */
@@ -225,6 +227,7 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
       featured,
       specs:               specsObj,
       tags,
+      iva_rate:            Number(ivaRate),
     };
 
     const { data, error: sbError } = await supabase
@@ -241,7 +244,7 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
 
   function resetForm() {
     localStorage.removeItem(DRAFT_KEY);
-    setName(""); setSku(""); setDescription(""); setCostPrice("");
+    setName(""); setSku(""); setDescription(""); setCostPrice(""); setIvaRate("21");
     setSupplierId(""); setSupplierMult("1"); setCategoryId(""); setSubcategoryId("");
     setStock(""); setStockMin("0"); setActive(true); setFeatured(false);
     setSpecs([]); setTags([]); setTagInput(""); setImageFile(null); setImagePreview("");
@@ -336,7 +339,7 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
       {/* ── C. Costo y Proveedor ── */}
       <div className={SECTION}>
         <p className={SECTION_TITLE}><DollarSign size={12} /> Costo y proveedor</p>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-4 gap-3">
           <div>
             <label className={LABEL}>Costo base (ARS) *</label>
             <input type="number" min="0" step="0.01" value={costPrice}
@@ -344,6 +347,21 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
               placeholder="0.00"
               className={`${INPUT} ${errors.cost_price ? "border-red-500" : ""}`} />
             {errors.cost_price && <p className="text-red-400 text-xs mt-1">{errors.cost_price}</p>}
+          </div>
+          <div>
+            <label className={LABEL}>IVA</label>
+            <div className="flex gap-1.5">
+              {(["10.5", "21"] as const).map((r) => (
+                <button key={r} type="button" onClick={() => setIvaRate(r)}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold border transition ${
+                    ivaRate === r
+                      ? "bg-[#2D9F6A] border-[#2D9F6A] text-white"
+                      : "bg-[#141414] border-[#2a2a2a] text-gray-400 hover:border-[#2D9F6A]/50"
+                  }`}>
+                  {r}%
+                </button>
+              ))}
+            </div>
           </div>
           <div>
             <label className={LABEL}>ID Proveedor</label>

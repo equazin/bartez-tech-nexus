@@ -32,12 +32,21 @@ export interface QuotePDFOptions {
   products: Array<{
     name: string;
     quantity: number;
+    /** Unit price sin IVA */
     price: number;
+    /** Subtotal sin IVA (price × qty) */
     total: number;
-    margin: number;
+    ivaRate?: number;
+    ivaAmount?: number;
+    totalWithIVA?: number;
+    margin?: number;
     cost?: number;
   }>;
   total: number;
+  /** Pre-computed subtotal sin IVA — if provided, used directly */
+  subtotal?: number;
+  /** Pre-computed IVA total — if provided, used directly */
+  ivaTotal?: number;
   date: string;
   showCost: boolean;
   /** "USD" (default) or "ARS" */
@@ -51,7 +60,7 @@ export interface QuotePDFOptions {
   paymentTerms?: string;
   deliveryTerms?: string;
   validityDays?: number;
-  /** Show an IVA line in the total block */
+  /** Show an IVA breakdown in the total block */
   iva?: boolean;
   ivaRate?: number;
 }
@@ -114,14 +123,14 @@ export async function generateQuotePDF(opts: QuotePDFOptions) {
     paymentTerms = "Transferencia bancaria / Cheque",
     deliveryTerms = "A coordinar con el área comercial",
     iva = false,
-    ivaRate = 0.21,
   } = opts;
 
   const qNum       = quoteNumber();
   const brandName  = whiteLabel ? clientName : companyName;
-  const subtotal   = products.reduce((s, p) => s + p.total, 0);
-  const ivaAmt     = iva ? subtotal * ivaRate : 0;
-  const grandTotal = subtotal + ivaAmt;
+  // Use pre-computed totals if provided (from cart), otherwise compute from products
+  const subtotal   = opts.subtotal  ?? products.reduce((s, p) => s + p.total, 0);
+  const ivaAmt     = iva ? (opts.ivaTotal ?? products.reduce((s, p) => s + (p.ivaAmount ?? 0), 0)) : 0;
+  const grandTotal = opts.total;
 
   // Pre-load assets in parallel
   const [logoData, qrData] = await Promise.all([
@@ -281,36 +290,36 @@ export async function generateQuotePDF(opts: QuotePDFOptions) {
     "Producto",
     "Cant.",
     ...(showCost ? ["Costo"] : []),
-    "Margen",
-    "Precio Unit.",
-    "Subtotal",
+    "Precio s/IVA",
+    "IVA",
+    "Total c/IVA",
   ]];
 
   const body = products.map((p) => [
     p.name,
     String(p.quantity),
     ...(showCost ? [fmt(p.cost ?? 0, currency)] : []),
-    `${p.margin}%`,
     fmt(p.price, currency),
-    fmt(p.total, currency),
+    `${p.ivaRate ?? 21}%`,
+    fmt(p.totalWithIVA ?? p.total, currency),
   ]);
 
   // Column widths: total content = 180mm
   const colStyles = showCost
     ? {
-        0: { cellWidth: 55, fontStyle: "bold" as const },
-        1: { cellWidth: 14, halign: "center" as const },
-        2: { cellWidth: 28, halign: "right" as const },
-        3: { cellWidth: 20, halign: "center" as const },
-        4: { cellWidth: 30, halign: "right" as const },
-        5: { cellWidth: 33, halign: "right" as const },
+        0: { cellWidth: 52, fontStyle: "bold" as const },
+        1: { cellWidth: 12, halign: "center" as const },
+        2: { cellWidth: 26, halign: "right" as const },
+        3: { cellWidth: 30, halign: "right" as const },
+        4: { cellWidth: 16, halign: "center" as const },
+        5: { cellWidth: 34, halign: "right" as const },
       }
     : {
-        0: { cellWidth: 76, fontStyle: "bold" as const },
-        1: { cellWidth: 14, halign: "center" as const },
-        2: { cellWidth: 20, halign: "center" as const },
-        3: { cellWidth: 34, halign: "right" as const },
-        4: { cellWidth: 36, halign: "right" as const },
+        0: { cellWidth: 72, fontStyle: "bold" as const },
+        1: { cellWidth: 12, halign: "center" as const },
+        2: { cellWidth: 34, halign: "right" as const },
+        3: { cellWidth: 16, halign: "center" as const },
+        4: { cellWidth: 46, halign: "right" as const },
       };
 
   autoTable(doc, {
@@ -364,8 +373,8 @@ export async function generateQuotePDF(opts: QuotePDFOptions) {
     doc.roundedRect(tbX, y, tbW, 26, 2.5, 2.5, "FD");
 
     setFont(8.5); setColor(C.muted);
-    doc.text("Subtotal", tbX + 8, y + 9);
-    doc.text(`IVA (${Math.round(ivaRate * 100)}%)`, tbX + 8, y + 18);
+    doc.text("Subtotal s/IVA", tbX + 8, y + 9);
+    doc.text("IVA", tbX + 8, y + 18);
     setFont(8.5, "bold"); setColor(C.text);
     doc.text(fmt(subtotal, currency), tbX + tbW - 7, y + 9, { align: "right" });
     doc.text(fmt(ivaAmt, currency), tbX + tbW - 7, y + 18, { align: "right" });

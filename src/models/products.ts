@@ -16,6 +16,7 @@ export interface Product {
   featured?: boolean;
   specs?: Record<string, string>;
   tags?: string[];
+  iva_rate?: number;
 }
 
 export const products: Product[] = [

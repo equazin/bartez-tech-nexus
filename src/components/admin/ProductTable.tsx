@@ -284,9 +284,18 @@ export default function ProductTable({ products, categories, onRefresh }: Props)
                           onKeyDown={(e) => { if (e.key === "Enter") commitInline(); if (e.key === "Escape") setInlineCell(null); }}
                           className="w-24 bg-[#181818] border border-[#2D9F6A] rounded px-2 py-0.5 text-sm text-white outline-none" />
                       ) : (
-                        <span className="text-white font-medium cursor-pointer hover:text-[#2D9F6A] transition" title="Doble click para editar">
-                          ${p.cost_price.toLocaleString()}
-                        </span>
+                        <div>
+                          <span className="text-white font-medium cursor-pointer hover:text-[#2D9F6A] transition" title="Doble click para editar">
+                            ${p.cost_price.toLocaleString()}
+                          </span>
+                          <span className={`ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                            (p as any).iva_rate === 10.5
+                              ? "text-blue-400 bg-blue-400/10 border-blue-400/20"
+                              : "text-[#2D9F6A] bg-[#2D9F6A]/10 border-[#2D9F6A]/20"
+                          }`}>
+                            IVA {(p as any).iva_rate ?? 21}%
+                          </span>
+                        </div>
                       )}
                     </td>
 

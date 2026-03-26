@@ -11,6 +11,8 @@ interface CartDrawerProps {
   open: boolean;
   onClose: () => void;
   cartItems: any[];
+  cartSubtotal: number;
+  cartIVATotal: number;
   cartTotal: number;
   globalMargin: number;
   profile?: UserProfile | null;
@@ -22,26 +24,33 @@ interface CartDrawerProps {
 }
 
 export function CartDrawer({
-  open, onClose, cartItems, cartTotal, profile,
+  open, onClose, cartItems, cartSubtotal, cartIVATotal, cartTotal, profile,
   onAddToCart, onRemoveFromCart, onConfirmOrder, confirming,
 }: CartDrawerProps) {
-  const { formatPrice, formatUSD, formatARS, currency, exchangeRate } = useCurrency();
+  const { formatPrice, formatUSD, formatARS, currency, exchangeRate, convertPrice } = useCurrency();
 
   function handleExportPDF() {
     generateQuotePDF({
       clientName: profile?.company_name || profile?.contact_name || "Cliente",
       companyName: "Bartez Tecnología",
+      currency,
       products: cartItems.map((item) => ({
         name: item.product.name,
         quantity: item.quantity,
-        price: Number(item.unitPrice.toFixed(2)),
-        total: Number(item.totalPrice.toFixed(2)),
+        price: Number(convertPrice(item.unitPrice).toFixed(2)),
+        total: Number(convertPrice(item.totalPrice).toFixed(2)),
+        ivaRate: item.ivaRate,
+        ivaAmount: Number(convertPrice(item.ivaAmount).toFixed(2)),
+        totalWithIVA: Number(convertPrice(item.totalWithIVA).toFixed(2)),
         margin: item.margin,
         cost: item.cost,
       })),
-      total: Number(cartTotal.toFixed(2)),
+      total: Number(convertPrice(cartTotal).toFixed(2)),
+      subtotal: Number(convertPrice(cartSubtotal).toFixed(2)),
+      ivaTotal: Number(convertPrice(cartIVATotal).toFixed(2)),
       date: new Date().toLocaleDateString("es-AR"),
       showCost: false,
+      iva: true,
     });
   }
 
@@ -94,10 +103,10 @@ export function CartDrawer({
                     <p className="text-sm font-semibold text-white line-clamp-1 leading-tight">{item.product.name}</p>
                     <p className="text-[11px] text-gray-600 mt-0.5">{item.product.category}</p>
                     <p className="text-xs font-bold text-[#2D9F6A] mt-1 tabular-nums">
-                      {formatPrice(item.unitPrice)} c/u
+                      {formatPrice(item.unitPrice)} <span className="font-normal text-[#525252]">s/IVA c/u</span>
                     </p>
-                    <p className="text-[10px] text-gray-700 font-mono tabular-nums">
-                      {currency === "USD" ? formatARS(item.unitPrice) : formatUSD(item.unitPrice)} c/u
+                    <p className="text-[10px] text-[#525252] tabular-nums">
+                      IVA {item.ivaRate}% · c/IVA {formatPrice(item.totalWithIVA / item.quantity)}
                     </p>
                   </div>
                 </div>
@@ -116,11 +125,11 @@ export function CartDrawer({
                     </button>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-extrabold text-white tabular-nums">
-                      {formatPrice(item.totalPrice)}
+                    <div className="text-xs text-[#525252] tabular-nums">
+                      s/IVA {formatPrice(item.totalPrice)}
                     </div>
-                    <div className="text-[10px] text-gray-700 font-mono">
-                      {currency === "USD" ? formatARS(item.totalPrice) : formatUSD(item.totalPrice)}
+                    <div className="text-sm font-extrabold text-white tabular-nums">
+                      {formatPrice(item.totalWithIVA)}
                     </div>
                   </div>
                 </div>
@@ -132,20 +141,30 @@ export function CartDrawer({
         {/* Footer */}
         {cartItems.length > 0 && (
           <DrawerFooter className="border-t border-[#1a1a1a] px-4 py-4 bg-[#070707] space-y-2.5 shrink-0">
-            {/* Total */}
-            <div className="flex justify-between items-start">
-              <div>
-                <span className="text-sm text-gray-500 font-medium">Total</span>
-                <div className="text-[10px] text-gray-700 font-mono mt-0.5">
-                  {currency === "USD" ? formatARS(cartTotal) : formatUSD(cartTotal)}
-                </div>
+            {/* Total breakdown */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-600">Subtotal s/IVA</span>
+                <span className="text-xs font-semibold text-gray-400 tabular-nums">{formatPrice(cartSubtotal)}</span>
               </div>
-              <div className="text-right">
-                <div className="text-xl font-extrabold text-[#2D9F6A] tabular-nums">
-                  {formatPrice(cartTotal)}
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-600">IVA</span>
+                <span className="text-xs font-semibold text-gray-400 tabular-nums">+ {formatPrice(cartIVATotal)}</span>
+              </div>
+              <div className="flex justify-between items-center pt-1.5 border-t border-[#1a1a1a]">
+                <div>
+                  <span className="text-sm text-gray-400 font-medium">Total c/IVA</span>
+                  <div className="text-[10px] text-gray-600 font-mono mt-0.5">
+                    @ {exchangeRate.rate.toLocaleString("es-AR")} ARS/USD
+                  </div>
                 </div>
-                <div className="text-[10px] text-gray-600 mt-0.5">
-                  @ {exchangeRate.rate.toLocaleString("es-AR")} ARS/USD
+                <div className="text-right">
+                  <div className="text-xl font-extrabold text-[#2D9F6A] tabular-nums">
+                    {formatPrice(cartTotal)}
+                  </div>
+                  <div className="text-[10px] text-gray-600 font-mono">
+                    {currency === "USD" ? formatARS(cartTotal) : formatUSD(cartTotal)}
+                  </div>
                 </div>
               </div>
             </div>

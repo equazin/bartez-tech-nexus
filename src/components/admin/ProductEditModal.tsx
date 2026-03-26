@@ -19,6 +19,7 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
     sku:                product.sku || "",
     description:        product.description || "",
     cost_price:         String(product.cost_price),
+    iva_rate:           String(product.iva_rate ?? 21),
     stock:              String(product.stock),
     category:           product.category || "",
     image:              product.image || "",
@@ -80,6 +81,7 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
       sku:                form.sku.trim() || null,
       description:        form.description,
       cost_price,
+      iva_rate:           Number(form.iva_rate) || 21,
       stock:              Number(form.stock) || 0,
       category:           form.category || "General",
       image:              imageUrl || "/placeholder.png",
@@ -158,12 +160,27 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
             </div>
           </div>
 
-          {/* Price + Stock + Category */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Price + IVA + Stock + Category */}
+          <div className="grid grid-cols-4 gap-3">
             <div>
               <label className="text-xs text-gray-400 mb-1 block">Precio costo *</label>
               <input type="number" min="0" value={form.cost_price} onChange={(e) => set("cost_price", e.target.value)}
                 className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A]" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">IVA</label>
+              <div className="flex gap-1.5 h-[38px]">
+                {(["10.5", "21"] as const).map((r) => (
+                  <button key={r} type="button" onClick={() => set("iva_rate", r)}
+                    className={`flex-1 rounded-lg text-xs font-bold border transition ${
+                      form.iva_rate === r
+                        ? "bg-[#2D9F6A] border-[#2D9F6A] text-white"
+                        : "bg-[#232323] border-[#333] text-gray-400 hover:border-[#2D9F6A]/50"
+                    }`}>
+                    {r}%
+                  </button>
+                ))}
+              </div>
             </div>
             <div>
               <label className="text-xs text-gray-400 mb-1 block">Stock</label>
