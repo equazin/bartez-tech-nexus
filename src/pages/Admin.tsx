@@ -14,6 +14,7 @@ import {
   DollarSign, Pencil, Check, LayoutDashboard,
 } from "lucide-react";
 import { SalesDashboard } from "@/components/admin/SalesDashboard";
+import { ClientCRM } from "@/components/admin/ClientCRM";
 
 interface SupabaseOrder {
   id: string;
@@ -228,6 +229,11 @@ const Admin = () => {
       setClients((prev) => prev.map((c) => (c.id === id ? { ...c, ...edits } : c)));
       setEditingClients((prev) => { const { [id]: _, ...rest } = prev; return rest; });
     }
+  }
+
+  async function saveClientFields(id: string, changes: { client_type?: ClientType; default_margin?: number }) {
+    await supabase.from("profiles").update(changes).eq("id", id);
+    setClients((prev) => prev.map((c) => (c.id === id ? { ...c, ...changes } : c)));
   }
 
   // ── Productos ──
@@ -588,16 +594,14 @@ const Admin = () => {
 
         {/* ── CLIENTES ── */}
         {activeTab === "clients" && (
-          <div className="space-y-4 max-w-4xl">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-500">Editá el tipo y margen de cada cliente.</p>
-              <button
-                onClick={() => { setShowNewClient(true); setCreateError(""); }}
-                className="flex items-center gap-2 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-sm font-bold px-4 py-2 rounded-lg transition"
-              >
-                <UserPlus size={15} /> Nuevo Cliente
-              </button>
-            </div>
+          <>
+          <ClientCRM
+            clients={clients}
+            orders={orders}
+            loading={loadingClients}
+            onSave={saveClientFields}
+            onNewClient={() => { setShowNewClient(true); setCreateError(""); }}
+          />
 
             {/* Modal nuevo cliente */}
             {showNewClient && (
@@ -692,128 +696,7 @@ const Admin = () => {
             )}
 
 
-            {loadingClients ? (
-              <div className="space-y-2">
-                {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-14 bg-[#111] rounded-xl animate-pulse" />)}
-              </div>
-            ) : clients.length === 0 ? (
-              <div className="flex flex-col items-center py-20 text-gray-500 text-sm gap-2">
-                <Users size={36} className="opacity-30" />
-                <p>No hay clientes registrados todavía.</p>
-              </div>
-            ) : (
-              <div className="bg-[#111] border border-[#1f1f1f] rounded-xl overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-[#0d0d0d]">
-                    <tr>
-                      {["Empresa", "Contacto / Email", "Tipo", "Margen %", "Rol", ""].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {clients.map((client) => {
-                      const isEditing = !!editingClients[client.id];
-                      const edits = editingClients[client.id] ?? {};
-                      const currentType = (edits.client_type ?? client.client_type) as ClientType;
-                      const currentMargin = edits.default_margin ?? client.default_margin;
-
-                      return (
-                        <tr key={client.id} className="border-t border-[#1a1a1a] hover:bg-[#161616] transition">
-                          <td className="px-4 py-3 font-medium text-white">{client.company_name || "—"}</td>
-                          <td className="px-4 py-3 text-gray-500 text-xs">{client.contact_name || "—"}</td>
-
-                          {/* Tipo */}
-                          <td className="px-4 py-3">
-                            {isEditing ? (
-                              <select
-                                value={currentType}
-                                onChange={(e) => applyTypeMargin(client.id, e.target.value as ClientType)}
-                                className="bg-[#0d0d0d] border border-[#262626] rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-[#404040]"
-                              >
-                                {(Object.keys(CLIENT_TYPE_LABELS) as ClientType[]).map((t) => (
-                                  <option key={t} value={t}>{CLIENT_TYPE_LABELS[t]}</option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${
-                                currentType === "mayorista"
-                                  ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
-                                  : currentType === "empresa"
-                                  ? "bg-purple-500/15 text-purple-400 border-purple-500/30"
-                                  : "bg-orange-500/15 text-orange-400 border-orange-500/30"
-                              }`}>
-                                {CLIENT_TYPE_LABELS[currentType] ?? currentType}
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Margen */}
-                          <td className="px-4 py-3">
-                            {isEditing ? (
-                              <div className="flex items-center gap-1">
-                                <input
-                                  type="number" min="0" max="100"
-                                  value={currentMargin}
-                                  onChange={(e) => updateEdit(client.id, "default_margin", Number(e.target.value))}
-                                  className="w-16 bg-[#181818] border border-[#333] rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-[#2D9F6A] text-center"
-                                />
-                                <span className="text-xs text-gray-500">%</span>
-                              </div>
-                            ) : (
-                              <span className="font-semibold text-[#2D9F6A]">{client.default_margin}%</span>
-                            )}
-                          </td>
-
-                          {/* Rol */}
-                          <td className="px-4 py-3">
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${
-                              client.role === "admin"
-                                ? "bg-[#2D9F6A]/15 text-[#2D9F6A] border-[#2D9F6A]/30"
-                                : "bg-[#2a2a2a] text-gray-400 border-[#333]"
-                            }`}>
-                              {client.role === "admin" ? "Admin" : "Cliente"}
-                            </span>
-                          </td>
-
-                          {/* Acciones */}
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              {isEditing ? (
-                                <>
-                                  <button
-                                    onClick={() => saveClient(client.id)}
-                                    disabled={savingClient === client.id}
-                                    className="flex items-center gap-1 text-xs bg-[#2D9F6A] text-white px-2.5 py-1 rounded-lg font-semibold disabled:opacity-50 transition hover:bg-[#25835A]"
-                                  >
-                                    <Save size={12} />
-                                    {savingClient === client.id ? "Guardando..." : "Guardar"}
-                                  </button>
-                                  <button
-                                    onClick={() => setEditingClients((prev) => { const { [client.id]: _, ...rest } = prev; return rest; })}
-                                    className="text-xs text-gray-500 hover:text-white transition px-2 py-1"
-                                  >
-                                    Cancelar
-                                  </button>
-                                </>
-                              ) : (
-                                <button
-                                  onClick={() => startEdit(client)}
-                                  className="text-xs text-[#737373] hover:text-white transition px-2 py-1 rounded-lg hover:bg-[#1c1c1c]"
-                                >
-                                  Editar
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          </>
         )}
 
       </main>
