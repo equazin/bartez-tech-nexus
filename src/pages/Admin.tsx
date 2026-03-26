@@ -11,7 +11,7 @@ import { useCurrency } from "@/context/CurrencyContext";
 import {
   CheckCircle2, XCircle, Clock, Trash2, RefreshCw, Save,
   Users, Package, ClipboardList, LogOut, ShieldCheck, UserPlus, X,
-  DollarSign, Pencil, Check, LayoutDashboard,
+  DollarSign, Pencil, Check, LayoutDashboard, Sun, Moon, Phone,
 } from "lucide-react";
 import { SalesDashboard } from "@/components/admin/SalesDashboard";
 import { ClientCRM } from "@/components/admin/ClientCRM";
@@ -59,7 +59,20 @@ type Tab = "dashboard" | "products" | "orders" | "clients";
 const Admin = () => {
   const { signOut } = useAuth();
   const navigate = useNavigate();
-  const { exchangeRate, setExchangeRate, fetchExchangeRate } = useCurrency();
+  const { exchangeRate, setExchangeRate, fetchExchangeRate, formatPrice, formatARS, formatUSD, currency } = useCurrency();
+
+  const ADMIN_THEME_KEY = "admin_theme";
+  const [theme, setTheme] = useState<"dark" | "light">(() =>
+    localStorage.getItem(ADMIN_THEME_KEY) === "light" ? "light" : "dark"
+  );
+  const isDark = theme === "dark";
+  const toggleTheme = () => {
+    const next = isDark ? "light" : "dark";
+    setTheme(next);
+    localStorage.setItem(ADMIN_THEME_KEY, next);
+  };
+  const dk = (d: string, l: string) => isDark ? d : l;
+
   const [editingRate, setEditingRate] = useState(false);
   const [rateInput, setRateInput] = useState(String(exchangeRate.rate));
   const [fetchingRate, setFetchingRate] = useState(false);
@@ -87,7 +100,7 @@ const Admin = () => {
   const [editingClients, setEditingClients] = useState<Record<string, Partial<ClientProfile>>>({});
   const [savingClient, setSavingClient] = useState<string | null>(null);
   const [showNewClient, setShowNewClient] = useState(false);
-  const [newClient, setNewClient] = useState({ email: "", password: "", company_name: "", contact_name: "", client_type: "reseller" as ClientType, default_margin: 20, role: "client" as "client" | "admin" });
+  const [newClient, setNewClient] = useState({ email: "", password: "", phone: "", company_name: "", contact_name: "", client_type: "reseller" as ClientType, default_margin: 20, role: "client" as "client" | "admin" });
   const [creatingClient, setCreatingClient] = useState(false);
   const [createError, setCreateError] = useState("");
 
@@ -168,11 +181,30 @@ const Admin = () => {
 
   const pendingOrders = orders.filter((o) => o.status === "pending").length;
 
+  // ── Phone sidecar (localStorage) ──
+  const PHONES_KEY = "admin_client_phones";
+  function getPhones(): Record<string, string> {
+    try { return JSON.parse(localStorage.getItem(PHONES_KEY) || "{}"); } catch { return {}; }
+  }
+  function savePhone(clientId: string, phone: string) {
+    if (!phone.trim()) return;
+    const phones = getPhones();
+    phones[clientId] = phone.trim();
+    localStorage.setItem(PHONES_KEY, JSON.stringify(phones));
+  }
+  function getPhone(clientId: string): string {
+    return getPhones()[clientId] || "";
+  }
+
   // ── Crear cliente ──
   async function handleCreateClient() {
     setCreateError("");
     if (!newClient.email || !newClient.password) {
       setCreateError("Email y contraseña son obligatorios.");
+      return;
+    }
+    if (!newClient.phone.trim()) {
+      setCreateError("El celular es obligatorio.");
       return;
     }
     setCreatingClient(true);
@@ -185,7 +217,6 @@ const Admin = () => {
       setCreatingClient(false);
       return;
     }
-    // Actualizar el perfil creado por el trigger
     await supabase.from("profiles").update({
       company_name: newClient.company_name,
       contact_name: newClient.contact_name,
@@ -194,9 +225,11 @@ const Admin = () => {
       role: newClient.role,
     }).eq("id", data.user.id);
 
+    savePhone(data.user.id, newClient.phone);
+
     setCreatingClient(false);
     setShowNewClient(false);
-    setNewClient({ email: "", password: "", company_name: "", contact_name: "", client_type: "reseller", default_margin: 20, role: "client" });
+    setNewClient({ email: "", password: "", phone: "", company_name: "", contact_name: "", client_type: "reseller", default_margin: 20, role: "client" });
     fetchClients();
   }
 
@@ -273,14 +306,14 @@ const Admin = () => {
   ];
 
   return (
-    <div className="flex min-h-screen bg-[#0a0a0a] flex-col">
+    <div className={`flex min-h-screen flex-col ${dk("bg-[#0a0a0a]", "bg-[#f0f0f0]")}`}>
 
       {/* TOPBAR */}
-      <header className="flex items-center gap-3 px-4 md:px-6 py-3 bg-[#0d0d0d] border-b border-[#1a1a1a]">
+      <header className={`flex items-center gap-3 px-4 md:px-6 py-3 border-b ${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-white border-[#e5e5e5]")}`}>
         <div className="flex items-center gap-2.5">
           <img src="/icon.png" alt="Bartez" className="h-8 w-8 object-contain" />
           <div>
-            <span className="font-bold text-white text-sm leading-none">Panel Admin</span>
+            <span className={`font-bold text-sm leading-none ${dk("text-white", "text-[#171717]")}`}>Panel Admin</span>
             <span className="block text-xs text-[#2D9F6A] leading-none mt-0.5">Bartez Tecnología</span>
           </div>
         </div>
@@ -288,13 +321,20 @@ const Admin = () => {
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={() => { fetchProducts(); fetchOrders(); fetchClients(); }}
-            className="flex items-center gap-1.5 text-xs text-[#737373] hover:text-white transition px-3 py-2 rounded-lg hover:bg-[#1c1c1c]"
+            className={`flex items-center gap-1.5 text-xs transition px-3 py-2 rounded-lg ${dk("text-[#737373] hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
           >
             <RefreshCw size={13} /> Actualizar
           </button>
           <button
+            onClick={toggleTheme}
+            className={`p-2 rounded-lg transition ${dk("text-[#525252] hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
+            title={isDark ? "Cambiar a tema claro" : "Cambiar a tema oscuro"}
+          >
+            {isDark ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
+          <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 text-xs text-[#737373] hover:text-white transition px-3 py-2 rounded-lg hover:bg-[#1c1c1c]"
+            className={`flex items-center gap-1.5 text-xs transition px-3 py-2 rounded-lg ${dk("text-[#737373] hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
           >
             <LogOut size={13} /> Salir
           </button>
@@ -302,15 +342,15 @@ const Admin = () => {
       </header>
 
       {/* TABS */}
-      <div className="flex border-b border-[#1a1a1a] bg-[#0d0d0d] px-4 md:px-6">
+      <div className={`flex border-b px-4 md:px-6 ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")}`}>
         {tabs.map(({ id, label, icon: Icon, badge }) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition ${
               activeTab === id
-                ? "border-[#2D9F6A] text-white"
-                : "border-transparent text-[#525252] hover:text-[#a3a3a3]"
+                ? `border-[#2D9F6A] ${dk("text-white", "text-[#171717]")}`
+                : `border-transparent ${dk("text-[#525252] hover:text-[#a3a3a3]", "text-[#737373] hover:text-[#525252]")}`
             }`}
           >
             <Icon size={14} />
@@ -319,7 +359,7 @@ const Admin = () => {
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                 id === "orders" && pendingOrders > 0
                   ? "bg-[#2D9F6A] text-white"
-                  : "bg-[#1c1c1c] text-[#525252]"
+                  : dk("bg-[#1c1c1c] text-[#525252]", "bg-[#e8e8e8] text-[#737373]")
               }`}>
                 {badge}
               </span>
@@ -503,33 +543,52 @@ const Admin = () => {
         {/* ── PEDIDOS ── */}
         {activeTab === "orders" && (
           <div className="grid lg:grid-cols-2 gap-5 max-w-5xl">
-            <div>
+            <div className="space-y-3">
+              {/* Currency notice */}
+              <div className={`flex items-start gap-2.5 rounded-xl px-4 py-3 border text-xs ${dk("bg-blue-500/8 border-blue-500/20 text-blue-300", "bg-blue-50 border-blue-200 text-blue-700")}`}>
+                <DollarSign size={13} className="mt-0.5 shrink-0" />
+                <span>
+                  Los importes se muestran en <strong>USD</strong> (moneda base del portal).
+                  El cliente puede confirmar pedidos en ARS — revisá el tipo de cambio vigente.
+                  1 USD = <strong>{exchangeRate.rate.toLocaleString("es-AR")} ARS</strong>
+                </span>
+              </div>
+
               {loadingOrders ? (
                 <div className="space-y-2">
-                  {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-20 bg-[#111] rounded-xl animate-pulse" />)}
+                  {Array.from({ length: 4 }).map((_, i) => <div key={i} className={`h-20 rounded-xl animate-pulse ${dk("bg-[#111]", "bg-white")}`} />)}
                 </div>
               ) : orders.length === 0 ? (
                 <div className="text-center py-20 text-gray-500 text-sm">No hay pedidos todavía.</div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {orders.map((order) => (
                     <div
                       key={order.id}
                       onClick={() => setSelectedOrder(order)}
-                      className={`bg-[#111] border rounded-xl p-4 cursor-pointer transition hover:border-[#2e2e2e] hover:bg-[#141414] ${
-                        selectedOrder?.id === order.id ? "border-[#333] bg-[#141414]" : "border-[#1f1f1f]"
+                      className={`border rounded-xl p-4 cursor-pointer transition ${
+                        selectedOrder?.id === order.id
+                          ? dk("border-[#333] bg-[#141414]", "border-[#2D9F6A]/30 bg-[#f0faf5]")
+                          : dk("border-[#1f1f1f] bg-[#111] hover:border-[#2e2e2e] hover:bg-[#141414]", "border-[#e5e5e5] bg-white hover:border-[#d4d4d4] hover:bg-[#f9f9f9]")
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-gray-500 font-mono">#{String(order.id).slice(-8)}</span>
+                        <span className={`text-xs font-mono ${dk("text-gray-500", "text-[#737373]")}`}>#{String(order.id).slice(-8)}</span>
                         <StatusBadge status={order.status} />
                       </div>
-                      <p className="text-xs text-gray-600">
+                      <p className={`text-xs ${dk("text-gray-600", "text-[#a3a3a3]")}`}>
                         {new Date(order.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                       </p>
                       <div className="flex justify-between items-center mt-2">
-                        <span className="text-xs text-gray-500">{order.products?.length} items</span>
-                        <span className="font-bold text-white">${order.total.toLocaleString()}</span>
+                        <span className={`text-xs ${dk("text-gray-500", "text-[#a3a3a3]")}`}>{order.products?.length} items</span>
+                        <div className="text-right">
+                          <span className={`font-bold text-sm ${dk("text-white", "text-[#171717]")}`}>
+                            USD {order.total.toLocaleString("en-US", { minimumFractionDigits: 0 })}
+                          </span>
+                          <span className={`block text-[10px] font-mono ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>
+                            ≈ {(order.total * exchangeRate.rate).toLocaleString("es-AR", { maximumFractionDigits: 0 })} ARS
+                          </span>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -538,55 +597,89 @@ const Admin = () => {
             </div>
 
             {selectedOrder && (
-              <div className="bg-[#111] border border-[#1f1f1f] rounded-xl p-6">
+              <div className={`border rounded-xl p-6 ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-white">Pedido #{String(selectedOrder.id).slice(-8)}</h3>
+                  <h3 className={`font-bold ${dk("text-white", "text-[#171717]")}`}>Pedido #{String(selectedOrder.id).slice(-8)}</h3>
                   <StatusBadge status={selectedOrder.status} />
                 </div>
-                <p className="text-xs text-gray-500 mb-4">
+                <p className={`text-xs mb-4 ${dk("text-gray-500", "text-[#737373]")}`}>
                   {new Date(selectedOrder.created_at).toLocaleDateString("es-AR", { dateStyle: "full" })}
                 </p>
 
                 <table className="w-full text-sm mb-4">
                   <thead>
-                    <tr className="border-b border-[#333]">
-                      <th className="pb-2 text-left text-xs text-gray-500 font-medium">Producto</th>
-                      <th className="pb-2 text-center text-xs text-gray-500 font-medium">Cant.</th>
-                      <th className="pb-2 text-right text-xs text-gray-500 font-medium">Total</th>
+                    <tr className={`border-b ${dk("border-[#333]", "border-[#e5e5e5]")}`}>
+                      <th className={`pb-2 text-left text-xs font-medium ${dk("text-gray-500", "text-[#a3a3a3]")}`}>Producto</th>
+                      <th className={`pb-2 text-center text-xs font-medium ${dk("text-gray-500", "text-[#a3a3a3]")}`}>Cant.</th>
+                      <th className={`pb-2 text-right text-xs font-medium ${dk("text-gray-500", "text-[#a3a3a3]")}`}>USD</th>
                     </tr>
                   </thead>
                   <tbody>
                     {selectedOrder.products?.map((p: any, i: number) => (
-                      <tr key={i} className="border-b border-[#2a2a2a]">
-                        <td className="py-2 text-gray-300">{p.name}</td>
-                        <td className="py-2 text-center text-gray-500">{p.quantity}</td>
-                        <td className="py-2 text-right font-semibold text-white">${p.total_price?.toLocaleString()}</td>
+                      <tr key={i} className={`border-b ${dk("border-[#2a2a2a]", "border-[#f0f0f0]")}`}>
+                        <td className={`py-2 ${dk("text-gray-300", "text-[#525252]")}`}>{p.name}</td>
+                        <td className={`py-2 text-center ${dk("text-gray-500", "text-[#a3a3a3]")}`}>{p.quantity}</td>
+                        <td className={`py-2 text-right font-semibold ${dk("text-white", "text-[#171717]")}`}>
+                          {p.total_price?.toLocaleString("en-US", { minimumFractionDigits: 0 })}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
 
-                <div className="flex justify-between font-bold text-base mb-5 pt-2 border-t border-[#333]">
-                  <span className="text-gray-400">Total</span>
-                  <span className="text-[#2D9F6A]">${selectedOrder.total.toLocaleString()}</span>
+                <div className={`mb-5 pt-3 border-t ${dk("border-[#333]", "border-[#e5e5e5]")}`}>
+                  <div className="flex justify-between font-bold text-base">
+                    <span className={dk("text-gray-400", "text-[#737373]")}>Total</span>
+                    <div className="text-right">
+                      <span className="text-[#2D9F6A]">USD {selectedOrder.total.toLocaleString("en-US", { minimumFractionDigits: 0 })}</span>
+                      <p className={`text-[11px] font-normal font-mono mt-0.5 ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>
+                        ≈ {(selectedOrder.total * exchangeRate.rate).toLocaleString("es-AR", { maximumFractionDigits: 0 })} ARS
+                        <span className={`ml-1.5 ${dk("text-[#3a3a3a]", "text-[#c4c4c4]")}`}>@ {exchangeRate.rate.toLocaleString("es-AR")} ARS/USD</span>
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
-                {selectedOrder.status === "pending" && (
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => updateOrderStatus(selectedOrder.id, "approved")}
-                      className="flex-1 flex items-center justify-center gap-2 bg-green-500/15 text-green-400 border border-green-500/30 rounded-lg py-2 text-sm font-semibold hover:bg-green-500/25 transition"
-                    >
-                      <CheckCircle2 size={15} /> Aprobar
-                    </button>
-                    <button
-                      onClick={() => updateOrderStatus(selectedOrder.id, "rejected")}
-                      className="flex-1 flex items-center justify-center gap-2 bg-red-500/15 text-red-400 border border-red-500/30 rounded-lg py-2 text-sm font-semibold hover:bg-red-500/25 transition"
-                    >
-                      <XCircle size={15} /> Rechazar
-                    </button>
-                  </div>
-                )}
+                {selectedOrder.status === "pending" && (() => {
+                  const phone = getPhone(selectedOrder.client_id);
+                  const waMsg = encodeURIComponent(
+                    `Hola! Te escribimos de Bartez Tecnología sobre tu pedido #${String(selectedOrder.id).slice(-8).toUpperCase()}. ¿Podemos coordinar la confirmación?`
+                  );
+                  const waUrl = phone ? `https://wa.me/${phone.replace(/\D/g, "")}?text=${waMsg}` : null;
+                  return (
+                    <div className="space-y-2">
+                      {waUrl && (
+                        <a
+                          href={waUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full flex items-center justify-center gap-2 bg-[#25D366]/15 text-[#25D366] border border-[#25D366]/30 rounded-lg py-2 text-sm font-semibold hover:bg-[#25D366]/25 transition"
+                        >
+                          <Phone size={15} /> Contactar por WhatsApp
+                        </a>
+                      )}
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => updateOrderStatus(selectedOrder.id, "approved")}
+                          className="flex-1 flex items-center justify-center gap-2 bg-green-500/15 text-green-400 border border-green-500/30 rounded-lg py-2 text-sm font-semibold hover:bg-green-500/25 transition"
+                        >
+                          <CheckCircle2 size={15} /> Aprobar
+                        </button>
+                        <button
+                          onClick={() => updateOrderStatus(selectedOrder.id, "rejected")}
+                          className="flex-1 flex items-center justify-center gap-2 bg-red-500/15 text-red-400 border border-red-500/30 rounded-lg py-2 text-sm font-semibold hover:bg-red-500/25 transition"
+                        >
+                          <XCircle size={15} /> Rechazar
+                        </button>
+                      </div>
+                      {!waUrl && (
+                        <p className={`text-[11px] text-center ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>
+                          Sin celular registrado para este cliente — no se puede enviar WhatsApp
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
@@ -606,73 +699,82 @@ const Admin = () => {
             {/* Modal nuevo cliente */}
             {showNewClient && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-                <div className="bg-[#111] border border-[#1f1f1f] rounded-2xl w-full max-w-md shadow-2xl shadow-black/60">
-                  <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a1a1a]">
-                    <h3 className="font-bold text-white">Nuevo Cliente</h3>
-                    <button onClick={() => setShowNewClient(false)} className="text-gray-500 hover:text-white transition">
+                <div className={`border rounded-2xl w-full max-w-md shadow-2xl shadow-black/60 ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
+                  <div className={`flex items-center justify-between px-6 py-4 border-b ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
+                    <h3 className={`font-bold ${dk("text-white", "text-[#171717]")}`}>Nuevo Cliente</h3>
+                    <button onClick={() => setShowNewClient(false)} className={`transition ${dk("text-gray-500 hover:text-white", "text-[#a3a3a3] hover:text-[#171717]")}`}>
                       <X size={18} />
                     </button>
                   </div>
                   <div className="px-6 py-5 space-y-4">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="col-span-2">
-                        <label className="text-xs text-gray-400 mb-1 block">Email *</label>
+                        <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Email *</label>
                         <input type="email" value={newClient.email}
                           onChange={(e) => setNewClient((p) => ({ ...p, email: e.target.value }))}
-                          className="w-full bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040]"
+                          className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4]")}`}
                           placeholder="cliente@empresa.com" />
                       </div>
                       <div className="col-span-2">
-                        <label className="text-xs text-gray-400 mb-1 block">Contraseña *</label>
+                        <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Contraseña *</label>
                         <div className="flex gap-2">
                           <input type="text" value={newClient.password}
                             onChange={(e) => setNewClient((p) => ({ ...p, password: e.target.value }))}
-                            className="flex-1 bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040] font-mono placeholder:text-[#404040]"
+                            className={`flex-1 border rounded-lg px-3 py-2 text-sm font-mono outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040] placeholder:text-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4] placeholder:text-[#c4c4c4]")}`}
                             placeholder="Mínimo 6 caracteres" />
                           <button type="button" onClick={generatePassword}
-                            className="shrink-0 bg-[#2a2a2a] hover:bg-[#333] text-[#2D9F6A] text-xs font-bold px-3 rounded-lg border border-[#333] transition">
+                            className={`shrink-0 text-[#2D9F6A] text-xs font-bold px-3 rounded-lg border transition ${dk("bg-[#2a2a2a] hover:bg-[#333] border-[#333]", "bg-[#f0f0f0] hover:bg-[#e8e8e8] border-[#e5e5e5]")}`}>
                             Generar
                           </button>
                         </div>
                       </div>
                       <div>
-                        <label className="text-xs text-gray-400 mb-1 block">Empresa</label>
+                        <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Empresa</label>
                         <input type="text" value={newClient.company_name}
                           onChange={(e) => setNewClient((p) => ({ ...p, company_name: e.target.value }))}
-                          className="w-full bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040]"
+                          className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4]")}`}
                           placeholder="Distribuidora XYZ" />
                       </div>
                       <div>
-                        <label className="text-xs text-gray-400 mb-1 block">Contacto</label>
+                        <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Contacto</label>
                         <input type="text" value={newClient.contact_name}
                           onChange={(e) => setNewClient((p) => ({ ...p, contact_name: e.target.value }))}
-                          className="w-full bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040]"
+                          className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4]")}`}
                           placeholder="Juan Pérez" />
                       </div>
+                      <div className="col-span-2">
+                        <label className={`text-xs mb-1 flex items-center gap-1 ${dk("text-gray-400", "text-[#737373]")}`}>
+                          <Phone size={11} /> Celular * <span className="text-[#525252] font-normal">(con código de país, ej: 5491122334455)</span>
+                        </label>
+                        <input type="tel" value={newClient.phone}
+                          onChange={(e) => setNewClient((p) => ({ ...p, phone: e.target.value }))}
+                          className={`w-full border rounded-lg px-3 py-2 text-sm font-mono outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#2D9F6A]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]")}`}
+                          placeholder="5491122334455" />
+                      </div>
                       <div>
-                        <label className="text-xs text-gray-400 mb-1 block">Tipo</label>
+                        <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Tipo</label>
                         <select value={newClient.client_type}
                           onChange={(e) => {
                             const t = e.target.value as ClientType;
                             setNewClient((p) => ({ ...p, client_type: t, default_margin: CLIENT_TYPE_MARGINS[t] }));
                           }}
-                          className="w-full bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040]">
+                          className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4]")}`}>
                           <option value="reseller">Revendedor</option>
                           <option value="mayorista">Mayorista</option>
                           <option value="empresa">Empresa</option>
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs text-gray-400 mb-1 block">Margen %</label>
+                        <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Margen %</label>
                         <input type="number" min="0" max="100" value={newClient.default_margin}
                           onChange={(e) => setNewClient((p) => ({ ...p, default_margin: Number(e.target.value) }))}
-                          className="w-full bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040] text-center placeholder:text-[#404040]" />
+                          className={`w-full border rounded-lg px-3 py-2 text-sm text-center outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4]")}`} />
                       </div>
                       <div className="col-span-2">
-                        <label className="text-xs text-gray-400 mb-1 block">Rol</label>
+                        <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Rol</label>
                         <select value={newClient.role}
                           onChange={(e) => setNewClient((p) => ({ ...p, role: e.target.value as "client" | "admin" }))}
-                          className="w-full bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040]">
+                          className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4]")}`}>
                           <option value="client">Cliente</option>
                           <option value="admin">Admin</option>
                         </select>
