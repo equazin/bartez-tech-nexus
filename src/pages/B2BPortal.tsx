@@ -1,16 +1,17 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { CartDrawer } from "@/components/CartDrawer";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useProducts } from "@/hooks/useProducts";
+import { supabase } from "@/lib/supabase";
 import { useOrders } from "@/hooks/useOrders";
 import { useCurrency } from "@/context/CurrencyContext";
 import {
   LogOut, ShoppingCart, Search, LayoutGrid, List, Package,
   ClipboardList, CheckCircle2, XCircle, Clock, X, Plus, Minus,
   ShieldCheck, Check, AlertTriangle, AlertCircle, SlidersHorizontal,
-  Star, Sun, Moon,
+  Star, Sun, Moon, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -119,6 +120,17 @@ export default function B2BPortal() {
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
 
+  // ─── DB CATEGORIES (hierarchy) ────────────────────────────────────────
+  type DbCat = { id: number; name: string; parent_id: number | null };
+  const [dbCats, setDbCats] = useState<DbCat[]>([]);
+  const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    supabase.from("categories").select("*").order("name").then(({ data }) => {
+      if (data) setDbCats(data as DbCat[]);
+    });
+  }, []);
+
   const THEME_KEY = "b2b_theme";
   const [theme, setTheme] = useState<"dark" | "light">(() =>
     localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark"
@@ -148,17 +160,53 @@ export default function B2BPortal() {
     return () => document.head.removeChild(meta);
   }, []);
 
-  const categories = useMemo(
-    () => ["all", ...Array.from(new Set(products.map((p) => p.category)))],
-    [products]
-  );
+  // ── Build category tree from DB ─────────────────────────────────────────
+  // parentTree: [{parent, children: string[]}] for parents with products
+  // leafOnly: category names that have no parent in DB (standalone)
+  const categoryTree = useMemo(() => {
+    const parentNodes = dbCats.filter((c) => c.parent_id === null);
+    const childrenOf  = (parentId: number) =>
+      dbCats.filter((c) => c.parent_id === parentId).map((c) => c.name);
 
-  // Count per category for sidebar badges
+    // All subcategory names that belong to some parent
+    const allSubNames = new Set(dbCats.filter((c) => c.parent_id !== null).map((c) => c.name));
+
+    // Product category names (what products actually store)
+    const productCats = new Set(products.map((p) => p.category));
+
+    // Parents that have at least one subcategory or direct product matching
+    const parents = parentNodes
+      .map((p) => ({ name: p.name, children: childrenOf(p.id) }))
+      .filter((p) =>
+        p.children.some((ch) => productCats.has(ch)) || productCats.has(p.name)
+      );
+
+    // Leaf categories: product categories NOT covered by any parent's children
+    const coveredByParent = new Set(parents.flatMap((p) => p.children));
+    const leaves = [...productCats].filter(
+      (c) => !coveredByParent.has(c) && !parents.some((p) => p.name === c)
+    );
+
+    return { parents, leaves };
+  }, [dbCats, products]);
+
+  // ── Count per category ───────────────────────────────────────────────────
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = { all: products.length };
     products.forEach((p) => { counts[p.category] = (counts[p.category] || 0) + 1; });
+    // Parent count = sum of its children's counts
+    categoryTree.parents.forEach(({ name, children }) => {
+      counts[name] = children.reduce((s, ch) => s + (counts[ch] || 0), 0);
+    });
     return counts;
-  }, [products]);
+  }, [products, categoryTree]);
+
+  // ── Children lookup for filtering ───────────────────────────────────────
+  const parentChildrenMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    categoryTree.parents.forEach(({ name, children }) => { map[name] = children; });
+    return map;
+  }, [categoryTree]);
 
   const hasActiveFilters = categoryFilter !== "all" || minPrice !== "" || maxPrice !== "";
 
@@ -168,7 +216,14 @@ export default function B2BPortal() {
       const min = Number(minPrice);
       const max = Number(maxPrice);
       if (term && !p.name.toLowerCase().includes(term) && !p.sku?.toLowerCase().includes(term)) return false;
-      if (categoryFilter !== "all" && p.category !== categoryFilter) return false;
+      if (categoryFilter !== "all") {
+        const children = parentChildrenMap[categoryFilter];
+        if (children?.length) {
+          if (!children.includes(p.category)) return false;
+        } else {
+          if (p.category !== categoryFilter) return false;
+        }
+      }
       if (!isNaN(min) && min > 0 && p.cost_price < min) return false;
       if (!isNaN(max) && max > 0 && p.cost_price > max) return false;
       return true;
@@ -570,9 +625,102 @@ export default function B2BPortal() {
             <div>
               <h3 className={`text-[10px] font-bold uppercase tracking-widest ${dk("text-[#525252]", "text-[#a3a3a3]")} mb-2 px-1`}>Categoría</h3>
               <div className="flex flex-col gap-0.5">
-                {categories.map((c) => {
+
+                {/* "Todas" */}
+                {(() => {
+                  const isActive = categoryFilter === "all";
+                  return (
+                    <button
+                      onClick={() => setCategoryFilter("all")}
+                      className={`flex items-center justify-between text-left text-sm px-2.5 py-1.5 rounded-lg transition group border-l-2 ${
+                        isActive
+                          ? `${dk("bg-[#171717] text-white", "bg-[#f0faf5] text-[#1a7a50]")} font-medium border-[#2D9F6A]`
+                          : `${dk("text-[#737373] hover:text-[#e5e5e5] hover:bg-[#171717]", "text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")} border-transparent`
+                      }`}
+                    >
+                      <span>Todas</span>
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1 shrink-0 ${
+                        isActive ? dk("bg-[#262626] text-white", "bg-[#2D9F6A]/20 text-[#1a7a50]")
+                          : dk("bg-[#1a1a1a] text-[#525252] group-hover:bg-[#222]", "bg-[#f0f0f0] text-[#737373] group-hover:bg-[#e8e8e8]")
+                      }`}>{categoryCounts["all"]}</span>
+                    </button>
+                  );
+                })()}
+
+                {/* Parent categories with children */}
+                {categoryTree.parents.map(({ name: parent, children }) => {
+                  const isParentActive  = categoryFilter === parent;
+                  const isChildActive   = children.includes(categoryFilter);
+                  const isExpanded      = expandedParents.has(parent) || isParentActive || isChildActive;
+                  const parentCount     = categoryCounts[parent] || 0;
+
+                  return (
+                    <div key={parent}>
+                      {/* Parent row */}
+                      <div className="flex items-center gap-0">
+                        {/* Expand/collapse chevron */}
+                        <button
+                          onClick={() => setExpandedParents((prev) => {
+                            const next = new Set(prev);
+                            next.has(parent) ? next.delete(parent) : next.add(parent);
+                            return next;
+                          })}
+                          className={`p-1 rounded transition shrink-0 ${dk("text-[#525252] hover:text-[#a3a3a3]", "text-[#a3a3a3] hover:text-[#525252]")}`}
+                        >
+                          {isExpanded
+                            ? <ChevronDown size={11} />
+                            : <ChevronRight size={11} />}
+                        </button>
+                        {/* Parent label (also clickable as filter) */}
+                        <button
+                          onClick={() => setCategoryFilter(parent)}
+                          className={`flex-1 flex items-center justify-between text-left text-sm px-1.5 py-1.5 rounded-lg transition group border-l-2 ${
+                            isParentActive
+                              ? `${dk("bg-[#171717] text-white", "bg-[#f0faf5] text-[#1a7a50]")} font-medium border-[#2D9F6A]`
+                              : `${dk("text-[#737373] hover:text-[#e5e5e5] hover:bg-[#171717]", "text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")} border-transparent`
+                          }`}
+                        >
+                          <span className="truncate font-medium">{parent}</span>
+                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1 shrink-0 ${
+                            isParentActive ? dk("bg-[#262626] text-white", "bg-[#2D9F6A]/20 text-[#1a7a50]")
+                              : dk("bg-[#1a1a1a] text-[#525252] group-hover:bg-[#222]", "bg-[#f0f0f0] text-[#737373] group-hover:bg-[#e8e8e8]")
+                          }`}>{parentCount}</span>
+                        </button>
+                      </div>
+
+                      {/* Subcategories (indented) */}
+                      {isExpanded && (
+                        <div className="ml-5 flex flex-col gap-0.5 mt-0.5 mb-1">
+                          {children.map((child) => {
+                            const isActive = categoryFilter === child;
+                            const count    = categoryCounts[child] || 0;
+                            return (
+                              <button
+                                key={child}
+                                onClick={() => setCategoryFilter(child)}
+                                className={`flex items-center justify-between text-left text-xs px-2.5 py-1.5 rounded-lg transition group border-l-2 ${
+                                  isActive
+                                    ? `${dk("bg-[#171717] text-white", "bg-[#f0faf5] text-[#1a7a50]")} font-medium border-[#2D9F6A]`
+                                    : `${dk("text-[#525252] hover:text-[#e5e5e5] hover:bg-[#171717]", "text-[#a3a3a3] hover:text-[#171717] hover:bg-[#f5f5f5]")} border-transparent`
+                                }`}
+                              >
+                                <span className="truncate">{child}</span>
+                                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1 shrink-0 ${
+                                  isActive ? dk("bg-[#262626] text-white", "bg-[#2D9F6A]/20 text-[#1a7a50]")
+                                    : dk("bg-[#1a1a1a] text-[#525252] group-hover:bg-[#222]", "bg-[#f0f0f0] text-[#737373] group-hover:bg-[#e8e8e8]")
+                                }`}>{count}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Standalone leaf categories (not under any parent) */}
+                {categoryTree.leaves.map((c) => {
                   const isActive = categoryFilter === c;
-                  const count = categoryCounts[c] || 0;
                   return (
                     <button
                       key={c}
@@ -583,17 +731,15 @@ export default function B2BPortal() {
                           : `${dk("text-[#737373] hover:text-[#e5e5e5] hover:bg-[#171717]", "text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")} border-transparent`
                       }`}
                     >
-                      <span className="truncate">{c === "all" ? "Todas" : c}</span>
+                      <span className="truncate">{c}</span>
                       <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1 shrink-0 ${
-                        isActive
-                          ? dk("bg-[#262626] text-white", "bg-[#2D9F6A]/20 text-[#1a7a50]")
+                        isActive ? dk("bg-[#262626] text-white", "bg-[#2D9F6A]/20 text-[#1a7a50]")
                           : dk("bg-[#1a1a1a] text-[#525252] group-hover:bg-[#222]", "bg-[#f0f0f0] text-[#737373] group-hover:bg-[#e8e8e8]")
-                      }`}>
-                        {count}
-                      </span>
+                      }`}>{categoryCounts[c] || 0}</span>
                     </button>
                   );
                 })}
+
               </div>
             </div>
 
