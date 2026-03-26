@@ -15,7 +15,7 @@ import About from "./pages/About";
 import Contact from "./pages/Contact";
 import Login from "./pages/Login";
 import B2BPortal from "./pages/B2BPortal";
-import Cart from "./pages/Cart";
+import CartPage from "./pages/CartPage";
 import QuoteRequest from "./pages/QuoteRequest";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
@@ -65,7 +65,7 @@ const App = () => (
             <Route path="/cotizacion" element={<QuoteRequest />} />
             <Route path="/login" element={<Login />} />
             <Route path="/b2b-portal" element={<RequireAuth><B2BPortal /></RequireAuth>} />
-            <Route path="/cart" element={<RequireAuth><Cart /></RequireAuth>} />
+            <Route path="/cart"      element={<RequireAuth><CartPage /></RequireAuth>} />
             <Route path="/admin" element={<RequireAdmin><Admin /></RequireAdmin>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
