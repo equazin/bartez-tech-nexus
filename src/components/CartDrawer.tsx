@@ -54,7 +54,7 @@ export function CartDrawer({
         {/* Header */}
         <DrawerHeader className="flex items-center justify-between border-b border-[#1a1a1a] px-5 py-4 shrink-0">
           <div className="flex items-center gap-2.5">
-            <ShoppingCart size={16} className="text-[#FF6A00]" />
+            <ShoppingCart size={16} className="text-[#2D9F6A]" />
             <DrawerTitle className="text-base font-bold text-white">
               Carrito
             </DrawerTitle>
@@ -93,7 +93,7 @@ export function CartDrawer({
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-white line-clamp-1 leading-tight">{item.product.name}</p>
                     <p className="text-[11px] text-gray-600 mt-0.5">{item.product.category}</p>
-                    <p className="text-xs font-bold text-[#FF6A00] mt-1 tabular-nums">
+                    <p className="text-xs font-bold text-[#2D9F6A] mt-1 tabular-nums">
                       {formatPrice(item.unitPrice)} c/u
                     </p>
                     <p className="text-[10px] text-gray-700 font-mono tabular-nums">
@@ -111,7 +111,7 @@ export function CartDrawer({
                     </button>
                     <span className="w-8 text-center text-white font-bold text-sm tabular-nums">{item.quantity}</span>
                     <button onClick={() => onAddToCart(item.product)}
-                      className="h-7 w-7 bg-[#FF6A00] hover:bg-[#e85c00] active:scale-95 text-white rounded-lg transition-all flex items-center justify-center">
+                      className="h-7 w-7 bg-[#2D9F6A] hover:bg-[#25835A] active:scale-95 text-white rounded-lg transition-all flex items-center justify-center">
                       <Plus size={11} />
                     </button>
                   </div>
@@ -141,7 +141,7 @@ export function CartDrawer({
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-xl font-extrabold text-[#FF6A00] tabular-nums">
+                <div className="text-xl font-extrabold text-[#2D9F6A] tabular-nums">
                   {formatPrice(cartTotal)}
                 </div>
                 <div className="text-[10px] text-gray-600 mt-0.5">
@@ -163,7 +163,7 @@ export function CartDrawer({
             <button
               disabled={confirming}
               onClick={onConfirmOrder}
-              className="w-full flex items-center justify-center gap-2 bg-[#FF6A00] hover:bg-[#e85c00] active:scale-[0.98] text-white font-bold rounded-xl py-3 text-sm transition-all disabled:opacity-50 disabled:pointer-events-none"
+              className="w-full flex items-center justify-center gap-2 bg-[#2D9F6A] hover:bg-[#25835A] active:scale-[0.98] text-white font-bold rounded-xl py-3 text-sm transition-all disabled:opacity-50 disabled:pointer-events-none"
             >
               {confirming ? (
                 <><Loader2 size={14} className="animate-spin" /> Confirmando pedido...</>

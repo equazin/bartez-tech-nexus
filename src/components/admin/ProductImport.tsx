@@ -105,8 +105,8 @@ export default function ProductImport({ onImport }: { onImport: (result: ImportR
       <div
         className={`relative border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
           dragActive
-            ? "border-[#FF6A00] bg-[#FF6A00]/5"
-            : "border-[#2a2a2a] hover:border-[#FF6A00]/40 bg-[#141414]"
+            ? "border-[#2D9F6A] bg-[#2D9F6A]/5"
+            : "border-[#2a2a2a] hover:border-[#2D9F6A]/40 bg-[#141414]"
         }`}
         onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
         onDragLeave={() => setDragActive(false)}
@@ -132,7 +132,7 @@ export default function ProductImport({ onImport }: { onImport: (result: ImportR
             <span key={col}
               className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
                 col.includes("*")
-                  ? "bg-[#FF6A00]/10 text-[#FF6A00] border border-[#FF6A00]/20"
+                  ? "bg-[#2D9F6A]/10 text-[#2D9F6A] border border-[#2D9F6A]/20"
                   : "bg-[#1e1e1e] text-gray-500 border border-[#2a2a2a]"
               }`}>
               {col}
@@ -182,7 +182,7 @@ export default function ProductImport({ onImport }: { onImport: (result: ImportR
                   <tr key={i} className="border-t border-[#1e1e1e] hover:bg-[#1a1a1a] transition-colors">
                     <td className="px-3 py-2 text-white font-medium max-w-[160px] truncate">{p.name}</td>
                     <td className="px-3 py-2 font-mono text-gray-400">{p.sku}</td>
-                    <td className="px-3 py-2 text-[#FF6A00] font-semibold tabular-nums">${p.cost_price.toLocaleString("es-AR")}</td>
+                    <td className="px-3 py-2 text-[#2D9F6A] font-semibold tabular-nums">${p.cost_price.toLocaleString("es-AR")}</td>
                     <td className="px-3 py-2 text-gray-400">{p.category}</td>
                     <td className="px-3 py-2 text-gray-400 tabular-nums">{p.stock}</td>
                     <td className="px-3 py-2 text-gray-600 tabular-nums">{p.stock_min || "—"}</td>
@@ -217,7 +217,7 @@ export default function ProductImport({ onImport }: { onImport: (result: ImportR
           <button
             onClick={handleImport}
             disabled={importing}
-            className="mt-3 w-full flex items-center justify-center gap-2 bg-[#FF6A00] hover:bg-[#FF8C1A] disabled:opacity-50 disabled:pointer-events-none text-white font-bold text-sm py-2.5 rounded-xl transition-all active:scale-[0.98]"
+            className="mt-3 w-full flex items-center justify-center gap-2 bg-[#2D9F6A] hover:bg-[#25835A] disabled:opacity-50 disabled:pointer-events-none text-white font-bold text-sm py-2.5 rounded-xl transition-all active:scale-[0.98]"
           >
             {importing
               ? <><Loader2 size={14} className="animate-spin" /> Importando...</>

@@ -110,7 +110,7 @@ const AdminDashboard = () => {
 function StatCard({ title, value }: { title: string; value: number }) {
   return (
     <div className="rounded-xl bg-white p-6 shadow border">
-      <div className="text-2xl font-bold text-[#FF6A00]">
+      <div className="text-2xl font-bold text-[#2D9F6A]">
         {value}
       </div>
       <div className="text-sm text-muted-foreground">

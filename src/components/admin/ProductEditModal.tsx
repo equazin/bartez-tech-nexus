@@ -127,7 +127,7 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
                 onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleImageFile(f); }}
                 onClick={() => fileRef.current?.click()}
                 className={`relative flex items-center justify-center rounded-xl border-2 border-dashed cursor-pointer transition h-28 w-28 shrink-0 ${
-                  dragging ? "border-[#FF6A00] bg-[#FF6A00]/5" : "border-[#333] hover:border-[#FF6A00]/50 bg-[#151515]"
+                  dragging ? "border-[#2D9F6A] bg-[#2D9F6A]/5" : "border-[#333] hover:border-[#2D9F6A]/50 bg-[#151515]"
                 }`}>
                 {imagePreview
                   ? <img src={imagePreview} className="h-full w-full object-contain rounded-xl p-1" />
@@ -138,7 +138,7 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
                   onChange={(e) => { if (e.target.files?.[0]) handleImageFile(e.target.files[0]); }} />
                 <input value={form.image} onChange={(e) => { set("image", e.target.value); setPreview(e.target.value); }}
                   placeholder="O pegá una URL de imagen"
-                  className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#FF6A00]" />
+                  className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#2D9F6A]" />
                 <p className="text-[11px] text-gray-600">Arrastrá una imagen o pegá URL · JPG, PNG, WEBP · máx 5MB</p>
               </div>
             </div>
@@ -149,12 +149,12 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
             <div className="col-span-2 sm:col-span-1">
               <label className="text-xs text-gray-400 mb-1 block">Nombre *</label>
               <input value={form.name} onChange={(e) => set("name", e.target.value)}
-                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]" />
+                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A]" />
             </div>
             <div>
               <label className="text-xs text-gray-400 mb-1 block">SKU</label>
               <input value={form.sku} onChange={(e) => set("sku", e.target.value)}
-                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00] font-mono" />
+                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A] font-mono" />
             </div>
           </div>
 
@@ -163,17 +163,17 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
             <div>
               <label className="text-xs text-gray-400 mb-1 block">Precio costo *</label>
               <input type="number" min="0" value={form.cost_price} onChange={(e) => set("cost_price", e.target.value)}
-                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]" />
+                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A]" />
             </div>
             <div>
               <label className="text-xs text-gray-400 mb-1 block">Stock</label>
               <input type="number" min="0" value={form.stock} onChange={(e) => set("stock", e.target.value)}
-                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]" />
+                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A]" />
             </div>
             <div>
               <label className="text-xs text-gray-400 mb-1 block">Categoría</label>
               <select value={form.category} onChange={(e) => set("category", e.target.value)}
-                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]">
+                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A]">
                 <option value="">— Sin categoría —</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.name}>
@@ -190,13 +190,13 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
               <label className="text-xs text-gray-400 mb-1 block">ID Proveedor</label>
               <input type="number" value={form.supplier_id} onChange={(e) => set("supplier_id", e.target.value)}
                 placeholder="Opcional"
-                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]" />
+                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A]" />
             </div>
             <div>
               <label className="text-xs text-gray-400 mb-1 block">Multiplicador proveedor</label>
               <input type="number" step="0.01" value={form.supplier_multiplier} onChange={(e) => set("supplier_multiplier", e.target.value)}
                 placeholder="Ej: 1.15"
-                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]" />
+                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A]" />
             </div>
           </div>
 
@@ -204,7 +204,7 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
           <div>
             <label className="text-xs text-gray-400 mb-1 block">Descripción</label>
             <textarea value={form.description} onChange={(e) => set("description", e.target.value)} rows={3}
-              className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00] resize-none" />
+              className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A] resize-none" />
           </div>
 
           {/* Tags */}
@@ -212,7 +212,7 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
             <label className="text-xs text-gray-400 mb-1 flex items-center gap-1"><Tag size={11} /> Tags (separados por coma)</label>
             <input value={form.tags} onChange={(e) => set("tags", e.target.value)}
               placeholder="wifi, gigabit, rack, nuevo..."
-              className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00]" />
+              className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A]" />
           </div>
 
           {/* Toggles */}
@@ -243,7 +243,7 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
               Cancelar
             </button>
             <button onClick={handleSave} disabled={saving}
-              className="flex items-center gap-2 px-5 py-2 bg-[#FF6A00] hover:bg-[#FF8C1A] text-white text-sm font-bold rounded-lg transition disabled:opacity-50">
+              className="flex items-center gap-2 px-5 py-2 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-sm font-bold rounded-lg transition disabled:opacity-50">
               {saving && <Loader2 size={14} className="animate-spin" />}
               {saving ? "Guardando..." : "Guardar cambios"}
             </button>

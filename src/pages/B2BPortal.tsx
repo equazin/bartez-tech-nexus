@@ -292,7 +292,7 @@ export default function B2BPortal() {
               {/* Price */}
               <div className="bg-[#0d0d0d] border border-[#1f1f1f] rounded-xl px-4 py-3 mb-4 flex items-center justify-between">
                 <div>
-                  <div className="text-2xl font-extrabold text-[#FF6A00] tabular-nums leading-none">
+                  <div className="text-2xl font-extrabold text-[#2D9F6A] tabular-nums leading-none">
                     {formatPrice(finalPrice)}
                   </div>
                   <div className="text-[11px] text-[#525252] font-mono mt-1">
@@ -304,7 +304,7 @@ export default function B2BPortal() {
                   <div className="flex items-center bg-[#171717] border border-[#262626] rounded-lg p-0.5 gap-0.5">
                     {(["USD", "ARS"] as const).map((c) => (
                       <button key={c} onClick={() => setCurrency(c)}
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${currency === c ? "bg-[#FF6A00] text-white" : "text-[#525252] hover:text-[#a3a3a3]"}`}>
+                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${currency === c ? "bg-[#2D9F6A] text-white" : "text-[#525252] hover:text-[#a3a3a3]"}`}>
                         {c}
                       </button>
                     ))}
@@ -365,14 +365,14 @@ export default function B2BPortal() {
                 </button>
                 <span className="flex-1 text-center text-white font-extrabold text-xl">{inCart}</span>
                 <button onClick={() => handleAddToCart(p)}
-                  className="h-11 w-11 bg-[#FF6A00] hover:bg-[#e85c00] text-white rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center">
+                  className="h-11 w-11 bg-[#2D9F6A] hover:bg-[#25835A] text-white rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center">
                   <Plus size={16} />
                 </button>
               </div>
             ) : (
               <button
                 onClick={() => handleAddToCart(p)}
-                className="w-full bg-[#FF6A00] hover:bg-[#e85c00] text-white font-bold h-11 rounded-xl text-sm transition-all active:scale-[0.98]"
+                className="w-full bg-[#2D9F6A] hover:bg-[#25835A] text-white font-bold h-11 rounded-xl text-sm transition-all active:scale-[0.98]"
               >
                 Agregar al carrito
               </button>
@@ -438,12 +438,12 @@ export default function B2BPortal() {
           {/* Carrito */}
           <button
             onClick={() => setCartOpen(true)}
-            className="relative flex items-center gap-2 bg-[#FF6A00] hover:bg-[#FF8C1A] active:scale-95 text-white rounded-xl px-3 py-2 text-sm font-semibold transition-all"
+            className="relative flex items-center gap-2 bg-[#2D9F6A] hover:bg-[#25835A] active:scale-95 text-white rounded-xl px-3 py-2 text-sm font-semibold transition-all"
           >
             <ShoppingCart size={15} />
             <span className="hidden md:inline">Carrito</span>
             {cartCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white text-[#FF6A00] text-[10px] font-black flex items-center justify-center shadow">
+              <span className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white text-[#2D9F6A] text-[10px] font-black flex items-center justify-center shadow">
                 {cartCount > 99 ? "99+" : cartCount}
               </span>
             )}
@@ -452,7 +452,7 @@ export default function B2BPortal() {
           {/* Admin */}
           {isAdmin && (
             <Link to="/admin"
-              className="flex items-center gap-1.5 text-xs text-[#FF6A00] hover:text-white transition px-2.5 py-2 rounded-lg hover:bg-[#1e1e1e]">
+              className="flex items-center gap-1.5 text-xs text-[#2D9F6A] hover:text-white transition px-2.5 py-2 rounded-lg hover:bg-[#1e1e1e]">
               <ShieldCheck size={14} />
               <span className="hidden md:inline">Admin</span>
             </Link>
@@ -477,7 +477,7 @@ export default function B2BPortal() {
             onClick={() => setActiveTab(id as any)}
             className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition ${
               activeTab === id
-                ? "border-[#FF6A00] text-white"
+                ? "border-[#2D9F6A] text-white"
                 : "border-transparent text-[#525252] hover:text-[#a3a3a3]"
             }`}
           >
@@ -536,7 +536,7 @@ export default function B2BPortal() {
                       onClick={() => setCategoryFilter(c)}
                       className={`flex items-center justify-between text-left text-sm px-2.5 py-1.5 rounded-lg transition group ${
                         isActive
-                          ? "bg-[#171717] text-white font-medium border-l-2 border-[#FF6A00]"
+                          ? "bg-[#171717] text-white font-medium border-l-2 border-[#2D9F6A]"
                           : "text-[#737373] hover:text-[#e5e5e5] hover:bg-[#171717] border-l-2 border-transparent"
                       }`}
                     >
@@ -605,7 +605,7 @@ export default function B2BPortal() {
                   <p className="text-sm font-medium text-gray-500">No se encontraron productos</p>
                   {(search || hasActiveFilters) && (
                     <button onClick={clearFilters}
-                      className="mt-3 text-xs text-[#FF6A00] hover:underline">
+                      className="mt-3 text-xs text-[#2D9F6A] hover:underline">
                       Limpiar filtros
                     </button>
                   )}
@@ -637,7 +637,7 @@ export default function B2BPortal() {
                                 className="max-h-28 max-w-full object-contain p-2" />
                             </div>
                             {inCart > 0 && (
-                              <span className="absolute top-2 right-2 h-5 w-5 rounded-full bg-[#FF6A00] text-white text-[10px] font-black flex items-center justify-center shadow">
+                              <span className="absolute top-2 right-2 h-5 w-5 rounded-full bg-[#2D9F6A] text-white text-[10px] font-black flex items-center justify-center shadow">
                                 {inCart}
                               </span>
                             )}
@@ -653,7 +653,7 @@ export default function B2BPortal() {
                             {product.sku && <span className="font-mono ml-1 text-gray-700">· {product.sku}</span>}
                           </p>
                           <div className="mb-2"><StockBadge stock={product.stock} /></div>
-                          <div className="text-lg text-[#FF6A00] font-extrabold leading-tight">
+                          <div className="text-lg text-[#2D9F6A] font-extrabold leading-tight">
                             {formatPrice(finalPrice)}
                           </div>
                           <div className="text-[10px] text-gray-600 font-mono mt-0.5">
@@ -668,7 +668,7 @@ export default function B2BPortal() {
                                 className="flex-1 bg-[#1c1c1c] hover:bg-[#252525] active:scale-95 text-white rounded-lg py-1.5 text-sm font-bold transition-all border border-[#262626]">−</button>
                               <span className="flex items-center justify-center px-3 text-white font-bold text-sm">{inCart}</span>
                               <button onClick={() => handleAddToCart(product)}
-                                className="flex-1 bg-[#FF6A00] hover:bg-[#e85c00] active:scale-95 text-white rounded-lg py-1.5 text-sm font-bold transition-all">+</button>
+                                className="flex-1 bg-[#2D9F6A] hover:bg-[#25835A] active:scale-95 text-white rounded-lg py-1.5 text-sm font-bold transition-all">+</button>
                             </>
                           ) : (
                             <button
@@ -677,7 +677,7 @@ export default function B2BPortal() {
                               className={`w-full font-bold text-sm h-8 rounded-lg transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none ${
                                 wasAdded
                                   ? "bg-green-600 hover:bg-green-600 text-white"
-                                  : "bg-[#FF6A00] hover:bg-[#FF8C1A] text-white"
+                                  : "bg-[#2D9F6A] hover:bg-[#25835A] text-white"
                               }`}
                             >
                               {outOfStock ? "Sin stock" : wasAdded ? "✓ Añadido" : "Añadir"}
@@ -743,7 +743,7 @@ export default function B2BPortal() {
 
                           {/* Price */}
                           <div className="text-right shrink-0 hidden sm:block min-w-[100px]">
-                            <div className="text-base font-extrabold text-[#FF6A00] tabular-nums leading-tight">
+                            <div className="text-base font-extrabold text-[#2D9F6A] tabular-nums leading-tight">
                               {formatPrice(finalPrice)}
                             </div>
                             <div className="text-[10px] text-gray-600 font-mono mt-0.5">
@@ -762,7 +762,7 @@ export default function B2BPortal() {
                               </button>
                               <span className="w-7 text-center text-white font-bold text-sm tabular-nums">{inCart}</span>
                               <button onClick={() => handleAddToCart(product)}
-                                className="h-8 w-8 bg-[#FF6A00] hover:bg-[#e85c00] active:scale-95 text-white rounded-lg text-sm font-bold transition-all flex items-center justify-center">
+                                className="h-8 w-8 bg-[#2D9F6A] hover:bg-[#25835A] active:scale-95 text-white rounded-lg text-sm font-bold transition-all flex items-center justify-center">
                                 <Plus size={12} />
                               </button>
                             </>
@@ -773,7 +773,7 @@ export default function B2BPortal() {
                               className={`text-xs h-8 px-3.5 rounded-lg font-bold transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none whitespace-nowrap ${
                                 wasAdded
                                   ? "bg-green-600/90 text-white"
-                                  : "bg-[#FF6A00] hover:bg-[#e85c00] text-white"
+                                  : "bg-[#2D9F6A] hover:bg-[#25835A] text-white"
                               }`}
                             >
                               {outOfStock ? "Sin stock" : wasAdded ? "✓ Añadido" : "Añadir"}
@@ -796,7 +796,7 @@ export default function B2BPortal() {
                   <ClipboardList size={36} className="mb-3 opacity-20" />
                   <p className="text-sm font-medium text-gray-500">Todavía no hiciste ningún pedido</p>
                   <button onClick={() => setActiveTab("catalog")}
-                    className="mt-3 text-xs text-[#FF6A00] hover:underline">Ver catálogo</button>
+                    className="mt-3 text-xs text-[#2D9F6A] hover:underline">Ver catálogo</button>
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
@@ -823,7 +823,7 @@ export default function B2BPortal() {
                               <span className="text-gray-300 truncate">{p.name}</span>
                               <span className="text-gray-600 shrink-0">×{p.quantity}</span>
                             </div>
-                            <span className="text-[#FF6A00] font-semibold tabular-nums shrink-0 ml-4">
+                            <span className="text-[#2D9F6A] font-semibold tabular-nums shrink-0 ml-4">
                               {formatPrice(p.total_price ?? 0)}
                             </span>
                           </div>
@@ -837,7 +837,7 @@ export default function B2BPortal() {
                             {currency === "USD" ? formatARS(order.total) : formatUSD(order.total)}
                           </div>
                         </div>
-                        <span className="text-lg font-extrabold text-[#FF6A00] tabular-nums">
+                        <span className="text-lg font-extrabold text-[#2D9F6A] tabular-nums">
                           {formatPrice(order.total)}
                         </span>
                       </div>

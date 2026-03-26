@@ -273,7 +273,7 @@ const Admin = () => {
           <img src="/icon.png" alt="Bartez" className="h-8 w-8 object-contain" />
           <div>
             <span className="font-bold text-white text-sm leading-none">Panel Admin</span>
-            <span className="block text-xs text-[#FF6A00] leading-none mt-0.5">Bartez Tecnología</span>
+            <span className="block text-xs text-[#2D9F6A] leading-none mt-0.5">Bartez Tecnología</span>
           </div>
         </div>
 
@@ -301,7 +301,7 @@ const Admin = () => {
             onClick={() => setActiveTab(id)}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition ${
               activeTab === id
-                ? "border-[#FF6A00] text-white"
+                ? "border-[#2D9F6A] text-white"
                 : "border-transparent text-[#525252] hover:text-[#a3a3a3]"
             }`}
           >
@@ -310,7 +310,7 @@ const Admin = () => {
             {badge !== undefined && (
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                 id === "orders" && pendingOrders > 0
-                  ? "bg-[#FF6A00] text-white"
+                  ? "bg-[#2D9F6A] text-white"
                   : "bg-[#1c1c1c] text-[#525252]"
               }`}>
                 {badge}
@@ -329,8 +329,8 @@ const Admin = () => {
             {/* ── Cotización del dólar ── */}
             <div className="bg-[#111] border border-[#1f1f1f] rounded-xl px-5 py-4 flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-2 shrink-0">
-                <div className="h-8 w-8 rounded-lg bg-[#FF6A00]/10 border border-[#FF6A00]/20 flex items-center justify-center">
-                  <DollarSign size={14} className="text-[#FF6A00]" />
+                <div className="h-8 w-8 rounded-lg bg-[#2D9F6A]/10 border border-[#2D9F6A]/20 flex items-center justify-center">
+                  <DollarSign size={14} className="text-[#2D9F6A]" />
                 </div>
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Cotización USD</p>
@@ -348,7 +348,7 @@ const Admin = () => {
                     type="number"
                     value={rateInput}
                     onChange={(e) => setRateInput(e.target.value)}
-                    className="w-28 bg-[#0d0d0d] border border-[#FF6A00]/40 rounded-lg px-2 py-1 text-white text-sm font-mono outline-none focus:border-[#FF6A00]"
+                    className="w-28 bg-[#0d0d0d] border border-[#2D9F6A]/40 rounded-lg px-2 py-1 text-white text-sm font-mono outline-none focus:border-[#2D9F6A]"
                     autoFocus
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
@@ -420,7 +420,7 @@ const Admin = () => {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-sm font-bold text-white">Importar CSV</h2>
                   <button onClick={downloadSampleCSV}
-                    className="text-xs text-gray-400 hover:text-[#FF6A00] transition flex items-center gap-1">
+                    className="text-xs text-gray-400 hover:text-[#2D9F6A] transition flex items-center gap-1">
                     ↓ Descargar CSV de ejemplo
                   </button>
                 </div>
@@ -455,7 +455,7 @@ const Admin = () => {
                   ))}
                 </select>
                 <button onClick={addCategory} disabled={savingCat || !newCatName.trim()}
-                  className="bg-[#FF6A00] hover:bg-[#FF8C1A] text-white text-sm font-bold px-4 rounded-lg transition disabled:opacity-40">
+                  className="bg-[#2D9F6A] hover:bg-[#25835A] text-white text-sm font-bold px-4 rounded-lg transition disabled:opacity-40">
                   + Agregar
                 </button>
               </div>
@@ -555,7 +555,7 @@ const Admin = () => {
 
                 <div className="flex justify-between font-bold text-base mb-5 pt-2 border-t border-[#333]">
                   <span className="text-gray-400">Total</span>
-                  <span className="text-[#FF6A00]">${selectedOrder.total.toLocaleString()}</span>
+                  <span className="text-[#2D9F6A]">${selectedOrder.total.toLocaleString()}</span>
                 </div>
 
                 {selectedOrder.status === "pending" && (
@@ -586,7 +586,7 @@ const Admin = () => {
               <p className="text-sm text-gray-500">Editá el tipo y margen de cada cliente.</p>
               <button
                 onClick={() => { setShowNewClient(true); setCreateError(""); }}
-                className="flex items-center gap-2 bg-[#FF6A00] hover:bg-[#FF8C1A] text-white text-sm font-bold px-4 py-2 rounded-lg transition"
+                className="flex items-center gap-2 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-sm font-bold px-4 py-2 rounded-lg transition"
               >
                 <UserPlus size={15} /> Nuevo Cliente
               </button>
@@ -619,7 +619,7 @@ const Admin = () => {
                             className="flex-1 bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040] font-mono placeholder:text-[#404040]"
                             placeholder="Mínimo 6 caracteres" />
                           <button type="button" onClick={generatePassword}
-                            className="shrink-0 bg-[#2a2a2a] hover:bg-[#333] text-[#FF6A00] text-xs font-bold px-3 rounded-lg border border-[#333] transition">
+                            className="shrink-0 bg-[#2a2a2a] hover:bg-[#333] text-[#2D9F6A] text-xs font-bold px-3 rounded-lg border border-[#333] transition">
                             Generar
                           </button>
                         </div>
@@ -675,7 +675,7 @@ const Admin = () => {
                     <button
                       onClick={handleCreateClient}
                       disabled={creatingClient}
-                      className="w-full bg-[#FF6A00] hover:bg-[#FF8C1A] text-white font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-50"
+                      className="w-full bg-[#2D9F6A] hover:bg-[#25835A] text-white font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-50"
                     >
                       {creatingClient ? "Creando..." : "Crear Cliente"}
                     </button>
@@ -749,12 +749,12 @@ const Admin = () => {
                                   type="number" min="0" max="100"
                                   value={currentMargin}
                                   onChange={(e) => updateEdit(client.id, "default_margin", Number(e.target.value))}
-                                  className="w-16 bg-[#181818] border border-[#333] rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-[#FF6A00] text-center"
+                                  className="w-16 bg-[#181818] border border-[#333] rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-[#2D9F6A] text-center"
                                 />
                                 <span className="text-xs text-gray-500">%</span>
                               </div>
                             ) : (
-                              <span className="font-semibold text-[#FF6A00]">{client.default_margin}%</span>
+                              <span className="font-semibold text-[#2D9F6A]">{client.default_margin}%</span>
                             )}
                           </td>
 
@@ -762,7 +762,7 @@ const Admin = () => {
                           <td className="px-4 py-3">
                             <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${
                               client.role === "admin"
-                                ? "bg-[#FF6A00]/15 text-[#FF6A00] border-[#FF6A00]/30"
+                                ? "bg-[#2D9F6A]/15 text-[#2D9F6A] border-[#2D9F6A]/30"
                                 : "bg-[#2a2a2a] text-gray-400 border-[#333]"
                             }`}>
                               {client.role === "admin" ? "Admin" : "Cliente"}
@@ -777,7 +777,7 @@ const Admin = () => {
                                   <button
                                     onClick={() => saveClient(client.id)}
                                     disabled={savingClient === client.id}
-                                    className="flex items-center gap-1 text-xs bg-[#FF6A00] text-white px-2.5 py-1 rounded-lg font-semibold disabled:opacity-50 transition hover:bg-[#FF8C1A]"
+                                    className="flex items-center gap-1 text-xs bg-[#2D9F6A] text-white px-2.5 py-1 rounded-lg font-semibold disabled:opacity-50 transition hover:bg-[#25835A]"
                                   >
                                     <Save size={12} />
                                     {savingClient === client.id ? "Guardando..." : "Guardar"}

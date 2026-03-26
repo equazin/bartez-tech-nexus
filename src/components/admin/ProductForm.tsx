@@ -14,7 +14,7 @@ interface Category { id: number; name: string; parent_id: number | null; }
 interface Spec { key: string; value: string; }
 
 const INPUT =
-  "w-full bg-[#141414] border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#FF6A00] transition placeholder:text-gray-600";
+  "w-full bg-[#141414] border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A] transition placeholder:text-gray-600";
 const LABEL = "block text-xs font-medium text-gray-400 mb-1";
 const SECTION = "bg-[#1a1a1a] border border-[#242424] rounded-xl p-4 space-y-3";
 const SECTION_TITLE = "flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3";
@@ -277,7 +277,7 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
           onDragLeave={() => setDragging(false)}
           onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleImageFile(f); }}
           className={`relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed cursor-pointer transition h-40 ${
-            dragging ? "border-[#FF6A00] bg-[#FF6A00]/5" : "border-[#2a2a2a] hover:border-[#FF6A00]/40 bg-[#141414]"
+            dragging ? "border-[#2D9F6A] bg-[#2D9F6A]/5" : "border-[#2a2a2a] hover:border-[#2D9F6A]/40 bg-[#141414]"
           }`}
         >
           {imagePreview ? (
@@ -361,13 +361,13 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
         </div>
         {/* Visual cost preview */}
         {adjustedCost && (
-          <div className="flex items-center gap-3 bg-[#FF6A00]/5 border border-[#FF6A00]/20 rounded-lg px-3 py-2.5 text-xs">
-            <BarChart2 size={14} className="text-[#FF6A00] shrink-0" />
+          <div className="flex items-center gap-3 bg-[#2D9F6A]/5 border border-[#2D9F6A]/20 rounded-lg px-3 py-2.5 text-xs">
+            <BarChart2 size={14} className="text-[#2D9F6A] shrink-0" />
             <span className="text-gray-400">Costo base</span>
             <span className="font-mono text-white">${Number(costPrice).toLocaleString("es-AR")}</span>
             <span className="text-gray-600">×{supplierMult}</span>
             <span className="text-gray-400">=</span>
-            <span className="font-mono text-[#FF6A00] font-bold">${Number(adjustedCost).toLocaleString("es-AR")}</span>
+            <span className="font-mono text-[#2D9F6A] font-bold">${Number(adjustedCost).toLocaleString("es-AR")}</span>
             <span className="text-gray-500 ml-auto">costo ajustado (referencia)</span>
           </div>
         )}
@@ -399,7 +399,7 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
         {/* Add new category inline */}
         {!addingCat ? (
           <button type="button" onClick={() => setAddingCat(true)}
-            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#FF6A00] transition">
+            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#2D9F6A] transition">
             <Plus size={12} /> Crear nueva categoría
           </button>
         ) : (
@@ -409,7 +409,7 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddCategory(); } }}
               className={`${INPUT} flex-1`} />
             <button type="button" onClick={handleAddCategory}
-              className="px-3 py-2 bg-[#FF6A00] hover:bg-[#FF8C1A] text-white text-xs rounded-lg transition">
+              className="px-3 py-2 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-xs rounded-lg transition">
               Crear
             </button>
             <button type="button" onClick={() => { setAddingCat(false); setNewCatName(""); }}
@@ -458,7 +458,7 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
         <div className="flex items-center justify-between mb-3">
           <p className={`${SECTION_TITLE} mb-0`}><Cpu size={12} /> Especificaciones técnicas</p>
           <button type="button" onClick={addSpec}
-            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#FF6A00] transition">
+            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#2D9F6A] transition">
             <Plus size={12} /> Agregar campo
           </button>
         </div>
@@ -488,7 +488,7 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
         <div className={`${INPUT} flex flex-wrap gap-1.5 min-h-[42px] cursor-text`}
           onClick={() => document.getElementById("tag-input")?.focus()}>
           {tags.map((t) => (
-            <span key={t} className="flex items-center gap-1 bg-[#FF6A00]/15 text-[#FF6A00] text-xs px-2 py-0.5 rounded-full border border-[#FF6A00]/30">
+            <span key={t} className="flex items-center gap-1 bg-[#2D9F6A]/15 text-[#2D9F6A] text-xs px-2 py-0.5 rounded-full border border-[#2D9F6A]/30">
               {t}
               <button type="button" onClick={() => setTags((p) => p.filter((x) => x !== t))}
                 className="hover:text-white transition"><X size={10} /></button>
@@ -513,7 +513,7 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
       {/* ── Actions ── */}
       <div className="flex items-center gap-3 pt-1">
         <button type="submit" disabled={saving || !!errors.sku}
-          className="flex items-center gap-2 bg-[#FF6A00] hover:bg-[#FF8C1A] disabled:opacity-50 text-white font-semibold text-sm px-5 py-2.5 rounded-lg transition">
+          className="flex items-center gap-2 bg-[#2D9F6A] hover:bg-[#25835A] disabled:opacity-50 text-white font-semibold text-sm px-5 py-2.5 rounded-lg transition">
           {saving && <Loader2 size={14} className="animate-spin" />}
           {saving ? "Guardando..." : "Guardar producto"}
         </button>
