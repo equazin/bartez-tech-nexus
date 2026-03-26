@@ -37,24 +37,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     return res.status(200).json({ ok: true });
-  } catch (e: any) {
-    return res.status(500).json({ ok: false, error: e?.message || "Error" });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "Error";
+    return res.status(500).json({ ok: false, error: message });
   }
-}
-
-try {
-
-  await fetch("https://script.google.com/macros/s/AKfycbxlRVccJ9cCgbrjWFCu6sWmkG90HCZO1izY0e26dnla9xZMBiT0wpZvmWgt-G_P8svC/exec", {
-    method: "POST",
-    body: JSON.stringify({
-      name,
-      email,
-      phone,
-      company,
-      message
-    })
-  })
-
-} catch (err) {
-  console.log("Error guardando lead en CRM:", err)
 }
