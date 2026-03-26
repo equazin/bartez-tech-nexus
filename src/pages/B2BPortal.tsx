@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { CartDrawer } from "@/components/CartDrawer";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useProducts } from "@/hooks/useProducts";
@@ -15,7 +14,7 @@ import {
   ClipboardList, CheckCircle2, XCircle, Clock, X, Plus, Minus,
   ShieldCheck, Check, AlertTriangle, AlertCircle, SlidersHorizontal,
   Star, Sun, Moon, ChevronDown, ChevronRight, FileText,
-  Table2, Zap, Truck, ChevronUp, Download,
+  Table2, Zap, Truck, ChevronUp, Download, Upload,
 } from "lucide-react";
 import { getUnitPrice, getAvailableStock } from "@/lib/pricing";
 import { nextOrderNumber } from "@/lib/orderNumber";
@@ -24,6 +23,12 @@ import { getSavedCarts, saveCart, deleteSavedCart, type SavedCart } from "@/lib/
 import { useNotifications } from "@/hooks/useNotifications";
 import ProductCompare from "@/components/ProductCompare";
 import { Link } from "react-router-dom";
+import {
+  addOrderProof,
+  getOrderProofs,
+  uploadPaymentProof,
+  type PaymentProofType,
+} from "@/lib/orderEnhancements";
 
 type CartItem = {
   product: any;
@@ -109,7 +114,7 @@ export default function B2BPortal() {
   const navigate = useNavigate();
   const { profile, isAdmin, signOut } = useAuth();
   const { products, loading: productsLoading } = useProducts();
-  const { orders, addOrder } = useOrders();
+  const { orders, addOrder, updateOrder } = useOrders();
   const { quotes, addQuote, updateStatus: updateQuoteStatus, deleteQuote } = useQuotes(profile?.id || "guest");
   const { currency, setCurrency, formatPrice, formatUSD, formatARS, exchangeRate } = useCurrency();
 
@@ -140,11 +145,19 @@ export default function B2BPortal() {
   const [savedCarts, setSavedCarts] = useState<SavedCart[]>(() =>
     getSavedCarts(profile?.id || "guest")
   );
-  const [cartOpen, setCartOpen] = useState(false);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
+  const [orderProofs, setOrderProofs] = useState<Record<string, ReturnType<typeof getOrderProofs>>>({});
+  const [proofForm, setProofForm] = useState<Record<string, {
+    type: PaymentProofType;
+    amount: string;
+    date: string;
+    file: File | null;
+    uploading: boolean;
+    error: string;
+  }>>({});
 
   // ─── DB CATEGORIES (hierarchy) ────────────────────────────────────────
   type DbCat = { id: number; name: string; parent_id: number | null };
@@ -296,6 +309,21 @@ export default function B2BPortal() {
     return map;
   }, [orders]);
 
+  const latestPurchaseUnitPrice = useMemo(() => {
+    const map: Record<number, number> = {};
+    const sorted = [...orders].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    for (const order of sorted) {
+      for (const p of order.products) {
+        if (map[p.product_id] == null && p.unit_price != null) {
+          map[p.product_id] = p.unit_price;
+        }
+      }
+    }
+    return map;
+  }, [orders]);
+
   // In-app notifications (order status, price, stock changes)
   useNotifications(profile?.id, orders, products);
 
@@ -316,7 +344,7 @@ export default function B2BPortal() {
   function handleLoadSavedCart(sc: SavedCart) {
     setCart(sc.items);
     setProductMargins(sc.margins);
-    setCartOpen(true);
+    navigate("/cart");
   }
 
   function handleDeleteSavedCart(cartId: string) {
@@ -435,7 +463,6 @@ export default function B2BPortal() {
     if (!error) {
       setOrderSuccess(true);
       setCart({});
-      setCartOpen(false);
       setActiveTab("orders");
       setTimeout(() => setOrderSuccess(false), 5000);
     }
@@ -466,7 +493,6 @@ export default function B2BPortal() {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
-    setCartOpen(false);
     setActiveTab("quotes");
   }
 
@@ -479,7 +505,7 @@ export default function B2BPortal() {
     });
     setCart(newCart);
     setProductMargins(newMargins);
-    setCartOpen(true);
+    navigate("/cart");
     setActiveTab("catalog");
   }
 
@@ -493,8 +519,64 @@ export default function B2BPortal() {
       if (qty > 0) newCart[p.product_id] = qty;
     }
     setCart(newCart);
-    setCartOpen(true);
+    navigate("/cart");
     setActiveTab("catalog");
+  }
+
+  useEffect(() => {
+    const map: Record<string, ReturnType<typeof getOrderProofs>> = {};
+    orders.forEach((o) => {
+      map[String(o.id)] = getOrderProofs(String(o.id));
+    });
+    setOrderProofs(map);
+  }, [orders]);
+
+  async function handleUploadProof(orderId: string) {
+    const form = proofForm[orderId];
+    if (!form || !form.file || !profile?.id) return;
+
+    setProofForm((prev) => ({
+      ...prev,
+      [orderId]: { ...form, uploading: true, error: "" },
+    }));
+
+    try {
+      const { filePath, publicUrl } = await uploadPaymentProof(profile.id, orderId, form.file);
+      const proof = {
+        orderId,
+        type: form.type,
+        amount: Number(form.amount) || 0,
+        date: form.date || new Date().toISOString().slice(0, 10),
+        filePath,
+        publicUrl,
+        uploadedAt: new Date().toISOString(),
+      };
+      addOrderProof(orderId, proof);
+      const current = getOrderProofs(orderId);
+      setOrderProofs((prev) => ({ ...prev, [orderId]: current }));
+
+      const { error: updateErr } = await updateOrder(orderId, { payment_proofs: current as unknown[] });
+      if (updateErr) {
+        setProofForm((prev) => ({
+          ...prev,
+          [orderId]: {
+            ...prev[orderId],
+            error: "Comprobante subido, pero no se pudo sincronizar en la orden.",
+          },
+        }));
+      }
+
+      setProofForm((prev) => ({
+        ...prev,
+        [orderId]: { ...prev[orderId], file: null, amount: "", uploading: false },
+      }));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "No se pudo subir el comprobante";
+      setProofForm((prev) => ({
+        ...prev,
+        [orderId]: { ...prev[orderId], uploading: false, error: message },
+      }));
+    }
   }
 
   const handleLogout = async () => { await signOut(); navigate("/login"); };
@@ -821,7 +903,7 @@ export default function B2BPortal() {
 
           {/* Carrito */}
           <button
-            onClick={() => setCartOpen(true)}
+            onClick={() => navigate("/cart")}
             className="relative flex items-center gap-2 bg-[#2D9F6A] hover:bg-[#25835A] active:scale-95 text-white rounded-xl px-3 py-2 text-sm font-semibold transition-all"
           >
             <ShoppingCart size={15} />
@@ -1133,6 +1215,10 @@ export default function B2BPortal() {
                     const available = getAvailableStock(product);
                     const outOfStock = available === 0;
                     const wasAdded = addedIds.has(product.id);
+                    const lastUnit = latestPurchaseUnitPrice[product.id];
+                    const deltaPct = lastUnit
+                      ? ((finalPrice - lastUnit) / lastUnit) * 100
+                      : 0;
 
                     return (
                       <div
@@ -1188,6 +1274,11 @@ export default function B2BPortal() {
                             {formatPrice(finalPrice)}
                           </div>
                           <div className={`text-[10px] ${dk("text-[#525252]", "text-[#a3a3a3]")} mt-0.5`}>sin IVA · {product.iva_rate ?? 21}%</div>
+                          {lastUnit && deltaPct > 0 && (
+                            <div className="mt-1 text-[10px] font-semibold text-amber-500">
+                              ↑ Este producto aumentó {deltaPct.toFixed(1)}% desde tu última compra
+                            </div>
+                          )}
                         </div>
 
                         <div className="mt-3 flex gap-1.5">
@@ -1229,6 +1320,10 @@ export default function B2BPortal() {
                     const available = getAvailableStock(product);
                     const outOfStock = available === 0;
                     const wasAdded = addedIds.has(product.id);
+                    const lastUnit = latestPurchaseUnitPrice[product.id];
+                    const deltaPct = lastUnit
+                      ? ((finalPrice - lastUnit) / lastUnit) * 100
+                      : 0;
 
                     return (
                       <div
@@ -1282,6 +1377,11 @@ export default function B2BPortal() {
                               {formatPrice(finalPrice)}
                             </div>
                             <div className={`text-[10px] ${dk("text-[#525252]", "text-[#a3a3a3]")} mt-0.5`}>sin IVA · {product.iva_rate ?? 21}%</div>
+                          {lastUnit && deltaPct > 0 && (
+                            <div className="text-[10px] font-semibold text-amber-500">
+                              ↑ +{deltaPct.toFixed(1)}% vs última compra
+                            </div>
+                          )}
                           </div>
                         </div>
 
@@ -1354,6 +1454,10 @@ export default function B2BPortal() {
                         const outOfStock = available === 0;
                         const wasAdded = addedIds.has(product.id);
                         const hasTiers = product.price_tiers && product.price_tiers.length > 1;
+                        const lastUnit = latestPurchaseUnitPrice[product.id];
+                        const deltaPct = lastUnit
+                          ? ((finalPrice - lastUnit) / lastUnit) * 100
+                          : 0;
                         return (
                           <tr
                             key={product.id}
@@ -1388,6 +1492,9 @@ export default function B2BPortal() {
                             <td className="px-3 py-2 text-right tabular-nums">
                               <span className="text-sm font-bold text-[#2D9F6A]">{formatPrice(finalPrice)}</span>
                               <span className={`block text-[10px] ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>+{product.iva_rate ?? 21}% IVA</span>
+                              {lastUnit && deltaPct > 0 && (
+                                <span className="block text-[10px] font-semibold text-amber-500">↑ +{deltaPct.toFixed(1)}%</span>
+                              )}
                             </td>
                             <td className="px-3 py-2 text-right">
                               {inCart > 0 ? (
@@ -1525,6 +1632,115 @@ export default function B2BPortal() {
                                 {formatPrice(order.total)}
                               </span>
                             </div>
+                            <div className={`border-t ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")} px-5 py-3`}>
+                              <p className={`text-[11px] font-semibold mb-2 ${dk("text-gray-400", "text-[#525252]")}`}>
+                                Comprobantes de pago
+                              </p>
+                              <div className="grid grid-cols-1 md:grid-cols-[120px_120px_140px_1fr_auto] gap-2">
+                                <select
+                                  value={proofForm[orderId]?.type ?? "transferencia"}
+                                  onChange={(e) =>
+                                    setProofForm((prev) => ({
+                                      ...prev,
+                                      [orderId]: {
+                                        type: e.target.value as PaymentProofType,
+                                        amount: prev[orderId]?.amount ?? "",
+                                        date: prev[orderId]?.date ?? new Date().toISOString().slice(0, 10),
+                                        file: prev[orderId]?.file ?? null,
+                                        uploading: false,
+                                        error: "",
+                                      },
+                                    }))
+                                  }
+                                  className={`text-xs rounded-lg border px-2 py-1.5 ${dk("bg-[#111] border-[#262626] text-gray-300", "bg-white border-[#e5e5e5] text-[#525252]")}`}
+                                >
+                                  <option value="transferencia">Transferencia</option>
+                                  <option value="echeq">Echeq</option>
+                                </select>
+                                <input
+                                  type="number"
+                                  placeholder="Monto"
+                                  value={proofForm[orderId]?.amount ?? ""}
+                                  onChange={(e) =>
+                                    setProofForm((prev) => ({
+                                      ...prev,
+                                      [orderId]: {
+                                        type: prev[orderId]?.type ?? "transferencia",
+                                        amount: e.target.value,
+                                        date: prev[orderId]?.date ?? new Date().toISOString().slice(0, 10),
+                                        file: prev[orderId]?.file ?? null,
+                                        uploading: false,
+                                        error: "",
+                                      },
+                                    }))
+                                  }
+                                  className={`text-xs rounded-lg border px-2 py-1.5 ${dk("bg-[#111] border-[#262626] text-gray-300", "bg-white border-[#e5e5e5] text-[#525252]")}`}
+                                />
+                                <input
+                                  type="date"
+                                  value={proofForm[orderId]?.date ?? new Date().toISOString().slice(0, 10)}
+                                  onChange={(e) =>
+                                    setProofForm((prev) => ({
+                                      ...prev,
+                                      [orderId]: {
+                                        type: prev[orderId]?.type ?? "transferencia",
+                                        amount: prev[orderId]?.amount ?? "",
+                                        date: e.target.value,
+                                        file: prev[orderId]?.file ?? null,
+                                        uploading: false,
+                                        error: "",
+                                      },
+                                    }))
+                                  }
+                                  className={`text-xs rounded-lg border px-2 py-1.5 ${dk("bg-[#111] border-[#262626] text-gray-300", "bg-white border-[#e5e5e5] text-[#525252]")}`}
+                                />
+                                <input
+                                  type="file"
+                                  accept=".pdf,image/*"
+                                  onChange={(e) =>
+                                    setProofForm((prev) => ({
+                                      ...prev,
+                                      [orderId]: {
+                                        type: prev[orderId]?.type ?? "transferencia",
+                                        amount: prev[orderId]?.amount ?? "",
+                                        date: prev[orderId]?.date ?? new Date().toISOString().slice(0, 10),
+                                        file: e.target.files?.[0] ?? null,
+                                        uploading: false,
+                                        error: "",
+                                      },
+                                    }))
+                                  }
+                                  className={`text-xs rounded-lg border px-2 py-1.5 ${dk("bg-[#111] border-[#262626] text-gray-400", "bg-white border-[#e5e5e5] text-[#737373]")}`}
+                                />
+                                <button
+                                  onClick={() => handleUploadProof(orderId)}
+                                  disabled={proofForm[orderId]?.uploading}
+                                  className="inline-flex items-center justify-center gap-1 rounded-lg bg-[#2D9F6A] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                                >
+                                  <Upload size={12} />
+                                  {proofForm[orderId]?.uploading ? "Subiendo..." : "Subir"}
+                                </button>
+                              </div>
+                              {proofForm[orderId]?.error && (
+                                <p className="mt-1 text-[11px] text-red-400">{proofForm[orderId]?.error}</p>
+                              )}
+                              {(orderProofs[orderId] ?? []).length > 0 && (
+                                <div className="mt-2 space-y-1">
+                                  {(orderProofs[orderId] ?? []).map((proof) => (
+                                    <a
+                                      key={`${proof.filePath}-${proof.uploadedAt}`}
+                                      href={proof.publicUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className={`flex items-center justify-between rounded-lg border px-2 py-1 text-[11px] ${dk("border-[#262626] text-gray-300 hover:bg-[#111]", "border-[#e5e5e5] text-[#525252] hover:bg-[#fafafa]")}`}
+                                    >
+                                      <span>{proof.type} · {new Date(proof.date).toLocaleDateString("es-AR")} · {formatPrice(proof.amount)}</span>
+                                      <span className="text-[#2D9F6A] font-semibold">Ver</span>
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </>
                         )}
                       </div>
@@ -1537,29 +1753,6 @@ export default function B2BPortal() {
 
         </main>
       </div>
-
-      {/* CARRITO */}
-      <CartDrawer
-        open={cartOpen}
-        onClose={() => setCartOpen(false)}
-        cartItems={cartItems}
-        cartSubtotal={cartSubtotal}
-        cartIVATotal={cartIVATotal}
-        cartTotal={cartTotal}
-        globalMargin={globalMargin}
-        profile={profile}
-        onAddToCart={handleAddToCart}
-        onRemoveFromCart={onRemoveFromCart}
-        onMarginChange={onMarginChange}
-        onConfirmOrder={handleConfirmOrder}
-        onSaveQuote={handleSaveQuote}
-        confirming={orderSubmitting}
-        savedCarts={savedCarts}
-        creditUsed={creditUsed}
-        onSaveNamedCart={handleSaveNamedCart}
-        onLoadSavedCart={handleLoadSavedCart}
-        onDeleteSavedCart={handleDeleteSavedCart}
-      />
 
       {/* COMPARADOR PRODUCTOS */}
       {compareList.length > 0 && (
