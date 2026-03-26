@@ -12,9 +12,17 @@ import {
   CheckCircle2, XCircle, Clock, Trash2, RefreshCw, Save,
   Users, Package, ClipboardList, LogOut, ShieldCheck, UserPlus, X,
   DollarSign, Pencil, Check, LayoutDashboard, Sun, Moon, Phone,
+  Truck, Download, Building2, Tag, BarChart2, Activity,
 } from "lucide-react";
+import { exportOrdersCSV, exportCatalogCSV, exportCatalogPDF } from "@/lib/exports";
 import { SalesDashboard } from "@/components/admin/SalesDashboard";
 import { ClientCRM } from "@/components/admin/ClientCRM";
+import OrderKanban, { type KanbanStatus, type KanbanOrder } from "@/components/admin/OrderKanban";
+import { SuppliersTab } from "@/components/admin/SuppliersTab";
+import { PricingRulesTab } from "@/components/admin/PricingRulesTab";
+import { ReportsTab } from "@/components/admin/ReportsTab";
+import { ActivityLogTab } from "@/components/admin/ActivityLogTab";
+import { PriceStockImport } from "@/components/admin/PriceStockImport";
 
 interface SupabaseOrder {
   id: string;
@@ -22,6 +30,8 @@ interface SupabaseOrder {
   products: any[];
   total: number;
   status: string;
+  order_number?: string;
+  numero_remito?: string;
   created_at: string;
 }
 
@@ -42,9 +52,13 @@ const CLIENT_TYPE_LABELS: Record<ClientType, string> = {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; icon: any; className: string }> = {
-    pending:  { label: "En revisión", icon: Clock,         className: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" },
-    approved: { label: "Aprobado",    icon: CheckCircle2,  className: "bg-green-500/15 text-green-400 border-green-500/30" },
-    rejected: { label: "Rechazado",   icon: XCircle,       className: "bg-red-500/15 text-red-400 border-red-500/30" },
+    pending:    { label: "En revisión", icon: Clock,        className: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" },
+    approved:   { label: "Aprobado",    icon: CheckCircle2, className: "bg-green-500/15 text-green-400 border-green-500/30" },
+    preparing:  { label: "Preparando", icon: Package,      className: "bg-orange-500/15 text-orange-400 border-orange-500/30" },
+    shipped:    { label: "Enviado",     icon: Truck,        className: "bg-indigo-500/15 text-indigo-400 border-indigo-500/30" },
+    delivered:  { label: "Entregado",  icon: CheckCircle2, className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
+    rejected:   { label: "Rechazado",  icon: XCircle,      className: "bg-red-500/15 text-red-400 border-red-500/30" },
+    dispatched: { label: "Despachado", icon: Truck,        className: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
   };
   const { label, icon: Icon, className } = map[status] ?? map.pending;
   return (
@@ -54,10 +68,10 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-type Tab = "dashboard" | "products" | "orders" | "clients";
+type Tab = "dashboard" | "products" | "orders" | "kanban" | "clients" | "suppliers" | "pricing" | "reports" | "activity";
 
 const Admin = () => {
-  const { signOut } = useAuth();
+  const { signOut, session, isAdmin, canManageProducts, canManageOrders } = useAuth();
   const navigate = useNavigate();
   const { exchangeRate, setExchangeRate, fetchExchangeRate, formatPrice, formatARS, formatUSD, currency } = useCurrency();
 
@@ -100,7 +114,7 @@ const Admin = () => {
   const [editingClients, setEditingClients] = useState<Record<string, Partial<ClientProfile>>>({});
   const [savingClient, setSavingClient] = useState<string | null>(null);
   const [showNewClient, setShowNewClient] = useState(false);
-  const [newClient, setNewClient] = useState({ email: "", password: "", phone: "", company_name: "", contact_name: "", client_type: "reseller" as ClientType, default_margin: 20, role: "client" as "client" | "admin" });
+  const [newClient, setNewClient] = useState({ email: "", password: "", phone: "", company_name: "", contact_name: "", client_type: "reseller" as ClientType, default_margin: 20, role: "client" as "client" | "cliente" | "admin" | "vendedor" });
   const [creatingClient, setCreatingClient] = useState(false);
   const [createError, setCreateError] = useState("");
 
@@ -127,6 +141,8 @@ const Admin = () => {
     URL.revokeObjectURL(url);
   }
   const [selectedOrder, setSelectedOrder] = useState<SupabaseOrder | null>(null);
+  const [remitoInput, setRemitoInput] = useState("");
+  const [dispatchingOrder, setDispatchingOrder] = useState(false);
   const [importResult, setImportResult] = useState<{ imported: number; errors: string[] } | null>(null);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [loadingOrders, setLoadingOrders] = useState(true);
@@ -296,14 +312,56 @@ const Admin = () => {
     }
   }
 
+  async function dispatchOrder(orderId: string, numeroRemito: string) {
+    if (!numeroRemito.trim()) return;
+    setDispatchingOrder(true);
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: "dispatched", numero_remito: numeroRemito.trim(), updated_at: new Date().toISOString() })
+      .eq("id", orderId);
+    setDispatchingOrder(false);
+    if (!error) {
+      const updated = { status: "dispatched", numero_remito: numeroRemito.trim() };
+      setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, ...updated } : o));
+      if (selectedOrder?.id === orderId) setSelectedOrder((o) => o ? { ...o, ...updated } : o);
+      setRemitoInput("");
+    }
+  }
+
+  async function updateOrderStatusKanban(orderId: string, newStatus: KanbanStatus) {
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq("id", orderId);
+    if (!error) {
+      setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: newStatus } : o));
+      if (selectedOrder?.id === orderId) setSelectedOrder((o) => o ? { ...o, status: newStatus } : o);
+    }
+  }
+
   const handleLogout = async () => { await signOut(); navigate("/login"); };
 
-  const tabs: { id: Tab; label: string; icon: any; badge?: number }[] = [
-    { id: "dashboard", label: "Dashboard",  icon: LayoutDashboard },
-    { id: "products",  label: "Productos",  icon: Package,       badge: products.length },
-    { id: "orders",    label: "Pedidos",    icon: ClipboardList, badge: pendingOrders || undefined },
-    { id: "clients",   label: "Clientes",   icon: Users,         badge: clients.length },
+  const userId = session?.user?.id;
+  const categoryNames = categories.map((c) => c.name);
+
+  const allTabs: { id: Tab; label: string; icon: any; badge?: number; adminOnly?: boolean; manageProducts?: boolean; manageOrders?: boolean }[] = [
+    { id: "dashboard",  label: "Dashboard",  icon: LayoutDashboard },
+    { id: "products",   label: "Productos",  icon: Package,       badge: products.length, manageProducts: true },
+    { id: "orders",     label: "Pedidos",    icon: ClipboardList, badge: pendingOrders || undefined, manageOrders: true },
+    { id: "kanban",     label: "Kanban",     icon: LayoutDashboard, manageOrders: true },
+    { id: "clients",    label: "Clientes",   icon: Users,         badge: clients.length, adminOnly: true },
+    { id: "suppliers",  label: "Proveedores",icon: Building2,     adminOnly: true },
+    { id: "pricing",    label: "Precios",    icon: Tag,           adminOnly: true },
+    { id: "reports",    label: "Reportes",   icon: BarChart2,     adminOnly: true },
+    { id: "activity",   label: "Actividad",  icon: Activity,      adminOnly: true },
   ];
+
+  const tabs = allTabs.filter((t) => {
+    if (t.adminOnly) return isAdmin;
+    if (t.manageProducts) return canManageProducts;
+    if (t.manageOrders) return canManageOrders;
+    return true;
+  });
 
   return (
     <div className={`flex min-h-screen flex-col ${dk("bg-[#0a0a0a]", "bg-[#f0f0f0]")}`}>
@@ -535,7 +593,26 @@ const Admin = () => {
                 {Array.from({ length: 6 }).map((_, i) => <div key={i} className={`h-10 ${dk("bg-[#111]", "bg-[#e8e8e8]")} rounded-lg animate-pulse`} />)}
               </div>
             ) : (
-              <ProductTable isDark={isDark} products={products} categories={categories} onRefresh={fetchProducts} />
+              <>
+                {products.length > 0 && (
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className={`text-xs ${dk("text-gray-500", "text-[#737373]")}`}>Exportar catálogo:</span>
+                    <button
+                      onClick={() => exportCatalogCSV(products as any)}
+                      className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition ${dk("text-[#737373] hover:text-white border-[#262626] hover:border-[#333] bg-[#111] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] border-[#e5e5e5] hover:border-[#d4d4d4] bg-white hover:bg-[#f5f5f5]")}`}
+                    >
+                      <Download size={11} /> CSV
+                    </button>
+                    <button
+                      onClick={() => exportCatalogPDF(products as any, formatPrice, currency)}
+                      className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition ${dk("text-[#737373] hover:text-white border-[#262626] hover:border-[#333] bg-[#111] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] border-[#e5e5e5] hover:border-[#d4d4d4] bg-white hover:bg-[#f5f5f5]")}`}
+                    >
+                      <Download size={11} /> PDF
+                    </button>
+                  </div>
+                )}
+                <ProductTable isDark={isDark} products={products} categories={categories} onRefresh={fetchProducts} />
+              </>
             )}
           </div>
         )}
@@ -544,14 +621,24 @@ const Admin = () => {
         {activeTab === "orders" && (
           <div className="grid lg:grid-cols-2 gap-5 max-w-5xl">
             <div className="space-y-3">
-              {/* Currency notice */}
-              <div className={`flex items-start gap-2.5 rounded-xl px-4 py-3 border text-xs ${dk("bg-blue-500/8 border-blue-500/20 text-blue-300", "bg-blue-50 border-blue-200 text-blue-700")}`}>
-                <DollarSign size={13} className="mt-0.5 shrink-0" />
-                <span>
-                  Los importes se muestran en <strong>USD</strong> (moneda base del portal).
-                  El cliente puede confirmar pedidos en ARS — revisá el tipo de cambio vigente.
-                  1 USD = <strong>{exchangeRate.rate.toLocaleString("es-AR")} ARS</strong>
-                </span>
+              {/* Export + Currency notice */}
+              <div className="flex items-center gap-2">
+                <div className={`flex-1 flex items-start gap-2.5 rounded-xl px-4 py-3 border text-xs ${dk("bg-blue-500/8 border-blue-500/20 text-blue-300", "bg-blue-50 border-blue-200 text-blue-700")}`}>
+                  <DollarSign size={13} className="mt-0.5 shrink-0" />
+                  <span>
+                    Los importes se muestran en <strong>USD</strong> (moneda base del portal).
+                    1 USD = <strong>{exchangeRate.rate.toLocaleString("es-AR")} ARS</strong>
+                  </span>
+                </div>
+                {orders.length > 0 && (
+                  <button
+                    onClick={() => exportOrdersCSV(orders as any)}
+                    title="Exportar pedidos a CSV"
+                    className={`flex items-center gap-1.5 text-xs shrink-0 px-3 py-2 rounded-lg border transition ${dk("text-[#737373] hover:text-white border-[#262626] hover:border-[#333] bg-[#111] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] border-[#e5e5e5] hover:border-[#d4d4d4] bg-white hover:bg-[#f5f5f5]")}`}
+                  >
+                    <Download size={12} /> CSV
+                  </button>
+                )}
               </div>
 
               {loadingOrders ? (
@@ -573,7 +660,9 @@ const Admin = () => {
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className={`text-xs font-mono ${dk("text-gray-500", "text-[#737373]")}`}>#{String(order.id).slice(-8)}</span>
+                        <span className={`text-xs font-mono font-bold ${dk("text-gray-300", "text-[#525252]")}`}>
+                          {order.order_number ?? `#${String(order.id).slice(-8)}`}
+                        </span>
                         <StatusBadge status={order.status} />
                       </div>
                       <p className={`text-xs ${dk("text-gray-600", "text-[#a3a3a3]")}`}>
@@ -598,10 +687,19 @@ const Admin = () => {
 
             {selectedOrder && (
               <div className={`border rounded-xl p-6 ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className={`font-bold ${dk("text-white", "text-[#171717]")}`}>Pedido #{String(selectedOrder.id).slice(-8)}</h3>
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className={`font-bold font-mono ${dk("text-white", "text-[#171717]")}`}>
+                    {selectedOrder.order_number ?? `#${String(selectedOrder.id).slice(-8)}`}
+                  </h3>
                   <StatusBadge status={selectedOrder.status} />
                 </div>
+                {selectedOrder.numero_remito && (
+                  <div className={`flex items-center gap-1.5 mb-3 text-xs ${dk("text-blue-400", "text-blue-600")}`}>
+                    <Truck size={11} />
+                    Remito: <span className="font-mono font-bold">{selectedOrder.numero_remito}</span>
+                  </div>
+                )}
+
                 <p className={`text-xs mb-4 ${dk("text-gray-500", "text-[#737373]")}`}>
                   {new Date(selectedOrder.created_at).toLocaleDateString("es-AR", { dateStyle: "full" })}
                 </p>
@@ -680,10 +778,67 @@ const Admin = () => {
                     </div>
                   );
                 })()}
+
+                {/* ── Despacho — available when approved ── */}
+                {selectedOrder.status === "approved" && (
+                  <div className={`mt-4 pt-4 border-t ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")} space-y-2`}>
+                    <p className={`text-xs font-semibold ${dk("text-gray-400", "text-[#737373]")} uppercase tracking-wide`}>Despacho</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Número de remito"
+                        value={remitoInput}
+                        onChange={(e) => setRemitoInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") dispatchOrder(selectedOrder.id, remitoInput); }}
+                        className={`flex-1 border rounded-lg px-3 py-2 text-sm font-mono outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#2D9F6A]/50 placeholder:text-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]/50 placeholder:text-gray-400")}`}
+                      />
+                      <button
+                        onClick={() => dispatchOrder(selectedOrder.id, remitoInput)}
+                        disabled={!remitoInput.trim() || dispatchingOrder}
+                        className="flex items-center gap-1.5 bg-blue-600/80 hover:bg-blue-600 text-white text-sm font-semibold px-4 rounded-lg transition disabled:opacity-40 disabled:pointer-events-none"
+                      >
+                        <Truck size={14} /> {dispatchingOrder ? "..." : "Despachar"}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
+
+        {/* ── KANBAN ── */}
+        {activeTab === "kanban" && (() => {
+          const clientMap: Record<string, string> = {};
+          clients.forEach((c) => { clientMap[c.id] = c.company_name || c.contact_name; });
+          const kanbanOrders: KanbanOrder[] = orders.map((o) => ({
+            id: o.id,
+            order_number: o.order_number,
+            client_name: clientMap[o.client_id] ?? o.client_id?.slice(0, 8),
+            total: o.total,
+            created_at: o.created_at,
+            status: (o.status as KanbanStatus) ?? "pending",
+            products: (o.products ?? []).map((p: any) => ({ name: p.name ?? "—", quantity: p.quantity ?? 1 })),
+          }));
+          return (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>
+                  Kanban de pedidos
+                </h2>
+                <span className={`text-xs ${dk("text-gray-500", "text-[#737373]")}`}>
+                  {orders.length} pedidos · arrastrá para cambiar estado
+                </span>
+              </div>
+              <OrderKanban
+                orders={kanbanOrders}
+                onStatusChange={updateOrderStatusKanban}
+                formatPrice={formatPrice}
+                isDark={isDark}
+              />
+            </div>
+          );
+        })()}
 
         {/* ── CLIENTES ── */}
         {activeTab === "clients" && (
@@ -774,9 +929,11 @@ const Admin = () => {
                       <div className="col-span-2">
                         <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Rol</label>
                         <select value={newClient.role}
-                          onChange={(e) => setNewClient((p) => ({ ...p, role: e.target.value as "client" | "admin" }))}
+                          onChange={(e) => setNewClient((p) => ({ ...p, role: e.target.value as "client" | "cliente" | "admin" | "vendedor" }))}
                           className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4]")}`}>
                           <option value="client">Cliente</option>
+                          <option value="cliente">Cliente (ES)</option>
+                          <option value="vendedor">Vendedor</option>
                           <option value="admin">Admin</option>
                         </select>
                       </div>
@@ -800,6 +957,31 @@ const Admin = () => {
 
 
           </>
+        )}
+
+        {/* ── PROVEEDORES ── */}
+        {activeTab === "suppliers" && (
+          <SuppliersTab isDark={isDark} />
+        )}
+
+        {/* ── MOTOR DE PRECIOS ── */}
+        {activeTab === "pricing" && (
+          <PricingRulesTab isDark={isDark} categories={categoryNames} />
+        )}
+
+        {/* ── REPORTES ── */}
+        {activeTab === "reports" && (
+          <ReportsTab
+            products={products}
+            orders={orders as any}
+            formatPrice={formatPrice}
+            isDark={isDark}
+          />
+        )}
+
+        {/* ── ACTIVIDAD ── */}
+        {activeTab === "activity" && (
+          <ActivityLogTab isDark={isDark} />
         )}
 
       </main>

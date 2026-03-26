@@ -8,6 +8,11 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   isAdmin: boolean;
+  isSeller: boolean;
+  /** Can view orders, clients, and approve/reject orders */
+  canManageOrders: boolean;
+  /** Can create/edit/delete products, pricing rules, suppliers */
+  canManageProducts: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
@@ -18,6 +23,9 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   loading: true,
   isAdmin: false,
+  isSeller: false,
+  canManageOrders: false,
+  canManageProducts: false,
   signIn: async () => ({ error: null }),
   signOut: async () => {},
 });
@@ -78,6 +86,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
   };
 
+  const role = profile?.role ?? "client";
+  const normalizedRole = role === "cliente" ? "client" : role;
+  const isAdmin = normalizedRole === "admin";
+  const isSeller = normalizedRole === "vendedor";
+
   return (
     <AuthContext.Provider
       value={{
@@ -85,7 +98,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: session?.user ?? null,
         profile,
         loading,
-        isAdmin: profile?.role === "admin",
+        isAdmin,
+        isSeller,
+        canManageOrders: isAdmin || isSeller,
+        canManageProducts: isAdmin,
         signIn,
         signOut,
       }}

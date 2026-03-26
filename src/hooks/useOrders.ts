@@ -7,7 +7,11 @@ export interface PortalOrder {
   client_id?: string;
   products: PortalOrderProduct[];
   total: number;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "preparing" | "shipped" | "delivered" | "rejected" | "dispatched";
+  /** Número correlativo visible: ORD-0001, ORD-0002 ... */
+  order_number?: string;
+  /** Número de remito al despachar */
+  numero_remito?: string;
   created_at: string;
 }
 

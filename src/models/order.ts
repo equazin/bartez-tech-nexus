@@ -11,7 +11,14 @@ export interface OrderProduct {
   sku: string;
 }
 
-export type OrderStatus = "pending" | "approved" | "rejected";
+export type OrderStatus =
+  | "pending"
+  | "approved"
+  | "preparing"
+  | "shipped"
+  | "delivered"
+  | "rejected"
+  | "dispatched";
 
 export interface Order {
   id: number;
@@ -19,5 +26,7 @@ export interface Order {
   products: OrderProduct[];
   total: number;
   status: OrderStatus;
+  order_number?: string;
+  numero_remito?: string;
   created_at: string;
 }

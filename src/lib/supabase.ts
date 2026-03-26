@@ -14,7 +14,7 @@ export const supabase = createClient(
   supabaseAnonKey || "placeholder"
 );
 
-export type UserRole = "client" | "admin";
+export type UserRole = "client" | "cliente" | "admin" | "vendedor";
 export type ClientType = "mayorista" | "reseller" | "empresa";
 
 export const CLIENT_TYPE_MARGINS: Record<ClientType, number> = {
@@ -30,4 +30,6 @@ export interface UserProfile {
   default_margin: number;
   client_type: ClientType;
   role: UserRole;
+  /** Límite de crédito en USD (0 = sin límite) */
+  credit_limit?: number;
 }
