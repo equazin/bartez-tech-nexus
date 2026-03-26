@@ -11,8 +11,9 @@ import { useCurrency } from "@/context/CurrencyContext";
 import {
   CheckCircle2, XCircle, Clock, Trash2, RefreshCw, Save,
   Users, Package, ClipboardList, LogOut, ShieldCheck, UserPlus, X,
-  DollarSign, Pencil, Check,
+  DollarSign, Pencil, Check, LayoutDashboard,
 } from "lucide-react";
+import { SalesDashboard } from "@/components/admin/SalesDashboard";
 
 interface SupabaseOrder {
   id: string;
@@ -52,7 +53,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-type Tab = "products" | "orders" | "clients";
+type Tab = "dashboard" | "products" | "orders" | "clients";
 
 const Admin = () => {
   const { signOut } = useAuth();
@@ -116,7 +117,7 @@ const Admin = () => {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [loadingClients, setLoadingClients] = useState(true);
-  const [activeTab, setActiveTab] = useState<Tab>("products");
+  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
 
   async function fetchProducts() {
     setLoadingProducts(true);
@@ -259,9 +260,10 @@ const Admin = () => {
   const handleLogout = async () => { await signOut(); navigate("/login"); };
 
   const tabs: { id: Tab; label: string; icon: any; badge?: number }[] = [
-    { id: "products", label: "Productos",  icon: Package,      badge: products.length },
-    { id: "orders",   label: "Pedidos",    icon: ClipboardList, badge: pendingOrders || undefined },
-    { id: "clients",  label: "Clientes",   icon: Users,         badge: clients.length },
+    { id: "dashboard", label: "Dashboard",  icon: LayoutDashboard },
+    { id: "products",  label: "Productos",  icon: Package,       badge: products.length },
+    { id: "orders",    label: "Pedidos",    icon: ClipboardList, badge: pendingOrders || undefined },
+    { id: "clients",   label: "Clientes",   icon: Users,         badge: clients.length },
   ];
 
   return (
@@ -321,6 +323,11 @@ const Admin = () => {
       </div>
 
       <main className="flex-1 p-4 md:p-6 overflow-y-auto">
+
+        {/* ── DASHBOARD ── */}
+        {activeTab === "dashboard" && (
+          <SalesDashboard orders={orders} clients={clients} />
+        )}
 
         {/* ── PRODUCTOS ── */}
         {activeTab === "products" && (
