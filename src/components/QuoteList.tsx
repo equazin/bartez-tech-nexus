@@ -3,7 +3,7 @@ import { Quote, QuoteStatus } from "@/models/quote";
 import { useCurrency } from "@/context/CurrencyContext";
 import {
   FileText, ChevronDown, ChevronRight, RotateCcw, Trash2, ClipboardList,
-  Clock, CheckCircle2, XCircle, Eye, Send, Ban, AlertTriangle,
+  Clock, CheckCircle2, XCircle, Eye, Send, AlertTriangle, Copy, ShoppingBag,
 } from "lucide-react";
 
 // ── Status config ────────────────────────────────────────────────────────────
@@ -70,10 +70,12 @@ interface QuoteListProps {
   onUpdateStatus: (id: number, status: QuoteStatus) => void;
   onDelete: (id: number) => void;
   onGoToCatalog: () => void;
+  onDuplicate?: (id: number) => void;
+  onConvertToOrder?: (quote: Quote) => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export function QuoteList({ quotes, isDark, onLoad, onUpdateStatus, onDelete, onGoToCatalog }: QuoteListProps) {
+export function QuoteList({ quotes, isDark, onLoad, onUpdateStatus, onDelete, onGoToCatalog, onDuplicate, onConvertToOrder }: QuoteListProps) {
   const { formatPrice, currency, formatUSD, formatARS } = useCurrency();
   const dk = (d: string, l: string) => isDark ? d : l;
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -117,10 +119,20 @@ export function QuoteList({ quotes, isDark, onLoad, onUpdateStatus, onDelete, on
                   {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </button>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-bold text-gray-400">
                       COT-{String(q.id).padStart(4, "0")}
                     </span>
+                    {q.version != null && q.version > 1 && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 border border-purple-500/25">
+                        v{q.version}
+                      </span>
+                    )}
+                    {q.order_id != null && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/25">
+                        Pedido creado
+                      </span>
+                    )}
                     <QuoteStatusBadge status={q.status} />
                   </div>
                   <p className="text-[11px] text-gray-600 mt-0.5">
@@ -137,8 +149,8 @@ export function QuoteList({ quotes, isDark, onLoad, onUpdateStatus, onDelete, on
               </div>
 
               {/* Right: total + actions */}
-              <div className="flex items-center gap-2 shrink-0 ml-4">
-                <span className="text-base font-extrabold text-[#2D9F6A] tabular-nums hidden sm:block">
+              <div className="flex items-center gap-1.5 shrink-0 ml-4 flex-wrap justify-end">
+                <span className="text-base font-extrabold text-[#2D9F6A] tabular-nums hidden sm:block mr-1">
                   {formatPrice(q.total)}
                 </span>
                 <StatusDropdown current={q.status} onSelect={(s) => onUpdateStatus(q.id, s)} />
@@ -149,6 +161,24 @@ export function QuoteList({ quotes, isDark, onLoad, onUpdateStatus, onDelete, on
                 >
                   <RotateCcw size={10} /> Reutilizar
                 </button>
+                {onDuplicate && (
+                  <button
+                    onClick={() => onDuplicate(q.id)}
+                    title="Duplicar cotización"
+                    className={`flex items-center gap-1 text-[11px] ${dk("text-[#737373] hover:text-white border-[#2a2a2a] hover:border-[#333] hover:bg-[#1f1f1f]", "text-[#737373] hover:text-[#171717] border-[#e5e5e5] hover:border-[#d4d4d4] hover:bg-[#f5f5f5]")} transition px-2 py-1 rounded-lg border`}
+                  >
+                    <Copy size={10} /> Duplicar
+                  </button>
+                )}
+                {onConvertToOrder && !q.order_id && (
+                  <button
+                    onClick={() => onConvertToOrder(q)}
+                    title="Convertir en pedido"
+                    className="flex items-center gap-1 text-[11px] bg-[#2D9F6A]/15 text-[#2D9F6A] border border-[#2D9F6A]/30 hover:bg-[#2D9F6A]/25 transition px-2 py-1 rounded-lg"
+                  >
+                    <ShoppingBag size={10} /> Pedido
+                  </button>
+                )}
                 <button
                   onClick={() => onDelete(q.id)}
                   title="Eliminar"

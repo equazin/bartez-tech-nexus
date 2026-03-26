@@ -7,6 +7,8 @@ import { useProducts } from "@/hooks/useProducts";
 import { supabase } from "@/lib/supabase";
 import { useOrders } from "@/hooks/useOrders";
 import { useQuotes } from "@/hooks/useQuotes";
+import { usePricingRules } from "@/hooks/usePricingRules";
+import { resolveMarginWithContext } from "@/lib/pricingEngine";
 import { Quote } from "@/models/quote";
 import { QuoteList } from "@/components/QuoteList";
 import { useCurrency } from "@/context/CurrencyContext";
@@ -98,12 +100,20 @@ export default function B2BPortal() {
   const navigate = useNavigate();
   const { profile, isAdmin, signOut } = useAuth();
   const { products, loading: productsLoading } = useProducts();
-  const { orders } = useOrders();
-  const { quotes, updateStatus: updateQuoteStatus, deleteQuote } = useQuotes(profile?.id || "guest");
+  const { orders, addOrder } = useOrders();
+  const { quotes, updateStatus: updateQuoteStatus, deleteQuote, duplicateQuote, linkOrderToQuote } = useQuotes(profile?.id || "guest");
+  const { rules: pricingRules } = usePricingRules();
   const { currency, setCurrency, formatPrice, formatUSD, formatARS, exchangeRate } = useCurrency();
 
   const defaultMargin = profile?.default_margin ?? 20;
   const clientName = profile?.company_name ?? profile?.contact_name ?? "Cliente";
+  const creditLimit = (profile as any)?.credit_limit as number | undefined;
+  const creditUsed = useMemo(() =>
+    orders
+      .filter((o) => o.status === "pending" || o.status === "approved")
+      .reduce((s, o) => s + (o.total ?? 0), 0),
+  [orders]);
+  const creditAvailable = creditLimit != null ? Math.max(0, creditLimit - creditUsed) : null;
   const cartKey = `b2b_cart_${profile?.id || "guest"}`;
 
   const [cart, setCart] = useState<Record<number, number>>(() => {
@@ -237,7 +247,7 @@ export default function B2BPortal() {
       .map(([id, qty]) => {
         const product = products.find((p) => p.id === Number(id));
         if (!product) return null;
-        const margin = productMargins[Number(id)] ?? globalMargin;
+        const { margin } = resolveMarginWithContext(product, pricingRules, globalMargin, profile?.id, qty);
         const cost = product.cost_price;
         const unitPrice = cost * (1 + margin / 100);
         const totalPrice = unitPrice * qty;
@@ -246,7 +256,7 @@ export default function B2BPortal() {
         return { product, quantity: qty, cost, margin, unitPrice, totalPrice, ivaRate, ivaAmount, totalWithIVA: totalPrice + ivaAmount };
       })
       .filter((i): i is CartItem => i !== null);
-  }, [cart, products, productMargins, globalMargin]);
+  }, [cart, products, globalMargin, pricingRules, profile?.id]);
 
   const cartSubtotal = useMemo(() => cartItems.reduce((s, i) => s + i.totalPrice, 0), [cartItems]);
   const cartIVATotal = useMemo(() => cartItems.reduce((s, i) => s + i.ivaAmount, 0), [cartItems]);
@@ -271,6 +281,31 @@ export default function B2BPortal() {
 
   const onMarginChange = (productId: number, margin: number) =>
     setProductMargins((prev) => ({ ...prev, [productId]: margin }));
+
+  async function handleConvertToOrder(quote: Quote) {
+    if (!confirm(`¿Convertir la cotización COT-${String(quote.id).padStart(4, "0")} en un pedido?`)) return;
+    const orderProducts = quote.items.map((item) => ({
+      product_id:  item.product_id,
+      name:        item.name,
+      sku:         "",
+      quantity:    item.quantity,
+      cost_price:  item.cost,
+      unit_price:  Number(item.unitPrice.toFixed(2)),
+      total_price: Number(item.totalPrice.toFixed(2)),
+      margin:      item.margin,
+    }));
+    const { error, data } = await addOrder({
+      products:   orderProducts,
+      total:      Number(quote.total.toFixed(2)),
+      status:     "pending",
+      created_at: new Date().toISOString(),
+    }) as any;
+    if (!error && data?.id) {
+      linkOrderToQuote(quote.id, data.id);
+    } else if (!error) {
+      linkOrderToQuote(quote.id, "converted");
+    }
+  }
 
   function handleLoadQuote(quote: Quote) {
     const newCart: Record<number, number> = {};
@@ -303,7 +338,7 @@ export default function B2BPortal() {
   // ─── PRODUCT MODAL ────────────────────────────────────────────────────
   const productModal = selectedProduct && (() => {
     const p = selectedProduct;
-    const margin = productMargins[p.id] ?? globalMargin;
+    const { margin } = resolveMarginWithContext(p, pricingRules, globalMargin, profile?.id, cart[p.id]);
     const finalPrice = p.cost_price * (1 + margin / 100);  // sin IVA
     const ivaRate = p.iva_rate ?? 21;
     const ivaAmt = finalPrice * (ivaRate / 100);
@@ -480,6 +515,18 @@ export default function B2BPortal() {
             <span className="block text-[11px] text-[#737373] leading-none mt-0.5 font-medium">{clientName}</span>
           </div>
         </div>
+        {creditAvailable != null && (
+          <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs ${
+            creditAvailable < creditLimit! * 0.1
+              ? dk("border-red-500/30 bg-red-500/10 text-red-400", "border-red-200 bg-red-50 text-red-600")
+              : dk("border-[#1f1f1f] bg-[#0d0d0d] text-gray-400", "border-[#e5e5e5] bg-white text-[#737373]")
+          }`}>
+            <span className="font-semibold">Crédito:</span>
+            <span className="font-bold tabular-nums">
+              USD {creditAvailable.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+            </span>
+          </div>
+        )}
 
         {/* Search — more prominent */}
         <div className="flex-1 min-w-[200px] max-w-lg relative">
@@ -977,6 +1024,8 @@ export default function B2BPortal() {
               onUpdateStatus={updateQuoteStatus}
               onDelete={deleteQuote}
               onGoToCatalog={() => setActiveTab("catalog")}
+              onDuplicate={(id) => duplicateQuote(id)}
+              onConvertToOrder={handleConvertToOrder}
             />
           )}
 

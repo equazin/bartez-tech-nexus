@@ -31,4 +31,10 @@ export interface Quote {
   status: QuoteStatus;
   created_at: string;
   updated_at: string;
+  /** Versioning: v1 = original, v2 = duplicate, etc. */
+  version?: number;
+  /** ID of the original quote this was duplicated from */
+  parent_id?: number;
+  /** ID of the order created from this quote */
+  order_id?: string | number;
 }

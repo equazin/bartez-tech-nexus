@@ -67,9 +67,10 @@ const QUOTE_STATUS: Record<QuoteStatus, { label: string; icon: any; color: strin
 
 // ── KPI Card ─────────────────────────────────────────────────────────────────
 function KpiCard({
-  label, value, sub, icon: Icon, accent, trend, isDark,
+  label, value, sub, icon: Icon, accent, trend, trendPct, isDark,
 }: {
-  label: string; value: string; sub?: string; icon: any; accent: string; trend?: "up" | "down" | "flat"; isDark: boolean;
+  label: string; value: string; sub?: string; icon: any; accent: string;
+  trend?: "up" | "down" | "flat"; trendPct?: number; isDark: boolean;
 }) {
   const dk = (d: string, l: string) => isDark ? d : l;
   const TrendIcon = trend === "up" ? ArrowUpRight : trend === "down" ? ArrowDownRight : MinusIcon;
@@ -83,6 +84,7 @@ function KpiCard({
         {trend && (
           <span className={`flex items-center gap-0.5 text-[11px] font-semibold ${trendColor}`}>
             <TrendIcon size={13} />
+            {trendPct != null && <span>{Math.abs(trendPct).toFixed(0)}%</span>}
           </span>
         )}
       </div>
@@ -377,6 +379,71 @@ function TopProducts({ orders, isDark }: { orders: SupabaseOrder[]; isDark: bool
   );
 }
 
+// ── Top Clients ──────────────────────────────────────────────────────────────
+function TopClients({
+  orders, clients, isDark,
+}: { orders: SupabaseOrder[]; clients: ClientProfile[]; isDark: boolean }) {
+  const dk = (d: string, l: string) => isDark ? d : l;
+  const { formatPrice } = useCurrency();
+
+  const topClients = useMemo(() => {
+    const map: Record<string, { name: string; revenue: number; orderCount: number }> = {};
+    orders
+      .filter((o) => o.status === "approved")
+      .forEach((o) => {
+        if (!o.client_id) return;
+        if (!map[o.client_id]) {
+          const c = clients.find((cl) => cl.id === o.client_id);
+          const name = c?.company_name || c?.contact_name || o.client_id.slice(0, 8) + "…";
+          map[o.client_id] = { name, revenue: 0, orderCount: 0 };
+        }
+        map[o.client_id].revenue += o.total;
+        map[o.client_id].orderCount += 1;
+      });
+    return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+  }, [orders, clients]);
+
+  const maxRevenue = Math.max(...topClients.map((c) => c.revenue), 1);
+
+  return (
+    <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-5 flex flex-col gap-4`}>
+      <div>
+        <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Top clientes</h3>
+        <p className="text-xs text-[#737373] mt-0.5">Por facturación (pedidos aprobados)</p>
+      </div>
+
+      {topClients.length === 0 ? (
+        <div className="flex items-center justify-center py-8 text-[#525252]">
+          <Users size={24} className="opacity-30" />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {topClients.map((c, i) => {
+            const pct = (c.revenue / maxRevenue) * 100;
+            return (
+              <div key={c.name}>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[10px] font-bold text-[#525252] w-4 shrink-0">#{i + 1}</span>
+                    <span className={`text-xs font-medium truncate ${dk("text-[#a3a3a3]", "text-[#525252]")}`}>{c.name}</span>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0 ml-2">
+                    <span className="text-[10px] text-[#525252]">{c.orderCount}p</span>
+                    <span className="text-xs font-bold text-[#2D9F6A] tabular-nums">{formatPrice(c.revenue)}</span>
+                  </div>
+                </div>
+                <div className={`h-1 ${dk("bg-[#1a1a1a]", "bg-[#e8e8e8]")} rounded-full overflow-hidden`}>
+                  <div className="h-full bg-blue-500/60 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Delete History Panel ──────────────────────────────────────────────────────
 function DeleteHistoryPanel({ isDark, onRefreshOrders }: { isDark: boolean; onRefreshOrders?: () => void }) {
   const dk = (d: string, l: string) => isDark ? d : l;
@@ -467,6 +534,42 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
   const draftQuotes     = useMemo(() => quotes.filter((q) => q.status === "draft"),    [quotes]);
   const conversionRate  = quotes.length > 0 ? (approvedQuotes.length / quotes.length) * 100 : 0;
 
+  // ── MoM comparison ─────────────────────────────────────────────────────
+  const { currentMonthRevenue, prevMonthRevenue, momPct } = useMemo(() => {
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const prevDate  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
+
+    const currentMonthRevenue = approvedOrders
+      .filter((o) => o.created_at.startsWith(thisMonth))
+      .reduce((s, o) => s + o.total, 0);
+    const prevMonthRevenue = approvedOrders
+      .filter((o) => o.created_at.startsWith(prevMonth))
+      .reduce((s, o) => s + o.total, 0);
+    const momPct = prevMonthRevenue > 0
+      ? ((currentMonthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100
+      : null;
+    return { currentMonthRevenue, prevMonthRevenue, momPct };
+  }, [approvedOrders]);
+
+  // ── Avg margin ─────────────────────────────────────────────────────────
+  const avgMargin = useMemo(() => {
+    let totalWeighted = 0;
+    let totalValue = 0;
+    approvedOrders.forEach((o) => {
+      o.products?.forEach((p: any) => {
+        if (p.margin != null && p.total_price != null) {
+          totalWeighted += p.margin * p.total_price;
+          totalValue += p.total_price;
+        }
+      });
+    });
+    return totalValue > 0 ? totalWeighted / totalValue : 0;
+  }, [approvedOrders]);
+
+  const momTrend: "up" | "down" | "flat" = momPct == null ? "flat" : momPct > 0 ? "up" : momPct < 0 ? "down" : "flat";
+
   return (
     <div className="space-y-6">
 
@@ -475,10 +578,12 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
 
       {/* ── KPI Row ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Ventas totales" value={formatPrice(totalRevenue)}
-          sub={`${approvedOrders.length} pedido${approvedOrders.length !== 1 ? "s" : ""} aprobado${approvedOrders.length !== 1 ? "s" : ""}`}
+        <KpiCard label="Ventas este mes" value={formatPrice(currentMonthRevenue)}
+          sub={prevMonthRevenue > 0
+            ? `Mes anterior: ${formatPrice(prevMonthRevenue)}`
+            : `Total acum.: ${formatPrice(totalRevenue)}`}
           icon={TrendingUp} accent="bg-[#2D9F6A]/15 text-[#2D9F6A]"
-          trend={totalRevenue > 0 ? "up" : "flat"} isDark={isDark} />
+          trend={momTrend} trendPct={momPct ?? undefined} isDark={isDark} />
         <KpiCard label="Cotizaciones" value={String(quotes.length)}
           sub={`${draftQuotes.length} en borrador`}
           icon={FileText} accent="bg-blue-500/15 text-blue-400"
@@ -500,6 +605,12 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
           <p className={`text-xl font-extrabold tabular-nums ${dk("text-white", "text-[#171717]")}`}>{formatPrice(avgOrder)}</p>
         </div>
         <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-4 py-3`}>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[#525252] mb-1">Margen promedio</p>
+          <p className={`text-xl font-extrabold tabular-nums ${avgMargin > 0 ? "text-[#2D9F6A]" : dk("text-[#525252]", "text-[#a3a3a3]")}`}>
+            {avgMargin > 0 ? `${avgMargin.toFixed(1)}%` : "—"}
+          </p>
+        </div>
+        <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-4 py-3`}>
           <p className="text-[10px] font-bold uppercase tracking-widest text-[#525252] mb-1">Pedidos rechazados</p>
           <p className="text-xl font-extrabold text-red-400 tabular-nums">
             {orders.filter((o) => o.status === "rejected").length}
@@ -512,10 +623,6 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
             <p className={`text-xl font-extrabold tabular-nums ${dk("text-white", "text-[#171717]")}`}>{clients.length}</p>
           </div>
         </div>
-        <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-4 py-3`}>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-[#525252] mb-1">Cot. aprobadas</p>
-          <p className="text-xl font-extrabold text-green-400 tabular-nums">{approvedQuotes.length}</p>
-        </div>
       </div>
 
       {/* ── Charts row ── */}
@@ -526,10 +633,11 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
 
       {/* ── Bottom row ── */}
       <div className="grid lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-1">
           <ActivityFeed orders={orders} quotes={quotes} clients={clients} isDark={isDark} />
         </div>
         <TopProducts orders={orders} isDark={isDark} />
+        <TopClients orders={orders} clients={clients} isDark={isDark} />
       </div>
 
     </div>

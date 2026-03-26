@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Plus, Pencil, Trash2, Save, X, Tag, ChevronUp, ChevronDown, AlertCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, Save, X, Tag, AlertCircle, Layers } from "lucide-react";
 import { usePricingRules } from "@/hooks/usePricingRules";
-import { CONDITION_LABELS, type PricingRule, type PricingRuleInsert } from "@/models/pricingRule";
+import { CONDITION_LABELS, type PricingRule, type PricingRuleInsert, type QuantityBreak } from "@/models/pricingRule";
 
 const EMPTY: PricingRuleInsert = {
   name: "",
@@ -12,6 +12,7 @@ const EMPTY: PricingRuleInsert = {
   fixed_markup: null,
   priority: 0,
   active: true,
+  quantity_breaks: null,
 };
 
 interface Props { isDark?: boolean; categories?: string[] }
@@ -23,26 +24,62 @@ export function PricingRulesTab({ isDark = true, categories = [] }: Props) {
   const [form, setForm] = useState<PricingRuleInsert>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [showBreaks, setShowBreaks] = useState(false);
 
   const dk = (d: string, l: string) => isDark ? d : l;
   const bg = dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]");
   const inputCls = `w-full border rounded-lg px-3 py-2 text-sm outline-none transition ${dk("bg-[#0d0d0d] border-[#222] text-white focus:border-[#2D9F6A]/50 placeholder:text-[#404040]", "bg-white border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]/50 placeholder:text-[#c4c4c4]")}`;
   const labelCls = `text-[11px] font-semibold uppercase tracking-wide ${dk("text-gray-500", "text-[#a3a3a3]")} mb-1`;
 
-  function startNew() { setForm(EMPTY); setShowNew(true); setEditing(null); setFormError(""); }
+  function startNew() {
+    setForm(EMPTY);
+    setShowNew(true);
+    setEditing(null);
+    setFormError("");
+    setShowBreaks(false);
+  }
 
   function startEdit(r: PricingRule) {
     setForm({
-      name: r.name, condition_type: r.condition_type, condition_value: r.condition_value,
-      min_margin: r.min_margin, max_margin: r.max_margin ?? null,
-      fixed_markup: r.fixed_markup ?? null, priority: r.priority, active: r.active,
+      name: r.name,
+      condition_type: r.condition_type,
+      condition_value: r.condition_value,
+      min_margin: r.min_margin,
+      max_margin: r.max_margin ?? null,
+      fixed_markup: r.fixed_markup ?? null,
+      priority: r.priority,
+      active: r.active,
+      quantity_breaks: r.quantity_breaks ?? null,
     });
     setEditing(r.id);
     setShowNew(false);
     setFormError("");
+    setShowBreaks((r.quantity_breaks?.length ?? 0) > 0);
   }
 
-  function cancel() { setShowNew(false); setEditing(null); setFormError(""); }
+  function cancel() { setShowNew(false); setEditing(null); setFormError(""); setShowBreaks(false); }
+
+  // ── Volume breaks helpers ─────────────────────────────────────────────────
+  function addBreak() {
+    const breaks = form.quantity_breaks ?? [];
+    const lastMin = breaks.length > 0 ? breaks[breaks.length - 1].min + 10 : 1;
+    setForm((p) => ({ ...p, quantity_breaks: [...breaks, { min: lastMin, margin: 15 }] }));
+  }
+
+  function updateBreak(idx: number, field: keyof QuantityBreak, val: number) {
+    setForm((p) => {
+      const breaks = [...(p.quantity_breaks ?? [])];
+      breaks[idx] = { ...breaks[idx], [field]: val };
+      return { ...p, quantity_breaks: breaks };
+    });
+  }
+
+  function removeBreak(idx: number) {
+    setForm((p) => {
+      const breaks = (p.quantity_breaks ?? []).filter((_, i) => i !== idx);
+      return { ...p, quantity_breaks: breaks.length ? breaks : null };
+    });
+  }
 
   async function handleSave() {
     if (!form.name.trim() || !form.condition_value.trim()) {
@@ -52,10 +89,14 @@ export function PricingRulesTab({ isDark = true, categories = [] }: Props) {
     setSaving(true);
     setFormError("");
     try {
+      const payload: PricingRuleInsert = {
+        ...form,
+        quantity_breaks: showBreaks && form.quantity_breaks?.length ? form.quantity_breaks : null,
+      };
       if (editing) {
-        await edit(editing, form);
+        await edit(editing, payload);
       } else {
-        await add(form);
+        await add(payload);
       }
       cancel();
     } catch (e) {
@@ -74,6 +115,15 @@ export function PricingRulesTab({ isDark = true, categories = [] }: Props) {
     try { await edit(r.id, { active: !r.active }); } catch { /* silencioso */ }
   }
 
+  const conditionValuePlaceholder: Record<string, string> = {
+    category:   "Ej: Redes",
+    supplier:   "Nombre o ID de proveedor",
+    tag:        "Ej: premium",
+    sku_prefix: "Ej: NET-",
+    client:     "UUID del cliente",
+    product:    "ID del producto (número)",
+  };
+
   const FormPanel = () => (
     <div className={`${bg} border rounded-xl p-5 mb-4`}>
       <h3 className={`font-bold text-sm ${dk("text-white", "text-[#171717]")} mb-4`}>
@@ -83,8 +133,8 @@ export function PricingRulesTab({ isDark = true, categories = [] }: Props) {
       <div className={`flex items-start gap-2 p-3 rounded-lg mb-4 ${dk("bg-blue-500/10 border-blue-500/20", "bg-blue-50 border-blue-200")} border text-xs ${dk("text-blue-400", "text-blue-600")}`}>
         <AlertCircle size={13} className="shrink-0 mt-0.5" />
         <span>
-          Las reglas se evalúan en orden de <strong>prioridad</strong> (mayor número = primero).
-          La primera regla que coincide determina el margen. Si no hay match, se usa el margen del cliente.
+          Prioridad de tipo: <strong>Producto &gt; Cliente &gt; Categoría &gt; Proveedor/Etiqueta/SKU</strong>.
+          Dentro del mismo tipo gana la regla con mayor número de prioridad.
         </span>
       </div>
 
@@ -96,7 +146,7 @@ export function PricingRulesTab({ isDark = true, categories = [] }: Props) {
 
         <div>
           <p className={labelCls}>Tipo de condición</p>
-          <select className={inputCls} value={form.condition_type} onChange={(e) => setForm((p) => ({ ...p, condition_type: e.target.value as any }))}>
+          <select className={inputCls} value={form.condition_type} onChange={(e) => setForm((p) => ({ ...p, condition_type: e.target.value as typeof form.condition_type }))}>
             {(Object.entries(CONDITION_LABELS) as [string, string][]).map(([k, v]) => (
               <option key={k} value={k}>{v}</option>
             ))}
@@ -111,11 +161,12 @@ export function PricingRulesTab({ isDark = true, categories = [] }: Props) {
               {categories.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           ) : (
-            <input className={inputCls} value={form.condition_value} onChange={(e) => setForm((p) => ({ ...p, condition_value: e.target.value }))} placeholder={
-              form.condition_type === "category" ? "Ej: Redes" :
-              form.condition_type === "supplier" ? "Nombre o ID" :
-              form.condition_type === "tag" ? "Ej: premium" : "Ej: NET-"
-            } />
+            <input
+              className={inputCls}
+              value={form.condition_value}
+              onChange={(e) => setForm((p) => ({ ...p, condition_value: e.target.value }))}
+              placeholder={conditionValuePlaceholder[form.condition_type] ?? ""}
+            />
           )}
         </div>
 
@@ -146,13 +197,70 @@ export function PricingRulesTab({ isDark = true, categories = [] }: Props) {
         <div>
           <p className={labelCls}>Prioridad</p>
           <input className={inputCls} type="number" min="0" value={form.priority} onChange={(e) => setForm((p) => ({ ...p, priority: Number(e.target.value) }))} />
-          <p className={`text-[10px] mt-0.5 ${dk("text-gray-600", "text-[#a3a3a3]")}`}>Mayor número = evaluada primero</p>
+          <p className={`text-[10px] mt-0.5 ${dk("text-gray-600", "text-[#a3a3a3]")}`}>Mayor número = evaluada primero dentro del mismo tipo</p>
         </div>
 
         <div className="flex items-center gap-2">
           <input type="checkbox" id="rule-active" checked={form.active} onChange={(e) => setForm((p) => ({ ...p, active: e.target.checked }))} className="accent-[#2D9F6A] h-4 w-4" />
           <label htmlFor="rule-active" className={`text-sm ${dk("text-gray-300", "text-[#525252]")}`}>Activa</label>
         </div>
+      </div>
+
+      {/* Volume breaks */}
+      <div className={`mt-4 border rounded-xl p-3 ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")}`}>
+        <button
+          type="button"
+          onClick={() => setShowBreaks((v) => !v)}
+          className={`flex items-center gap-2 text-xs font-semibold ${dk("text-gray-400 hover:text-white", "text-[#525252] hover:text-[#171717]")} transition`}
+        >
+          <Layers size={13} />
+          Precios por volumen (quantity breaks)
+          <span className={`text-[10px] ml-auto ${showBreaks ? "rotate-180" : ""} transition-transform`}>▾</span>
+        </button>
+
+        {showBreaks && (
+          <div className="mt-3 space-y-2">
+            <p className={`text-[10px] ${dk("text-gray-600", "text-[#a3a3a3]")}`}>
+              Define márgenes distintos según la cantidad pedida. El margen de la franja más alta aplicable gana.
+            </p>
+
+            {(form.quantity_breaks ?? []).map((b, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <div className="flex-1">
+                  <p className={`${labelCls} mb-0.5`}>Desde unid.</p>
+                  <input
+                    type="number" min="1" className={inputCls}
+                    value={b.min}
+                    onChange={(e) => updateBreak(i, "min", Number(e.target.value))}
+                  />
+                </div>
+                <div className="flex-1">
+                  <p className={`${labelCls} mb-0.5`}>Margen %</p>
+                  <input
+                    type="number" min="0" max="200" step="0.5" className={inputCls}
+                    value={b.margin}
+                    onChange={(e) => updateBreak(i, "margin", Number(e.target.value))}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeBreak(i)}
+                  className="mt-4 p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={addBreak}
+              className={`flex items-center gap-1.5 text-xs font-semibold mt-1 ${dk("text-[#2D9F6A] hover:text-[#25835A]", "text-[#2D9F6A]")} transition`}
+            >
+              <Plus size={12} /> Agregar franja
+            </button>
+          </div>
+        )}
       </div>
 
       {formError && <p className="text-red-400 text-xs mt-2">{formError}</p>}
@@ -205,7 +313,14 @@ export function PricingRulesTab({ isDark = true, categories = [] }: Props) {
               </div>
 
               <div className="flex-1 min-w-0">
-                <p className={`font-semibold text-sm ${dk("text-white", "text-[#171717]")} truncate`}>{r.name}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className={`font-semibold text-sm ${dk("text-white", "text-[#171717]")} truncate`}>{r.name}</p>
+                  {(r.quantity_breaks?.length ?? 0) > 0 && (
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${dk("bg-purple-500/20 text-purple-400", "bg-purple-100 text-purple-600")}`}>
+                      VOLUMEN
+                    </span>
+                  )}
+                </div>
                 <p className={`text-[11px] ${dk("text-gray-500", "text-[#737373]")} mt-0.5`}>
                   <span className={`${dk("bg-[#1c1c1c]", "bg-[#f0f0f0]")} px-1.5 py-0.5 rounded text-[10px] font-medium`}>
                     {CONDITION_LABELS[r.condition_type]}
@@ -216,7 +331,15 @@ export function PricingRulesTab({ isDark = true, categories = [] }: Props) {
 
               {/* Margin display */}
               <div className="shrink-0 text-right">
-                {r.fixed_markup != null ? (
+                {(r.quantity_breaks?.length ?? 0) > 0 ? (
+                  <div className="text-xs space-y-0.5">
+                    {r.quantity_breaks!.map((b, i) => (
+                      <div key={i} className={`${dk("text-gray-400", "text-[#525252]")}`}>
+                        ≥{b.min}u → <span className="font-bold text-[#2D9F6A]">{b.margin}%</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : r.fixed_markup != null ? (
                   <span className="text-xs font-bold text-amber-400">Fijo: {r.fixed_markup}%</span>
                 ) : (
                   <div className="text-xs">

@@ -4,9 +4,11 @@ import { useAuth } from "@/context/AuthContext";
 import { useProducts } from "@/hooks/useProducts";
 import { useOrders } from "@/hooks/useOrders";
 import { useQuotes } from "@/hooks/useQuotes";
+import { usePricingRules } from "@/hooks/usePricingRules";
 import { useCurrency } from "@/context/CurrencyContext";
 import { generateQuotePDF } from "@/components/QuotePDF";
 import { getAvailableStock } from "@/lib/pricing";
+import { resolveMarginWithContext } from "@/lib/pricingEngine";
 import type { Product } from "@/models/products";
 import {
   ArrowLeft, ShoppingCart, AlertTriangle, AlertCircle, Minus, Plus,
@@ -21,6 +23,7 @@ interface CartItem {
   quantity: number;
   cost: number;
   margin: number;
+  isVolumePricing?: boolean;
   unitPrice: number;       // sin IVA
   totalPrice: number;      // sin IVA × qty
   ivaRate: number;
@@ -58,8 +61,9 @@ export default function CartPage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const { products, loading: productsLoading } = useProducts();
-  const { addOrder } = useOrders();
+  const { addOrder, orders } = useOrders();
   const { addQuote } = useQuotes(profile?.id || "guest");
+  const { rules: pricingRules } = usePricingRules();
   const {
     currency, formatPrice, formatUSD, formatARS, exchangeRate, convertPrice,
   } = useCurrency();
@@ -107,14 +111,17 @@ export default function CartPage() {
   const [validationErrors,  setValidationErrors]  = useState<string[]>([]);
   const [listSaved,         setListSaved]         = useState(false);
 
-  // ── Cart items (same computation as B2BPortal) ───────────────────────────────
+  // ── Cart items — per-product pricing rules applied ───────────────────────────
   const cartItems: CartItem[] = useMemo(() => {
     return Object.entries(cart)
       .map(([id, qty]) => {
         const product = products.find((p) => p.id === Number(id));
         if (!product) return null;
         const cost       = product.cost_price;
-        const unitPrice  = cost * (1 + globalMargin / 100);
+        const { margin, isVolumePricing } = resolveMarginWithContext(
+          product, pricingRules, globalMargin, profile?.id, qty
+        );
+        const unitPrice  = cost * (1 + margin / 100);
         const totalPrice = unitPrice * qty;
         const ivaRate    = product.iva_rate ?? 21;
         const ivaAmount  = totalPrice * (ivaRate / 100);
@@ -124,7 +131,8 @@ export default function CartPage() {
           product,
           quantity: qty,
           cost,
-          margin: globalMargin,
+          margin,
+          isVolumePricing,
           unitPrice,
           totalPrice,
           ivaRate,
@@ -137,7 +145,7 @@ export default function CartPage() {
         };
       })
       .filter((i): i is CartItem => i !== null);
-  }, [cart, products, globalMargin]);
+  }, [cart, products, globalMargin, pricingRules, profile?.id]);
 
   const cartSubtotal     = useMemo(() => cartItems.reduce((s, i) => s + i.totalPrice, 0), [cartItems]);
   const cartIVATotal     = useMemo(() => cartItems.reduce((s, i) => s + i.ivaAmount,  0), [cartItems]);
@@ -178,6 +186,15 @@ export default function CartPage() {
     setCart(rest);
   }
 
+  // ── Credit limit ─────────────────────────────────────────────────────────────
+  const creditLimit  = (profile as any)?.credit_limit as number | undefined;
+  const creditUsed   = useMemo(() =>
+    orders
+      .filter((o) => o.status === "pending" || o.status === "approved")
+      .reduce((s, o) => s + (o.total ?? 0), 0),
+  [orders]);
+  const creditAvailable = creditLimit != null ? Math.max(0, creditLimit - creditUsed) : null;
+
   // ── Validation ───────────────────────────────────────────────────────────────
   function validate(): string[] {
     const errs: string[] = [];
@@ -193,6 +210,9 @@ export default function CartPage() {
         errs.push(`${item.product.name}: pedido mínimo ${minQty} unidades.`);
       }
     });
+    if (creditAvailable != null && grandTotal > creditAvailable) {
+      errs.push(`Límite de crédito insuficiente. Disponible: USD ${creditAvailable.toFixed(0)}, pedido: USD ${grandTotal.toFixed(0)}.`);
+    }
     return errs;
   }
 

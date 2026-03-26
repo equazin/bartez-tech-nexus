@@ -68,5 +68,48 @@ export function useQuotes(userId: string) {
 
   const getQuotes = useCallback(() => loadQuotes(userId), [userId]);
 
-  return { quotes, addQuote, updateQuote, updateStatus, deleteQuote, getQuotes };
+  /** Create a copy of an existing quote with incremented version */
+  const duplicateQuote = useCallback(
+    (id: number): Quote | null => {
+      const existing = loadQuotes(userId);
+      const original = existing.find((q) => q.id === id);
+      if (!original) return null;
+      const now = new Date().toISOString();
+      const copy: Quote = {
+        ...original,
+        id: nextId(existing),
+        status: "draft",
+        version: (original.version ?? 1) + 1,
+        parent_id: original.parent_id ?? original.id,
+        order_id: undefined,
+        created_at: now,
+        updated_at: now,
+      };
+      persist([copy, ...existing]);
+      return copy;
+    },
+    [userId, persist]
+  );
+
+  /**
+   * Mark a quote as converted to an order and link the order id.
+   * Does NOT create the order — that's done by the caller via addOrder.
+   */
+  const linkOrderToQuote = useCallback(
+    (quoteId: number, orderId: string | number) => {
+      updateQuote(quoteId, { status: "approved", order_id: orderId });
+    },
+    [updateQuote]
+  );
+
+  return {
+    quotes,
+    addQuote,
+    updateQuote,
+    updateStatus,
+    deleteQuote,
+    getQuotes,
+    duplicateQuote,
+    linkOrderToQuote,
+  };
 }
