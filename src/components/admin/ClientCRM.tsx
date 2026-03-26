@@ -32,6 +32,7 @@ export interface ClientCRMProps {
   clients: ClientProfile[];
   orders: SupabaseOrder[];
   loading: boolean;
+  isDark: boolean;
   onSave: (id: string, changes: { client_type?: ClientType; default_margin?: number }) => Promise<void>;
   onNewClient: () => void;
 }
@@ -108,22 +109,25 @@ function Avatar({ client, size = "md" }: { client: ClientProfile; size?: "sm" | 
 
 // ── List item ─────────────────────────────────────────────────────────────────
 function ClientListItem({
-  client, isActive, orderCount, quoteCount, onClick,
+  client, isActive, orderCount, quoteCount, onClick, isDark,
 }: {
-  client: ClientProfile; isActive: boolean; orderCount: number; quoteCount: number; onClick: () => void;
+  client: ClientProfile; isActive: boolean; orderCount: number; quoteCount: number; onClick: () => void; isDark: boolean;
 }) {
+  const dk = (d: string, l: string) => isDark ? d : l;
   return (
     <button
       onClick={onClick}
       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition group ${
         isActive
           ? "bg-[#2D9F6A]/10 border border-[#2D9F6A]/20"
-          : "border border-transparent hover:bg-[#141414] hover:border-[#1f1f1f]"
+          : `border border-transparent ${dk("hover:bg-[#141414] hover:border-[#1f1f1f]", "hover:bg-[#f5f5f5] hover:border-[#e5e5e5]")}`
       }`}
     >
       <Avatar client={client} size="sm" />
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-semibold truncate leading-tight ${isActive ? "text-white" : "text-[#d4d4d4] group-hover:text-white"}`}>
+        <p className={`text-sm font-semibold truncate leading-tight ${
+          isActive ? dk("text-white", "text-[#171717]") : dk("text-[#d4d4d4] group-hover:text-white", "text-[#404040] group-hover:text-[#171717]")
+        }`}>
           {client.company_name || client.contact_name || "—"}
         </p>
         <p className="text-[10px] text-[#525252] truncate mt-0.5">
@@ -134,21 +138,22 @@ function ClientListItem({
         <span className={`text-[9px] font-medium ${isActive ? "text-[#2D9F6A]" : "text-[#525252]"}`}>
           {orderCount}p · {quoteCount}c
         </span>
-        <ChevronRight size={11} className={`${isActive ? "text-[#2D9F6A]" : "text-[#333] group-hover:text-[#525252]"} transition`} />
+        <ChevronRight size={11} className={`${isActive ? "text-[#2D9F6A]" : dk("text-[#333] group-hover:text-[#525252]", "text-[#ccc] group-hover:text-[#999]")} transition`} />
       </div>
     </button>
   );
 }
 
 // ── Stat mini-card ─────────────────────────────────────────────────────────────
-function StatPill({ icon: Icon, label, value, accent }: { icon: any; label: string; value: string; accent: string }) {
+function StatPill({ icon: Icon, label, value, accent, isDark }: { icon: any; label: string; value: string; accent: string; isDark: boolean }) {
+  const dk = (d: string, l: string) => isDark ? d : l;
   return (
-    <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl px-4 py-3 flex items-center gap-3">
+    <div className={`${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-[#f5f5f5] border-[#e5e5e5]")} border rounded-xl px-4 py-3 flex items-center gap-3`}>
       <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${accent}`}>
         <Icon size={15} />
       </div>
       <div>
-        <p className="text-base font-extrabold text-white tabular-nums leading-tight">{value}</p>
+        <p className={`text-base font-extrabold tabular-nums leading-tight ${dk("text-white", "text-[#171717]")}`}>{value}</p>
         <p className="text-[10px] text-[#525252]">{label}</p>
       </div>
     </div>
@@ -157,13 +162,15 @@ function StatPill({ icon: Icon, label, value, accent }: { icon: any; label: stri
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
 function ClientDetail({
-  client, orders, onSave, onBack,
+  client, orders, isDark, onSave, onBack,
 }: {
   client: ClientProfile;
   orders: SupabaseOrder[];
+  isDark: boolean;
   onSave: (id: string, changes: { client_type?: ClientType; default_margin?: number }) => Promise<void>;
   onBack: () => void;
 }) {
+  const dk = (d: string, l: string) => isDark ? d : l;
   const { formatPrice } = useCurrency();
   const [editing, setEditing] = useState(false);
   const [editType, setEditType] = useState<ClientType>(client.client_type);
@@ -202,16 +209,15 @@ function ClientDetail({
     <div className="flex flex-col gap-5">
 
       {/* Header */}
-      <div className="bg-[#111] border border-[#1f1f1f] rounded-2xl p-5">
+      <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-5`}>
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
-            {/* Mobile back */}
-            <button onClick={onBack} className="md:hidden text-[#737373] hover:text-white transition p-1">
+            <button onClick={onBack} className={`md:hidden transition p-1 ${dk("text-[#737373] hover:text-white", "text-[#737373] hover:text-[#171717]")}`}>
               <ArrowLeft size={16} />
             </button>
             <Avatar client={client} size="lg" />
             <div>
-              <h2 className="text-base font-bold text-white leading-tight">
+              <h2 className={`text-base font-bold leading-tight ${dk("text-white", "text-[#171717]")}`}>
                 {client.company_name || "Sin empresa"}
               </h2>
               <p className="text-xs text-[#737373] mt-0.5">{client.contact_name || "—"}</p>
@@ -222,7 +228,7 @@ function ClientDetail({
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
                   client.role === "admin"
                     ? "bg-[#2D9F6A]/15 text-[#2D9F6A] border-[#2D9F6A]/30"
-                    : "bg-[#1f1f1f] text-[#525252] border-[#2a2a2a]"
+                    : dk("bg-[#1f1f1f] text-[#525252] border-[#2a2a2a]", "bg-[#f0f0f0] text-[#737373] border-[#e0e0e0]")
                 }`}>
                   {client.role === "admin" ? "Admin" : "Cliente"}
                 </span>
@@ -233,18 +239,19 @@ function ClientDetail({
           {!editing && (
             <button
               onClick={() => { setEditing(true); setEditType(client.client_type); setEditMargin(String(client.default_margin)); }}
-              className="flex items-center gap-1.5 text-xs text-[#737373] hover:text-white border border-[#1f1f1f] hover:border-[#2a2a2a] px-3 py-1.5 rounded-lg transition"
+              className={`flex items-center gap-1.5 text-xs transition px-3 py-1.5 rounded-lg ${
+                dk("text-[#737373] hover:text-white border border-[#1f1f1f] hover:border-[#2a2a2a]",
+                   "text-[#737373] hover:text-[#171717] border border-[#e5e5e5] hover:border-[#d4d4d4]")
+              }`}
             >
               <Pencil size={11} /> Editar
             </button>
           )}
         </div>
 
-        {/* Info row */}
         <div className="flex flex-wrap gap-4 text-xs text-[#737373]">
           <span className="flex items-center gap-1.5">
             <Mail size={11} className="text-[#525252]" />
-            {/* email not in profiles, use id as reference */}
             ID: {client.id.slice(0, 12)}…
           </span>
           <span className="flex items-center gap-1.5">
@@ -253,9 +260,8 @@ function ClientDetail({
           </span>
         </div>
 
-        {/* Edit form */}
         {editing && (
-          <div className="mt-4 pt-4 border-t border-[#1a1a1a]">
+          <div className={`mt-4 pt-4 border-t ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
             <div className="flex flex-wrap gap-4 items-end">
               <div>
                 <label className="text-[10px] text-gray-500 mb-1 block font-semibold uppercase tracking-widest">Tipo de cliente</label>
@@ -267,7 +273,8 @@ function ClientDetail({
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
                         editType === t
                           ? "bg-[#2D9F6A] border-[#2D9F6A] text-white"
-                          : "bg-[#141414] border-[#262626] text-[#737373] hover:border-[#404040]"
+                          : dk("bg-[#141414] border-[#262626] text-[#737373] hover:border-[#404040]",
+                               "bg-[#f0f0f0] border-[#d4d4d4] text-[#737373] hover:border-[#999]")
                       }`}
                     >
                       {CLIENT_TYPE_LABELS[t]}
@@ -282,7 +289,9 @@ function ClientDetail({
                     type="number" min="0" max="100"
                     value={editMargin}
                     onChange={(e) => setEditMargin(e.target.value)}
-                    className="w-20 bg-[#0d0d0d] border border-[#262626] rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-[#2D9F6A] text-center font-mono"
+                    className={`w-20 border rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[#2D9F6A] text-center font-mono transition ${
+                      dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")
+                    }`}
                   />
                   <span className="text-sm text-[#737373]">%</span>
                 </div>
@@ -296,7 +305,7 @@ function ClientDetail({
                 </button>
                 <button
                   onClick={() => setEditing(false)}
-                  className="text-xs text-[#737373] hover:text-white transition px-3 py-1.5 rounded-lg hover:bg-[#1a1a1a]"
+                  className={`text-xs transition px-3 py-1.5 rounded-lg ${dk("text-[#737373] hover:text-white hover:bg-[#1a1a1a]", "text-[#737373] hover:text-[#171717] hover:bg-[#f0f0f0]")}`}
                 >
                   Cancelar
                 </button>
@@ -308,17 +317,17 @@ function ClientDetail({
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatPill icon={ShoppingBag}  label="Pedidos"          value={String(clientOrders.length)}   accent="bg-[#2D9F6A]/15 text-[#2D9F6A]" />
-        <StatPill icon={TrendingUp}   label="Total facturado"  value={formatPrice(totalSpent)}        accent="bg-green-500/15 text-green-400" />
-        <StatPill icon={FileText}     label="Cotizaciones"     value={String(quotes.length)}          accent="bg-blue-500/15 text-blue-400" />
-        <StatPill icon={CheckCircle2} label="Cot. aprobadas"   value={String(approvedQuotes)}         accent="bg-purple-500/15 text-purple-400" />
+        <StatPill icon={ShoppingBag}  label="Pedidos"         value={String(clientOrders.length)}  accent="bg-[#2D9F6A]/15 text-[#2D9F6A]"  isDark={isDark} />
+        <StatPill icon={TrendingUp}   label="Total facturado" value={formatPrice(totalSpent)}       accent="bg-green-500/15 text-green-400"   isDark={isDark} />
+        <StatPill icon={FileText}     label="Cotizaciones"    value={String(quotes.length)}         accent="bg-blue-500/15 text-blue-400"     isDark={isDark} />
+        <StatPill icon={CheckCircle2} label="Cot. aprobadas"  value={String(approvedQuotes)}        accent="bg-purple-500/15 text-purple-400" isDark={isDark} />
       </div>
 
       {/* Orders history */}
-      <div className="bg-[#111] border border-[#1f1f1f] rounded-2xl overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-3.5 border-b border-[#1a1a1a]">
+      <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
+        <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
           <ShoppingBag size={13} className="text-[#2D9F6A]" />
-          <h3 className="text-sm font-bold text-white">Historial de pedidos</h3>
+          <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Historial de pedidos</h3>
           <span className="ml-auto text-xs text-[#525252]">{clientOrders.length} en total</span>
         </div>
 
@@ -328,11 +337,11 @@ function ClientDetail({
             <p className="text-xs">Sin pedidos registrados</p>
           </div>
         ) : (
-          <div className="divide-y divide-[#141414]">
+          <div className={`divide-y ${dk("divide-[#141414]", "divide-[#f0f0f0]")}`}>
             {clientOrders.map((o) => (
-              <div key={o.id} className="flex items-center justify-between px-5 py-3 hover:bg-[#141414] transition">
+              <div key={o.id} className={`flex items-center justify-between px-5 py-3 ${dk("hover:bg-[#141414]", "hover:bg-[#fafafa]")} transition`}>
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-white">
+                  <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>
                     #{String(o.id).slice(-6).toUpperCase()}
                   </p>
                   <p className="text-[10px] text-[#525252] mt-0.5">
@@ -350,10 +359,10 @@ function ClientDetail({
       </div>
 
       {/* Quotes history */}
-      <div className="bg-[#111] border border-[#1f1f1f] rounded-2xl overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-3.5 border-b border-[#1a1a1a]">
+      <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
+        <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
           <FileText size={13} className="text-blue-400" />
-          <h3 className="text-sm font-bold text-white">Cotizaciones</h3>
+          <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Cotizaciones</h3>
           <span className="ml-auto text-xs text-[#525252]">{quotes.length} en total</span>
         </div>
 
@@ -363,11 +372,11 @@ function ClientDetail({
             <p className="text-xs">Sin cotizaciones guardadas</p>
           </div>
         ) : (
-          <div className="divide-y divide-[#141414]">
+          <div className={`divide-y ${dk("divide-[#141414]", "divide-[#f0f0f0]")}`}>
             {quotes.map((q) => (
-              <div key={q.id} className="flex items-center justify-between px-5 py-3 hover:bg-[#141414] transition">
+              <div key={q.id} className={`flex items-center justify-between px-5 py-3 ${dk("hover:bg-[#141414]", "hover:bg-[#fafafa]")} transition`}>
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-white">
+                  <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>
                     COT-{String(q.id).padStart(4, "0")}
                   </p>
                   <p className="text-[10px] text-[#525252] mt-0.5">
@@ -389,7 +398,8 @@ function ClientDetail({
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export function ClientCRM({ clients, orders, loading, onSave, onNewClient }: ClientCRMProps) {
+export function ClientCRM({ clients, orders, loading, isDark, onSave, onNewClient }: ClientCRMProps) {
+  const dk = (d: string, l: string) => isDark ? d : l;
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -405,7 +415,6 @@ export function ClientCRM({ clients, orders, loading, onSave, onNewClient }: Cli
 
   const selected = clients.find((c) => c.id === selectedId) ?? null;
 
-  // Per-client counts for the list
   const orderCountMap = useMemo(() => {
     const m: Record<string, number> = {};
     orders.forEach((o) => { m[o.client_id] = (m[o.client_id] || 0) + 1; });
@@ -422,7 +431,7 @@ export function ClientCRM({ clients, orders, loading, onSave, onNewClient }: Cli
     return (
       <div className="space-y-2 max-w-5xl">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-16 bg-[#111] rounded-xl animate-pulse border border-[#1a1a1a]" />
+          <div key={i} className={`h-16 ${dk("bg-[#111] border-[#1a1a1a]", "bg-[#f0f0f0] border-[#e5e5e5]")} rounded-xl animate-pulse border`} />
         ))}
       </div>
     );
@@ -434,7 +443,6 @@ export function ClientCRM({ clients, orders, loading, onSave, onNewClient }: Cli
       {/* ── LEFT: Client list ── */}
       <div className={`flex flex-col gap-3 ${selected ? "hidden md:flex w-72 shrink-0" : "flex w-full md:w-72 md:shrink-0"}`}>
 
-        {/* Header */}
         <div className="flex items-center justify-between">
           <p className="text-xs text-[#525252] font-semibold">
             {filtered.length} cliente{filtered.length !== 1 ? "s" : ""}
@@ -447,23 +455,23 @@ export function ClientCRM({ clients, orders, loading, onSave, onNewClient }: Cli
           </button>
         </div>
 
-        {/* Search */}
         <div className="relative">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#525252] pointer-events-none" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar cliente…"
-            className="w-full bg-[#111] border border-[#1f1f1f] rounded-xl pl-8 pr-3 py-2 text-sm text-white placeholder:text-[#525252] outline-none focus:border-[#2D9F6A]/40 transition"
+            className={`w-full border rounded-xl pl-8 pr-3 py-2 text-sm placeholder:text-[#525252] outline-none focus:border-[#2D9F6A]/40 transition ${
+              dk("bg-[#111] border-[#1f1f1f] text-white", "bg-white border-[#e5e5e5] text-[#171717]")
+            }`}
           />
           {search && (
-            <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#525252] hover:text-white transition">
+            <button onClick={() => setSearch("")} className={`absolute right-2.5 top-1/2 -translate-y-1/2 transition ${dk("text-[#525252] hover:text-white", "text-[#999] hover:text-[#171717]")}`}>
               <X size={11} />
             </button>
           )}
         </div>
 
-        {/* List */}
         <div className="flex-1 overflow-y-auto space-y-1 pr-0.5">
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center py-16 text-[#525252] gap-2">
@@ -475,6 +483,7 @@ export function ClientCRM({ clients, orders, loading, onSave, onNewClient }: Cli
               <ClientListItem
                 key={c.id}
                 client={c}
+                isDark={isDark}
                 isActive={c.id === selectedId}
                 orderCount={orderCountMap[c.id] || 0}
                 quoteCount={quoteCountMap[c.id] || 0}
@@ -491,15 +500,16 @@ export function ClientCRM({ clients, orders, loading, onSave, onNewClient }: Cli
           <ClientDetail
             client={selected}
             orders={orders}
+            isDark={isDark}
             onSave={onSave}
             onBack={() => setSelectedId(null)}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-[#525252] gap-3">
-            <div className="h-14 w-14 rounded-2xl bg-[#111] border border-[#1f1f1f] flex items-center justify-center">
+            <div className={`h-14 w-14 rounded-2xl border flex items-center justify-center ${dk("bg-[#111] border-[#1f1f1f]", "bg-[#f5f5f5] border-[#e5e5e5]")}`}>
               <Users size={22} className="opacity-30" />
             </div>
-            <p className="text-sm font-medium text-[#737373]">Seleccioná un cliente</p>
+            <p className={`text-sm font-medium ${dk("text-[#737373]", "text-[#525252]")}`}>Seleccioná un cliente</p>
             <p className="text-xs text-[#525252]">Ver historial de pedidos y cotizaciones</p>
           </div>
         )}

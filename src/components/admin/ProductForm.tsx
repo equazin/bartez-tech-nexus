@@ -13,26 +13,20 @@ const DRAFT_KEY = "bartez_product_draft";
 interface Category { id: number; name: string; parent_id: number | null; }
 interface Spec { key: string; value: string; }
 
-const INPUT =
-  "w-full bg-[#141414] border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A] transition placeholder:text-gray-600";
-const LABEL = "block text-xs font-medium text-gray-400 mb-1";
-const SECTION = "bg-[#1a1a1a] border border-[#242424] rounded-xl p-4 space-y-3";
-const SECTION_TITLE = "flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3";
-
-function Toggle({ value, onChange, label, activeColor = "bg-green-500" }: {
+function Toggle({ value, onChange, label, activeColor = "bg-green-500", isDark = true }: {
   value: boolean; onChange: (v: boolean) => void;
-  label: string; activeColor?: string;
+  label: string; activeColor?: string; isDark?: boolean;
 }) {
   return (
     <label className="flex items-center gap-2.5 cursor-pointer select-none">
       <button
         type="button"
         onClick={() => onChange(!value)}
-        className={`relative w-10 h-5 rounded-full transition-colors ${value ? activeColor : "bg-[#333]"}`}
+        className={`relative w-10 h-5 rounded-full transition-colors ${value ? activeColor : (isDark ? "bg-[#333]" : "bg-[#ccc]")}`}
       >
         <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${value ? "left-5" : "left-0.5"}`} />
       </button>
-      <span className="text-sm text-gray-300">{label}</span>
+      <span className={`text-sm ${isDark ? "text-gray-300" : "text-gray-600"}`}>{label}</span>
     </label>
   );
 }
@@ -42,7 +36,12 @@ function loadDraft() {
   catch { return null; }
 }
 
-export default function ProductForm({ onAdd }: { onAdd: (product: Product) => void }) {
+export default function ProductForm({ onAdd, isDark = true }: { onAdd: (product: Product) => void; isDark?: boolean }) {
+  const dk = (d: string, l: string) => isDark ? d : l;
+  const INPUT = `w-full ${dk("bg-[#141414] border-[#2a2a2a] text-white placeholder:text-gray-600", "bg-white border-[#d4d4d4] text-[#171717] placeholder:text-gray-400")} border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D9F6A] transition`;
+  const LABEL = `block text-xs font-medium ${dk("text-gray-400", "text-gray-600")} mb-1`;
+  const SECTION = `${dk("bg-[#1a1a1a] border-[#242424]", "bg-[#f5f5f5] border-[#e5e5e5]")} border rounded-xl p-4 space-y-3`;
+  const SECTION_TITLE = `flex items-center gap-2 text-xs font-semibold ${dk("text-gray-400", "text-gray-600")} uppercase tracking-wider mb-3`;
   const saved = loadDraft();
 
   /* ── form state (restored from draft if available) ────── */
@@ -253,7 +252,7 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
 
   /* ── render ───────────────────────────────────────────── */
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 text-white">
+    <form onSubmit={handleSubmit} className={`space-y-4 ${dk("text-white", "text-[#171717]")}`}>
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -280,7 +279,7 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
           onDragLeave={() => setDragging(false)}
           onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleImageFile(f); }}
           className={`relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed cursor-pointer transition h-40 ${
-            dragging ? "border-[#2D9F6A] bg-[#2D9F6A]/5" : "border-[#2a2a2a] hover:border-[#2D9F6A]/40 bg-[#141414]"
+            dragging ? "border-[#2D9F6A] bg-[#2D9F6A]/5" : `${dk("border-[#2a2a2a] bg-[#141414]", "border-[#d4d4d4] bg-[#f9f9f9]")} hover:border-[#2D9F6A]/40`
           }`}
         >
           {imagePreview ? (
@@ -356,7 +355,8 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
                   className={`flex-1 py-2 rounded-lg text-xs font-bold border transition ${
                     ivaRate === r
                       ? "bg-[#2D9F6A] border-[#2D9F6A] text-white"
-                      : "bg-[#141414] border-[#2a2a2a] text-gray-400 hover:border-[#2D9F6A]/50"
+                      : dk("bg-[#141414] border-[#2a2a2a] text-gray-400 hover:border-[#2D9F6A]/50",
+                           "bg-[#f0f0f0] border-[#d4d4d4] text-gray-600 hover:border-[#2D9F6A]/50")
                   }`}>
                   {r}%
                 </button>
@@ -431,7 +431,7 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
               Crear
             </button>
             <button type="button" onClick={() => { setAddingCat(false); setNewCatName(""); }}
-              className="px-3 py-2 bg-[#2a2a2a] text-gray-400 hover:text-white text-xs rounded-lg transition">
+              className={`px-3 py-2 ${dk("bg-[#2a2a2a] text-gray-400 hover:text-white", "bg-[#e8e8e8] text-gray-500 hover:text-[#171717]")} text-xs rounded-lg transition`}>
               <X size={12} />
             </button>
           </div>
@@ -466,8 +466,8 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
       <div className={SECTION}>
         <p className={SECTION_TITLE}><Eye size={12} /> Visibilidad</p>
         <div className="flex flex-wrap gap-6">
-          <Toggle value={active} onChange={setActive} label="Activo (visible en portal)" activeColor="bg-green-500" />
-          <Toggle value={featured} onChange={setFeatured} label="Destacado" activeColor="bg-yellow-500" />
+          <Toggle value={active} onChange={setActive} label="Activo (visible en portal)" activeColor="bg-green-500" isDark={isDark} />
+          <Toggle value={featured} onChange={setFeatured} label="Destacado" activeColor="bg-yellow-500" isDark={isDark} />
         </div>
       </div>
 
@@ -503,7 +503,7 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
       {/* ── H. Tags ── */}
       <div className={SECTION}>
         <p className={SECTION_TITLE}><Tag size={12} /> Tags</p>
-        <div className={`${INPUT} flex flex-wrap gap-1.5 min-h-[42px] cursor-text`}
+        <div className={`${INPUT} flex flex-wrap gap-1.5 min-h-[42px] h-auto cursor-text`}
           onClick={() => document.getElementById("tag-input")?.focus()}>
           {tags.map((t) => (
             <span key={t} className="flex items-center gap-1 bg-[#2D9F6A]/15 text-[#2D9F6A] text-xs px-2 py-0.5 rounded-full border border-[#2D9F6A]/30">
@@ -519,7 +519,7 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
             onKeyDown={handleTagKey}
             onBlur={() => { if (tagInput) addTag(tagInput); }}
             placeholder={tags.length === 0 ? "wifi, gigabit, rack... (Enter para agregar)" : ""}
-            className="flex-1 min-w-[120px] bg-transparent outline-none text-sm text-white placeholder:text-gray-600"
+            className={`flex-1 min-w-[120px] bg-transparent outline-none text-sm ${dk("text-white placeholder:text-gray-600", "text-[#171717] placeholder:text-gray-400")}`}
           />
         </div>
         <p className="text-[11px] text-gray-600">Enter, coma o Tab para agregar. Backspace para eliminar el último.</p>
@@ -536,7 +536,7 @@ export default function ProductForm({ onAdd }: { onAdd: (product: Product) => vo
           {saving ? "Guardando..." : "Guardar producto"}
         </button>
         <button type="button" onClick={resetForm}
-          className="text-sm text-gray-500 hover:text-white transition px-3 py-2 rounded-lg hover:bg-[#2a2a2a]">
+          className={`text-sm text-gray-500 transition px-3 py-2 rounded-lg ${dk("hover:text-white hover:bg-[#2a2a2a]", "hover:text-[#171717] hover:bg-[#e8e8e8]")}`}>
           Limpiar formulario
         </button>
       </div>

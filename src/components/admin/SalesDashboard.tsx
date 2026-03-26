@@ -1,12 +1,13 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Quote, QuoteStatus } from "@/models/quote";
 import { useCurrency } from "@/context/CurrencyContext";
 import {
   TrendingUp, FileText, Clock, Target, ShoppingBag,
   CheckCircle2, XCircle, AlertTriangle, Send, Eye, Ban,
   ArrowUpRight, ArrowDownRight, Minus as MinusIcon,
-  Package, Users,
+  Package, Users, Trash2,
 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface SupabaseOrder {
@@ -27,9 +28,11 @@ interface ClientProfile {
 interface Props {
   orders: SupabaseOrder[];
   clients: ClientProfile[];
+  isDark: boolean;
+  onRefreshOrders?: () => void;
 }
 
-// ── Quote helpers ────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────
 function getAllQuotes(): Quote[] {
   const all: Quote[] = [];
   for (let i = 0; i < localStorage.length; i++) {
@@ -54,29 +57,25 @@ const ORDER_STATUS: Record<string, { label: string; icon: any; color: string; bg
 };
 
 const QUOTE_STATUS: Record<QuoteStatus, { label: string; icon: any; color: string; bar: string }> = {
-  draft:    { label: "Borrador",  icon: FileText,     color: "text-[#a3a3a3]",  bar: "bg-[#404040]" },
-  sent:     { label: "Enviada",   icon: Send,         color: "text-blue-400",   bar: "bg-blue-500" },
-  viewed:   { label: "Vista",     icon: Eye,          color: "text-purple-400", bar: "bg-purple-500" },
-  approved: { label: "Aprobada",  icon: CheckCircle2, color: "text-green-400",  bar: "bg-green-500" },
-  rejected: { label: "Rechazada", icon: XCircle,      color: "text-red-400",    bar: "bg-red-500" },
-  expired:  { label: "Expirada",  icon: AlertTriangle, color: "text-amber-400", bar: "bg-amber-500" },
+  draft:    { label: "Borrador",  icon: FileText,      color: "text-[#a3a3a3]",  bar: "bg-[#404040]" },
+  sent:     { label: "Enviada",   icon: Send,          color: "text-blue-400",   bar: "bg-blue-500" },
+  viewed:   { label: "Vista",     icon: Eye,           color: "text-purple-400", bar: "bg-purple-500" },
+  approved: { label: "Aprobada",  icon: CheckCircle2,  color: "text-green-400",  bar: "bg-green-500" },
+  rejected: { label: "Rechazada", icon: XCircle,       color: "text-red-400",    bar: "bg-red-500" },
+  expired:  { label: "Expirada",  icon: AlertTriangle, color: "text-amber-400",  bar: "bg-amber-500" },
 };
 
 // ── KPI Card ─────────────────────────────────────────────────────────────────
 function KpiCard({
-  label, value, sub, icon: Icon, accent, trend,
+  label, value, sub, icon: Icon, accent, trend, isDark,
 }: {
-  label: string;
-  value: string;
-  sub?: string;
-  icon: any;
-  accent: string;
-  trend?: "up" | "down" | "flat";
+  label: string; value: string; sub?: string; icon: any; accent: string; trend?: "up" | "down" | "flat"; isDark: boolean;
 }) {
+  const dk = (d: string, l: string) => isDark ? d : l;
   const TrendIcon = trend === "up" ? ArrowUpRight : trend === "down" ? ArrowDownRight : MinusIcon;
-  const trendColor = trend === "up" ? "text-green-400" : trend === "down" ? "text-red-400" : "text-gray-600";
+  const trendColor = trend === "up" ? "text-green-400" : trend === "down" ? "text-red-400" : "text-gray-500";
   return (
-    <div className="bg-[#111] border border-[#1f1f1f] rounded-2xl px-5 py-5 flex flex-col gap-3 hover:border-[#2a2a2a] transition">
+    <div className={`${dk("bg-[#111] border-[#1f1f1f] hover:border-[#2a2a2a]", "bg-white border-[#e5e5e5] hover:border-[#d4d4d4]")} border rounded-2xl px-5 py-5 flex flex-col gap-3 transition`}>
       <div className="flex items-start justify-between">
         <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${accent}`}>
           <Icon size={17} />
@@ -88,7 +87,7 @@ function KpiCard({
         )}
       </div>
       <div>
-        <div className="text-2xl font-extrabold text-white tracking-tight">{value}</div>
+        <div className={`text-2xl font-extrabold tracking-tight ${dk("text-white", "text-[#171717]")}`}>{value}</div>
         <div className="text-xs text-[#737373] mt-0.5 font-medium">{label}</div>
         {sub && <div className="text-[11px] text-[#525252] mt-1">{sub}</div>}
       </div>
@@ -97,7 +96,8 @@ function KpiCard({
 }
 
 // ── Revenue Sparkline (7-day CSS bars) ───────────────────────────────────────
-function RevenueSparkline({ orders }: { orders: SupabaseOrder[] }) {
+function RevenueSparkline({ orders, isDark }: { orders: SupabaseOrder[]; isDark: boolean }) {
+  const dk = (d: string, l: string) => isDark ? d : l;
   const { formatPrice } = useCurrency();
 
   const days = useMemo(() => {
@@ -117,10 +117,10 @@ function RevenueSparkline({ orders }: { orders: SupabaseOrder[] }) {
   const totalWeek = days.reduce((s, d) => s + d.revenue, 0);
 
   return (
-    <div className="bg-[#111] border border-[#1f1f1f] rounded-2xl p-5 flex flex-col gap-4">
+    <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-5 flex flex-col gap-4`}>
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-bold text-white">Ventas — últimos 7 días</h3>
+          <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Ventas — últimos 7 días</h3>
           <p className="text-xs text-[#737373] mt-0.5">Solo pedidos aprobados</p>
         </div>
         <div className="text-right">
@@ -129,23 +129,21 @@ function RevenueSparkline({ orders }: { orders: SupabaseOrder[] }) {
         </div>
       </div>
 
-      {/* Bars */}
       <div className="flex items-end gap-1.5 h-20">
         {days.map((d) => {
           const pct = max > 0 ? (d.revenue / max) * 100 : 0;
           const isToday = d.iso === new Date().toISOString().split("T")[0];
           return (
             <div key={d.iso} className="flex-1 flex flex-col items-center gap-1 group relative">
-              {/* Tooltip */}
               {d.revenue > 0 && (
-                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-[#1e1e1e] border border-[#2a2a2a] rounded-lg px-2 py-1 text-[10px] text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition z-10 pointer-events-none">
+                <div className={`absolute bottom-full mb-1 left-1/2 -translate-x-1/2 ${dk("bg-[#1e1e1e] border-[#2a2a2a] text-white", "bg-white border-[#e5e5e5] text-[#171717]")} border rounded-lg px-2 py-1 text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition z-10 pointer-events-none shadow-lg`}>
                   {formatPrice(d.revenue)}
                 </div>
               )}
               <div className="w-full relative" style={{ height: "64px" }}>
                 <div
                   className={`absolute bottom-0 w-full rounded-t-md transition-all ${
-                    isToday ? "bg-[#2D9F6A]" : "bg-[#1f1f1f] group-hover:bg-[#2D9F6A]/50"
+                    isToday ? "bg-[#2D9F6A]" : dk("bg-[#1f1f1f] group-hover:bg-[#2D9F6A]/50", "bg-[#e0e0e0] group-hover:bg-[#2D9F6A]/40")
                   }`}
                   style={{ height: `${Math.max(pct, d.revenue > 0 ? 4 : 0)}%` }}
                 />
@@ -162,7 +160,8 @@ function RevenueSparkline({ orders }: { orders: SupabaseOrder[] }) {
 }
 
 // ── Quote Status Breakdown ───────────────────────────────────────────────────
-function QuoteStatusBreakdown({ quotes }: { quotes: Quote[] }) {
+function QuoteStatusBreakdown({ quotes, isDark }: { quotes: Quote[]; isDark: boolean }) {
+  const dk = (d: string, l: string) => isDark ? d : l;
   const total = quotes.length;
   const byStatus = useMemo(() => {
     const counts: Partial<Record<QuoteStatus, number>> = {};
@@ -173,15 +172,13 @@ function QuoteStatusBreakdown({ quotes }: { quotes: Quote[] }) {
   const statuses: QuoteStatus[] = ["draft", "sent", "viewed", "approved", "rejected", "expired"];
 
   return (
-    <div className="bg-[#111] border border-[#1f1f1f] rounded-2xl p-5 flex flex-col gap-4">
+    <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-5 flex flex-col gap-4`}>
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-bold text-white">Estado de cotizaciones</h3>
+          <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Estado de cotizaciones</h3>
           <p className="text-xs text-[#737373] mt-0.5">{total} cotización{total !== 1 ? "es" : ""} en total</p>
         </div>
-        {total === 0 && (
-          <span className="text-[11px] text-[#525252]">Sin datos</span>
-        )}
+        {total === 0 && <span className="text-[11px] text-[#525252]">Sin datos</span>}
       </div>
 
       {total === 0 ? (
@@ -206,7 +203,7 @@ function QuoteStatusBreakdown({ quotes }: { quotes: Quote[] }) {
                     <span className="text-[11px] text-[#737373] tabular-nums w-8 text-right">{pct.toFixed(0)}%</span>
                   </div>
                 </div>
-                <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
+                <div className={`h-1.5 ${dk("bg-[#1a1a1a]", "bg-[#e8e8e8]")} rounded-full overflow-hidden`}>
                   <div className={`h-full rounded-full ${bar} transition-all`} style={{ width: `${pct}%` }} />
                 </div>
               </div>
@@ -224,8 +221,9 @@ type FeedItem =
   | { kind: "quote"; data: Quote; date: Date };
 
 function ActivityFeed({
-  orders, quotes, clients,
-}: { orders: SupabaseOrder[]; quotes: Quote[]; clients: ClientProfile[] }) {
+  orders, quotes, clients, isDark,
+}: { orders: SupabaseOrder[]; quotes: Quote[]; clients: ClientProfile[]; isDark: boolean }) {
+  const dk = (d: string, l: string) => isDark ? d : l;
   const { formatPrice } = useCurrency();
 
   const clientName = (id: string) => {
@@ -242,9 +240,9 @@ function ActivityFeed({
   }, [orders, quotes]);
 
   return (
-    <div className="bg-[#111] border border-[#1f1f1f] rounded-2xl overflow-hidden">
-      <div className="px-5 py-4 border-b border-[#1a1a1a]">
-        <h3 className="text-sm font-bold text-white">Actividad reciente</h3>
+    <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
+      <div className={`px-5 py-4 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
+        <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Actividad reciente</h3>
         <p className="text-xs text-[#737373] mt-0.5">Órdenes y cotizaciones combinadas</p>
       </div>
 
@@ -254,20 +252,20 @@ function ActivityFeed({
           <p className="text-sm">Sin actividad registrada</p>
         </div>
       ) : (
-        <div className="divide-y divide-[#141414]">
+        <div className={`divide-y ${dk("divide-[#141414]", "divide-[#f0f0f0]")}`}>
           {feed.map((item, i) => {
             if (item.kind === "order") {
               const o = item.data;
               const cfg = ORDER_STATUS[o.status] ?? ORDER_STATUS.pending;
               const Icon = cfg.icon;
               return (
-                <div key={`o-${o.id}-${i}`} className="flex items-center justify-between px-5 py-3 hover:bg-[#141414] transition">
+                <div key={`o-${o.id}-${i}`} className={`flex items-center justify-between px-5 py-3 ${dk("hover:bg-[#141414]", "hover:bg-[#fafafa]")} transition`}>
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 ${cfg.bg} ${cfg.border} border`}>
                       <ShoppingBag size={13} className={cfg.color} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-white truncate">
+                      <p className={`text-xs font-semibold truncate ${dk("text-white", "text-[#171717]")}`}>
                         Pedido #{String(o.id).slice(-6).toUpperCase()}
                       </p>
                       <p className="text-[10px] text-[#525252] truncate">
@@ -288,13 +286,13 @@ function ActivityFeed({
               const cfg = QUOTE_STATUS[q.status] ?? QUOTE_STATUS.draft;
               const Icon = cfg.icon;
               return (
-                <div key={`q-${q.id}-${i}`} className="flex items-center justify-between px-5 py-3 hover:bg-[#141414] transition">
+                <div key={`q-${q.id}-${i}`} className={`flex items-center justify-between px-5 py-3 ${dk("hover:bg-[#141414]", "hover:bg-[#fafafa]")} transition`}>
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0 bg-blue-500/10 border border-blue-500/20">
                       <FileText size={13} className="text-blue-400" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-white truncate">
+                      <p className={`text-xs font-semibold truncate ${dk("text-white", "text-[#171717]")}`}>
                         COT-{String(q.id).padStart(4, "0")} · {q.client_name}
                       </p>
                       <p className="text-[10px] text-[#525252] truncate">
@@ -303,7 +301,7 @@ function ActivityFeed({
                     </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0 ml-3">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-[#1a1a1a] border-[#2a2a2a] ${cfg.color}`}>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${dk("bg-[#1a1a1a] border-[#2a2a2a]", "bg-[#f0f0f0] border-[#e0e0e0]")} ${cfg.color}`}>
                       <Icon size={9} /> {cfg.label}
                     </span>
                     <span className="text-sm font-bold text-[#2D9F6A] tabular-nums">{formatPrice(q.total)}</span>
@@ -319,7 +317,8 @@ function ActivityFeed({
 }
 
 // ── Top Products ─────────────────────────────────────────────────────────────
-function TopProducts({ orders }: { orders: SupabaseOrder[] }) {
+function TopProducts({ orders, isDark }: { orders: SupabaseOrder[]; isDark: boolean }) {
+  const dk = (d: string, l: string) => isDark ? d : l;
   const { formatPrice } = useCurrency();
 
   const topProducts = useMemo(() => {
@@ -334,17 +333,15 @@ function TopProducts({ orders }: { orders: SupabaseOrder[] }) {
           map[p.name].revenue += p.total_price || 0;
         });
       });
-    return Object.values(map)
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 5);
+    return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
   }, [orders]);
 
   const maxRevenue = Math.max(...topProducts.map((p) => p.revenue), 1);
 
   return (
-    <div className="bg-[#111] border border-[#1f1f1f] rounded-2xl p-5 flex flex-col gap-4">
+    <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-5 flex flex-col gap-4`}>
       <div>
-        <h3 className="text-sm font-bold text-white">Top productos</h3>
+        <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Top productos</h3>
         <p className="text-xs text-[#737373] mt-0.5">Por facturación (pedidos aprobados)</p>
       </div>
 
@@ -361,14 +358,14 @@ function TopProducts({ orders }: { orders: SupabaseOrder[] }) {
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-[10px] font-bold text-[#525252] w-4 shrink-0">#{i + 1}</span>
-                    <span className="text-xs font-medium text-[#a3a3a3] truncate">{p.name}</span>
+                    <span className={`text-xs font-medium truncate ${dk("text-[#a3a3a3]", "text-[#525252]")}`}>{p.name}</span>
                   </div>
                   <div className="flex items-center gap-3 shrink-0 ml-2">
                     <span className="text-[10px] text-[#525252]">×{p.qty}</span>
                     <span className="text-xs font-bold text-[#2D9F6A] tabular-nums">{formatPrice(p.revenue)}</span>
                   </div>
                 </div>
-                <div className="h-1 bg-[#1a1a1a] rounded-full overflow-hidden">
+                <div className={`h-1 ${dk("bg-[#1a1a1a]", "bg-[#e8e8e8]")} rounded-full overflow-hidden`}>
                   <div className="h-full bg-[#2D9F6A]/60 rounded-full transition-all" style={{ width: `${pct}%` }} />
                 </div>
               </div>
@@ -380,12 +377,87 @@ function TopProducts({ orders }: { orders: SupabaseOrder[] }) {
   );
 }
 
+// ── Delete History Panel ──────────────────────────────────────────────────────
+function DeleteHistoryPanel({ isDark, onRefreshOrders }: { isDark: boolean; onRefreshOrders?: () => void }) {
+  const dk = (d: string, l: string) => isDark ? d : l;
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  async function deleteHistory(label: string, days: number) {
+    if (!confirm(`¿Eliminar el historial de ${label}?\n\nEsto eliminará pedidos y cotizaciones de los últimos ${days} día${days !== 1 ? "s" : ""}. Esta acción no se puede deshacer.`)) return;
+
+    setDeleting(label);
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const cutoffISO = cutoff.toISOString();
+
+    // Delete Supabase orders from that period
+    await supabase
+      .from("orders")
+      .delete()
+      .gte("created_at", cutoffISO);
+
+    // Delete localStorage quotes from that period
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith("b2b_quotes_")) {
+        try {
+          const arr = JSON.parse(localStorage.getItem(key) || "[]");
+          if (Array.isArray(arr)) {
+            const filtered = arr.filter((q: Quote) => new Date(q.created_at) < cutoff);
+            if (filtered.length !== arr.length) {
+              localStorage.setItem(key, JSON.stringify(filtered));
+            }
+          }
+        } catch { /* skip */ }
+      }
+    }
+
+    setDeleting(null);
+    onRefreshOrders?.();
+  }
+
+  const periods = [
+    { label: "último día",   days: 1 },
+    { label: "última semana", days: 7 },
+    { label: "último mes",   days: 30 },
+  ];
+
+  return (
+    <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl px-5 py-4 flex flex-wrap items-center gap-3`}>
+      <div className="flex items-center gap-2 shrink-0">
+        <div className={`h-7 w-7 rounded-lg flex items-center justify-center bg-red-500/10 border border-red-500/20`}>
+          <Trash2 size={13} className="text-red-400" />
+        </div>
+        <span className={`text-xs font-semibold ${dk("text-[#a3a3a3]", "text-[#525252]")}`}>Limpiar historial</span>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        {periods.map(({ label, days }) => (
+          <button
+            key={label}
+            onClick={() => deleteHistory(label, days)}
+            disabled={deleting !== null}
+            className={`text-xs px-3 py-1.5 rounded-lg border transition disabled:opacity-40 ${
+              dk(
+                "border-[#2a2a2a] text-[#737373] hover:border-red-500/40 hover:text-red-400 hover:bg-red-500/5",
+                "border-[#e0e0e0] text-[#737373] hover:border-red-400/50 hover:text-red-500 hover:bg-red-50"
+              )
+            }`}
+          >
+            {deleting === label ? "Eliminando…" : `Borrar ${label}`}
+          </button>
+        ))}
+      </div>
+      <p className="text-[10px] text-[#525252] ml-auto">Elimina pedidos y cotizaciones del período</p>
+    </div>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
-export function SalesDashboard({ orders, clients }: Props) {
+export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Props) {
+  const dk = (d: string, l: string) => isDark ? d : l;
   const { formatPrice } = useCurrency();
   const quotes = useMemo(() => getAllQuotes(), []);
 
-  // ── Metrics ────────────────────────────────────────────────────────────────
   const approvedOrders  = useMemo(() => orders.filter((o) => o.status === "approved"), [orders]);
   const pendingOrders   = useMemo(() => orders.filter((o) => o.status === "pending"),  [orders]);
   const totalRevenue    = useMemo(() => approvedOrders.reduce((s, o) => s + o.total, 0), [approvedOrders]);
@@ -398,62 +470,49 @@ export function SalesDashboard({ orders, clients }: Props) {
   return (
     <div className="space-y-6">
 
+      {/* ── Delete history ── */}
+      <DeleteHistoryPanel isDark={isDark} onRefreshOrders={onRefreshOrders} />
+
       {/* ── KPI Row ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          label="Ventas totales"
-          value={formatPrice(totalRevenue)}
+        <KpiCard label="Ventas totales" value={formatPrice(totalRevenue)}
           sub={`${approvedOrders.length} pedido${approvedOrders.length !== 1 ? "s" : ""} aprobado${approvedOrders.length !== 1 ? "s" : ""}`}
-          icon={TrendingUp}
-          accent="bg-[#2D9F6A]/15 text-[#2D9F6A]"
-          trend={totalRevenue > 0 ? "up" : "flat"}
-        />
-        <KpiCard
-          label="Cotizaciones"
-          value={String(quotes.length)}
+          icon={TrendingUp} accent="bg-[#2D9F6A]/15 text-[#2D9F6A]"
+          trend={totalRevenue > 0 ? "up" : "flat"} isDark={isDark} />
+        <KpiCard label="Cotizaciones" value={String(quotes.length)}
           sub={`${draftQuotes.length} en borrador`}
-          icon={FileText}
-          accent="bg-blue-500/15 text-blue-400"
-          trend={quotes.length > 0 ? "up" : "flat"}
-        />
-        <KpiCard
-          label="Pedidos pendientes"
-          value={String(pendingOrders.length)}
+          icon={FileText} accent="bg-blue-500/15 text-blue-400"
+          trend={quotes.length > 0 ? "up" : "flat"} isDark={isDark} />
+        <KpiCard label="Pedidos pendientes" value={String(pendingOrders.length)}
           sub={`de ${orders.length} en total`}
-          icon={Clock}
-          accent={pendingOrders.length > 0 ? "bg-yellow-500/15 text-yellow-400" : "bg-[#1a1a1a] text-[#525252]"}
-          trend={pendingOrders.length > 0 ? "up" : "flat"}
-        />
-        <KpiCard
-          label="Conversión"
-          value={`${conversionRate.toFixed(1)}%`}
+          icon={Clock} accent={pendingOrders.length > 0 ? "bg-yellow-500/15 text-yellow-400" : "bg-[#1a1a1a] text-[#525252]"}
+          trend={pendingOrders.length > 0 ? "up" : "flat"} isDark={isDark} />
+        <KpiCard label="Conversión" value={`${conversionRate.toFixed(1)}%`}
           sub={`${approvedQuotes.length} cot. aprobada${approvedQuotes.length !== 1 ? "s" : ""}`}
-          icon={Target}
-          accent="bg-purple-500/15 text-purple-400"
-          trend={conversionRate >= 50 ? "up" : conversionRate > 0 ? "flat" : "flat"}
-        />
+          icon={Target} accent="bg-purple-500/15 text-purple-400"
+          trend={conversionRate >= 50 ? "up" : "flat"} isDark={isDark} />
       </div>
 
-      {/* ── Avg order + Clients summary ── */}
+      {/* ── Secondary metrics ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-[#111] border border-[#1f1f1f] rounded-xl px-4 py-3 col-span-1">
+        <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-4 py-3`}>
           <p className="text-[10px] font-bold uppercase tracking-widest text-[#525252] mb-1">Ticket promedio</p>
-          <p className="text-xl font-extrabold text-white tabular-nums">{formatPrice(avgOrder)}</p>
+          <p className={`text-xl font-extrabold tabular-nums ${dk("text-white", "text-[#171717]")}`}>{formatPrice(avgOrder)}</p>
         </div>
-        <div className="bg-[#111] border border-[#1f1f1f] rounded-xl px-4 py-3 col-span-1">
+        <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-4 py-3`}>
           <p className="text-[10px] font-bold uppercase tracking-widest text-[#525252] mb-1">Pedidos rechazados</p>
           <p className="text-xl font-extrabold text-red-400 tabular-nums">
             {orders.filter((o) => o.status === "rejected").length}
           </p>
         </div>
-        <div className="bg-[#111] border border-[#1f1f1f] rounded-xl px-4 py-3 col-span-1">
+        <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-4 py-3`}>
           <p className="text-[10px] font-bold uppercase tracking-widest text-[#525252] mb-1">Clientes activos</p>
           <div className="flex items-center gap-2">
             <Users size={14} className="text-[#2D9F6A]" />
-            <p className="text-xl font-extrabold text-white tabular-nums">{clients.length}</p>
+            <p className={`text-xl font-extrabold tabular-nums ${dk("text-white", "text-[#171717]")}`}>{clients.length}</p>
           </div>
         </div>
-        <div className="bg-[#111] border border-[#1f1f1f] rounded-xl px-4 py-3 col-span-1">
+        <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-4 py-3`}>
           <p className="text-[10px] font-bold uppercase tracking-widest text-[#525252] mb-1">Cot. aprobadas</p>
           <p className="text-xl font-extrabold text-green-400 tabular-nums">{approvedQuotes.length}</p>
         </div>
@@ -461,16 +520,16 @@ export function SalesDashboard({ orders, clients }: Props) {
 
       {/* ── Charts row ── */}
       <div className="grid lg:grid-cols-2 gap-4">
-        <RevenueSparkline orders={orders} />
-        <QuoteStatusBreakdown quotes={quotes} />
+        <RevenueSparkline orders={orders} isDark={isDark} />
+        <QuoteStatusBreakdown quotes={quotes} isDark={isDark} />
       </div>
 
       {/* ── Bottom row ── */}
       <div className="grid lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">
-          <ActivityFeed orders={orders} quotes={quotes} clients={clients} />
+          <ActivityFeed orders={orders} quotes={quotes} clients={clients} isDark={isDark} />
         </div>
-        <TopProducts orders={orders} />
+        <TopProducts orders={orders} isDark={isDark} />
       </div>
 
     </div>

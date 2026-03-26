@@ -11,6 +11,7 @@ interface Category { id: number; name: string; parent_id: number | null; }
 interface Props {
   products: Product[];
   categories: Category[];
+  isDark?: boolean;
   onRefresh: () => void;
 }
 
@@ -23,7 +24,8 @@ function SortIcon({ field, active, dir }: { field: string; active: boolean; dir:
   return dir === "asc" ? <ArrowUp size={12} className="text-[#2D9F6A]" /> : <ArrowDown size={12} className="text-[#2D9F6A]" />;
 }
 
-export default function ProductTable({ products, categories, onRefresh }: Props) {
+export default function ProductTable({ products, categories, isDark = true, onRefresh }: Props) {
+  const dk = (d: string, l: string) => isDark ? d : l;
   const [search,       setSearch]       = useState("");
   const [filterCat,    setFilterCat]    = useState("all");
   const [filterStatus, setFilterStatus] = useState<Filter>("all");
@@ -158,19 +160,19 @@ export default function ProductTable({ products, categories, onRefresh }: Props)
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nombre o SKU..."
-            className="w-full bg-[#232323] border border-[#2a2a2a] rounded-lg pl-8 pr-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A]/50 placeholder:text-gray-600" />
+            className={`w-full border rounded-lg pl-8 pr-3 py-2 text-sm outline-none focus:border-[#2D9F6A]/50 placeholder:text-gray-500 ${dk("bg-[#232323] border-[#2a2a2a] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`} />
         </div>
 
         {/* Category filter */}
         <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)}
-          className="bg-[#232323] border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A]/50">
+          className={`border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D9F6A]/50 ${dk("bg-[#232323] border-[#2a2a2a] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}>
           <option value="all">Todas las categorías</option>
           {rootCats.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
         </select>
 
         {/* Status filter */}
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as Filter)}
-          className="bg-[#232323] border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A]/50">
+          className={`border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D9F6A]/50 ${dk("bg-[#232323] border-[#2a2a2a] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}>
           <option value="all">Todos</option>
           <option value="active">Activos</option>
           <option value="inactive">Inactivos</option>
@@ -187,15 +189,15 @@ export default function ProductTable({ products, categories, onRefresh }: Props)
         {selected.size > 0 && (
           <div className="relative">
             <button onClick={() => setBulkOpen((o) => !o)}
-              className="flex items-center gap-1.5 bg-[#2a2a2a] hover:bg-[#333] text-white text-sm font-semibold px-3 py-2 rounded-lg transition border border-[#333]">
+              className={`flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-lg transition border ${dk("bg-[#2a2a2a] hover:bg-[#333] text-white border-[#333]", "bg-[#f0f0f0] hover:bg-[#e8e8e8] text-[#171717] border-[#d4d4d4]")}`}>
               {selected.size} seleccionados <ChevronDown size={13} />
             </button>
             {bulkOpen && (
-              <div className="absolute right-0 top-full mt-1 w-48 bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl shadow-xl z-20 py-1">
-                <button onClick={() => bulkSetActive(true)}  className="w-full text-left px-4 py-2 text-sm text-green-400 hover:bg-[#2a2a2a]">✓ Activar</button>
-                <button onClick={() => bulkSetActive(false)} className="w-full text-left px-4 py-2 text-sm text-yellow-400 hover:bg-[#2a2a2a]">✗ Desactivar</button>
-                <div className="border-t border-[#2a2a2a] my-1" />
-                <button onClick={bulkDelete} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-[#2a2a2a]">🗑 Eliminar selección</button>
+              <div className={`absolute right-0 top-full mt-1 w-48 border rounded-xl shadow-xl z-20 py-1 ${dk("bg-[#1e1e1e] border-[#2a2a2a]", "bg-white border-[#e5e5e5]")}`}>
+                <button onClick={() => bulkSetActive(true)}  className={`w-full text-left px-4 py-2 text-sm text-green-400 ${dk("hover:bg-[#2a2a2a]", "hover:bg-[#f5f5f5]")}`}>✓ Activar</button>
+                <button onClick={() => bulkSetActive(false)} className={`w-full text-left px-4 py-2 text-sm text-yellow-400 ${dk("hover:bg-[#2a2a2a]", "hover:bg-[#f5f5f5]")}`}>✗ Desactivar</button>
+                <div className={`border-t my-1 ${dk("border-[#2a2a2a]", "border-[#e5e5e5]")}`} />
+                <button onClick={bulkDelete} className={`w-full text-left px-4 py-2 text-sm text-red-400 ${dk("hover:bg-[#2a2a2a]", "hover:bg-[#f5f5f5]")}`}>🗑 Eliminar selección</button>
               </div>
             )}
           </div>
@@ -203,10 +205,10 @@ export default function ProductTable({ products, categories, onRefresh }: Props)
       </div>
 
       {/* Table */}
-      <div className="bg-[#232323] border border-[#2a2a2a] rounded-xl overflow-hidden">
+      <div className={`border rounded-xl overflow-hidden ${dk("bg-[#232323] border-[#2a2a2a]", "bg-white border-[#e5e5e5]")}`}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[900px]">
-            <thead className="bg-[#1a1a1a] border-b border-[#2a2a2a]">
+            <thead className={`border-b ${dk("bg-[#1a1a1a] border-[#2a2a2a]", "bg-[#f5f5f5] border-[#e5e5e5]")}`}>
               <tr>
                 <th className="px-3 py-3 w-8">
                   <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0}
@@ -239,7 +241,7 @@ export default function ProductTable({ products, categories, onRefresh }: Props)
 
                 return (
                   <tr key={p.id}
-                    className={`border-t border-[#2a2a2a] transition ${isSelected ? "bg-[#2D9F6A]/5" : "hover:bg-[#2a2a2a]/40"} ${!active ? "opacity-50" : ""}`}>
+                    className={`border-t transition ${dk("border-[#2a2a2a]", "border-[#f0f0f0]")} ${isSelected ? "bg-[#2D9F6A]/5" : dk("hover:bg-[#2a2a2a]/40", "hover:bg-[#fafafa]")} ${!active ? "opacity-50" : ""}`}>
 
                     {/* Checkbox */}
                     <td className="px-3 py-3">
@@ -257,12 +259,12 @@ export default function ProductTable({ products, categories, onRefresh }: Props)
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-1.5">
                         {featured && <Star size={11} className="text-yellow-400 shrink-0" fill="currentColor" />}
-                        <span className="font-medium text-white line-clamp-1">{p.name}</span>
+                        <span className={`font-medium line-clamp-1 ${dk("text-white", "text-[#171717]")}`}>{p.name}</span>
                       </div>
                       {(p as any).tags?.length > 0 && (
                         <div className="flex gap-1 mt-0.5 flex-wrap">
                           {(p as any).tags.slice(0, 3).map((t: string) => (
-                            <span key={t} className="text-[10px] bg-[#1a1a1a] text-gray-500 px-1.5 rounded">{t}</span>
+                            <span key={t} className={`text-[10px] ${dk("bg-[#1a1a1a]", "bg-[#f0f0f0]")} text-gray-500 px-1.5 rounded`}>{t}</span>
                           ))}
                         </div>
                       )}
@@ -282,10 +284,10 @@ export default function ProductTable({ products, categories, onRefresh }: Props)
                           onChange={(e) => setInlineValue(e.target.value)}
                           onBlur={commitInline}
                           onKeyDown={(e) => { if (e.key === "Enter") commitInline(); if (e.key === "Escape") setInlineCell(null); }}
-                          className="w-24 bg-[#181818] border border-[#2D9F6A] rounded px-2 py-0.5 text-sm text-white outline-none" />
+                          className={`w-24 border border-[#2D9F6A] rounded px-2 py-0.5 text-sm outline-none ${dk("bg-[#181818] text-white", "bg-white text-[#171717]")}`} />
                       ) : (
                         <div>
-                          <span className="text-white font-medium cursor-pointer hover:text-[#2D9F6A] transition" title="Doble click para editar">
+                          <span className={`font-medium cursor-pointer hover:text-[#2D9F6A] transition ${dk("text-white", "text-[#171717]")}`} title="Doble click para editar">
                             ${p.cost_price.toLocaleString()}
                           </span>
                           <span className={`ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
@@ -307,7 +309,7 @@ export default function ProductTable({ products, categories, onRefresh }: Props)
                           onChange={(e) => setInlineValue(e.target.value)}
                           onBlur={commitInline}
                           onKeyDown={(e) => { if (e.key === "Enter") commitInline(); if (e.key === "Escape") setInlineCell(null); }}
-                          className="w-16 bg-[#181818] border border-[#2D9F6A] rounded px-2 py-0.5 text-sm text-white outline-none" />
+                          className={`w-16 border border-[#2D9F6A] rounded px-2 py-0.5 text-sm outline-none ${dk("bg-[#181818] text-white", "bg-white text-[#171717]")}`} />
                       ) : (
                         <span className={`font-semibold text-sm cursor-pointer transition flex items-center gap-1 ${
                           noStock ? "text-red-400" : lowStock ? "text-yellow-400" : "text-green-400 hover:text-green-300"
@@ -338,7 +340,7 @@ export default function ProductTable({ products, categories, onRefresh }: Props)
                           <Star size={13} fill={featured ? "currentColor" : "none"} />
                         </button>
                         <button onClick={() => setEditingProduct(p)} title="Editar"
-                          className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-[#333] transition">
+                          className={`p-1.5 rounded-lg text-gray-500 transition ${dk("hover:text-white hover:bg-[#333]", "hover:text-[#171717] hover:bg-[#e8e8e8]")}`}>
                           <Pencil size={13} />
                         </button>
                         <button onClick={() => duplicate(p)} title="Duplicar"

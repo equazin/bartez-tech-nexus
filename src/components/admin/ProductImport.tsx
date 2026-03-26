@@ -22,7 +22,8 @@ function parseTags(v: string | undefined): string[] {
   return v.split(/[,;|]/).map((t) => t.trim().toLowerCase()).filter(Boolean);
 }
 
-export default function ProductImport({ onImport }: { onImport: (result: ImportResult) => void }) {
+export default function ProductImport({ onImport, isDark = true }: { onImport: (result: ImportResult) => void; isDark?: boolean }) {
+  const dk = (d: string, l: string) => isDark ? d : l;
   const [preview, setPreview]   = useState<any[]>([]);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
   const [dragActive, setDragActive]   = useState(false);
@@ -106,7 +107,7 @@ export default function ProductImport({ onImport }: { onImport: (result: ImportR
         className={`relative border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
           dragActive
             ? "border-[#2D9F6A] bg-[#2D9F6A]/5"
-            : "border-[#2a2a2a] hover:border-[#2D9F6A]/40 bg-[#141414]"
+            : `${dk("border-[#2a2a2a] bg-[#141414]", "border-[#d4d4d4] bg-[#f9f9f9]")} hover:border-[#2D9F6A]/40`
         }`}
         onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
         onDragLeave={() => setDragActive(false)}
@@ -117,7 +118,7 @@ export default function ProductImport({ onImport }: { onImport: (result: ImportR
           onChange={(e) => handleFiles(e.target.files)} />
         <Upload size={24} className="mx-auto mb-2 text-gray-600" />
         {fileName ? (
-          <p className="text-sm text-white font-medium">{fileName}</p>
+          <p className={`text-sm font-medium ${dk("text-white", "text-[#171717]")}`}>{fileName}</p>
         ) : (
           <p className="text-sm text-gray-500">Arrastrá un CSV o hacé click para seleccionar</p>
         )}
@@ -125,7 +126,7 @@ export default function ProductImport({ onImport }: { onImport: (result: ImportR
       </div>
 
       {/* Column reference */}
-      <div className="bg-[#141414] border border-[#222] rounded-lg px-3 py-2.5">
+      <div className={`${dk("bg-[#141414] border-[#222]", "bg-[#f5f5f5] border-[#e5e5e5]")} border rounded-lg px-3 py-2.5`}>
         <p className="text-[11px] text-gray-600 font-semibold mb-1.5 uppercase tracking-wider">Columnas soportadas</p>
         <div className="flex flex-wrap gap-1">
           {COLUMNS.map((col) => (
@@ -168,10 +169,10 @@ export default function ProductImport({ onImport }: { onImport: (result: ImportR
             </button>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-[#252525] bg-[#141414]">
+          <div className={`overflow-x-auto rounded-xl border ${dk("border-[#252525] bg-[#141414]", "border-[#e5e5e5] bg-white")}`}>
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-[#252525]">
+                <tr className={`border-b ${dk("border-[#252525]", "border-[#e5e5e5]")}`}>
                   {["Nombre", "SKU", "Precio", "Categoría", "Stock", "St.Min", "Proveedor", "Mult.", "Tags", "Featured", "Activo"].map((h) => (
                     <th key={h} className="px-3 py-2 text-left text-gray-500 font-semibold whitespace-nowrap">{h}</th>
                   ))}
@@ -179,8 +180,8 @@ export default function ProductImport({ onImport }: { onImport: (result: ImportR
               </thead>
               <tbody>
                 {preview.map((p, i) => (
-                  <tr key={i} className="border-t border-[#1e1e1e] hover:bg-[#1a1a1a] transition-colors">
-                    <td className="px-3 py-2 text-white font-medium max-w-[160px] truncate">{p.name}</td>
+                  <tr key={i} className={`border-t ${dk("border-[#1e1e1e] hover:bg-[#1a1a1a]", "border-[#f0f0f0] hover:bg-[#fafafa]")} transition-colors`}>
+                    <td className={`px-3 py-2 font-medium max-w-[160px] truncate ${dk("text-white", "text-[#171717]")}`}>{p.name}</td>
                     <td className="px-3 py-2 font-mono text-gray-400">{p.sku}</td>
                     <td className="px-3 py-2 text-[#2D9F6A] font-semibold tabular-nums">${p.cost_price.toLocaleString("es-AR")}</td>
                     <td className="px-3 py-2 text-gray-400">{p.category}</td>
@@ -192,7 +193,7 @@ export default function ProductImport({ onImport }: { onImport: (result: ImportR
                       {p.tags?.length > 0 ? (
                         <div className="flex flex-wrap gap-0.5">
                           {p.tags.slice(0, 3).map((t: string) => (
-                            <span key={t} className="bg-[#252525] text-gray-500 px-1 py-0.5 rounded text-[10px]">{t}</span>
+                            <span key={t} className={`${dk("bg-[#252525]", "bg-[#f0f0f0]")} text-gray-500 px-1 py-0.5 rounded text-[10px]`}>{t}</span>
                           ))}
                           {p.tags.length > 3 && <span className="text-gray-700 text-[10px]">+{p.tags.length - 3}</span>}
                         </div>

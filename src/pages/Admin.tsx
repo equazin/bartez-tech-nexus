@@ -372,7 +372,7 @@ const Admin = () => {
 
         {/* ── DASHBOARD ── */}
         {activeTab === "dashboard" && (
-          <SalesDashboard orders={orders} clients={clients} />
+          <SalesDashboard orders={orders} clients={clients} isDark={isDark} onRefreshOrders={fetchOrders} />
         )}
 
         {/* ── PRODUCTOS ── */}
@@ -380,14 +380,14 @@ const Admin = () => {
           <div className="space-y-6 max-w-6xl">
 
             {/* ── Cotización del dólar ── */}
-            <div className="bg-[#111] border border-[#1f1f1f] rounded-xl px-5 py-4 flex flex-wrap items-center gap-4">
+            <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-5 py-4 flex flex-wrap items-center gap-4`}>
               <div className="flex items-center gap-2 shrink-0">
                 <div className="h-8 w-8 rounded-lg bg-[#2D9F6A]/10 border border-[#2D9F6A]/20 flex items-center justify-center">
                   <DollarSign size={14} className="text-[#2D9F6A]" />
                 </div>
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Cotización USD</p>
-                  <p className="text-[10px] text-gray-700">
+                  <p className="text-[10px] text-gray-500">
                     {exchangeRate.source === "api" ? "API" : "Manual"} ·{" "}
                     {new Date(exchangeRate.updatedAt).toLocaleDateString("es-AR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </p>
@@ -401,7 +401,7 @@ const Admin = () => {
                     type="number"
                     value={rateInput}
                     onChange={(e) => setRateInput(e.target.value)}
-                    className="w-28 bg-[#0d0d0d] border border-[#2D9F6A]/40 rounded-lg px-2 py-1 text-white text-sm font-mono outline-none focus:border-[#2D9F6A]"
+                    className={`w-28 border border-[#2D9F6A]/40 rounded-lg px-2 py-1 text-sm font-mono outline-none focus:border-[#2D9F6A] ${dk("bg-[#0d0d0d] text-white", "bg-white text-[#171717]")}`}
                     autoFocus
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
@@ -424,21 +424,21 @@ const Admin = () => {
                     <Check size={13} />
                   </button>
                   <button onClick={() => setEditingRate(false)}
-                    className="h-7 w-7 bg-[#2a2a2a] hover:bg-[#333] text-gray-400 rounded-lg flex items-center justify-center transition">
+                    className={`h-7 w-7 rounded-lg flex items-center justify-center transition ${dk("bg-[#2a2a2a] hover:bg-[#333] text-gray-400", "bg-[#e8e8e8] hover:bg-[#d4d4d4] text-gray-600")}`}>
                     <X size={13} />
                   </button>
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
                   <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-extrabold text-white tabular-nums">
+                    <span className={`text-2xl font-extrabold tabular-nums ${dk("text-white", "text-[#171717]")}`}>
                       {exchangeRate.rate.toLocaleString("es-AR")}
                     </span>
                     <span className="text-sm text-gray-500">ARS / USD</span>
                   </div>
                   <button
                     onClick={() => { setRateInput(String(exchangeRate.rate)); setEditingRate(true); }}
-                    className="flex items-center gap-1.5 text-xs text-[#737373] hover:text-white border border-[#262626] hover:border-[#333] bg-[#0d0d0d] hover:bg-[#1c1c1c] px-2.5 py-1.5 rounded-lg transition"
+                    className={`flex items-center gap-1.5 text-xs transition px-2.5 py-1.5 rounded-lg border ${dk("text-[#737373] hover:text-white border-[#262626] hover:border-[#333] bg-[#0d0d0d] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] border-[#e5e5e5] hover:border-[#d4d4d4] bg-white hover:bg-[#f5f5f5]")}`}
                   >
                     <Pencil size={11} /> Editar
                   </button>
@@ -452,7 +452,7 @@ const Admin = () => {
                 <button
                   onClick={handleFetchRate}
                   disabled={fetchingRate}
-                  className="flex items-center gap-1.5 text-xs text-[#737373] hover:text-white disabled:opacity-50 transition px-2.5 py-1.5 rounded-lg hover:bg-[#1c1c1c] border border-transparent hover:border-[#262626]"
+                  className={`flex items-center gap-1.5 text-xs disabled:opacity-50 transition px-2.5 py-1.5 rounded-lg border border-transparent ${dk("text-[#737373] hover:text-white hover:bg-[#1c1c1c] hover:border-[#262626]", "text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5] hover:border-[#e5e5e5]")}`}
                 >
                   <RefreshCw size={11} className={fetchingRate ? "animate-spin" : ""} />
                   {fetchingRate ? "Actualizando..." : "Cotización oficial"}
@@ -465,19 +465,19 @@ const Admin = () => {
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
-              <div className="bg-[#111] border border-[#1f1f1f] rounded-xl p-5">
-                <h2 className="text-sm font-bold text-white mb-4">Agregar producto</h2>
-                <ProductForm onAdd={(p) => setProducts((prev) => [p, ...prev])} />
+              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
+                <h2 className={`text-sm font-bold mb-4 ${dk("text-white", "text-[#171717]")}`}>Agregar producto</h2>
+                <ProductForm isDark={isDark} onAdd={(p) => setProducts((prev) => [p, ...prev])} />
               </div>
-              <div className="bg-[#111] border border-[#1f1f1f] rounded-xl p-5">
+              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-sm font-bold text-white">Importar CSV</h2>
+                  <h2 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Importar CSV</h2>
                   <button onClick={downloadSampleCSV}
                     className="text-xs text-gray-400 hover:text-[#2D9F6A] transition flex items-center gap-1">
                     ↓ Descargar CSV de ejemplo
                   </button>
                 </div>
-                <ProductImport onImport={(r) => { setImportResult(r); fetchProducts(); }} />
+                <ProductImport isDark={isDark} onImport={(r) => { setImportResult(r); fetchProducts(); }} />
                 {importResult && (
                   <div className="mt-3 text-sm">
                     <span className="text-green-400 font-semibold">Importados: {importResult.imported}</span>
@@ -492,16 +492,16 @@ const Admin = () => {
             </div>
 
             {/* Categorías */}
-            <div className="bg-[#111] border border-[#1f1f1f] rounded-xl p-5">
-              <h2 className="text-sm font-bold text-white mb-4">Categorías y Subcategorías</h2>
+            <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
+              <h2 className={`text-sm font-bold mb-4 ${dk("text-white", "text-[#171717]")}`}>Categorías y Subcategorías</h2>
               <div className="flex gap-2 mb-4">
                 <input
                   value={newCatName} onChange={(e) => setNewCatName(e.target.value)}
                   placeholder="Nombre de categoría"
-                  className="flex-1 bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040] placeholder:text-[#404040]"
+                  className={`flex-1 border rounded-lg px-3 py-2 text-sm outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040] placeholder:text-[#404040]", "bg-[#f9f9f9] border-[#d4d4d4] text-[#171717] focus:border-[#2D9F6A] placeholder:text-gray-400")}`}
                 />
                 <select value={newCatParent} onChange={(e) => setNewCatParent(e.target.value)}
-                  className="bg-[#0d0d0d] border border-[#262626] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#404040]">
+                  className={`border rounded-lg px-3 py-2 text-sm outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040]", "bg-[#f9f9f9] border-[#d4d4d4] text-[#171717] focus:border-[#2D9F6A]")}`}>
                   <option value="">Categoría raíz</option>
                   {categories.filter((c) => c.parent_id === null).map((c) => (
                     <option key={c.id} value={c.id}>Sub de: {c.name}</option>
@@ -514,15 +514,15 @@ const Admin = () => {
               </div>
               <div className="flex flex-wrap gap-2">
                 {categories.filter((c) => c.parent_id === null).map((parent) => (
-                  <div key={parent.id} className="bg-[#0d0d0d] border border-[#1f1f1f] rounded-lg px-3 py-2 min-w-[140px]">
+                  <div key={parent.id} className={`${dk("bg-[#0d0d0d] border-[#1f1f1f]", "bg-[#f5f5f5] border-[#e5e5e5]")} border rounded-lg px-3 py-2 min-w-[140px]`}>
                     <div className="flex items-center justify-between gap-2 mb-1">
-                      <span className="text-sm font-semibold text-white">{parent.name}</span>
-                      <button onClick={() => deleteCategory(parent.id)} className="text-gray-600 hover:text-red-400 transition"><Trash2 size={12} /></button>
+                      <span className={`text-sm font-semibold ${dk("text-white", "text-[#171717]")}`}>{parent.name}</span>
+                      <button onClick={() => deleteCategory(parent.id)} className="text-gray-500 hover:text-red-400 transition"><Trash2 size={12} /></button>
                     </div>
                     {categories.filter((c) => c.parent_id === parent.id).map((sub) => (
-                      <div key={sub.id} className="flex items-center justify-between text-xs text-[#737373] pl-2 border-l border-[#262626] mt-1">
+                      <div key={sub.id} className={`flex items-center justify-between text-xs text-[#737373] pl-2 border-l mt-1 ${dk("border-[#262626]", "border-[#d4d4d4]")}`}>
                         <span>↳ {sub.name}</span>
-                        <button onClick={() => deleteCategory(sub.id)} className="text-gray-600 hover:text-red-400 transition ml-2"><Trash2 size={11} /></button>
+                        <button onClick={() => deleteCategory(sub.id)} className="text-gray-500 hover:text-red-400 transition ml-2"><Trash2 size={11} /></button>
                       </div>
                     ))}
                   </div>
@@ -532,10 +532,10 @@ const Admin = () => {
 
             {loadingProducts ? (
               <div className="space-y-2">
-                {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-10 bg-[#111] rounded-lg animate-pulse" />)}
+                {Array.from({ length: 6 }).map((_, i) => <div key={i} className={`h-10 ${dk("bg-[#111]", "bg-[#e8e8e8]")} rounded-lg animate-pulse`} />)}
               </div>
             ) : (
-              <ProductTable products={products} categories={categories} onRefresh={fetchProducts} />
+              <ProductTable isDark={isDark} products={products} categories={categories} onRefresh={fetchProducts} />
             )}
           </div>
         )}
@@ -692,6 +692,7 @@ const Admin = () => {
             clients={clients}
             orders={orders}
             loading={loadingClients}
+            isDark={isDark}
             onSave={saveClientFields}
             onNewClient={() => { setShowNewClient(true); setCreateError(""); }}
           />
