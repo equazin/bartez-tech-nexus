@@ -119,7 +119,10 @@ export default function B2BPortal() {
       .filter((o) => o.status === "pending" || o.status === "approved")
       .reduce((s, o) => s + (o.total ?? 0), 0),
   [orders]);
-  const creditAvailable = creditLimit != null ? Math.max(0, creditLimit - creditUsed) : null;
+  // credit_limit === 0 means "unlimited / not configured" — no restriction applied
+  const creditAvailable = (creditLimit != null && creditLimit > 0)
+    ? Math.max(0, creditLimit - creditUsed)
+    : null;
   const cartKey = `b2b_cart_${profile?.id || "guest"}`;
 
   const [cart, setCart] = useState<Record<number, number>>(() => {
