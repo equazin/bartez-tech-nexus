@@ -19,6 +19,7 @@ import { exportOrdersCSV, exportCatalogCSV, exportCatalogPDF } from "@/lib/expor
 import { SalesDashboard } from "@/components/admin/SalesDashboard";
 import { ClientCRM } from "@/components/admin/ClientCRM";
 import OrderKanban, { type KanbanStatus, type KanbanOrder } from "@/components/admin/OrderKanban";
+import { useOrdersRealtime } from "@/hooks/useOrdersRealtime";
 import { SuppliersTab } from "@/components/admin/SuppliersTab";
 import { PricingRulesTab } from "@/components/admin/PricingRulesTab";
 import { ReportsTab } from "@/components/admin/ReportsTab";
@@ -153,6 +154,13 @@ const Admin = () => {
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [loadingClients, setLoadingClients] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+
+  // Realtime orders for kanban
+  const { orders: rtOrders, updateStatus: rtUpdateStatus } = useOrdersRealtime();
+
+  // Order tab filters
+  const [filterOrderStatus, setFilterOrderStatus] = useState("all");
+  const [filterOrderClient, setFilterOrderClient] = useState("all");
 
   async function fetchProducts() {
     setLoadingProducts(true);
@@ -348,6 +356,14 @@ const Admin = () => {
   const userId = session?.user?.id;
   const categoryNames = categories.map((c) => c.name);
 
+  // Kanban uses realtime hook; wrap to also log activity
+  async function handleKanbanStatus(orderId: string, newStatus: KanbanStatus) {
+    await rtUpdateStatus(orderId, newStatus);
+    logActivity({ user_id: userId, action: "order_status_change", entity_type: "order", entity_id: orderId, metadata: { status: newStatus } });
+  }
+
+  const lowStockCount = products.filter((p) => p.stock <= 3 && (p as any).active !== false).length;
+
   const allTabs: { id: Tab; label: string; icon: any; badge?: number; adminOnly?: boolean; manageProducts?: boolean; manageOrders?: boolean }[] = [
     { id: "dashboard",  label: "Dashboard",  icon: LayoutDashboard },
     { id: "products",   label: "Productos",  icon: Package,       badge: products.length, manageProducts: true },
@@ -356,7 +372,7 @@ const Admin = () => {
     { id: "clients",    label: "Clientes",   icon: Users,         badge: clients.length, adminOnly: true },
     { id: "suppliers",  label: "Proveedores",icon: Building2,     adminOnly: true },
     { id: "pricing",    label: "Precios",    icon: Tag,           adminOnly: true },
-    { id: "reports",    label: "Reportes",   icon: BarChart2,     adminOnly: true },
+    { id: "reports",    label: "Reportes",   icon: BarChart2,     adminOnly: true, badge: lowStockCount || undefined },
     { id: "activity",   label: "Actividad",  icon: Activity,      adminOnly: true },
     { id: "airsync",   label: "AIR Sync",   icon: Wifi,          adminOnly: true },
   ];
@@ -658,15 +674,59 @@ const Admin = () => {
                 )}
               </div>
 
+              {/* Filtros de pedidos */}
+              <div className="flex gap-2 flex-wrap">
+                <select
+                  value={filterOrderStatus}
+                  onChange={(e) => setFilterOrderStatus(e.target.value)}
+                  className={`border rounded-lg px-2 py-1.5 text-xs outline-none flex-1 min-w-[120px] ${dk("bg-[#111] border-[#2a2a2a] text-gray-300", "bg-white border-[#d4d4d4] text-[#525252]")}`}
+                >
+                  <option value="all">Todos los estados</option>
+                  <option value="pending">En revisión</option>
+                  <option value="approved">Aprobado</option>
+                  <option value="preparing">Preparando</option>
+                  <option value="shipped">Enviado</option>
+                  <option value="dispatched">Despachado</option>
+                  <option value="delivered">Entregado</option>
+                  <option value="rejected">Rechazado</option>
+                </select>
+                <select
+                  value={filterOrderClient}
+                  onChange={(e) => setFilterOrderClient(e.target.value)}
+                  className={`border rounded-lg px-2 py-1.5 text-xs outline-none flex-1 min-w-[140px] ${dk("bg-[#111] border-[#2a2a2a] text-gray-300", "bg-white border-[#d4d4d4] text-[#525252]")}`}
+                >
+                  <option value="all">Todos los clientes</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>{c.company_name || c.contact_name}</option>
+                  ))}
+                </select>
+                {(filterOrderStatus !== "all" || filterOrderClient !== "all") && (
+                  <button
+                    onClick={() => { setFilterOrderStatus("all"); setFilterOrderClient("all"); }}
+                    className="text-xs text-gray-500 hover:text-red-400 transition px-2"
+                  >
+                    × Limpiar
+                  </button>
+                )}
+              </div>
+
               {loadingOrders ? (
                 <div className="space-y-2">
                   {Array.from({ length: 4 }).map((_, i) => <div key={i} className={`h-20 rounded-xl animate-pulse ${dk("bg-[#111]", "bg-white")}`} />)}
                 </div>
               ) : orders.length === 0 ? (
                 <div className="text-center py-20 text-gray-500 text-sm">No hay pedidos todavía.</div>
-              ) : (
+              ) : (() => {
+                const visibleOrders = orders.filter((o) => {
+                  if (filterOrderStatus !== "all" && o.status !== filterOrderStatus) return false;
+                  if (filterOrderClient !== "all" && o.client_id !== filterOrderClient) return false;
+                  return true;
+                });
+                return visibleOrders.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 text-sm">Sin resultados para los filtros seleccionados.</div>
+                ) : (
                 <div className="space-y-2">
-                  {orders.map((order) => (
+                  {visibleOrders.map((order) => (
                     <div
                       key={order.id}
                       onClick={() => setSelectedOrder(order)}
@@ -828,27 +888,10 @@ const Admin = () => {
         {activeTab === "kanban" && (() => {
           const clientMap: Record<string, string> = {};
           clients.forEach((c) => { clientMap[c.id] = c.company_name || c.contact_name; });
-          const kanbanOrders: KanbanOrder[] = orders.map((o) => {
-            const prods = o.products ?? [];
-            const cost_total = prods.reduce(
-              (sum, p) => sum + (p.cost_price ?? 0) * (p.quantity ?? 1),
-              0,
-            );
-            const margin_pct = cost_total > 0
-              ? ((o.total - cost_total) / cost_total) * 100
-              : undefined;
-            return {
-              id: o.id,
-              order_number: o.order_number,
-              client_name: clientMap[o.client_id] ?? o.client_id?.slice(0, 8),
-              total: o.total,
-              cost_total,
-              margin_pct,
-              created_at: o.created_at,
-              status: (o.status as KanbanStatus) ?? "pending",
-              products: prods.map((p) => ({ name: p.name ?? "—", quantity: p.quantity ?? 1 })),
-            };
-          });
+          const kanbanOrders: KanbanOrder[] = rtOrders.map((o) => ({
+            ...o,
+            client_name: clientMap[o.client_name ?? ""] ?? o.client_name?.slice(0, 8),
+          }));
           return (
             <div>
               <div className="flex items-center justify-between mb-4">
@@ -856,12 +899,12 @@ const Admin = () => {
                   Kanban de pedidos
                 </h2>
                 <span className={`text-xs ${dk("text-gray-500", "text-[#737373]")}`}>
-                  {orders.length} pedidos · arrastrá para cambiar estado
+                  {rtOrders.length} pedidos · arrastrá para cambiar estado
                 </span>
               </div>
               <OrderKanban
                 orders={kanbanOrders}
-                onStatusChange={updateOrderStatusKanban}
+                onStatusChange={handleKanbanStatus}
                 formatPrice={formatPrice}
                 isDark={isDark}
               />

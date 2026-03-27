@@ -35,6 +35,7 @@ export function ActivityLogTab({ isDark = true }: Props) {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
+  const [filterAction, setFilterAction] = useState<ActivityAction | "all">("all");
   const dk = (d: string, l: string) => isDark ? d : l;
 
   async function load() {
@@ -51,6 +52,7 @@ export function ActivityLogTab({ isDark = true }: Props) {
   useEffect(() => { load(); }, []);
 
   const filtered = logs.filter((l) => {
+    if (filterAction !== "all" && l.action !== filterAction) return false;
     if (!filter) return true;
     const t = filter.toLowerCase();
     return (
@@ -72,6 +74,16 @@ export function ActivityLogTab({ isDark = true }: Props) {
           <p className={`text-xs ${dk("text-gray-500", "text-[#737373]")} mt-0.5`}>{filtered.length} eventos</p>
         </div>
         <div className="flex gap-2">
+          <select
+            value={filterAction}
+            onChange={(e) => setFilterAction(e.target.value as ActivityAction | "all")}
+            className={`border rounded-lg px-2 py-2 text-xs outline-none focus:border-[#2D9F6A]/50 ${dk("bg-[#0d0d0d] border-[#222] text-white", "bg-white border-[#e5e5e5] text-[#171717]")}`}
+          >
+            <option value="all">Todas las acciones</option>
+            {(Object.entries(ACTION_LABELS) as [ActivityAction, string][]).map(([key, label]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
           <div className="relative">
             <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none" />
             <input

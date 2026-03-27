@@ -33,6 +33,8 @@ export default function ProductTable({ products, categories, isDark = true, onRe
   const [sortDir,      setSortDir]      = useState<SortDir>("asc");
   const [selected,     setSelected]     = useState<Set<number>>(new Set());
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   // Inline cell edit
   const [inlineCell,  setInlineCell]  = useState<{ id: number; field: "cost_price" | "stock" } | null>(null);
@@ -67,7 +69,12 @@ export default function ProductTable({ products, categories, isDark = true, onRe
       });
   }, [products, search, filterCat, filterStatus, sortField, sortDir]);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const rootCats = categories.filter((c) => c.parent_id === null);
+
+  // Reset page when filters change
+  useMemo(() => { setPage(1); }, [search, filterCat, filterStatus, sortField, sortDir]);
 
   // ── Sort toggle ──────────────────────────────────────────────
   function toggleSort(field: SortField) {
@@ -233,7 +240,7 @@ export default function ProductTable({ products, categories, isDark = true, onRe
                     No se encontraron productos
                   </td>
                 </tr>
-              ) : filtered.map((p) => {
+              ) : paginated.map((p) => {
                 const active   = (p as any).active !== false;
                 const featured = (p as any).featured === true;
                 const lowStock = p.stock <= 3 && p.stock > 0;
@@ -376,6 +383,31 @@ export default function ProductTable({ products, categories, isDark = true, onRe
           </table>
         </div>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-3">
+          <span className="text-xs text-gray-500">
+            Página {page} de {totalPages} · {filtered.length} productos
+          </span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className={`px-3 py-1.5 text-xs rounded-lg border transition disabled:opacity-30 ${dk("border-[#2a2a2a] text-gray-400 hover:text-white hover:bg-[#1c1c1c]", "border-[#e5e5e5] text-[#737373] hover:bg-[#f5f5f5]")}`}
+            >
+              ← Ant.
+            </button>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className={`px-3 py-1.5 text-xs rounded-lg border transition disabled:opacity-30 ${dk("border-[#2a2a2a] text-gray-400 hover:text-white hover:bg-[#1c1c1c]", "border-[#e5e5e5] text-[#737373] hover:bg-[#f5f5f5]")}`}
+            >
+              Sig. →
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Edit modal */}
       {editingProduct && (
