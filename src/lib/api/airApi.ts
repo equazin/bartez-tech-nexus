@@ -2,14 +2,16 @@
  * Cliente para la API AIR Intranet (https://api.air-intra.com/docs/)
  * Documentación: https://api.air-intra.com/docs/
  *
- * Autenticación: Bearer token en header Authorization
+ * Las llamadas se realizan a través del proxy serverless /api/air-proxy
+ * para evitar errores CORS (la API AIR no permite peticiones desde el browser).
+ *
  * Paginación: 500 registros por página, página empieza en 0,
  *             array vacío [] señala fin de datos
  * Rate limit: mínimo 5 minutos entre requests al mismo endpoint
  */
 
-const BASE_URL = "https://api.air-intra.com/v2";
-const TOKEN = import.meta.env.VITE_AIR_TOKEN as string;
+// Proxy serverless: evita CORS llamando a AIR desde el servidor
+const PROXY_URL = "/api/air-proxy";
 
 export class AirApiError extends Error {
   constructor(
@@ -23,17 +25,17 @@ export class AirApiError extends Error {
 }
 
 async function airFetch<T>(query: string, body?: Record<string, unknown>): Promise<T> {
-  const res = await fetch(`${BASE_URL}/?q=${query}`, {
+  const res = await fetch(`${PROXY_URL}?q=${query}`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${TOKEN}`,
       "Content-Type": "application/json",
     },
     body: body ? JSON.stringify(body) : undefined,
   });
 
   if (!res.ok) {
-    throw new AirApiError(res.status, `HTTP ${res.status}`, res.statusText);
+    const errText = await res.text().catch(() => res.statusText);
+    throw new AirApiError(res.status, `HTTP ${res.status}`, errText);
   }
 
   const data = await res.json();
