@@ -231,7 +231,7 @@ BEGIN
     shipping_type, shipping_address, shipping_transport, shipping_cost,
     notes, created_at
   ) VALUES (
-    p_client_id::text, p_products, p_total, p_status, v_order_number,
+    p_client_id, p_products, p_total, p_status, v_order_number,
     p_payment_method, p_payment_surcharge_pct,
     p_shipping_type, p_shipping_address, p_shipping_transport, p_shipping_cost,
     p_notes, now()
