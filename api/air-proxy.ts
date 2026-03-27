@@ -46,11 +46,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (typeof val === "string") forwardParams.set(key, val);
   }
 
+  const airUrl = `${AIR_BASE}/?${forwardParams.toString()}`;
+  console.log(`[air-proxy] → ${airUrl}`);
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
+  let airRes: Response;
   try {
-    const airRes = await fetch(`${AIR_BASE}/?${forwardParams.toString()}`, {
+    airRes = await fetch(airUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${TOKEN}`,
@@ -59,11 +63,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: req.body ? JSON.stringify(req.body) : undefined,
       signal: controller.signal,
     });
-
     clearTimeout(timer);
+  } catch (err) {
+    clearTimeout(timer);
+    const isTimeout = err instanceof Error && err.name === "AbortError";
+    const msg = isTimeout ? "AIR API timeout (>25s)" : (err instanceof Error ? err.message : String(err));
+    const status = isTimeout ? 504 : 502;
+    console.error(`[air-proxy] fetch error q=${q}:`, msg);
+    return res.status(status).json({ ok: false, error: msg });
+  }
 
+  console.log(`[air-proxy] ← status=${airRes.status} q=${q}`);
+
+  try {
     const contentType = airRes.headers.get("content-type") ?? "";
     const text = await airRes.text();
+    console.log(`[air-proxy] body size=${text.length} q=${q}`);
 
     if (!airRes.ok) {
       return res.status(airRes.status).json({
@@ -87,11 +102,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader("Content-Type", contentType || "application/json");
     return res.status(200).json(data);
   } catch (err) {
-    clearTimeout(timer);
-    const isTimeout = err instanceof Error && err.name === "AbortError";
-    const msg = isTimeout ? "AIR API timeout (>25s)" : (err instanceof Error ? err.message : String(err));
-    const status = isTimeout ? 504 : 502;
-    console.error(`[air-proxy] q=${q} error:`, msg);
-    return res.status(status).json({ ok: false, error: msg });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[air-proxy] body error q=${q}:`, msg);
+    return res.status(502).json({ ok: false, error: `Body read error: ${msg}` });
   }
 }
