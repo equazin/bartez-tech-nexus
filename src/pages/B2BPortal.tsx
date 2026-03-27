@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useProducts } from "@/hooks/useProducts";
+import { useBrands } from "@/hooks/useBrands";
 import { supabase } from "@/lib/supabase";
 import { useOrders } from "@/hooks/useOrders";
 import { useQuotes } from "@/hooks/useQuotes";
@@ -125,6 +126,7 @@ export default function B2BPortal() {
   const navigate = useNavigate();
   const { profile, isAdmin, signOut } = useAuth();
   const { products, loading: productsLoading } = useProducts();
+  const { brands } = useBrands();
   const { orders, addOrder, updateOrder } = useOrders();
   const { quotes, addQuote, updateStatus: updateQuoteStatus, deleteQuote } = useQuotes(profile?.id || "guest");
   const { currency, setCurrency, formatPrice, formatUSD, formatARS, exchangeRate } = useCurrency();
@@ -141,6 +143,7 @@ export default function B2BPortal() {
   const [globalMargin, setGlobalMargin] = useState(defaultMargin);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [brandFilter, setBrandFilter] = useState("all"); // "all" or brand uuid
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list" | "table">("list");
@@ -258,7 +261,23 @@ export default function B2BPortal() {
     return map;
   }, [categoryTree]);
 
-  const hasActiveFilters = categoryFilter !== "all" || minPrice !== "" || maxPrice !== "";
+  // ── Brand counts (from full product list, not filtered) ──────────────────
+  const brandCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    products.forEach((p) => {
+      const bid = (p as any).brand_id;
+      if (bid) counts[bid] = (counts[bid] ?? 0) + 1;
+    });
+    return counts;
+  }, [products]);
+
+  // Brands that actually have products in catalog
+  const activeBrandsWithProducts = useMemo(
+    () => brands.filter((b) => (brandCounts[b.id] ?? 0) > 0),
+    [brands, brandCounts]
+  );
+
+  const hasActiveFilters = categoryFilter !== "all" || brandFilter !== "all" || minPrice !== "" || maxPrice !== "";
 
   const filteredProducts = useMemo(() => {
     const term = search.toLowerCase();
@@ -274,11 +293,12 @@ export default function B2BPortal() {
           if (p.category !== categoryFilter) return false;
         }
       }
+      if (brandFilter !== "all" && (p as any).brand_id !== brandFilter) return false;
       if (!isNaN(min) && min > 0 && p.cost_price < min) return false;
       if (!isNaN(max) && max > 0 && p.cost_price > max) return false;
       return true;
     });
-  }, [products, search, categoryFilter, minPrice, maxPrice]);
+  }, [products, search, categoryFilter, brandFilter, minPrice, maxPrice, parentChildrenMap]);
 
   const cartItems: CartItem[] = useMemo(() => {
     return Object.entries(cart)
@@ -594,6 +614,7 @@ export default function B2BPortal() {
 
   function clearFilters() {
     setCategoryFilter("all");
+    setBrandFilter("all");
     setMinPrice("");
     setMaxPrice("");
     setSearch("");
@@ -1157,6 +1178,56 @@ export default function B2BPortal() {
               </div>
             </div>
 
+            {/* Marcas */}
+            {activeBrandsWithProducts.length > 0 && (
+              <div>
+                <h3 className={`text-[10px] font-bold uppercase tracking-widest ${dk("text-[#525252]", "text-[#a3a3a3]")} mb-2 px-1`}>Marca</h3>
+                <div className="flex flex-col gap-0.5">
+                  {/* "Todas" */}
+                  {(() => {
+                    const isActive = brandFilter === "all";
+                    return (
+                      <button
+                        onClick={() => setBrandFilter("all")}
+                        className={`flex items-center justify-between text-left text-sm px-2.5 py-1.5 rounded-lg transition group border-l-2 ${
+                          isActive
+                            ? `${dk("bg-[#171717] text-white", "bg-[#f0faf5] text-[#1a7a50]")} font-medium border-[#2D9F6A]`
+                            : `${dk("text-[#737373] hover:text-[#e5e5e5] hover:bg-[#171717]", "text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")} border-transparent`
+                        }`}
+                      >
+                        <span>Todas</span>
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1 shrink-0 ${
+                          isActive ? dk("bg-[#262626] text-white", "bg-[#2D9F6A]/20 text-[#1a7a50]")
+                            : dk("bg-[#1a1a1a] text-[#525252] group-hover:bg-[#222]", "bg-[#f0f0f0] text-[#737373] group-hover:bg-[#e8e8e8]")
+                        }`}>{products.length}</span>
+                      </button>
+                    );
+                  })()}
+                  {activeBrandsWithProducts.map((brand) => {
+                    const isActive = brandFilter === brand.id;
+                    const count = brandCounts[brand.id] ?? 0;
+                    return (
+                      <button
+                        key={brand.id}
+                        onClick={() => setBrandFilter(brand.id)}
+                        className={`flex items-center justify-between text-left text-sm px-2.5 py-1.5 rounded-lg transition group border-l-2 ${
+                          isActive
+                            ? `${dk("bg-[#171717] text-white", "bg-[#f0faf5] text-[#1a7a50]")} font-medium border-[#2D9F6A]`
+                            : `${dk("text-[#737373] hover:text-[#e5e5e5] hover:bg-[#171717]", "text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")} border-transparent`
+                        }`}
+                      >
+                        <span className="truncate">{brand.name}</span>
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1 shrink-0 ${
+                          isActive ? dk("bg-[#262626] text-white", "bg-[#2D9F6A]/20 text-[#1a7a50]")
+                            : dk("bg-[#1a1a1a] text-[#525252] group-hover:bg-[#222]", "bg-[#f0f0f0] text-[#737373] group-hover:bg-[#e8e8e8]")
+                        }`}>{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Precio */}
             <div>
               <h3 className={`text-[10px] font-bold uppercase tracking-widest ${dk("text-[#525252]", "text-[#a3a3a3]")} mb-2 px-1`}>Precio</h3>
@@ -1364,8 +1435,19 @@ export default function B2BPortal() {
                                 <Star size={11} className="text-yellow-500 shrink-0" fill="currentColor" />
                               )}
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-[11px] text-gray-600">{product.category}</span>
+                              {(product as any).brand_name && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setBrandFilter((product as any).brand_id);
+                                  }}
+                                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition"
+                                >
+                                  {(product as any).brand_name}
+                                </button>
+                              )}
                               {product.sku && (
                                 <span className={`text-[10px] font-mono ${dk("text-[#525252] bg-[#171717]", "text-[#737373] bg-[#f0f0f0]")} px-1.5 py-0.5 rounded`}>{product.sku}</span>
                               )}

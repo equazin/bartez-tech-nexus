@@ -27,6 +27,10 @@ export interface Product {
   name_original?: string;
   /** Admin override for display name; takes priority over name_original */
   name_custom?: string;
+  /** FK to brands.id */
+  brand_id?: string;
+  /** Denormalized brand name for fast display/filtering */
+  brand_name?: string;
 }
 
 /** Returns the display name: custom override → original → name */

@@ -6,14 +6,16 @@ import { X, Upload, Star, Tag, Loader2, RotateCcw } from "lucide-react";
 import { isValidImageMime } from "@/lib/validateImageMime";
 
 interface Category { id: number; name: string; parent_id: number | null; }
+interface BrandOption { id: string; name: string; }
 interface Props {
   product: Product & { featured?: boolean; tags?: string[]; active?: boolean };
   categories: Category[];
+  brands?: BrandOption[];
   onSave: (updated: Product) => void;
   onClose: () => void;
 }
 
-export default function ProductEditModal({ product, categories, onSave, onClose }: Props) {
+export default function ProductEditModal({ product, categories, brands = [], onSave, onClose }: Props) {
   const [form, setForm] = useState({
     name:               product.name,
     name_custom:        (product as any).name_custom || "",
@@ -29,6 +31,7 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
     tags:               (product.tags ?? []).join(", "),
     supplier_id:        String(product.supplier_id || ""),
     supplier_multiplier: String(product.supplier_multiplier || ""),
+    brand_id:           (product as any).brand_id || "",
   });
   const [imageFile, setImageFile]   = useState<File | null>(null);
   const [imagePreview, setPreview]  = useState(product.image || "");
@@ -78,6 +81,7 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
     }
 
     const nameCustomVal = form.name_custom.trim() || null;
+    const selectedBrand = brands.find((b) => b.id === form.brand_id);
     const payload = {
       name:               nameCustomVal ?? form.name.trim(),
       name_custom:        nameCustomVal,
@@ -93,6 +97,8 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
       tags:               form.tags.split(",").map((t) => t.trim()).filter(Boolean),
       supplier_id:        form.supplier_id ? Number(form.supplier_id) : null,
       supplier_multiplier: form.supplier_multiplier ? Number(form.supplier_multiplier) : null,
+      brand_id:           form.brand_id || null,
+      brand_name:         selectedBrand?.name ?? null,
     };
 
     const { data, error: sbErr } = await supabase
@@ -235,6 +241,20 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
               </select>
             </div>
           </div>
+
+          {/* Brand */}
+          {brands.length > 0 && (
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">Marca</label>
+              <select value={form.brand_id} onChange={(e) => set("brand_id", e.target.value)}
+                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A]">
+                <option value="">— Sin marca —</option>
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Supplier */}
           <div className="grid grid-cols-2 gap-3">

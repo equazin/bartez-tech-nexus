@@ -13,7 +13,7 @@ import {
   CheckCircle2, XCircle, Clock, Trash2, RefreshCw, Save,
   Users, Package, ClipboardList, LogOut, UserPlus, X,
   DollarSign, Pencil, Check, LayoutDashboard, Sun, Moon, Phone,
-  Truck, Download, Building2, Tag, BarChart2, Activity, Wifi,
+  Truck, Download, Building2, Tag, BarChart2, Activity, Wifi, Bookmark,
 } from "lucide-react";
 import { exportOrdersCSV, exportCatalogCSV, exportCatalogPDF } from "@/lib/exports";
 import { SalesDashboard } from "@/components/admin/SalesDashboard";
@@ -21,6 +21,7 @@ import { ClientCRM } from "@/components/admin/ClientCRM";
 import OrderKanban, { type KanbanStatus, type KanbanOrder } from "@/components/admin/OrderKanban";
 import { useOrdersRealtime } from "@/hooks/useOrdersRealtime";
 import { SuppliersTab } from "@/components/admin/SuppliersTab";
+import { BrandsTab } from "@/components/admin/BrandsTab";
 import { PricingRulesTab } from "@/components/admin/PricingRulesTab";
 import { ReportsTab } from "@/components/admin/ReportsTab";
 import { ActivityLogTab } from "@/components/admin/ActivityLogTab";
@@ -75,7 +76,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-type Tab = "dashboard" | "products" | "orders" | "kanban" | "clients" | "suppliers" | "pricing" | "reports" | "activity" | "airsync";
+type Tab = "dashboard" | "products" | "orders" | "kanban" | "clients" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "airsync";
 
 const Admin = () => {
   const { signOut, session, isAdmin, canManageProducts, canManageOrders } = useAuth();
@@ -115,6 +116,7 @@ const Admin = () => {
   const [orders, setOrders] = useState<SupabaseOrder[]>([]);
   const [clients, setClients] = useState<ClientProfile[]>([]);
   const [categories, setCategories] = useState<{ id: number; name: string; parent_id: number | null }[]>([]);
+  const [brands, setBrandsState] = useState<{ id: string; name: string }[]>([]);
   const [newCatName, setNewCatName] = useState("");
   const [newCatParent, setNewCatParent] = useState("");
   const [savingCat, setSavingCat] = useState(false);
@@ -206,7 +208,12 @@ const Admin = () => {
     if (data) setCategories(data);
   }
 
-  useEffect(() => { fetchProducts(); fetchOrders(); fetchClients(); fetchCategories(); }, []);
+  async function fetchBrandsState() {
+    const { data } = await supabase.from("brands").select("id, name").eq("active", true).order("name");
+    if (data) setBrandsState(data as { id: string; name: string }[]);
+  }
+
+  useEffect(() => { fetchProducts(); fetchOrders(); fetchClients(); fetchCategories(); fetchBrandsState(); }, []);
 
   async function addCategory() {
     if (!newCatName.trim()) return;
@@ -373,6 +380,7 @@ const Admin = () => {
     { id: "kanban",     label: "Kanban",     icon: LayoutDashboard, manageOrders: true },
     { id: "clients",    label: "Clientes",   icon: Users,         badge: clients.length, adminOnly: true },
     { id: "suppliers",  label: "Proveedores",icon: Building2,     adminOnly: true },
+    { id: "brands",     label: "Marcas",     icon: Bookmark,      adminOnly: true },
     { id: "pricing",    label: "Precios",    icon: Tag,           adminOnly: true },
     { id: "reports",    label: "Reportes",   icon: BarChart2,     adminOnly: true, badge: lowStockCount || undefined },
     { id: "activity",   label: "Actividad",  icon: Activity,      adminOnly: true },
@@ -646,7 +654,7 @@ const Admin = () => {
                     </button>
                   </div>
                 )}
-                <ProductTable isDark={isDark} products={products} categories={categories} onRefresh={fetchProducts} />
+                <ProductTable isDark={isDark} products={products} categories={categories} brands={brands} onRefresh={fetchProducts} />
               </>
             )}
           </div>
@@ -1043,6 +1051,11 @@ const Admin = () => {
         {/* ── PROVEEDORES ── */}
         {activeTab === "suppliers" && (
           <SuppliersTab isDark={isDark} />
+        )}
+
+        {/* ── MARCAS ── */}
+        {activeTab === "brands" && (
+          <BrandsTab isDark={isDark} />
         )}
 
         {/* ── MOTOR DE PRECIOS ── */}

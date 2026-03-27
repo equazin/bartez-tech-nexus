@@ -8,9 +8,11 @@ import {
 } from "lucide-react";
 
 interface Category { id: number; name: string; parent_id: number | null; }
+interface BrandOption { id: string; name: string; }
 interface Props {
   products: Product[];
   categories: Category[];
+  brands?: BrandOption[];
   isDark?: boolean;
   onRefresh: () => void;
 }
@@ -24,10 +26,11 @@ function SortIcon({ field, active, dir }: { field: string; active: boolean; dir:
   return dir === "asc" ? <ArrowUp size={12} className="text-[#2D9F6A]" /> : <ArrowDown size={12} className="text-[#2D9F6A]" />;
 }
 
-export default function ProductTable({ products, categories, isDark = true, onRefresh }: Props) {
+export default function ProductTable({ products, categories, brands = [], isDark = true, onRefresh }: Props) {
   const dk = (d: string, l: string) => isDark ? d : l;
   const [search,       setSearch]       = useState("");
   const [filterCat,    setFilterCat]    = useState("all");
+  const [filterBrand,  setFilterBrand]  = useState("all");
   const [filterStatus, setFilterStatus] = useState<Filter>("all");
   const [sortField,    setSortField]    = useState<SortField>("name");
   const [sortDir,      setSortDir]      = useState<SortDir>("asc");
@@ -51,6 +54,7 @@ export default function ProductTable({ products, categories, isDark = true, onRe
       .filter((p) => {
         if (term && !p.name.toLowerCase().includes(term) && !p.sku?.toLowerCase().includes(term)) return false;
         if (filterCat !== "all" && p.category !== filterCat) return false;
+        if (filterBrand !== "all" && (p as any).brand_id !== filterBrand) return false;
         const active = (p as any).active !== false;
         if (filterStatus === "active"    && !active)                       return false;
         if (filterStatus === "inactive"  && active)                        return false;
@@ -67,7 +71,7 @@ export default function ProductTable({ products, categories, isDark = true, onRe
         if (va > vb) return sortDir === "asc" ? 1 : -1;
         return 0;
       });
-  }, [products, search, filterCat, filterStatus, sortField, sortDir]);
+  }, [products, search, filterCat, filterBrand, filterStatus, sortField, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -177,6 +181,15 @@ export default function ProductTable({ products, categories, isDark = true, onRe
           {rootCats.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
         </select>
 
+        {/* Brand filter */}
+        {brands.length > 0 && (
+          <select value={filterBrand} onChange={(e) => setFilterBrand(e.target.value)}
+            className={`border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D9F6A]/50 ${dk("bg-[#232323] border-[#2a2a2a] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}>
+            <option value="all">Todas las marcas</option>
+            {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        )}
+
         {/* Status filter */}
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as Filter)}
           className={`border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D9F6A]/50 ${dk("bg-[#232323] border-[#2a2a2a] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}>
@@ -277,13 +290,16 @@ export default function ProductTable({ products, categories, isDark = true, onRe
                           </span>
                         )}
                       </div>
-                      {(p as any).tags?.length > 0 && (
-                        <div className="flex gap-1 mt-0.5 flex-wrap">
-                          {(p as any).tags.slice(0, 3).map((t: string) => (
-                            <span key={t} className={`text-[10px] ${dk("bg-[#1a1a1a]", "bg-[#f0f0f0]")} text-gray-500 px-1.5 rounded`}>{t}</span>
-                          ))}
-                        </div>
-                      )}
+                      <div className="flex gap-1 mt-0.5 flex-wrap">
+                        {(p as any).brand_name && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                            {(p as any).brand_name}
+                          </span>
+                        )}
+                        {(p as any).tags?.slice(0, 2).map((t: string) => (
+                          <span key={t} className={`text-[10px] ${dk("bg-[#1a1a1a]", "bg-[#f0f0f0]")} text-gray-500 px-1.5 rounded`}>{t}</span>
+                        ))}
+                      </div>
                     </td>
 
                     {/* SKU */}
@@ -414,6 +430,7 @@ export default function ProductTable({ products, categories, isDark = true, onRe
         <ProductEditModal
           product={editingProduct}
           categories={categories}
+          brands={brands}
           onSave={(updated) => { onRefresh(); }}
           onClose={() => setEditingProduct(null)}
         />
