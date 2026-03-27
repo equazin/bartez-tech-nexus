@@ -22,8 +22,9 @@ import {
 } from "../../categoryMapper";
 
 // ─── Config ──────────────────────────────────────────────────
-const SUPPLIER_NAME = "AIR";
-const DRY_RUN       = process.argv.includes("--dry-run");
+const SUPPLIER_NAME  = "AIR";
+const DRY_RUN        = process.argv.includes("--dry-run");
+const SKIP_CATALOG   = process.argv.includes("--skip-catalog");
 
 let _sb: ReturnType<typeof createClient> | null = null;
 const supabase = () => {
@@ -124,9 +125,13 @@ async function run(): Promise<void> {
   await client.login();
   log.info("Token obtenido");
 
-  // 2. Sincronizar catálogo de rubros
-  const rubros = await client.fetchCatalogo();
-  await syncCatalogo(supplierId, rubros);
+  // 2. Sincronizar catálogo de rubros (saltear con --skip-catalog si ya están mapeados)
+  if (SKIP_CATALOG) {
+    log.info("Catálogo salteado (--skip-catalog)");
+  } else {
+    const rubros = await client.fetchCatalogo();
+    await syncCatalogo(supplierId, rubros);
+  }
 
   // 3. Pre-calentar cache de mappings
   await loadSupplierMappings(supplierId);
