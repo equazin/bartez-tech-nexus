@@ -149,8 +149,20 @@ export class AirApiClient {
     return body.rubros ?? [];
   }
 
-  async fetchProductsPage(page: number): Promise<AirProduct[]> {
+  async fetchProductsPage(page: number, retries = 3): Promise<AirProduct[]> {
     const res = await this.post(`/?q=articulos&page=${page}`);
+
+    if (res.status === 403) {
+      const body = await res.json().catch(() => ({})) as any;
+      if (retries > 0 && body?.error_id === 403) {
+        const wait = 5 * 60 * 1000 + 5000; // 5 min + 5 seg buffer
+        console.log(`[INFO]  Rate limit en página ${page} — esperando 5 min...`);
+        await new Promise((r) => setTimeout(r, wait));
+        return this.fetchProductsPage(page, retries - 1);
+      }
+      throw new Error(`fetchProductsPage(${page}) failed (HTTP 403)`);
+    }
+
     if (!res.ok) throw new Error(`fetchProductsPage(${page}) failed (HTTP ${res.status})`);
 
     const body: ArticulosResponse = await res.json();
