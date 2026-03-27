@@ -83,13 +83,12 @@ export function useOrders() {
         /schema cache/i.test(error.message)
       );
       if (isMissingColumn) {
+        // Minimal payload — only columns guaranteed to exist in base schema
         insertPayload = {
-          client_id: user.id,
-          products: orderData.products,
-          total: orderData.total,
-          status: orderData.status,
-          order_number: orderData.order_number,
-          numero_remito: orderData.numero_remito ?? null,
+          client_id:  user.id,
+          products:   orderData.products,
+          total:      orderData.total,
+          status:     orderData.status,
           created_at: orderData.created_at,
         };
         const retry = await supabase.from("orders").insert([insertPayload]).select().single();
