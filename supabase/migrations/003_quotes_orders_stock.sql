@@ -39,7 +39,6 @@ DO $$ BEGIN
   END IF;
 EXCEPTION WHEN undefined_function THEN
   -- update_updated_at() does not exist yet, create it
-  -- Note: use $fn$ tag to avoid conflicting with the outer $$ delimiter
   EXECUTE $fn$
     CREATE OR REPLACE FUNCTION update_updated_at()
     RETURNS trigger LANGUAGE plpgsql AS $body$
