@@ -40,11 +40,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ ok: false, error: "AIR token not configured." });
   }
 
+  // Reenviar TODOS los query params a AIR (q, page, codiart, etc.)
+  const forwardParams = new URLSearchParams();
+  for (const [key, val] of Object.entries(req.query)) {
+    if (typeof val === "string") forwardParams.set(key, val);
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   try {
-    const airRes = await fetch(`${AIR_BASE}/?q=${q}`, {
+    const airRes = await fetch(`${AIR_BASE}/?${forwardParams.toString()}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${TOKEN}`,
