@@ -1,9 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+let _supabase: ReturnType<typeof createClient> | null = null;
+function supabase() {
+  if (!_supabase) {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+    _supabase = createClient(url, key);
+  }
+  return _supabase;
+}
 
 // ─── Cache en memoria por proceso (TTL simple) ───────────────
 // categories.id is bigint in DB; Supabase returns it as number
@@ -28,7 +34,8 @@ export async function resolveCategory(
     return cached.categoryId;
   }
 
-  const { data, error } = await supabase.rpc("resolve_category", {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase() as any).rpc("resolve_category", {
     p_supplier_id: supplierId,
     p_external_category_id: externalCategoryId,
   });
@@ -52,7 +59,7 @@ export async function upsertCategoryMapping(params: {
   internalCategoryId: number;
   confidence?: "manual" | "auto_high" | "auto_low";
 }): Promise<void> {
-  const { error } = await supabase.from("category_mapping").upsert(
+  const { error } = await (supabase() as any).from("category_mapping").upsert(
     {
       supplier_id: params.supplierId,
       external_category_id: params.externalCategoryId,
@@ -76,7 +83,7 @@ export async function upsertCategoryMapping(params: {
  * Carga todos los mappings de un proveedor (útil para pre-calentar cache).
  */
 export async function loadSupplierMappings(supplierId: string): Promise<void> {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase() as any)
     .from("category_mapping")
     .select("external_category_id, internal_category_id")
     .eq("supplier_id", supplierId);

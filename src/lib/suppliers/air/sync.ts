@@ -10,6 +10,9 @@
  *   AIR_API_URL, AIR_API_USER, AIR_API_PASS
  */
 
+import { config } from "dotenv";
+config();
+
 import { createClient } from "@supabase/supabase-js";
 import { createAirClient, type AirProduct, type AirRubro, totalDisponible } from "./api";
 import {
@@ -22,10 +25,11 @@ import {
 const SUPPLIER_NAME = "AIR";
 const DRY_RUN       = process.argv.includes("--dry-run");
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+let _sb: ReturnType<typeof createClient> | null = null;
+const supabase = () => {
+  if (!_sb) _sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+  return _sb as any;
+};
 
 // ─── Logger ──────────────────────────────────────────────────
 const log = {
@@ -38,7 +42,7 @@ const log = {
 // ─── Helpers ─────────────────────────────────────────────────
 
 async function getSupplierId(): Promise<string> {
-  const { data, error } = await supabase
+  const { data, error } = await supabase()
     .from("suppliers")
     .select("id")
     .ilike("name", SUPPLIER_NAME)
@@ -63,7 +67,7 @@ async function syncCatalogo(supplierId: string, rubros: AirRubro[]): Promise<voi
     // Intentar resolver el rubro
     const categoryId = await resolveCategory(supplierId, rubro.codigo);
 
-    const { data: existing } = await supabase
+    const { data: existing } = await supabase()
       .from("category_mapping")
       .select("id, confidence")
       .eq("supplier_id", supplierId)
@@ -146,7 +150,7 @@ async function run(): Promise<void> {
     }
 
     // Detectar si cayó en fallback "uncategorized"
-    const { data: catRow } = await supabase
+    const { data: catRow } = await supabase()
       .from("categories")
       .select("slug")
       .eq("id", categoryId)
@@ -163,7 +167,7 @@ async function run(): Promise<void> {
       continue;
     }
 
-    const { error } = await supabase
+    const { error } = await supabase()
       .from("products")
       .upsert(payload, { onConflict: "external_id" });
 
