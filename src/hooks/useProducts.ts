@@ -9,17 +9,25 @@ export function useProducts() {
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("active", true)
-        .order("category")
-        .order("name");
-
-      if (!error && data && data.length > 0) {
-        setProducts(data as Product[]);
+      const PAGE = 1000;
+      const all: Product[] = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("products")
+          .select("*")
+          .eq("active", true)
+          .order("category")
+          .order("name")
+          .range(from, from + PAGE - 1);
+        if (error || !data || data.length === 0) break;
+        all.push(...(data as Product[]));
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+      if (all.length > 0) {
+        setProducts(all);
       } else {
-        // Fallback a mock si Supabase está vacío o hay error
         setProducts(mockProducts);
       }
     } catch {

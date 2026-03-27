@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
+import { logActivity } from "@/lib/api/activityLog";
 
 export interface PortalOrder {
   id: string | number;
@@ -106,6 +107,15 @@ export function useOrders() {
       if (fullOrder) {
         setOrders((prev) => [fullOrder as PortalOrder, ...prev]);
       }
+
+      // Log activity
+      logActivity({
+        user_id:     user.id,
+        action:      "place_order",
+        entity_type: "order",
+        entity_id:   String(result.id),
+        metadata:    { order_number: result.order_number, total: orderData.total },
+      });
 
       // Fire-and-forget email notification (does not block order success)
       sendOrderConfirmationEmail({

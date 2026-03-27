@@ -49,6 +49,13 @@ function getAllQuotes(): Quote[] {
   );
 }
 
+/**
+ * Estados que representan ingresos confirmados.
+ * "pending" y "rejected" se excluyen deliberadamente.
+ */
+const REVENUE_STATUSES = new Set(["approved", "preparing", "shipped", "dispatched", "delivered"]);
+const isRevenueOrder = (o: { status: string }) => REVENUE_STATUSES.has(o.status);
+
 // ── Status configs ───────────────────────────────────────────────────────────
 const ORDER_STATUS: Record<string, { label: string; icon: any; color: string; bg: string; border: string }> = {
   pending:  { label: "En revisión", icon: Clock,        color: "text-yellow-400", bg: "bg-yellow-500/15", border: "border-yellow-500/30" },
@@ -109,7 +116,7 @@ function RevenueSparkline({ orders, isDark }: { orders: SupabaseOrder[]; isDark:
       const iso = d.toISOString().split("T")[0];
       const label = d.toLocaleDateString("es-AR", { weekday: "short" });
       const revenue = orders
-        .filter((o) => o.status === "approved" && o.created_at.startsWith(iso))
+        .filter((o) => isRevenueOrder(o) && o.created_at.startsWith(iso))
         .reduce((s, o) => s + o.total, 0);
       return { iso, label, revenue };
     });
@@ -326,7 +333,7 @@ function TopProducts({ orders, isDark }: { orders: SupabaseOrder[]; isDark: bool
   const topProducts = useMemo(() => {
     const map: Record<string, { name: string; qty: number; revenue: number }> = {};
     orders
-      .filter((o) => o.status === "approved")
+      .filter(isRevenueOrder)
       .forEach((o) => {
         o.products?.forEach((p) => {
           if (!p.name) return;
@@ -389,7 +396,7 @@ function TopClients({
   const topClients = useMemo(() => {
     const map: Record<string, { name: string; revenue: number; orderCount: number }> = {};
     orders
-      .filter((o) => o.status === "approved")
+      .filter(isRevenueOrder)
       .forEach((o) => {
         if (!o.client_id) return;
         if (!map[o.client_id]) {
@@ -525,7 +532,7 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
   const { formatPrice } = useCurrency();
   const quotes = useMemo(() => getAllQuotes(), []);
 
-  const approvedOrders  = useMemo(() => orders.filter((o) => o.status === "approved"), [orders]);
+  const approvedOrders  = useMemo(() => orders.filter(isRevenueOrder), [orders]);
   const pendingOrders   = useMemo(() => orders.filter((o) => o.status === "pending"),  [orders]);
   const totalRevenue    = useMemo(() => approvedOrders.reduce((s, o) => s + o.total, 0), [approvedOrders]);
   const avgOrder        = approvedOrders.length > 0 ? totalRevenue / approvedOrders.length : 0;
@@ -558,7 +565,7 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
     let totalWeighted = 0;
     let totalValue = 0;
     approvedOrders.forEach((o) => {
-      o.products?.forEach((p: any) => {
+      o.products?.forEach((p) => {
         if (p.margin != null && p.total_price != null) {
           totalWeighted += p.margin * p.total_price;
           totalValue += p.total_price;

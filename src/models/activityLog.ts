@@ -6,6 +6,7 @@ export type ActivityAction =
   | "add_to_cart"
   | "remove_from_cart"
   | "place_order"
+  | "order_status_change"
   | "save_quote"
   | "load_quote"
   | "export_csv"

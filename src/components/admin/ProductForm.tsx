@@ -1,13 +1,12 @@
 import { useState, useEffect, useRef, KeyboardEvent } from "react";
 import { Product } from "@/models/products";
 import { supabase } from "@/lib/supabase";
+import { storageUrl, PRODUCTS_BUCKET } from "@/lib/constants";
 import {
   Upload, X, Plus, ChevronDown, ChevronUp,
   Star, Eye, EyeOff, AlertTriangle, Loader2,
   Tag, Cpu, Package, BarChart2, DollarSign,
 } from "lucide-react";
-
-const SUPABASE_URL = "https://mfetwdftkiqydbwiqyfi.supabase.co";
 const DRAFT_KEY = "bartez_product_draft";
 
 interface Category { id: number; name: string; parent_id: number | null; }
@@ -139,7 +138,7 @@ export default function ProductForm({ onAdd, isDark = true }: { onAdd: (product:
     const path = `${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from("products").upload(path, file, { upsert: true });
     if (error) throw error;
-    return `${SUPABASE_URL}/storage/v1/object/public/products/${path}`;
+    return storageUrl(PRODUCTS_BUCKET, path);
   }
 
   /* ── specs ────────────────────────────────────────────── */

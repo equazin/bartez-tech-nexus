@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { CLIENT_TYPE_MARGINS, ClientType } from "@/lib/supabase";
 import { Product } from "@/models/products";
+import { OrderProduct } from "@/models/order";
 import ProductForm from "@/components/admin/ProductForm";
 import ProductImport from "@/components/admin/ProductImport";
 import ProductTable from "@/components/admin/ProductTable";
@@ -24,11 +25,13 @@ import { ReportsTab } from "@/components/admin/ReportsTab";
 import { ActivityLogTab } from "@/components/admin/ActivityLogTab";
 import { PriceStockImport } from "@/components/admin/PriceStockImport";
 import { AirSyncTab } from "@/components/admin/AirSyncTab";
+import { ErrorBoundary } from "@/components/admin/ErrorBoundary";
+import { logActivity } from "@/lib/api/activityLog";
 
 interface SupabaseOrder {
   id: string;
   client_id: string;
-  products: any[];
+  products: OrderProduct[];
   total: number;
   status: string;
   order_number?: string;
@@ -152,8 +155,21 @@ const Admin = () => {
 
   async function fetchProducts() {
     setLoadingProducts(true);
-    const { data } = await supabase.from("products").select("*").order("name");
-    if (data) setProducts(data as Product[]);
+    const PAGE = 1000;
+    const all: Product[] = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .order("name")
+        .range(from, from + PAGE - 1);
+      if (error || !data || data.length === 0) break;
+      all.push(...(data as Product[]));
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+    if (all.length > 0) setProducts(all);
     setLoadingProducts(false);
   }
 
@@ -310,6 +326,7 @@ const Admin = () => {
     if (!error) {
       setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status } : o));
       if (selectedOrder?.id === orderId) setSelectedOrder((o) => o ? { ...o, status } : o);
+      logActivity({ user_id: userId, action: "order_status_change", entity_type: "order", entity_id: orderId, metadata: { status } });
     }
   }
 
@@ -337,6 +354,7 @@ const Admin = () => {
     if (!error) {
       setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: newStatus } : o));
       if (selectedOrder?.id === orderId) setSelectedOrder((o) => o ? { ...o, status: newStatus } : o);
+      logActivity({ user_id: userId, action: "order_status_change", entity_type: "order", entity_id: orderId, metadata: { status: newStatus } });
     }
   }
 
@@ -429,6 +447,7 @@ const Admin = () => {
       </div>
 
       <main className="flex-1 p-4 md:p-6 overflow-y-auto">
+      <ErrorBoundary section={activeTab}>
 
         {/* ── DASHBOARD ── */}
         {activeTab === "dashboard" && (
@@ -726,7 +745,7 @@ const Admin = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedOrder.products?.map((p: any, i: number) => (
+                    {selectedOrder.products?.map((p, i) => (
                       <tr key={i} className={`border-b ${dk("border-[#2a2a2a]", "border-[#f0f0f0]")}`}>
                         <td className={`py-2 ${dk("text-gray-300", "text-[#525252]")}`}>{p.name}</td>
                         <td className={`py-2 text-center ${dk("text-gray-500", "text-[#a3a3a3]")}`}>{p.quantity}</td>
@@ -824,15 +843,27 @@ const Admin = () => {
         {activeTab === "kanban" && (() => {
           const clientMap: Record<string, string> = {};
           clients.forEach((c) => { clientMap[c.id] = c.company_name || c.contact_name; });
-          const kanbanOrders: KanbanOrder[] = orders.map((o) => ({
-            id: o.id,
-            order_number: o.order_number,
-            client_name: clientMap[o.client_id] ?? o.client_id?.slice(0, 8),
-            total: o.total,
-            created_at: o.created_at,
-            status: (o.status as KanbanStatus) ?? "pending",
-            products: (o.products ?? []).map((p: any) => ({ name: p.name ?? "—", quantity: p.quantity ?? 1 })),
-          }));
+          const kanbanOrders: KanbanOrder[] = orders.map((o) => {
+            const prods = o.products ?? [];
+            const cost_total = prods.reduce(
+              (sum, p) => sum + (p.cost_price ?? 0) * (p.quantity ?? 1),
+              0,
+            );
+            const margin_pct = cost_total > 0
+              ? ((o.total - cost_total) / cost_total) * 100
+              : undefined;
+            return {
+              id: o.id,
+              order_number: o.order_number,
+              client_name: clientMap[o.client_id] ?? o.client_id?.slice(0, 8),
+              total: o.total,
+              cost_total,
+              margin_pct,
+              created_at: o.created_at,
+              status: (o.status as KanbanStatus) ?? "pending",
+              products: prods.map((p) => ({ name: p.name ?? "—", quantity: p.quantity ?? 1 })),
+            };
+          });
           return (
             <div>
               <div className="flex items-center justify-between mb-4">
@@ -1002,6 +1033,7 @@ const Admin = () => {
           <AirSyncTab isDark={isDark} userId={userId} onSyncDone={fetchProducts} />
         )}
 
+      </ErrorBoundary>
       </main>
     </div>
   );

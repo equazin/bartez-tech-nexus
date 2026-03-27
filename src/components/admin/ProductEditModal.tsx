@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { Product } from "@/models/products";
+import { storageUrl, PRODUCTS_BUCKET } from "@/lib/constants";
 import { X, Upload, Star, Tag, Loader2, RotateCcw } from "lucide-react";
-
-const SUPABASE_URL = "https://mfetwdftkiqydbwiqyfi.supabase.co";
 
 interface Category { id: number; name: string; parent_id: number | null; }
 interface Props {
@@ -61,7 +60,7 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
     const path = `${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from("products").upload(path, file, { upsert: true });
     if (error) throw error;
-    return `${SUPABASE_URL}/storage/v1/object/public/products/${path}`;
+    return storageUrl(PRODUCTS_BUCKET, path);
   }
 
   async function handleSave() {

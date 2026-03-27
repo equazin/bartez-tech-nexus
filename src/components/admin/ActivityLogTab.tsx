@@ -4,27 +4,29 @@ import { fetchActivityLogs } from "@/lib/api/activityLog";
 import type { ActivityLog, ActivityAction } from "@/models/activityLog";
 
 const ACTION_LABELS: Record<ActivityAction, string> = {
-  login:            "Inicio de sesión",
-  logout:           "Cierre de sesión",
-  search:           "Búsqueda",
-  view_product:     "Vista producto",
-  add_to_cart:      "Agregó al carrito",
-  remove_from_cart: "Quitó del carrito",
-  place_order:      "Realizó pedido",
-  save_quote:       "Guardó cotización",
-  load_quote:       "Cargó cotización",
-  export_csv:       "Exportó CSV",
-  export_pdf:       "Exportó PDF",
+  login:               "Inicio de sesión",
+  logout:              "Cierre de sesión",
+  search:              "Búsqueda",
+  view_product:        "Vista producto",
+  add_to_cart:         "Agregó al carrito",
+  remove_from_cart:    "Quitó del carrito",
+  place_order:         "Realizó pedido",
+  order_status_change: "Cambio de estado",
+  save_quote:          "Guardó cotización",
+  load_quote:          "Cargó cotización",
+  export_csv:          "Exportó CSV",
+  export_pdf:          "Exportó PDF",
 };
 
 const ACTION_COLORS: Partial<Record<ActivityAction, string>> = {
-  place_order:   "bg-green-500/15 text-green-400",
-  add_to_cart:   "bg-blue-500/15 text-blue-400",
-  search:        "bg-gray-500/15 text-gray-400",
-  login:         "bg-teal-500/15 text-teal-400",
-  logout:        "bg-orange-500/15 text-orange-400",
-  export_csv:    "bg-purple-500/15 text-purple-400",
-  export_pdf:    "bg-purple-500/15 text-purple-400",
+  place_order:         "bg-green-500/15 text-green-400",
+  order_status_change: "bg-blue-500/15 text-blue-400",
+  add_to_cart:         "bg-blue-500/15 text-blue-400",
+  search:              "bg-gray-500/15 text-gray-400",
+  login:               "bg-teal-500/15 text-teal-400",
+  logout:              "bg-orange-500/15 text-orange-400",
+  export_csv:          "bg-purple-500/15 text-purple-400",
+  export_pdf:          "bg-purple-500/15 text-purple-400",
 };
 
 interface Props { isDark?: boolean }
