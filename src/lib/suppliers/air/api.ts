@@ -22,17 +22,38 @@ export interface AirGrupo {
   nombre: string;
 }
 
+interface AirDeposito {
+  name:       string;
+  fisico:     number;
+  disponible: number;
+  entrante:   number;
+}
+
 export interface AirProduct {
-  codiart:    string;           // ID único del producto en AIR
-  descrip:    string;           // nombre
-  detalle?:   string;           // descripción larga
-  precio:     number;
-  stock:      number;
-  rubro_id?:  number | string;
-  grupo_id?:  number | string;
-  rubro?:     string;
-  grupo?:     string;
-  [key: string]: unknown;       // campos extra que pueda devolver la API
+  codigo:       string;          // ID único del producto
+  descrip:      string;          // nombre
+  part_number:  string;          // SKU del fabricante
+  precio:       number;
+  moneda:       string;          // "DOL" | "PES"
+  impuesto_iva: { alicuota: number; base_imponible: number; impuesto_determinado: number };
+  rubro:        string;          // codigo del rubro (ej: "003-0800")
+  grupo:        string;
+  tipo:         { id: string; name: string };
+  estado:       { id: string; name: string };
+  ros:  AirDeposito;
+  mza:  AirDeposito;
+  cba:  AirDeposito;
+  lug:  AirDeposito;
+  air:  AirDeposito;
+  garantia:    string;
+  [key: string]: unknown;
+}
+
+/** Suma el stock disponible en todos los depósitos */
+export function totalDisponible(p: AirProduct): number {
+  return (p.ros?.disponible ?? 0) + (p.mza?.disponible ?? 0) +
+         (p.cba?.disponible ?? 0) + (p.lug?.disponible ?? 0) +
+         (p.air?.disponible ?? 0);
 }
 
 interface LoginResponse {
@@ -40,11 +61,7 @@ interface LoginResponse {
   error?: string;
 }
 
-interface ArticulosResponse {
-  articulos?: AirProduct[];
-  total?:     number;
-  [key: string]: unknown;
-}
+type ArticulosResponse = AirProduct[] | { error_id: number; error_name: string };
 
 interface CatalogoResponse {
   rubros?: AirRubro[];
@@ -137,7 +154,10 @@ export class AirApiClient {
     if (!res.ok) throw new Error(`fetchProductsPage(${page}) failed (HTTP ${res.status})`);
 
     const body: ArticulosResponse = await res.json();
-    return body.articulos ?? [];
+    if (!Array.isArray(body)) {
+      throw new Error(`fetchProductsPage(${page}) API error: ${(body as any).error_name}`);
+    }
+    return body;
   }
 
   /**

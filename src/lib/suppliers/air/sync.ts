@@ -11,7 +11,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-import { createAirClient, type AirProduct, type AirRubro } from "./api";
+import { createAirClient, type AirProduct, type AirRubro, totalDisponible } from "./api";
 import {
   loadSupplierMappings,
   resolveCategory,
@@ -92,15 +92,17 @@ function buildProductPayload(
   categoryId: string
 ): Record<string, unknown> {
   return {
-    name:          product.descrip,   // legacy display field
-    name_original: product.descrip,   // source-of-truth; name_custom never touched here
-    description:   product.detalle ?? product.descrip,
+    name:          product.descrip.trim(),
+    name_original: product.descrip.trim(),
+    description:   product.descrip.trim(),
     cost_price:    product.precio,
-    stock:         product.stock,
+    iva_rate:      product.impuesto_iva?.alicuota ?? 21,
+    stock:         totalDisponible(product),
+    sku:           product.part_number || null,
     category_id:   categoryId,
     supplier_uuid: supplierId,
-    external_id:   product.codiart,
-    active:        true,
+    external_id:   product.codigo,
+    active:        product.estado?.id === "P",
     updated_at:    new Date().toISOString(),
   };
 }
@@ -132,8 +134,7 @@ async function run(): Promise<void> {
   const unmapped: Set<string> = new Set();
 
   for await (const product of client.fetchAllProducts()) {
-    // Usar rubro como external_category_id — campo real de la API es "rubro" (codigo)
-    const externalCatId = (product.rubro as string) ?? (product.rubro_id !== undefined ? String(product.rubro_id) : "0");
+    const externalCatId = product.rubro ?? "0";
 
     let categoryId: string;
     try {
