@@ -767,7 +767,8 @@ const Admin = () => {
                     </div>
                   ))}
                 </div>
-              )}
+              );
+            })()}
             </div>
 
             {selectedOrder && (
