@@ -6,7 +6,8 @@ const supabase = createClient(
 );
 
 // ─── Cache en memoria por proceso (TTL simple) ───────────────
-const cache = new Map<string, { categoryId: string; expiresAt: number }>();
+// categories.id is bigint in DB; Supabase returns it as number
+const cache = new Map<string, { categoryId: number; expiresAt: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
 
 function cacheKey(supplierId: string, externalCategoryId: string): string {
@@ -20,7 +21,7 @@ function cacheKey(supplierId: string, externalCategoryId: string): string {
 export async function resolveCategory(
   supplierId: string,
   externalCategoryId: string
-): Promise<string> {
+): Promise<number> {
   const key = cacheKey(supplierId, externalCategoryId);
   const cached = cache.get(key);
   if (cached && cached.expiresAt > Date.now()) {
@@ -36,7 +37,7 @@ export async function resolveCategory(
     throw new Error(`resolve_category RPC failed: ${error.message}`);
   }
 
-  const categoryId = data as string;
+  const categoryId = Number(data);
   cache.set(key, { categoryId, expiresAt: Date.now() + CACHE_TTL_MS });
   return categoryId;
 }
@@ -48,7 +49,7 @@ export async function upsertCategoryMapping(params: {
   supplierId: string;
   externalCategoryId: string;
   externalCategoryName?: string;
-  internalCategoryId: string;
+  internalCategoryId: number;
   confidence?: "manual" | "auto_high" | "auto_low";
 }): Promise<void> {
   const { error } = await supabase.from("category_mapping").upsert(
@@ -87,7 +88,7 @@ export async function loadSupplierMappings(supplierId: string): Promise<void> {
   for (const row of data ?? []) {
     const key = cacheKey(supplierId, row.external_category_id);
     cache.set(key, {
-      categoryId: row.internal_category_id,
+      categoryId: Number(row.internal_category_id),
       expiresAt: Date.now() + CACHE_TTL_MS,
     });
   }
