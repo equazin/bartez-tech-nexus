@@ -5,12 +5,34 @@
 -- ─── 1. CATEGORÍAS INTERNAS ──────────────────────────────────
 CREATE TABLE IF NOT EXISTS categories (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  slug        text NOT NULL UNIQUE,          -- e.g. "networking", "security"
-  name        text NOT NULL,                  -- display name
+  slug        text,
+  name        text NOT NULL,
   parent_id   uuid REFERENCES categories(id) ON DELETE SET NULL,
   active      boolean NOT NULL DEFAULT true,
   created_at  timestamptz NOT NULL DEFAULT now()
 );
+
+-- Agregar columnas si la tabla ya existía sin ellas
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS slug   text;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true;
+
+-- Poblar slug desde name para filas existentes que no lo tengan
+UPDATE categories
+SET slug = lower(regexp_replace(trim(name), '\s+', '_', 'g'))
+WHERE slug IS NULL OR slug = '';
+
+-- Ahora sí forzar NOT NULL + UNIQUE en slug
+ALTER TABLE categories ALTER COLUMN slug SET NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'categories_slug_key'
+  ) THEN
+    ALTER TABLE categories ADD CONSTRAINT categories_slug_key UNIQUE (slug);
+  END IF;
+END$$;
 
 CREATE INDEX IF NOT EXISTS idx_categories_parent ON categories(parent_id);
 CREATE INDEX IF NOT EXISTS idx_categories_slug   ON categories(slug);
@@ -32,8 +54,8 @@ ON CONFLICT (slug) DO NOTHING;
 CREATE TABLE IF NOT EXISTS category_mapping (
   id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   supplier_id             uuid NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
-  external_category_id    text NOT NULL,     -- ID tal como viene del proveedor
-  external_category_name  text,              -- nombre del proveedor (referencia)
+  external_category_id    text NOT NULL,
+  external_category_name  text,
   internal_category_id    uuid NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
   confidence              text NOT NULL DEFAULT 'manual'
     CHECK (confidence IN ('manual', 'auto_high', 'auto_low')),
@@ -47,7 +69,6 @@ CREATE INDEX IF NOT EXISTS idx_category_mapping_supplier
 
 
 -- ─── 3. FK EN PRODUCTS (category_id) ────────────────────────
--- Agregamos category_id como FK; mantenemos `category` text para no romper código existente.
 ALTER TABLE products
   ADD COLUMN IF NOT EXISTS category_id uuid REFERENCES categories(id) ON DELETE SET NULL;
 
@@ -84,19 +105,38 @@ $$;
 ALTER TABLE categories       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE category_mapping ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "categories_read_all"
-  ON categories FOR SELECT USING (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename='categories' AND policyname='categories_read_all'
+  ) THEN
+    CREATE POLICY "categories_read_all"
+      ON categories FOR SELECT USING (true);
+  END IF;
 
-CREATE POLICY "categories_write_admin"
-  ON categories FOR ALL
-  USING  (auth.jwt() ->> 'role' = 'admin')
-  WITH CHECK (auth.jwt() ->> 'role' = 'admin');
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename='categories' AND policyname='categories_write_admin'
+  ) THEN
+    CREATE POLICY "categories_write_admin"
+      ON categories FOR ALL
+      USING  (auth.jwt() ->> 'role' = 'admin')
+      WITH CHECK (auth.jwt() ->> 'role' = 'admin');
+  END IF;
 
-CREATE POLICY "category_mapping_read_admin"
-  ON category_mapping FOR SELECT
-  USING (auth.jwt() ->> 'role' = 'admin');
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename='category_mapping' AND policyname='category_mapping_read_admin'
+  ) THEN
+    CREATE POLICY "category_mapping_read_admin"
+      ON category_mapping FOR SELECT
+      USING (auth.jwt() ->> 'role' = 'admin');
+  END IF;
 
-CREATE POLICY "category_mapping_write_admin"
-  ON category_mapping FOR ALL
-  USING  (auth.jwt() ->> 'role' = 'admin')
-  WITH CHECK (auth.jwt() ->> 'role' = 'admin');
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename='category_mapping' AND policyname='category_mapping_write_admin'
+  ) THEN
+    CREATE POLICY "category_mapping_write_admin"
+      ON category_mapping FOR ALL
+      USING  (auth.jwt() ->> 'role' = 'admin')
+      WITH CHECK (auth.jwt() ->> 'role' = 'admin');
+  END IF;
+END$$;
