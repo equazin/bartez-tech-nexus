@@ -85,6 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const isTimeout = err instanceof Error && err.name === "AbortError";
     const msg = isTimeout ? "AIR API timeout (>25s)" : (err instanceof Error ? err.message : String(err));
     const status = isTimeout ? 504 : 502;
+    console.error(`[air-proxy] q=${q} error:`, msg);
     return res.status(status).json({ ok: false, error: msg });
   }
 }
