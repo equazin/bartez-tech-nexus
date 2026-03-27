@@ -104,7 +104,6 @@ function buildProductPayload(
     stock:         totalDisponible(product),
     sku:           product.part_number || null,
     category_id:   categoryId,
-    supplier_uuid: supplierId,
     external_id:   product.codigo,
     active:        product.estado?.id === "P",
     updated_at:    new Date().toISOString(),
@@ -144,7 +143,7 @@ async function run(): Promise<void> {
     try {
       categoryId = await resolveCategory(supplierId, externalCatId);
     } catch (err) {
-      log.error(`resolveCategory falló para ${product.codiart}`, err);
+      log.error(`resolveCategory falló para ${product.codigo}`, err);
       skipped++;
       continue;
     }
@@ -163,7 +162,7 @@ async function run(): Promise<void> {
     const payload = buildProductPayload(product, supplierId, categoryId);
 
     if (DRY_RUN) {
-      log.info(`[dry] ${product.codiart} "${product.descrip}" → cat ${categoryId}`);
+      log.info(`[dry] ${product.codigo} "${product.descrip}" → cat ${categoryId}`);
       continue;
     }
 
@@ -172,7 +171,7 @@ async function run(): Promise<void> {
       .upsert(payload, { onConflict: "external_id" });
 
     if (error) {
-      log.error(`Upsert falló para ${product.codiart}: ${error.message}`);
+      log.error(`Upsert falló para ${product.codigo}: ${error.message}`);
       skipped++;
     } else {
       upserted++;
