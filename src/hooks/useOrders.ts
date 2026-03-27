@@ -8,7 +8,7 @@ export interface PortalOrder {
   products: PortalOrderProduct[];
   total: number;
   status: "pending" | "approved" | "preparing" | "shipped" | "delivered" | "rejected" | "dispatched";
-  /** Número correlativo visible: ORD-0001, ORD-0002 ... */
+  /** Número correlativo visible: ORD-0001, ORD-0002 … generado server-side */
   order_number?: string;
   /** Número de remito al despachar */
   numero_remito?: string;
@@ -34,8 +34,10 @@ export interface PortalOrderProduct {
   margin: number;
 }
 
+export type AddOrderPayload = Omit<PortalOrder, "id" | "client_id" | "order_number">;
+
 export function useOrders() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [orders, setOrders] = useState<PortalOrder[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -62,43 +64,61 @@ export function useOrders() {
     fetchOrders();
   }, [fetchOrders]);
 
+  /**
+   * Confirms an order via the `reserve_stock_and_create_order` RPC.
+   * This atomically:
+   *   1. Validates and reserves stock for each product (FOR UPDATE row lock)
+   *   2. Creates the order with a server-side order number (ORD-XXXX)
+   * Returns { error: null } on success or { error: string } on failure.
+   * After success, fires a background email notification.
+   */
   const addOrder = async (
-    orderData: Omit<PortalOrder, "id" | "client_id">
-  ): Promise<{ error: string | null }> => {
+    orderData: AddOrderPayload
+  ): Promise<{ error: string | null; orderId?: string | number; orderNumber?: string }> => {
     if (!user) return { error: "No autenticado" };
-    try {
-      let insertPayload: Record<string, unknown> = { ...orderData, client_id: user.id };
-      let { data, error } = await supabase
-        .from("orders")
-        .insert([insertPayload])
-        .select()
-        .single();
 
-      // Backward compatibility with legacy schemas lacking new checkout fields.
-      // Catches both PostgreSQL ("column X does not exist") and PostgREST
-      // ("Could not find the 'X' column of 'orders' in the schema cache").
-      const isMissingColumn = error && (
-        /column .* does not exist/i.test(error.message) ||
-        /could not find the .* column/i.test(error.message) ||
-        /schema cache/i.test(error.message)
-      );
-      if (isMissingColumn) {
-        // Minimal payload — only columns guaranteed to exist in base schema
-        insertPayload = {
-          client_id:  user.id,
-          products:   orderData.products,
-          total:      orderData.total,
-          status:     orderData.status,
-          created_at: orderData.created_at,
-        };
-        const retry = await supabase.from("orders").insert([insertPayload]).select().single();
-        data = retry.data;
-        error = retry.error;
-      }
+    try {
+      const { data, error } = await supabase.rpc("reserve_stock_and_create_order", {
+        p_client_id:             user.id,
+        p_products:              orderData.products,
+        p_total:                 orderData.total,
+        p_status:                orderData.status ?? "pending",
+        p_payment_method:        orderData.payment_method        ?? null,
+        p_payment_surcharge_pct: orderData.payment_surcharge_pct ?? null,
+        p_shipping_type:         orderData.shipping_type         ?? null,
+        p_shipping_address:      orderData.shipping_address      ?? null,
+        p_shipping_transport:    orderData.shipping_transport     ?? null,
+        p_shipping_cost:         orderData.shipping_cost         ?? null,
+        p_notes:                 orderData.notes                 ?? null,
+      });
 
       if (error) return { error: error.message };
-      if (data) setOrders((prev) => [data as PortalOrder, ...prev]);
-      return { error: null };
+
+      const result = data as { id: number; order_number: string; status: string };
+
+      // Fetch the full order row to update local state
+      const { data: fullOrder } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("id", result.id)
+        .single();
+
+      if (fullOrder) {
+        setOrders((prev) => [fullOrder as PortalOrder, ...prev]);
+      }
+
+      // Fire-and-forget email notification (does not block order success)
+      sendOrderConfirmationEmail({
+        orderId:     result.id,
+        orderNumber: result.order_number,
+        clientId:    user.id,
+        clientEmail: user.email ?? undefined,
+        clientName:  profile?.company_name ?? profile?.contact_name ?? undefined,
+        products:    orderData.products,
+        total:       orderData.total,
+      }).catch(() => {/* silencioso */});
+
+      return { error: null, orderId: result.id, orderNumber: result.order_number };
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Error al crear pedido";
       return { error: message };
@@ -115,12 +135,14 @@ export function useOrders() {
         .from("orders")
         .update(patch)
         .eq("id", orderId)
-        .eq("client_id", user?.id)
+        .eq("client_id", user.id)
         .select("*")
         .single();
       if (error) return { error: error.message };
       if (data) {
-        setOrders((prev) => prev.map((o) => (String(o.id) === String(orderId) ? (data as PortalOrder) : o)));
+        setOrders((prev) =>
+          prev.map((o) => (String(o.id) === String(orderId) ? (data as PortalOrder) : o))
+        );
       }
       return { error: null };
     } catch (e: unknown) {
@@ -130,4 +152,31 @@ export function useOrders() {
   };
 
   return { orders, loading, addOrder, updateOrder, refetch: fetchOrders };
+}
+
+// ── Email helper ─────────────────────────────────────────────────────────────
+
+async function sendOrderConfirmationEmail(payload: {
+  orderId: number;
+  orderNumber: string;
+  clientId: string;
+  clientEmail?: string;
+  clientName?: string;
+  products: PortalOrderProduct[];
+  total: number;
+}): Promise<void> {
+  await fetch("/api/email", {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({
+      type:        "order_confirmed",
+      orderId:     payload.orderId,
+      orderNumber: payload.orderNumber,
+      clientId:    payload.clientId,
+      clientEmail: payload.clientEmail,
+      clientName:  payload.clientName,
+      products:    payload.products,
+      total:       payload.total,
+    }),
+  });
 }

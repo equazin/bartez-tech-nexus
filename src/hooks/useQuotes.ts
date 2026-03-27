@@ -1,109 +1,178 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/lib/supabase";
 import { Quote, QuoteStatus } from "@/models/quote";
 
-const STORAGE_KEY = (userId: string) => `b2b_quotes_${userId}`;
-
-function loadQuotes(userId: string): Quote[] {
+// ── One-time localStorage → Supabase migration ──────────────────────────────
+async function migrateLocalStorageQuotes(userId: string): Promise<void> {
+  const key = `b2b_quotes_${userId}`;
+  const raw = localStorage.getItem(key);
+  if (!raw) return;
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY(userId)) || "[]");
+    const local: Quote[] = JSON.parse(raw);
+    if (!local.length) return;
+    const rows = local.map((q) => ({
+      client_id:   userId,
+      client_name: q.client_name,
+      items:       q.items,
+      subtotal:    q.subtotal,
+      iva_total:   q.ivaTotal,
+      total:       q.total,
+      currency:    q.currency,
+      status:      q.status,
+      version:     q.version  ?? 1,
+      parent_id:   null,
+      created_at:  q.created_at,
+      updated_at:  q.updated_at,
+    }));
+    const { error } = await supabase.from("quotes").insert(rows);
+    if (!error) {
+      localStorage.removeItem(key);
+    }
   } catch {
-    return [];
+    // Silencioso — no bloquear si falla la migración
   }
 }
 
-function saveQuotes(userId: string, quotes: Quote[]) {
-  localStorage.setItem(STORAGE_KEY(userId), JSON.stringify(quotes));
-}
-
-function nextId(quotes: Quote[]): number {
-  return quotes.length > 0 ? Math.max(...quotes.map((q) => q.id)) + 1 : 1;
-}
+// ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useQuotes(userId: string) {
-  const [quotes, setQuotes] = useState<Quote[]>(() => loadQuotes(userId));
+  const [quotes, setQuotes]   = useState<Quote[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const persist = useCallback(
-    (updated: Quote[]) => {
-      setQuotes(updated);
-      saveQuotes(userId, updated);
+  const fetchQuotes = useCallback(async () => {
+    if (!userId || userId === "guest") return;
+    setLoading(true);
+    try {
+      // Migrate legacy localStorage quotes on first load
+      await migrateLocalStorageQuotes(userId);
+
+      const { data, error } = await supabase
+        .from("quotes")
+        .select("*")
+        .eq("client_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
+        // Map DB snake_case → frontend camelCase
+        setQuotes(data.map(dbToQuote));
+      }
+    } catch {
+      // Silencioso — tabla puede no existir todavía
+    }
+    setLoading(false);
+  }, [userId]);
+
+  useEffect(() => {
+    fetchQuotes();
+  }, [fetchQuotes]);
+
+  // ── addQuote ───────────────────────────────────────────────────────────────
+  const addQuote = useCallback(
+    async (data: Omit<Quote, "id">): Promise<Quote | null> => {
+      if (!userId || userId === "guest") return null;
+      try {
+        const { data: row, error } = await supabase
+          .from("quotes")
+          .insert([quoteToDb(data, userId)])
+          .select()
+          .single();
+
+        if (error || !row) return null;
+        const quote = dbToQuote(row);
+        setQuotes((prev) => [quote, ...prev]);
+        return quote;
+      } catch {
+        return null;
+      }
     },
     [userId]
   );
 
-  const addQuote = useCallback(
-    (data: Omit<Quote, "id">): Quote => {
-      const existing = loadQuotes(userId);
-      const quote: Quote = { ...data, id: nextId(existing) };
-      persist([quote, ...existing]);
-      return quote;
-    },
-    [userId, persist]
-  );
-
+  // ── updateQuote ────────────────────────────────────────────────────────────
   const updateQuote = useCallback(
-    (id: number, changes: Partial<Quote>) => {
-      const existing = loadQuotes(userId);
-      const updated = existing.map((q) =>
-        q.id === id
-          ? { ...q, ...changes, updated_at: new Date().toISOString() }
-          : q
-      );
-      persist(updated);
+    async (id: number, changes: Partial<Quote>): Promise<void> => {
+      try {
+        const patch: Record<string, unknown> = {};
+        if (changes.client_name !== undefined) patch.client_name = changes.client_name;
+        if (changes.items       !== undefined) patch.items       = changes.items;
+        if (changes.subtotal    !== undefined) patch.subtotal    = changes.subtotal;
+        if (changes.ivaTotal    !== undefined) patch.iva_total   = changes.ivaTotal;
+        if (changes.total       !== undefined) patch.total       = changes.total;
+        if (changes.currency    !== undefined) patch.currency    = changes.currency;
+        if (changes.status      !== undefined) patch.status      = changes.status;
+        if (changes.version     !== undefined) patch.version     = changes.version;
+        if (changes.parent_id   !== undefined) patch.parent_id   = changes.parent_id;
+        if (changes.order_id    !== undefined) patch.order_id    = changes.order_id;
+
+        const { data: row, error } = await supabase
+          .from("quotes")
+          .update(patch)
+          .eq("id", id)
+          .select()
+          .single();
+
+        if (!error && row) {
+          const updated = dbToQuote(row);
+          setQuotes((prev) => prev.map((q) => (q.id === id ? updated : q)));
+        }
+      } catch {
+        // Silencioso
+      }
     },
-    [userId, persist]
+    []
   );
 
+  // ── updateStatus ───────────────────────────────────────────────────────────
   const updateStatus = useCallback(
     (id: number, status: QuoteStatus) => updateQuote(id, { status }),
     [updateQuote]
   );
 
+  // ── deleteQuote ────────────────────────────────────────────────────────────
   const deleteQuote = useCallback(
-    (id: number) => {
-      const existing = loadQuotes(userId);
-      persist(existing.filter((q) => q.id !== id));
+    async (id: number): Promise<void> => {
+      try {
+        await supabase.from("quotes").delete().eq("id", id);
+        setQuotes((prev) => prev.filter((q) => q.id !== id));
+      } catch {
+        // Silencioso
+      }
     },
-    [userId, persist]
+    []
   );
 
-  const getQuotes = useCallback(() => loadQuotes(userId), [userId]);
+  // ── getQuotes (synchronous snapshot for backward compat) ───────────────────
+  const getQuotes = useCallback(() => quotes, [quotes]);
 
-  /** Create a copy of an existing quote with incremented version */
+  // ── duplicateQuote ─────────────────────────────────────────────────────────
   const duplicateQuote = useCallback(
-    (id: number): Quote | null => {
-      const existing = loadQuotes(userId);
-      const original = existing.find((q) => q.id === id);
-      if (!original) return null;
+    async (id: number): Promise<Quote | null> => {
+      const original = quotes.find((q) => q.id === id);
+      if (!original || !userId || userId === "guest") return null;
       const now = new Date().toISOString();
-      const copy: Quote = {
+      return addQuote({
         ...original,
-        id: nextId(existing),
-        status: "draft",
-        version: (original.version ?? 1) + 1,
+        status:    "draft",
+        version:   (original.version ?? 1) + 1,
         parent_id: original.parent_id ?? original.id,
-        order_id: undefined,
+        order_id:  undefined,
         created_at: now,
         updated_at: now,
-      };
-      persist([copy, ...existing]);
-      return copy;
+      });
     },
-    [userId, persist]
+    [quotes, userId, addQuote]
   );
 
-  /**
-   * Mark a quote as converted to an order and link the order id.
-   * Does NOT create the order — that's done by the caller via addOrder.
-   */
+  // ── linkOrderToQuote ───────────────────────────────────────────────────────
   const linkOrderToQuote = useCallback(
-    (quoteId: number, orderId: string | number) => {
-      updateQuote(quoteId, { status: "approved", order_id: orderId });
-    },
+    (quoteId: number, orderId: string | number) =>
+      updateQuote(quoteId, { status: "approved", order_id: orderId }),
     [updateQuote]
   );
 
   return {
     quotes,
+    loading,
     addQuote,
     updateQuote,
     updateStatus,
@@ -111,5 +180,45 @@ export function useQuotes(userId: string) {
     getQuotes,
     duplicateQuote,
     linkOrderToQuote,
+    refetch: fetchQuotes,
+  };
+}
+
+// ── Mappers ──────────────────────────────────────────────────────────────────
+
+function dbToQuote(row: Record<string, unknown>): Quote {
+  return {
+    id:          row.id as number,
+    client_id:   row.client_id as string,
+    client_name: (row.client_name as string) ?? "",
+    items:       (row.items as Quote["items"]) ?? [],
+    subtotal:    Number(row.subtotal ?? 0),
+    ivaTotal:    Number(row.iva_total ?? 0),
+    total:       Number(row.total ?? 0),
+    currency:    (row.currency as "USD" | "ARS") ?? "USD",
+    status:      (row.status as QuoteStatus) ?? "draft",
+    version:     (row.version as number) ?? 1,
+    parent_id:   row.parent_id as number | undefined,
+    order_id:    row.order_id as string | number | undefined,
+    created_at:  row.created_at as string,
+    updated_at:  row.updated_at as string,
+  };
+}
+
+function quoteToDb(q: Omit<Quote, "id">, userId: string): Record<string, unknown> {
+  return {
+    client_id:   userId,
+    client_name: q.client_name,
+    items:       q.items,
+    subtotal:    q.subtotal,
+    iva_total:   q.ivaTotal,
+    total:       q.total,
+    currency:    q.currency,
+    status:      q.status,
+    version:     q.version  ?? 1,
+    parent_id:   q.parent_id ?? null,
+    order_id:    q.order_id  ?? null,
+    created_at:  q.created_at,
+    updated_at:  q.updated_at,
   };
 }

@@ -262,9 +262,9 @@ export default function CartPage() {
   }
 
   // ── Save quote ────────────────────────────────────────────────────────────────
-  function handleSaveQuote() {
+  async function handleSaveQuote() {
     if (!cartItems.length) return;
-    addQuote({
+    await addQuote({
       client_id:   profile?.id || "guest",
       client_name: clientName,
       items: cartItems.map((item) => ({

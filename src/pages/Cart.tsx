@@ -8,8 +8,6 @@ import { useCurrency } from "@/context/CurrencyContext";
 import { useQuotes } from "@/hooks/useQuotes";
 import { getUnitPrice, getAvailableStock } from "@/lib/pricing";
 import { saveCart } from "@/lib/savedCarts";
-import { nextOrderNumber } from "@/lib/orderNumber";
-import { supabase } from "@/lib/supabase";
 import { generateQuotePDF } from "@/components/QuotePDF";
 import type { Product } from "@/models/products";
 
@@ -219,11 +217,11 @@ export default function Cart() {
       total_price: Number(item.totalPrice.toFixed(2)),
       margin: productMargins[item.product.id] ?? globalMargin,
     }));
+    // order_number is now generated server-side by the reserve_stock_and_create_order RPC
     const { error } = await addOrder({
       products: orderProducts,
       total: Number(total.toFixed(2)),
       status: "pending",
-      order_number: nextOrderNumber(),
       payment_method: paymentMethod,
       payment_surcharge_pct: paymentSurchargePct,
       shipping_type: shippingType,
@@ -234,18 +232,7 @@ export default function Cart() {
       created_at: new Date().toISOString(),
     });
     if (!error) {
-      try {
-        await Promise.all(
-          cartItems.map((item) =>
-            supabase
-              .from("products")
-              .update({ stock_reserved: (item.product.stock_reserved ?? 0) + item.quantity })
-              .eq("id", item.product.id)
-          )
-        );
-      } catch {
-        // Do not block order by stock reserve update errors
-      }
+      // Stock reservation is handled atomically inside the RPC — no manual update needed
 
       addQuote({
         client_id: profile?.id || "guest",

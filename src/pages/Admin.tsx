@@ -12,10 +12,13 @@ import {
   CheckCircle2, XCircle, Clock, Trash2, RefreshCw, Save,
   Users, Package, ClipboardList, LogOut, ShieldCheck, UserPlus, X,
   DollarSign, Pencil, Check, LayoutDashboard, Sun, Moon, Phone, Tag, Truck,
+  LayoutGrid, List,
 } from "lucide-react";
 import { SalesDashboard } from "@/components/admin/SalesDashboard";
 import { ClientCRM } from "@/components/admin/ClientCRM";
 import { PricingRulesTab } from "@/components/admin/PricingRulesTab";
+import OrderKanban from "@/components/admin/OrderKanban";
+import { useOrdersRealtime } from "@/hooks/useOrdersRealtime";
 
 interface SupabaseOrder {
   id: string;
@@ -96,6 +99,8 @@ const Admin = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<SupabaseOrder[]>([]);
   const [clients, setClients] = useState<ClientProfile[]>([]);
+  const [ordersView, setOrdersView] = useState<"list" | "kanban">("list");
+  const { orders: realtimeOrders, loading: kanbanLoading, updateStatus: kanbanUpdateStatus } = useOrdersRealtime();
   const [categories, setCategories] = useState<{ id: number; name: string; parent_id: number | null }[]>([]);
   const [newCatName, setNewCatName] = useState("");
   const [newCatParent, setNewCatParent] = useState("");
@@ -587,8 +592,48 @@ const Admin = () => {
 
         {/* ── PEDIDOS ── */}
         {activeTab === "orders" && (
-          <div className="grid lg:grid-cols-2 gap-5 max-w-5xl">
-            <div className="space-y-3">
+          <div className={ordersView === "kanban" ? "w-full" : "grid lg:grid-cols-2 gap-5 max-w-5xl"}>
+
+            {/* View toggle */}
+            <div className={`flex items-center gap-2 mb-4 ${ordersView === "kanban" ? "" : "lg:col-span-2"}`}>
+              <button
+                onClick={() => setOrdersView("list")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${ordersView === "list" ? dk("bg-[#1c1c1c] text-white border border-[#333]", "bg-white text-[#171717] border border-[#d4d4d4]") : dk("text-[#737373] hover:text-white hover:bg-[#1c1c1c]", "text-[#a3a3a3] hover:text-[#171717] hover:bg-[#f0f0f0]")}`}
+              >
+                <List size={13} /> Lista
+              </button>
+              <button
+                onClick={() => setOrdersView("kanban")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${ordersView === "kanban" ? dk("bg-[#1c1c1c] text-white border border-[#333]", "bg-white text-[#171717] border border-[#d4d4d4]") : dk("text-[#737373] hover:text-white hover:bg-[#1c1c1c]", "text-[#a3a3a3] hover:text-[#171717] hover:bg-[#f0f0f0]")}`}
+              >
+                <LayoutGrid size={13} /> Kanban
+              </button>
+              {ordersView === "kanban" && (
+                <span className={`ml-2 flex items-center gap-1 text-xs ${dk("text-[#2D9F6A]", "text-[#2D9F6A]")}`}>
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#2D9F6A] animate-pulse" />
+                  En vivo
+                </span>
+              )}
+            </div>
+
+            {/* Kanban view */}
+            {ordersView === "kanban" && (
+              <div className="lg:col-span-2">
+                {kanbanLoading ? (
+                  <div className="text-center py-20 text-gray-500 text-sm">Cargando pedidos...</div>
+                ) : (
+                  <OrderKanban
+                    orders={realtimeOrders}
+                    onStatusChange={kanbanUpdateStatus}
+                    formatPrice={(n) => `USD ${n.toLocaleString("en-US", { minimumFractionDigits: 0 })}`}
+                    isDark={isDark}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* List view — col 1 */}
+            {ordersView === "list" && <div className="space-y-3">
               {/* Currency notice */}
               <div className={`flex items-start gap-2.5 rounded-xl px-4 py-3 border text-xs ${dk("bg-blue-500/8 border-blue-500/20 text-blue-300", "bg-blue-50 border-blue-200 text-blue-700")}`}>
                 <DollarSign size={13} className="mt-0.5 shrink-0" />
@@ -639,9 +684,9 @@ const Admin = () => {
                   ))}
                 </div>
               )}
-            </div>
+            </div>}
 
-            {selectedOrder && (
+            {ordersView === "list" && selectedOrder && (
               <div className={`border rounded-xl p-6 ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className={`font-bold ${dk("text-white", "text-[#171717]")}`}>Pedido #{String(selectedOrder.id).slice(-8)}</h3>
