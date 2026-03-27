@@ -39,10 +39,13 @@ DO $$ BEGIN
   END IF;
 EXCEPTION WHEN undefined_function THEN
   -- update_updated_at() does not exist yet, create it
-  CREATE OR REPLACE FUNCTION update_updated_at()
-  RETURNS trigger LANGUAGE plpgsql AS $$
-  BEGIN NEW.updated_at = now(); RETURN NEW; END;
-  $$;
+  -- Note: use $fn$ tag to avoid conflicting with the outer $$ delimiter
+  EXECUTE $fn$
+    CREATE OR REPLACE FUNCTION update_updated_at()
+    RETURNS trigger LANGUAGE plpgsql AS $body$
+    BEGIN NEW.updated_at = now(); RETURN NEW; END;
+    $body$;
+  $fn$;
   CREATE TRIGGER quotes_updated_at
     BEFORE UPDATE ON quotes
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
