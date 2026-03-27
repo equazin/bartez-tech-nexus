@@ -155,7 +155,7 @@ export class AirApiClient {
     if (res.status === 403) {
       const body = await res.json().catch(() => ({})) as any;
       if (retries > 0 && body?.error_id === 403) {
-        const wait = 5 * 60 * 1000 + 5000; // 5 min + 5 seg buffer
+        const wait = 6 * 60 * 1000; // 6 min
         console.log(`[INFO]  Rate limit en página ${page} — esperando 5 min...`);
         await new Promise((r) => setTimeout(r, wait));
         return this.fetchProductsPage(page, retries - 1);
