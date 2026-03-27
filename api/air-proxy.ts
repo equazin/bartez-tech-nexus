@@ -1,16 +1,12 @@
 /**
- * Proxy serverless para la API AIR Intranet.
- * Evita errores CORS: el browser llama a /api/air-proxy, este
- * endpoint llama a api.air-intra.com server-side con el token.
+ * Proxy Edge para la API AIR Intranet.
+ * Edge Runtime: 30s timeout (vs 10s Node.js en Hobby plan).
+ * Streaming directo: no buffering, sin límites de tamaño de respuesta.
  */
-import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-// Aumentar timeout de la función Vercel a 30s (necesario para páginas grandes)
-export const config = { maxDuration: 30 };
+export const config = { runtime: "edge" };
 
 const AIR_BASE = "https://api.air-intra.com/v2";
-const TOKEN = process.env.VITE_AIR_TOKEN ?? "";
-const FETCH_TIMEOUT_MS = 25_000; // 25s — deja margen antes del timeout de Vercel
 
 const ALLOWED_QUERIES = new Set([
   "check_token",
@@ -21,89 +17,60 @@ const ALLOWED_QUERIES = new Set([
   "get_meta",
 ]);
 
-function isAllowedQuery(q: string): boolean {
-  const base = q.split("&")[0];
-  return ALLOWED_QUERIES.has(base);
-}
-
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ ok: false, error: "Method not allowed. Use POST." });
+export default async function handler(request: Request): Promise<Response> {
+  if (request.method !== "POST") {
+    return json({ ok: false, error: "Method not allowed. Use POST." }, 405);
   }
 
-  const q = req.query.q ? String(req.query.q) : "";
-  if (!q || !isAllowedQuery(q)) {
-    return res.status(400).json({ ok: false, error: "Missing or disallowed query parameter." });
+  const url = new URL(request.url);
+  const q = url.searchParams.get("q") ?? "";
+  const baseQuery = q.split("&")[0];
+
+  if (!q || !ALLOWED_QUERIES.has(baseQuery)) {
+    return json({ ok: false, error: "Missing or disallowed query parameter." }, 400);
   }
 
-  if (!TOKEN) {
-    return res.status(500).json({ ok: false, error: "AIR token not configured." });
+  const token = process.env.VITE_AIR_TOKEN ?? "";
+  if (!token) {
+    return json({ ok: false, error: "AIR token not configured." }, 500);
   }
 
-  // Reenviar TODOS los query params a AIR (q, page, codiart, etc.)
-  const forwardParams = new URLSearchParams();
-  for (const [key, val] of Object.entries(req.query)) {
-    if (typeof val === "string") forwardParams.set(key, val);
-  }
-
-  const airUrl = `${AIR_BASE}/?${forwardParams.toString()}`;
+  // Reenviar todos los query params a AIR
+  const airUrl = `${AIR_BASE}/?${url.searchParams.toString()}`;
   console.log(`[air-proxy] → ${airUrl}`);
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
-  let airRes: Response;
   try {
-    airRes = await fetch(airUrl, {
+    const body = request.body ? await request.text() : undefined;
+
+    const airRes = await fetch(airUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${TOKEN}`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: req.body ? JSON.stringify(req.body) : undefined,
-      signal: controller.signal,
+      body,
     });
-    clearTimeout(timer);
-  } catch (err) {
-    clearTimeout(timer);
-    const isTimeout = err instanceof Error && err.name === "AbortError";
-    const msg = isTimeout ? "AIR API timeout (>25s)" : (err instanceof Error ? err.message : String(err));
-    const status = isTimeout ? 504 : 502;
-    console.error(`[air-proxy] fetch error q=${q}:`, msg);
-    return res.status(status).json({ ok: false, error: msg });
-  }
 
-  console.log(`[air-proxy] ← status=${airRes.status} q=${q}`);
+    console.log(`[air-proxy] ← status=${airRes.status} q=${q}`);
 
-  try {
-    const contentType = airRes.headers.get("content-type") ?? "";
-    const text = await airRes.text();
-    console.log(`[air-proxy] body size=${text.length} q=${q}`);
-
-    if (!airRes.ok) {
-      return res.status(airRes.status).json({
-        ok: false,
-        error: `AIR HTTP ${airRes.status}`,
-        detail: text.slice(0, 500),
-      });
-    }
-
-    let data: unknown;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      return res.status(502).json({
-        ok: false,
-        error: "Invalid JSON from AIR API",
-        detail: text.slice(0, 200),
-      });
-    }
-
-    res.setHeader("Content-Type", contentType || "application/json");
-    return res.status(200).json(data);
+    // Streaming directo: evita buffering y límites de tamaño
+    return new Response(airRes.body, {
+      status: airRes.status,
+      headers: {
+        "Content-Type": airRes.headers.get("content-type") || "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[air-proxy] body error q=${q}:`, msg);
-    return res.status(502).json({ ok: false, error: `Body read error: ${msg}` });
+    console.error(`[air-proxy] fetch error q=${q}:`, msg);
+    return json({ ok: false, error: msg }, 502);
   }
+}
+
+function json(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }

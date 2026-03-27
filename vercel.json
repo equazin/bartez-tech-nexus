@@ -1,11 +1,5 @@
 {
   "cleanUrls": true,
-  "functions": {
-    "api/air-proxy.ts": {
-      "maxDuration": 30,
-      "regions": ["gru1"]
-    }
-  },
   "redirects": [
     { "source": "/arrepentimiento", "destination": "/", "permanent": true },
     { "source": "/arrepentimiento/:path*", "destination": "/", "permanent": true },
