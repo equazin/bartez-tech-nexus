@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { Product } from "@/models/products";
-import { X, Upload, Star, Tag, Loader2 } from "lucide-react";
+import { X, Upload, Star, Tag, Loader2, RotateCcw } from "lucide-react";
 
 const SUPABASE_URL = "https://mfetwdftkiqydbwiqyfi.supabase.co";
 
@@ -16,6 +16,7 @@ interface Props {
 export default function ProductEditModal({ product, categories, onSave, onClose }: Props) {
   const [form, setForm] = useState({
     name:               product.name,
+    name_custom:        (product as any).name_custom || "",
     sku:                product.sku || "",
     description:        product.description || "",
     cost_price:         String(product.cost_price),
@@ -76,8 +77,10 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
       catch (e: any) { setError("Error subiendo imagen: " + e.message); setSaving(false); return; }
     }
 
+    const nameCustomVal = form.name_custom.trim() || null;
     const payload = {
-      name:               form.name.trim(),
+      name:               nameCustomVal ?? form.name.trim(),
+      name_custom:        nameCustomVal,
       sku:                form.sku.trim() || null,
       description:        form.description,
       cost_price,
@@ -159,6 +162,38 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
                 className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A] font-mono" />
             </div>
           </div>
+
+          {/* Name custom override (solo productos importados) */}
+          {(product as any).name_original && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-gray-400 flex items-center gap-1.5">
+                  Nombre personalizado
+                  {form.name_custom && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">
+                      modificado
+                    </span>
+                  )}
+                </label>
+                {form.name_custom && (
+                  <button type="button"
+                    onClick={() => set("name_custom", "")}
+                    className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-red-400 transition">
+                    <RotateCcw size={10} /> Resetear al original
+                  </button>
+                )}
+              </div>
+              <input
+                value={form.name_custom}
+                onChange={(e) => set("name_custom", e.target.value)}
+                placeholder={(product as any).name_original}
+                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-yellow-500/50 placeholder:text-gray-600"
+              />
+              <p className="text-[11px] text-gray-600 mt-1">
+                Original: {(product as any).name_original}
+              </p>
+            </div>
+          )}
 
           {/* Price + IVA + Stock + Category */}
           <div className="grid grid-cols-4 gap-3">

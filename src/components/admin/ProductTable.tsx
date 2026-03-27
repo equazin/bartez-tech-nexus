@@ -259,7 +259,15 @@ export default function ProductTable({ products, categories, isDark = true, onRe
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-1.5">
                         {featured && <Star size={11} className="text-yellow-400 shrink-0" fill="currentColor" />}
-                        <span className={`font-medium line-clamp-1 ${dk("text-white", "text-[#171717]")}`}>{p.name}</span>
+                        <span className={`font-medium line-clamp-1 ${dk("text-white", "text-[#171717]")}`}>
+                          {(p as any).name_custom?.trim() || p.name}
+                        </span>
+                        {(p as any).name_custom?.trim() && (
+                          <span title={`Original: ${(p as any).name_original ?? p.name}`}
+                            className="shrink-0 text-[9px] font-bold px-1 py-0.5 rounded bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">
+                            custom
+                          </span>
+                        )}
                       </div>
                       {(p as any).tags?.length > 0 && (
                         <div className="flex gap-1 mt-0.5 flex-wrap">

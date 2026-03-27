@@ -23,6 +23,15 @@ export interface Product {
   stock_reserved?: number;
   /** Price tiers for volume pricing */
   price_tiers?: Array<{ min: number; max: number | null; price: number }>;
+  /** Original name from supplier API — never overwritten on re-sync */
+  name_original?: string;
+  /** Admin override for display name; takes priority over name_original */
+  name_custom?: string;
+}
+
+/** Returns the display name: custom override → original → name */
+export function displayName(p: Pick<Product, "name" | "name_original" | "name_custom">): string {
+  return p.name_custom?.trim() || p.name_original?.trim() || p.name;
 }
 
 export const products: Product[] = [

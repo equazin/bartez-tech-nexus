@@ -92,7 +92,8 @@ function buildProductPayload(
   categoryId: string
 ): Record<string, unknown> {
   return {
-    name:          product.descrip,
+    name:          product.descrip,   // legacy display field
+    name_original: product.descrip,   // source-of-truth; name_custom never touched here
     description:   product.detalle ?? product.descrip,
     cost_price:    product.precio,
     stock:         product.stock,
