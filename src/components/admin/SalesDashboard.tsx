@@ -8,6 +8,10 @@ import {
   Package, Users, Trash2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface SupabaseOrder {
@@ -455,74 +459,80 @@ function TopClients({
 function DeleteHistoryPanel({ isDark, onRefreshOrders }: { isDark: boolean; onRefreshOrders?: () => void }) {
   const dk = (d: string, l: string) => isDark ? d : l;
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [pending, setPending] = useState<{ label: string; days: number } | null>(null);
 
-  async function deleteHistory(label: string, days: number) {
-    if (!confirm(`¿Eliminar el historial de ${label}?\n\nEsto eliminará pedidos y cotizaciones de los últimos ${days} día${days !== 1 ? "s" : ""}. Esta acción no se puede deshacer.`)) return;
-
+  async function confirmDelete() {
+    if (!pending) return;
+    const { label, days } = pending;
+    setPending(null);
     setDeleting(label);
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
     const cutoffISO = cutoff.toISOString();
 
-    // Delete Supabase orders from that period
-    await supabase
-      .from("orders")
-      .delete()
-      .gte("created_at", cutoffISO);
-
-    // Delete localStorage quotes from that period
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith("b2b_quotes_")) {
-        try {
-          const arr = JSON.parse(localStorage.getItem(key) || "[]");
-          if (Array.isArray(arr)) {
-            const filtered = arr.filter((q: Quote) => new Date(q.created_at) < cutoff);
-            if (filtered.length !== arr.length) {
-              localStorage.setItem(key, JSON.stringify(filtered));
-            }
-          }
-        } catch { /* skip */ }
-      }
-    }
+    await supabase.from("orders").delete().gte("created_at", cutoffISO);
+    await supabase.from("quotes").delete().gte("created_at", cutoffISO);
 
     setDeleting(null);
     onRefreshOrders?.();
   }
 
   const periods = [
-    { label: "último día",   days: 1 },
+    { label: "último día",    days: 1 },
     { label: "última semana", days: 7 },
-    { label: "último mes",   days: 30 },
+    { label: "último mes",    days: 30 },
   ];
 
   return (
-    <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl px-5 py-4 flex flex-wrap items-center gap-3`}>
-      <div className="flex items-center gap-2 shrink-0">
-        <div className={`h-7 w-7 rounded-lg flex items-center justify-center bg-red-500/10 border border-red-500/20`}>
-          <Trash2 size={13} className="text-red-400" />
+    <>
+      <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl px-5 py-4 flex flex-wrap items-center gap-3`}>
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="h-7 w-7 rounded-lg flex items-center justify-center bg-red-500/10 border border-red-500/20">
+            <Trash2 size={13} className="text-red-400" />
+          </div>
+          <span className={`text-xs font-semibold ${dk("text-[#a3a3a3]", "text-[#525252]")}`}>Limpiar historial</span>
         </div>
-        <span className={`text-xs font-semibold ${dk("text-[#a3a3a3]", "text-[#525252]")}`}>Limpiar historial</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          {periods.map(({ label, days }) => (
+            <button
+              key={label}
+              onClick={() => setPending({ label, days })}
+              disabled={deleting !== null}
+              className={`text-xs px-3 py-1.5 rounded-lg border transition disabled:opacity-40 ${
+                dk(
+                  "border-[#2a2a2a] text-[#737373] hover:border-red-500/40 hover:text-red-400 hover:bg-red-500/5",
+                  "border-[#e0e0e0] text-[#737373] hover:border-red-400/50 hover:text-red-500 hover:bg-red-50"
+                )
+              }`}
+            >
+              {deleting === label ? "Eliminando…" : `Borrar ${label}`}
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-[#525252] ml-auto">Elimina pedidos y cotizaciones del período</p>
       </div>
-      <div className="flex items-center gap-2 flex-wrap">
-        {periods.map(({ label, days }) => (
-          <button
-            key={label}
-            onClick={() => deleteHistory(label, days)}
-            disabled={deleting !== null}
-            className={`text-xs px-3 py-1.5 rounded-lg border transition disabled:opacity-40 ${
-              dk(
-                "border-[#2a2a2a] text-[#737373] hover:border-red-500/40 hover:text-red-400 hover:bg-red-500/5",
-                "border-[#e0e0e0] text-[#737373] hover:border-red-400/50 hover:text-red-500 hover:bg-red-50"
-              )
-            }`}
-          >
-            {deleting === label ? "Eliminando…" : `Borrar ${label}`}
-          </button>
-        ))}
-      </div>
-      <p className="text-[10px] text-[#525252] ml-auto">Elimina pedidos y cotizaciones del período</p>
-    </div>
+
+      <AlertDialog open={!!pending} onOpenChange={(open) => { if (!open) setPending(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Borrar historial del {pending?.label}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminarán pedidos y cotizaciones de los últimos {pending?.days} día{pending?.days !== 1 ? "s" : ""}.
+              Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-500 text-white"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 

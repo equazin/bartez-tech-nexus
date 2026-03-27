@@ -220,6 +220,7 @@ export default function ProductTable({ products, categories, isDark = true, onRe
                 <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">SKU</th>
                 {colHeader("Categoría", "category")}
                 {colHeader("Precio costo", "cost_price")}
+                <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">P.+IVA</th>
                 {colHeader("Stock", "stock")}
                 <th className="px-3 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
                 <th className="px-3 py-3 w-28" />
@@ -228,7 +229,7 @@ export default function ProductTable({ products, categories, isDark = true, onRe
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-16 text-gray-500 text-sm">
+                  <td colSpan={10} className="text-center py-16 text-gray-500 text-sm">
                     No se encontraron productos
                   </td>
                 </tr>
@@ -307,6 +308,13 @@ export default function ProductTable({ products, categories, isDark = true, onRe
                           </span>
                         </div>
                       )}
+                    </td>
+
+                    {/* P.+IVA */}
+                    <td className="px-3 py-3">
+                      <span className={`text-sm tabular-nums ${dk("text-gray-400", "text-[#525252]")}`}>
+                        ${(p.cost_price * (1 + ((p as any).iva_rate ?? 21) / 100)).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                      </span>
                     </td>
 
                     {/* Stock — inline editable */}

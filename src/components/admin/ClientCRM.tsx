@@ -18,6 +18,7 @@ export interface ClientProfile {
   client_type: ClientType;
   default_margin: number;
   role: string;
+  phone?: string;
 }
 
 interface SupabaseOrder {
@@ -232,6 +233,16 @@ function ClientDetail({
     setEditing(false);
   }
 
+  async function updateQuoteStatus(quoteId: number, status: QuoteStatus) {
+    const { error } = await supabase
+      .from("quotes")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", quoteId);
+    if (!error) {
+      setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, status } : q));
+    }
+  }
+
   function handleTypeChange(t: ClientType) {
     setEditType(t);
     setEditMargin(String(CLIENT_TYPE_MARGINS[t]));
@@ -253,6 +264,9 @@ function ClientDetail({
                 {client.company_name || "Sin empresa"}
               </h2>
               <p className="text-xs text-[#737373] mt-0.5">{client.contact_name || "—"}</p>
+              {client.phone && (
+                <p className="text-xs text-[#525252] mt-0.5 font-mono">{client.phone}</p>
+              )}
               <div className="flex items-center gap-2 mt-1.5">
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${CLIENT_TYPE_STYLES[client.client_type]}`}>
                   {CLIENT_TYPE_LABELS[client.client_type]}
@@ -415,9 +429,36 @@ function ClientDetail({
                     {fmtDate(q.created_at)} · {(q.items?.length ?? 0)} producto{(q.items?.length ?? 0) !== 1 ? "s" : ""} · {q.currency}
                   </p>
                 </div>
-                <div className="flex items-center gap-3 shrink-0 ml-4">
+                <div className="flex items-center gap-2 shrink-0 ml-4">
                   <StatusBadge status={q.status} map={QUOTE_STATUS as any} />
                   <span className="text-sm font-bold text-[#2D9F6A] tabular-nums">{formatPrice(q.total)}</span>
+                  {q.status === "draft" && (
+                    <button
+                      onClick={() => updateQuoteStatus(q.id, "sent")}
+                      title="Marcar como enviada"
+                      className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 transition"
+                    >
+                      <Send size={10} /> Enviar
+                    </button>
+                  )}
+                  {(q.status === "sent" || q.status === "viewed") && (
+                    <>
+                      <button
+                        onClick={() => updateQuoteStatus(q.id, "approved")}
+                        title="Aprobar cotización"
+                        className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border border-green-500/30 text-green-400 hover:bg-green-500/10 transition"
+                      >
+                        <CheckCircle2 size={10} /> Aprobar
+                      </button>
+                      <button
+                        onClick={() => updateQuoteStatus(q.id, "rejected")}
+                        title="Rechazar cotización"
+                        className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 transition"
+                      >
+                        <XCircle size={10} /> Rechazar
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}

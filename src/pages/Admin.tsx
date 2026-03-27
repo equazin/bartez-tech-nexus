@@ -11,7 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { useCurrency } from "@/context/CurrencyContext";
 import {
   CheckCircle2, XCircle, Clock, Trash2, RefreshCw, Save,
-  Users, Package, ClipboardList, LogOut, ShieldCheck, UserPlus, X,
+  Users, Package, ClipboardList, LogOut, UserPlus, X,
   DollarSign, Pencil, Check, LayoutDashboard, Sun, Moon, Phone,
   Truck, Download, Building2, Tag, BarChart2, Activity, Wifi,
 } from "lucide-react";
@@ -46,6 +46,7 @@ interface ClientProfile {
   client_type: ClientType;
   default_margin: number;
   role: string;
+  phone?: string;
 }
 
 const CLIENT_TYPE_LABELS: Record<ClientType, string> = {
@@ -184,7 +185,7 @@ const Admin = () => {
     setLoadingClients(true);
     const { data } = await supabase
       .from("profiles")
-      .select("id, company_name, contact_name, client_type, default_margin, role")
+      .select("id, company_name, contact_name, client_type, default_margin, role, phone")
       .order("company_name");
     if (data) setClients(data as ClientProfile[]);
     setLoadingClients(false);
@@ -214,21 +215,6 @@ const Admin = () => {
 
   const pendingOrders = orders.filter((o) => o.status === "pending").length;
 
-  // ── Phone sidecar (localStorage) ──
-  const PHONES_KEY = "admin_client_phones";
-  function getPhones(): Record<string, string> {
-    try { return JSON.parse(localStorage.getItem(PHONES_KEY) || "{}"); } catch { return {}; }
-  }
-  function savePhone(clientId: string, phone: string) {
-    if (!phone.trim()) return;
-    const phones = getPhones();
-    phones[clientId] = phone.trim();
-    localStorage.setItem(PHONES_KEY, JSON.stringify(phones));
-  }
-  function getPhone(clientId: string): string {
-    return getPhones()[clientId] || "";
-  }
-
   // ── Crear cliente ──
   async function handleCreateClient() {
     setCreateError("");
@@ -256,9 +242,8 @@ const Admin = () => {
       client_type: newClient.client_type,
       default_margin: newClient.default_margin,
       role: newClient.role,
+      phone: newClient.phone.trim() || null,
     }).eq("id", data.user.id);
-
-    savePhone(data.user.id, newClient.phone);
 
     setCreatingClient(false);
     setShowNewClient(false);
@@ -771,7 +756,7 @@ const Admin = () => {
                 </div>
 
                 {selectedOrder.status === "pending" && (() => {
-                  const phone = getPhone(selectedOrder.client_id);
+                  const phone = clients.find((c) => c.id === selectedOrder.client_id)?.phone ?? "";
                   const waMsg = encodeURIComponent(
                     `Hola! Te escribimos de Bartez Tecnología sobre tu pedido #${String(selectedOrder.id).slice(-8).toUpperCase()}. ¿Podemos coordinar la confirmación?`
                   );
