@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { OrderPaymentProof } from "@/components/OrderPaymentProof";
 import { useNavigate } from "react-router-dom";
@@ -16,8 +16,10 @@ import {
   LogOut, ShoppingCart, Search, LayoutGrid, List, Package,
   ClipboardList, CheckCircle2, XCircle, Clock, X, Plus, Minus,
   ShieldCheck, Check, AlertTriangle, AlertCircle, SlidersHorizontal,
-  Star, Sun, Moon, ChevronDown, ChevronRight, FileText,
+  Star, Sun, Moon, ChevronDown, ChevronRight, FileText, Truck,
+  PackageCheck, RotateCcw, Hash,
 } from "lucide-react";
+import { getAvailableStock, getUnitPrice } from "@/lib/pricing";
 import { Link } from "react-router-dom";
 
 type CartItem = {
@@ -55,10 +57,14 @@ function StockBadge({ stock }: { stock: number }) {
 
 // ── Order status badge ─────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; className: string; icon: any }> = {
-    pending:  { label: "En revisión", className: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30", icon: Clock },
-    approved: { label: "Aprobado",    className: "bg-green-500/15 text-green-400 border-green-500/30",   icon: CheckCircle2 },
-    rejected: { label: "Rechazado",   className: "bg-red-500/15 text-red-400 border-red-500/30",         icon: XCircle },
+  const map: Record<string, { label: string; className: string; icon: React.ElementType }> = {
+    pending:    { label: "En revisión",  className: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",  icon: Clock },
+    approved:   { label: "Aprobado",     className: "bg-green-500/15 text-green-400 border-green-500/30",    icon: CheckCircle2 },
+    rejected:   { label: "Rechazado",    className: "bg-red-500/15 text-red-400 border-red-500/30",          icon: XCircle },
+    preparing:  { label: "Preparando",   className: "bg-orange-500/15 text-orange-400 border-orange-500/30", icon: Package },
+    shipped:    { label: "Enviado",      className: "bg-blue-500/15 text-blue-400 border-blue-500/30",       icon: Truck },
+    delivered:  { label: "Entregado",    className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", icon: PackageCheck },
+    dispatched: { label: "Despachado",   className: "bg-gray-500/15 text-gray-400 border-gray-500/30",       icon: Truck },
   };
   const { label, className, icon: Icon } = map[status] ?? map.pending;
   return (
@@ -131,6 +137,12 @@ export default function B2BPortal() {
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
+
+  // ─── QUICK ORDER ──────────────────────────────────────────────────────
+  const [quickSku, setQuickSku] = useState("");
+  const [quickQty, setQuickQty] = useState(1);
+  const [quickError, setQuickError] = useState("");
+  const quickSkuRef = useRef<HTMLInputElement>(null);
 
   // ─── DB CATEGORIES (hierarchy) ────────────────────────────────────────
   type DbCat = { id: number; name: string; parent_id: number | null };
@@ -248,7 +260,7 @@ export default function B2BPortal() {
         const product = products.find((p) => p.id === Number(id));
         if (!product) return null;
         const { margin } = resolveMarginWithContext(product, pricingRules, globalMargin, profile?.id, qty);
-        const cost = product.cost_price;
+        const cost = getUnitPrice(product, qty);
         const unitPrice = cost * (1 + margin / 100);
         const totalPrice = unitPrice * qty;
         const ivaRate = product.iva_rate ?? 21;
@@ -263,13 +275,57 @@ export default function B2BPortal() {
   const cartTotal = useMemo(() => cartSubtotal + cartIVATotal, [cartSubtotal, cartIVATotal]);
   const cartCount = useMemo(() => Object.values(cart).reduce((s, q) => s + q, 0), [cart]);
 
-  // Add to cart with "added" flash feedback
+  // ─── PURCHASE HISTORY — units bought per product ───────────────────────
+  const purchasedQty = useMemo<Record<number, number>>(() => {
+    const counts: Record<number, number> = {};
+    orders.forEach((order) => {
+      order.products.forEach((p) => {
+        const pid = p.product_id;
+        counts[pid] = (counts[pid] ?? 0) + p.quantity;
+      });
+    });
+    return counts;
+  }, [orders]);
+
+  // Add to cart — respects min_order_qty and available stock
   function handleAddToCart(product: any) {
-    setCart((prev) => ({ ...prev, [product.id]: (prev[product.id] || 0) + 1 }));
+    const available = getAvailableStock(product);
+    const minQty = product.min_order_qty ?? 1;
+    setCart((prev) => {
+      const current = prev[product.id] ?? 0;
+      const next = current === 0 ? minQty : current + 1;
+      if (next > available) return prev;
+      return { ...prev, [product.id]: next };
+    });
     setAddedIds((prev) => new Set(prev).add(product.id));
     setTimeout(() => {
       setAddedIds((prev) => { const s = new Set(prev); s.delete(product.id); return s; });
     }, 900);
+  }
+
+  // Quick Order by SKU
+  function handleQuickOrder(e: React.FormEvent) {
+    e.preventDefault();
+    const sku = quickSku.trim();
+    if (!sku) return;
+    const found = products.find((p) => p.sku?.toLowerCase() === sku.toLowerCase());
+    if (!found) {
+      setQuickError(`SKU "${sku}" no encontrado`);
+      return;
+    }
+    const available = getAvailableStock(found);
+    if (available === 0) {
+      setQuickError(`${found.name}: sin stock`);
+      return;
+    }
+    const qty = Math.max(1, quickQty);
+    setCart((prev) => ({ ...prev, [found.id]: (prev[found.id] ?? 0) + qty }));
+    setAddedIds((prev) => new Set(prev).add(found.id));
+    setTimeout(() => setAddedIds((prev) => { const s = new Set(prev); s.delete(found.id); return s; }), 900);
+    setQuickSku("");
+    setQuickQty(1);
+    setQuickError("");
+    quickSkuRef.current?.focus();
   }
 
   const onRemoveFromCart = (product: any) =>
@@ -338,13 +394,14 @@ export default function B2BPortal() {
   // ─── PRODUCT MODAL ────────────────────────────────────────────────────
   const productModal = selectedProduct && (() => {
     const p = selectedProduct;
-    const { margin } = resolveMarginWithContext(p, pricingRules, globalMargin, profile?.id, cart[p.id]);
-    const finalPrice = p.cost_price * (1 + margin / 100);  // sin IVA
+    const inCartQty = cart[p.id] || 1;
+    const { margin } = resolveMarginWithContext(p, pricingRules, globalMargin, profile?.id, inCartQty);
+    const finalPrice = getUnitPrice(p, inCartQty) * (1 + margin / 100);  // sin IVA
     const ivaRate = p.iva_rate ?? 21;
     const ivaAmt = finalPrice * (ivaRate / 100);
     const finalWithIVA = finalPrice + ivaAmt;
     const inCart = cart[p.id] || 0;
-    const outOfStock = p.stock === 0;
+    const outOfStock = getAvailableStock(p) === 0;
 
     return (
       <div
@@ -638,6 +695,35 @@ export default function B2BPortal() {
         </div>
       )}
 
+      {/* CLIENT BANNER */}
+      {!isAdmin && profile && (
+        <div className={`flex items-center gap-3 px-4 md:px-6 py-2 ${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-white border-[#e5e5e5]")} border-b text-xs flex-wrap`}>
+          {profile.client_type && (
+            <span className={`px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ${dk("bg-[#2D9F6A]/15 text-[#2D9F6A] border border-[#2D9F6A]/25", "bg-green-50 text-green-700 border border-green-200")}`}>
+              {profile.client_type}
+            </span>
+          )}
+          {creditLimit != null && (
+            <>
+              <span className={`${dk("text-[#525252]", "text-[#737373]")}`}>
+                Crédito: <span className="font-semibold tabular-nums">USD {creditLimit.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
+              </span>
+              <span className={`${creditAvailable != null && creditAvailable < creditLimit * 0.2
+                ? "text-red-400 font-bold"
+                : dk("text-[#525252]", "text-[#737373]")}`}>
+                Disponible: <span className="font-semibold tabular-nums">USD {(creditAvailable ?? 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
+              </span>
+              <div className={`flex-1 min-w-[80px] max-w-[120px] h-1.5 rounded-full ${dk("bg-[#1f1f1f]", "bg-[#e5e5e5]")} overflow-hidden`}>
+                <div
+                  className={`h-full rounded-full transition-all ${creditAvailable != null && creditAvailable < creditLimit * 0.2 ? "bg-red-500" : "bg-[#2D9F6A]"}`}
+                  style={{ width: `${creditLimit > 0 ? Math.max(0, Math.min(100, ((creditAvailable ?? 0) / creditLimit) * 100)) : 0}%` }}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {orderSuccess && (
         <div className={`mx-4 mt-3 ${dk("bg-green-900/20 border-green-500/30 text-green-400", "bg-green-50 border-green-200 text-green-700")} border rounded-xl p-3 text-sm font-medium flex items-center gap-2`}>
           <CheckCircle2 size={15} />
@@ -810,6 +896,38 @@ export default function B2BPortal() {
           {/* ── CATÁLOGO ── */}
           {activeTab === "catalog" && (
             <>
+              {/* QUICK ORDER */}
+              <form
+                onSubmit={handleQuickOrder}
+                className={`flex items-center gap-2 mb-4 p-2.5 rounded-xl border ${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-white border-[#e5e5e5]")}`}
+              >
+                <Hash size={13} className="text-[#525252] shrink-0" />
+                <input
+                  ref={quickSkuRef}
+                  type="text"
+                  placeholder="SKU exacto..."
+                  value={quickSku}
+                  onChange={(e) => { setQuickSku(e.target.value); setQuickError(""); }}
+                  className={`flex-1 min-w-0 bg-transparent text-sm outline-none ${dk("text-white placeholder:text-[#404040]", "text-[#171717] placeholder:text-[#c4c4c4]")}`}
+                />
+                <input
+                  type="number"
+                  min={1}
+                  value={quickQty}
+                  onChange={(e) => setQuickQty(Math.max(1, Number(e.target.value)))}
+                  className={`w-14 text-center text-sm font-bold bg-transparent outline-none border rounded-lg px-1 py-0.5 ${dk("text-white border-[#262626]", "text-[#171717] border-[#e5e5e5]")}`}
+                />
+                <button
+                  type="submit"
+                  className="bg-[#2D9F6A] hover:bg-[#25835A] text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-all active:scale-95 whitespace-nowrap"
+                >
+                  + Agregar
+                </button>
+                {quickError && (
+                  <span className="text-[11px] text-red-400 shrink-0">{quickError}</span>
+                )}
+              </form>
+
               {/* Results info */}
               {!productsLoading && filteredProducts.length > 0 && (
                 <div className="flex items-center justify-between mb-3">
@@ -846,11 +964,13 @@ export default function B2BPortal() {
                 // ── GRID ──────────────────────────────────────────────
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredProducts.map((product) => {
-                    const margin = productMargins[product.id] ?? globalMargin;
-                    const finalPrice = product.cost_price * (1 + margin / 100);
                     const inCart = cart[product.id] || 0;
-                    const outOfStock = product.stock === 0;
+                    const displayQty = inCart || 1;
+                    const { margin } = resolveMarginWithContext(product, pricingRules, globalMargin, profile?.id, displayQty);
+                    const finalPrice = getUnitPrice(product, displayQty) * (1 + margin / 100);
+                    const outOfStock = getAvailableStock(product) === 0;
                     const wasAdded = addedIds.has(product.id);
+                    const boughtQty = purchasedQty[product.id] ?? 0;
 
                     return (
                       <div
@@ -883,11 +1003,27 @@ export default function B2BPortal() {
                             {product.category}
                             {product.sku && <span className="font-mono ml-1 text-gray-700">· {product.sku}</span>}
                           </p>
-                          <div className="mb-2"><StockBadge stock={product.stock} /></div>
+                          <div className="mb-2 flex flex-wrap gap-1">
+                            <StockBadge stock={getAvailableStock(product)} />
+                            {boughtQty > 0 && (
+                              <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                <RotateCcw size={8} /> ×{boughtQty}
+                              </span>
+                            )}
+                          </div>
                           <div className="text-lg text-[#2D9F6A] font-extrabold leading-tight tabular-nums">
                             {formatPrice(finalPrice)}
                           </div>
                           <div className={`text-[10px] ${dk("text-[#525252]", "text-[#a3a3a3]")} mt-0.5`}>sin IVA · {product.iva_rate ?? 21}%</div>
+                          {product.price_tiers && product.price_tiers.length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {product.price_tiers.map((t, i) => (
+                                <span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#2D9F6A]/10 text-[#2D9F6A] border border-[#2D9F6A]/20">
+                                  {t.min}{t.max ? `–${t.max}` : "+"} → {formatPrice(t.price * (1 + margin / 100))}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         <div className="mt-3 flex gap-1.5">
@@ -923,11 +1059,13 @@ export default function B2BPortal() {
                 // ── LISTA ─────────────────────────────────────────────
                 <div className="flex flex-col gap-1.5">
                   {filteredProducts.map((product) => {
-                    const margin = productMargins[product.id] ?? globalMargin;
-                    const finalPrice = product.cost_price * (1 + margin / 100);
                     const inCart = cart[product.id] || 0;
-                    const outOfStock = product.stock === 0;
+                    const displayQty = inCart || 1;
+                    const { margin } = resolveMarginWithContext(product, pricingRules, globalMargin, profile?.id, displayQty);
+                    const finalPrice = getUnitPrice(product, displayQty) * (1 + margin / 100);
+                    const outOfStock = getAvailableStock(product) === 0;
                     const wasAdded = addedIds.has(product.id);
+                    const boughtQty = purchasedQty[product.id] ?? 0;
 
                     return (
                       <div
@@ -965,17 +1103,31 @@ export default function B2BPortal() {
                             </div>
                           </div>
 
-                          {/* Stock badge */}
-                          <div className="hidden sm:block shrink-0">
-                            <StockBadge stock={product.stock} />
+                          {/* Stock badge + purchase history */}
+                          <div className="hidden sm:flex flex-col items-end gap-1 shrink-0">
+                            <StockBadge stock={getAvailableStock(product)} />
+                            {boughtQty > 0 && (
+                              <span className="inline-flex items-center gap-0.5 text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                <RotateCcw size={8} /> ×{boughtQty}
+                              </span>
+                            )}
                           </div>
 
-                          {/* Price */}
-                          <div className="text-right shrink-0 hidden sm:block min-w-[100px]">
+                          {/* Price + tiers */}
+                          <div className="text-right shrink-0 hidden sm:block min-w-[110px]">
                             <div className="text-base font-extrabold text-[#2D9F6A] tabular-nums leading-tight">
                               {formatPrice(finalPrice)}
                             </div>
                             <div className={`text-[10px] ${dk("text-[#525252]", "text-[#a3a3a3]")} mt-0.5`}>sin IVA · {product.iva_rate ?? 21}%</div>
+                            {product.price_tiers && product.price_tiers.length > 0 && (
+                              <div className="flex flex-wrap gap-0.5 mt-1 justify-end">
+                                {product.price_tiers.map((t, i) => (
+                                  <span key={i} className="text-[8px] font-mono px-1 py-0.5 rounded bg-[#2D9F6A]/10 text-[#2D9F6A] border border-[#2D9F6A]/20">
+                                    {t.min}{t.max ? `–${t.max}` : "+"}u
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
 

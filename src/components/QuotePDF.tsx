@@ -108,6 +108,7 @@ export async function generateQuotePDF(opts: QuotePDFOptions) {
   const [logo, qr] = await Promise.all([
     opts.logoBase64 ? Promise.resolve(opts.logoBase64)
       : opts.logoUrl ? toDataUrl(opts.logoUrl)
+      : whiteLabel  ? Promise.resolve(null)   // no Bartez icon in white-label
       : toDataUrl("/icon.png"),
     !whiteLabel ? makeQR(qrUrl) : Promise.resolve(null),
   ]);

@@ -75,7 +75,14 @@ export function useOrders() {
         .single();
 
       // Backward compatibility with legacy schemas lacking new checkout fields.
-      if (error && /column .* does not exist/i.test(error.message)) {
+      // Catches both PostgreSQL ("column X does not exist") and PostgREST
+      // ("Could not find the 'X' column of 'orders' in the schema cache").
+      const isMissingColumn = error && (
+        /column .* does not exist/i.test(error.message) ||
+        /could not find the .* column/i.test(error.message) ||
+        /schema cache/i.test(error.message)
+      );
+      if (isMissingColumn) {
         insertPayload = {
           client_id: user.id,
           products: orderData.products,
