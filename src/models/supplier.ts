@@ -5,6 +5,7 @@ export interface Supplier {
   contact_name?: string;
   contact_email?: string;
   contact_phone?: string;
+  website?: string;
   lead_time_days: number;
   default_margin: number;
   price_multiplier: number;

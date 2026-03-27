@@ -3,32 +3,32 @@
 -- =============================================================
 
 -- ─── 1. CATEGORÍAS INTERNAS ──────────────────────────────────
-CREATE TABLE IF NOT EXISTS categories (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  slug        text,
-  name        text NOT NULL,
-  parent_id   uuid REFERENCES categories(id) ON DELETE SET NULL,
-  active      boolean NOT NULL DEFAULT true,
-  created_at  timestamptz NOT NULL DEFAULT now()
-);
+-- La tabla ya existe con id bigint — solo agregamos columnas faltantes
 
--- Agregar columnas si la tabla ya existía sin ellas
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS slug   text;
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS parent_id bigint REFERENCES categories(id) ON DELETE SET NULL;
 
--- Poblar slug desde name para filas existentes que no lo tengan
+-- Poblar slug desde name para filas que no lo tengan
 UPDATE categories
 SET slug = lower(regexp_replace(trim(name), '\s+', '_', 'g'))
 WHERE slug IS NULL OR slug = '';
 
--- Ahora sí forzar NOT NULL + UNIQUE en slug
+-- Eliminar duplicados de slug (conservar el de menor id)
+DELETE FROM categories
+WHERE id NOT IN (
+  SELECT MIN(id)
+  FROM categories
+  GROUP BY slug
+);
+
+-- Forzar NOT NULL + UNIQUE en slug
 ALTER TABLE categories ALTER COLUMN slug SET NOT NULL;
 
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'categories_slug_key'
+    SELECT 1 FROM pg_constraint WHERE conname = 'categories_slug_key'
   ) THEN
     ALTER TABLE categories ADD CONSTRAINT categories_slug_key UNIQUE (slug);
   END IF;
@@ -51,13 +51,14 @@ ON CONFLICT (slug) DO NOTHING;
 
 
 -- ─── 2. MAPEO PROVEEDOR → INTERNO ───────────────────────────
+-- internal_category_id es bigint (tipo real de categories.id)
 CREATE TABLE IF NOT EXISTS category_mapping (
-  id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  supplier_id             uuid NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
-  external_category_id    text NOT NULL,
+  id                      uuid    PRIMARY KEY DEFAULT gen_random_uuid(),
+  supplier_id             uuid    NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+  external_category_id    text    NOT NULL,
   external_category_name  text,
-  internal_category_id    uuid NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
-  confidence              text NOT NULL DEFAULT 'manual'
+  internal_category_id    bigint  NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
+  confidence              text    NOT NULL DEFAULT 'manual'
     CHECK (confidence IN ('manual', 'auto_high', 'auto_low')),
   created_at              timestamptz NOT NULL DEFAULT now(),
   updated_at              timestamptz NOT NULL DEFAULT now(),
@@ -70,11 +71,11 @@ CREATE INDEX IF NOT EXISTS idx_category_mapping_supplier
 
 -- ─── 3. FK EN PRODUCTS (category_id) ────────────────────────
 ALTER TABLE products
-  ADD COLUMN IF NOT EXISTS category_id uuid REFERENCES categories(id) ON DELETE SET NULL;
+  ADD COLUMN IF NOT EXISTS category_id bigint REFERENCES categories(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id);
 
--- Migrar datos existentes: texto → UUID donde coincida por slug
+-- Migrar datos existentes: texto → id donde coincida por slug
 UPDATE products p
 SET category_id = c.id
 FROM categories c
@@ -86,7 +87,7 @@ WHERE lower(trim(p.category)) = c.slug
 CREATE OR REPLACE FUNCTION resolve_category(
   p_supplier_id          uuid,
   p_external_category_id text
-) RETURNS uuid
+) RETURNS bigint
 LANGUAGE sql STABLE AS $$
   SELECT COALESCE(
     (
@@ -107,36 +108,21 @@ ALTER TABLE category_mapping ENABLE ROW LEVEL SECURITY;
 
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies WHERE tablename='categories' AND policyname='categories_read_all'
-  ) THEN
-    CREATE POLICY "categories_read_all"
-      ON categories FOR SELECT USING (true);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='categories' AND policyname='categories_read_all') THEN
+    CREATE POLICY "categories_read_all" ON categories FOR SELECT USING (true);
   END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies WHERE tablename='categories' AND policyname='categories_write_admin'
-  ) THEN
-    CREATE POLICY "categories_write_admin"
-      ON categories FOR ALL
-      USING  (auth.jwt() ->> 'role' = 'admin')
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='categories' AND policyname='categories_write_admin') THEN
+    CREATE POLICY "categories_write_admin" ON categories FOR ALL
+      USING (auth.jwt() ->> 'role' = 'admin')
       WITH CHECK (auth.jwt() ->> 'role' = 'admin');
   END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies WHERE tablename='category_mapping' AND policyname='category_mapping_read_admin'
-  ) THEN
-    CREATE POLICY "category_mapping_read_admin"
-      ON category_mapping FOR SELECT
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='category_mapping' AND policyname='category_mapping_read_admin') THEN
+    CREATE POLICY "category_mapping_read_admin" ON category_mapping FOR SELECT
       USING (auth.jwt() ->> 'role' = 'admin');
   END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies WHERE tablename='category_mapping' AND policyname='category_mapping_write_admin'
-  ) THEN
-    CREATE POLICY "category_mapping_write_admin"
-      ON category_mapping FOR ALL
-      USING  (auth.jwt() ->> 'role' = 'admin')
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='category_mapping' AND policyname='category_mapping_write_admin') THEN
+    CREATE POLICY "category_mapping_write_admin" ON category_mapping FOR ALL
+      USING (auth.jwt() ->> 'role' = 'admin')
       WITH CHECK (auth.jwt() ->> 'role' = 'admin');
   END IF;
 END$$;

@@ -552,23 +552,33 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
   const conversionRate  = quotes.length > 0 ? (approvedQuotes.length / quotes.length) * 100 : 0;
 
   // ── MoM comparison ─────────────────────────────────────────────────────
-  const { currentMonthRevenue, prevMonthRevenue, momPct } = useMemo(() => {
+  const momStats = useMemo(() => {
     const now = new Date();
     const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     const prevDate  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
 
-    const currentMonthRevenue = approvedOrders
-      .filter((o) => o.created_at.startsWith(thisMonth))
-      .reduce((s, o) => s + o.total, 0);
-    const prevMonthRevenue = approvedOrders
-      .filter((o) => o.created_at.startsWith(prevMonth))
-      .reduce((s, o) => s + o.total, 0);
+    const cur  = approvedOrders.filter((o) => o.created_at.startsWith(thisMonth));
+    const prev = approvedOrders.filter((o) => o.created_at.startsWith(prevMonth));
+
+    const currentMonthRevenue = cur.reduce((s, o) => s + o.total, 0);
+    const prevMonthRevenue    = prev.reduce((s, o) => s + o.total, 0);
     const momPct = prevMonthRevenue > 0
       ? ((currentMonthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100
       : null;
-    return { currentMonthRevenue, prevMonthRevenue, momPct };
+
+    const curAvg  = cur.length  > 0 ? currentMonthRevenue / cur.length  : 0;
+    const prevAvg = prev.length > 0 ? prevMonthRevenue    / prev.length : 0;
+    const avgTicketPct = prevAvg > 0 ? ((curAvg - prevAvg) / prevAvg) * 100 : null;
+
+    const ordersPct = prev.length > 0
+      ? ((cur.length - prev.length) / prev.length) * 100
+      : null;
+
+    return { currentMonthRevenue, prevMonthRevenue, momPct, curOrders: cur.length, prevOrders: prev.length, ordersPct, avgTicketPct };
   }, [approvedOrders]);
+
+  const { currentMonthRevenue, prevMonthRevenue, momPct, curOrders, prevOrders, ordersPct, avgTicketPct } = momStats;
 
   // ── Avg margin ─────────────────────────────────────────────────────────
   const avgMargin = useMemo(() => {
@@ -586,6 +596,8 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
   }, [approvedOrders]);
 
   const momTrend: "up" | "down" | "flat" = momPct == null ? "flat" : momPct > 0 ? "up" : momPct < 0 ? "down" : "flat";
+  const ordersTrend: "up" | "down" | "flat" = ordersPct == null ? "flat" : ordersPct > 0 ? "up" : ordersPct < 0 ? "down" : "flat";
+  const avgTicketTrend: "up" | "down" | "flat" = avgTicketPct == null ? "flat" : avgTicketPct > 0 ? "up" : avgTicketPct < 0 ? "down" : "flat";
 
   return (
     <div className="space-y-6">
@@ -605,10 +617,10 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
           sub={`${draftQuotes.length} en borrador`}
           icon={FileText} accent="bg-blue-500/15 text-blue-400"
           trend={quotes.length > 0 ? "up" : "flat"} isDark={isDark} />
-        <KpiCard label="Pedidos pendientes" value={String(pendingOrders.length)}
-          sub={`de ${orders.length} en total`}
-          icon={Clock} accent={pendingOrders.length > 0 ? "bg-yellow-500/15 text-yellow-400" : "bg-[#1a1a1a] text-[#525252]"}
-          trend={pendingOrders.length > 0 ? "up" : "flat"} isDark={isDark} />
+        <KpiCard label="Pedidos este mes" value={String(curOrders)}
+          sub={prevOrders > 0 ? `Mes anterior: ${prevOrders}` : `Total: ${orders.length}`}
+          icon={Clock} accent={curOrders > 0 ? "bg-yellow-500/15 text-yellow-400" : "bg-[#1a1a1a] text-[#525252]"}
+          trend={ordersTrend} trendPct={ordersPct ?? undefined} isDark={isDark} />
         <KpiCard label="Conversión" value={`${conversionRate.toFixed(1)}%`}
           sub={`${approvedQuotes.length} cot. aprobada${approvedQuotes.length !== 1 ? "s" : ""}`}
           icon={Target} accent="bg-purple-500/15 text-purple-400"
@@ -619,7 +631,15 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-4 py-3`}>
           <p className="text-[10px] font-bold uppercase tracking-widest text-[#525252] mb-1">Ticket promedio</p>
-          <p className={`text-xl font-extrabold tabular-nums ${dk("text-white", "text-[#171717]")}`}>{formatPrice(avgOrder)}</p>
+          <div className="flex items-end gap-2">
+            <p className={`text-xl font-extrabold tabular-nums ${dk("text-white", "text-[#171717]")}`}>{formatPrice(avgOrder)}</p>
+            {avgTicketPct != null && (
+              <span className={`text-[10px] font-semibold mb-0.5 flex items-center gap-0.5 ${avgTicketTrend === "up" ? "text-green-400" : avgTicketTrend === "down" ? "text-red-400" : "text-gray-500"}`}>
+                {avgTicketTrend === "up" ? <ArrowUpRight size={11} /> : avgTicketTrend === "down" ? <ArrowDownRight size={11} /> : <MinusIcon size={11} />}
+                {Math.abs(avgTicketPct).toFixed(0)}%
+              </span>
+            )}
+          </div>
         </div>
         <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-4 py-3`}>
           <p className="text-[10px] font-bold uppercase tracking-widest text-[#525252] mb-1">Margen promedio</p>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, KeyboardEvent } from "react";
+import { isValidImageMime } from "@/lib/validateImageMime";
 import { Product } from "@/models/products";
 import { supabase } from "@/lib/supabase";
 import { storageUrl, PRODUCTS_BUCKET } from "@/lib/constants";
@@ -122,8 +123,8 @@ export default function ProductForm({ onAdd, isDark = true }: { onAdd: (product:
   }, [sku]);
 
   /* ── image helpers ────────────────────────────────────── */
-  function handleImageFile(file: File) {
-    if (!file.type.startsWith("image/")) return;
+  async function handleImageFile(file: File) {
+    if (!(await isValidImageMime(file))) return;
     if (file.size > 5 * 1024 * 1024) {
       setErrors((p) => ({ ...p, image: "Imagen debe ser menor a 5MB" }));
       return;

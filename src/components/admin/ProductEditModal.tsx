@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { Product } from "@/models/products";
 import { storageUrl, PRODUCTS_BUCKET } from "@/lib/constants";
 import { X, Upload, Star, Tag, Loader2, RotateCcw } from "lucide-react";
+import { isValidImageMime } from "@/lib/validateImageMime";
 
 interface Category { id: number; name: string; parent_id: number | null; }
 interface Props {
@@ -49,8 +50,8 @@ export default function ProductEditModal({ product, categories, onSave, onClose 
     setForm((p) => ({ ...p, [field]: value }));
   }
 
-  function handleImageFile(file: File) {
-    if (!file.type.startsWith("image/")) return;
+  async function handleImageFile(file: File) {
+    if (!(await isValidImageMime(file))) return;
     setImageFile(file);
     setPreview(URL.createObjectURL(file));
   }

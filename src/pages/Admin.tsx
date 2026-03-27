@@ -27,6 +27,7 @@ import { ActivityLogTab } from "@/components/admin/ActivityLogTab";
 import { PriceStockImport } from "@/components/admin/PriceStockImport";
 import { AirSyncTab } from "@/components/admin/AirSyncTab";
 import { ErrorBoundary } from "@/components/admin/ErrorBoundary";
+import { CreateOrderModal } from "@/components/admin/CreateOrderModal";
 import { logActivity } from "@/lib/api/activityLog";
 
 interface SupabaseOrder {
@@ -120,6 +121,7 @@ const Admin = () => {
   const [editingClients, setEditingClients] = useState<Record<string, Partial<ClientProfile>>>({});
   const [savingClient, setSavingClient] = useState<string | null>(null);
   const [showNewClient, setShowNewClient] = useState(false);
+  const [showCreateOrder, setShowCreateOrder] = useState(false);
   const [newClient, setNewClient] = useState({ email: "", password: "", phone: "", company_name: "", contact_name: "", client_type: "reseller" as ClientType, default_margin: 20, role: "client" as "client" | "cliente" | "admin" | "vendedor" });
   const [creatingClient, setCreatingClient] = useState(false);
   const [createError, setCreateError] = useState("");
@@ -663,6 +665,12 @@ const Admin = () => {
                     1 USD = <strong>{exchangeRate.rate.toLocaleString("es-AR")} ARS</strong>
                   </span>
                 </div>
+                <button
+                  onClick={() => setShowCreateOrder(true)}
+                  className="flex items-center gap-1.5 text-xs shrink-0 px-3 py-2 rounded-lg bg-[#2D9F6A] hover:bg-[#25835A] text-white font-semibold transition"
+                >
+                  <UserPlus size={12} /> Nuevo pedido
+                </button>
                 {orders.length > 0 && (
                   <button
                     onClick={() => exportOrdersCSV(orders as any)}
@@ -1063,6 +1071,17 @@ const Admin = () => {
 
       </ErrorBoundary>
       </main>
+
+      {/* ── Create order modal ── */}
+      {showCreateOrder && (
+        <CreateOrderModal
+          clients={clients}
+          products={products}
+          isDark={isDark}
+          onClose={() => setShowCreateOrder(false)}
+          onCreated={fetchOrders}
+        />
+      )}
     </div>
   );
 };
