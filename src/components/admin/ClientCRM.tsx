@@ -1,12 +1,13 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Quote, QuoteStatus } from "@/models/quote";
 import { useCurrency } from "@/context/CurrencyContext";
-import { CLIENT_TYPE_MARGINS, ClientType } from "@/lib/supabase";
+import { CLIENT_TYPE_MARGINS, ClientType, supabase } from "@/lib/supabase";
 import {
-  Users, Search, UserPlus, ChevronRight, Building2, Mail,
+  Users, Search, UserPlus, ChevronRight, Mail,
   Percent, ShoppingBag, FileText, CheckCircle2, XCircle, Clock,
   TrendingUp, Package, Save, X, Send, Eye, AlertTriangle,
-  ArrowLeft, Pencil,
+  ArrowLeft, Pencil, Activity, LogIn, LogOut, MousePointer,
+  ShoppingCart, Hash,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -65,15 +66,24 @@ const QUOTE_STATUS: Record<QuoteStatus, { label: string; icon: any; cls: string 
   expired:  { label: "Expirada",  icon: AlertTriangle, cls: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
 };
 
-function clientQuotes(clientId: string): Quote[] {
-  try {
-    const raw = localStorage.getItem(`b2b_quotes_${clientId}`);
-    const arr = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr) ? arr.sort(
-      (a: Quote, b: Quote) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    ) : [];
-  } catch { return []; }
+// ── Activity log types ────────────────────────────────────────────────────────
+interface ActivityLog {
+  id: string;
+  action: string;
+  entity_type?: string;
+  entity_id?: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
 }
+
+const ACTION_CONFIG: Record<string, { label: string; icon: any; color: string }> = {
+  login:         { label: "Inicio de sesión",  icon: LogIn,          color: "text-blue-400"    },
+  logout:        { label: "Cierre de sesión",  icon: LogOut,         color: "text-gray-400"    },
+  view_product:  { label: "Vio producto",      icon: MousePointer,   color: "text-purple-400"  },
+  add_to_cart:   { label: "Agregó al carrito", icon: ShoppingCart,   color: "text-yellow-400"  },
+  place_order:   { label: "Realizó pedido",    icon: Package,        color: "text-emerald-400" },
+  search:        { label: "Búsqueda",          icon: Hash,           color: "text-gray-400"    },
+};
 
 function initials(c: ClientProfile) {
   const word = c.company_name || c.contact_name || "?";
@@ -176,13 +186,35 @@ function ClientDetail({
   const [editType, setEditType] = useState<ClientType>(client.client_type);
   const [editMargin, setEditMargin] = useState(String(client.default_margin));
   const [saving, setSaving] = useState(false);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+
+  useEffect(() => {
+    supabase
+      .from("quotes")
+      .select("*")
+      .eq("client_id", client.id)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (data) setQuotes(data as Quote[]);
+      });
+
+    supabase
+      .from("activity_logs")
+      .select("id, action, entity_type, entity_id, metadata, created_at")
+      .eq("user_id", client.id)
+      .order("created_at", { ascending: false })
+      .limit(25)
+      .then(({ data }) => {
+        if (data) setActivityLogs(data as ActivityLog[]);
+      });
+  }, [client.id]);
 
   const clientOrders = useMemo(
     () => orders.filter((o) => o.client_id === client.id)
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
     [orders, client.id]
   );
-  const quotes = useMemo(() => clientQuotes(client.id), [client.id]);
 
   const totalSpent = useMemo(
     () => clientOrders.filter((o) => o.status === "approved").reduce((s, o) => s + o.total, 0),
@@ -380,7 +412,7 @@ function ClientDetail({
                     COT-{String(q.id).padStart(4, "0")}
                   </p>
                   <p className="text-[10px] text-[#525252] mt-0.5">
-                    {fmtDate(q.created_at)} · {q.items.length} producto{q.items.length !== 1 ? "s" : ""} · {q.currency}
+                    {fmtDate(q.created_at)} · {(q.items?.length ?? 0)} producto{(q.items?.length ?? 0) !== 1 ? "s" : ""} · {q.currency}
                   </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0 ml-4">
@@ -389,6 +421,46 @@ function ClientDetail({
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Activity log */}
+      <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
+        <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
+          <Activity size={13} className="text-amber-400" />
+          <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Actividad reciente</h3>
+          <span className="ml-auto text-xs text-[#525252]">{activityLogs.length} eventos</span>
+        </div>
+
+        {activityLogs.length === 0 ? (
+          <div className="flex flex-col items-center py-12 text-[#525252] gap-2">
+            <Activity size={24} className="opacity-20" />
+            <p className="text-xs">Sin actividad registrada</p>
+          </div>
+        ) : (
+          <div className="px-5 py-4 space-y-3">
+            {activityLogs.map((log) => {
+              const cfg = ACTION_CONFIG[log.action] ?? { label: log.action, icon: Activity, color: "text-gray-400" };
+              const Icon = cfg.icon;
+              return (
+                <div key={log.id} className="flex items-start gap-3">
+                  <div className={`mt-0.5 shrink-0 h-6 w-6 rounded-lg flex items-center justify-center ${dk("bg-[#1a1a1a]", "bg-[#f5f5f5]")}`}>
+                    <Icon size={12} className={cfg.color} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-medium ${dk("text-[#d4d4d4]", "text-[#404040]")}`}>{cfg.label}
+                      {log.metadata?.name && (
+                        <span className={`ml-1 font-normal ${dk("text-[#737373]", "text-[#737373]")}`}>
+                          — {String(log.metadata.name)}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(log.created_at)}</p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -421,11 +493,8 @@ export function ClientCRM({ clients, orders, loading, isDark, onSave, onNewClien
     return m;
   }, [orders]);
 
-  const quoteCountMap = useMemo(() => {
-    const m: Record<string, number> = {};
-    clients.forEach((c) => { m[c.id] = clientQuotes(c.id).length; });
-    return m;
-  }, [clients]);
+  // Quote counts loaded per-client in ClientDetail; sidebar shows 0 as placeholder
+  const quoteCountMap = useMemo(() => ({} as Record<string, number>), []);
 
   if (loading) {
     return (

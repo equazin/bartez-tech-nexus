@@ -8,16 +8,18 @@ import { supabase } from "@/lib/supabase";
 import { useOrders } from "@/hooks/useOrders";
 import { useQuotes } from "@/hooks/useQuotes";
 import { usePricingRules } from "@/hooks/usePricingRules";
+import { usePurchaseLists } from "@/hooks/usePurchaseLists";
 import { resolveMarginWithContext } from "@/lib/pricingEngine";
 import { Quote } from "@/models/quote";
 import { QuoteList } from "@/components/QuoteList";
 import { useCurrency } from "@/context/CurrencyContext";
+import { PriceSparkline } from "@/components/PriceSparkline";
 import {
   LogOut, ShoppingCart, Search, LayoutGrid, List, Package,
   ClipboardList, CheckCircle2, XCircle, Clock, X, Plus, Minus,
   ShieldCheck, Check, AlertTriangle, AlertCircle, SlidersHorizontal,
   Star, Sun, Moon, ChevronDown, ChevronRight, FileText, Truck,
-  PackageCheck, RotateCcw, Hash,
+  PackageCheck, RotateCcw, Hash, Bookmark, Trash2,
 } from "lucide-react";
 import { getAvailableStock, getUnitPrice } from "@/lib/pricing";
 import { Link } from "react-router-dom";
@@ -109,6 +111,7 @@ export default function B2BPortal() {
   const { orders, addOrder } = useOrders();
   const { quotes, updateStatus: updateQuoteStatus, deleteQuote, duplicateQuote, linkOrderToQuote } = useQuotes(profile?.id || "guest");
   const { rules: pricingRules } = usePricingRules();
+  const { lists: purchaseLists, createList: createPurchaseList, deleteList: deletePurchaseList } = usePurchaseLists(profile?.id || "guest");
   const { currency, setCurrency, formatPrice, formatUSD, formatARS, exchangeRate } = useCurrency();
 
   const defaultMargin = profile?.default_margin ?? 20;
@@ -136,10 +139,13 @@ export default function B2BPortal() {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
-  const [activeTab, setActiveTab] = useState<"catalog" | "orders" | "quotes">("catalog");
+  const [activeTab, setActiveTab] = useState<"catalog" | "orders" | "quotes" | "lists">("catalog");
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
+  const [visibleCount, setVisibleCount] = useState(50);
+  const [stockFilter, setStockFilter] = useState<"all" | "in_stock" | "low_stock" | "out_of_stock">("all");
+  const [ivaFilter, setIvaFilter] = useState<"all" | "10.5" | "21">("all");
 
   // ─── QUICK ORDER ──────────────────────────────────────────────────────
   const [quickSku, setQuickSku] = useState("");
@@ -178,6 +184,10 @@ export default function B2BPortal() {
   useEffect(() => {
     if (profile?.default_margin) setGlobalMargin(profile.default_margin);
   }, [profile?.default_margin]);
+
+  useEffect(() => {
+    setVisibleCount(50);
+  }, [search, categoryFilter, stockFilter, ivaFilter, minPrice, maxPrice]);
 
   useEffect(() => {
     const meta = document.createElement("meta");
@@ -235,7 +245,7 @@ export default function B2BPortal() {
     return map;
   }, [categoryTree]);
 
-  const hasActiveFilters = categoryFilter !== "all" || minPrice !== "" || maxPrice !== "";
+  const hasActiveFilters = categoryFilter !== "all" || minPrice !== "" || maxPrice !== "" || stockFilter !== "all" || ivaFilter !== "all";
 
   const filteredProducts = useMemo(() => {
     const term = search.toLowerCase();
@@ -253,9 +263,16 @@ export default function B2BPortal() {
       }
       if (!isNaN(min) && min > 0 && p.cost_price < min) return false;
       if (!isNaN(max) && max > 0 && p.cost_price > max) return false;
+      if (stockFilter !== "all") {
+        const avail = (p.stock ?? 0) - (p.stock_reserved ?? 0);
+        if (stockFilter === "in_stock"       && avail <= 3) return false;
+        if (stockFilter === "low_stock"      && (avail === 0 || avail > 3)) return false;
+        if (stockFilter === "out_of_stock"   && avail > 0) return false;
+      }
+      if (ivaFilter !== "all" && String(p.iva_rate ?? 21) !== ivaFilter) return false;
       return true;
     });
-  }, [products, search, categoryFilter, minPrice, maxPrice]);
+  }, [products, search, categoryFilter, minPrice, maxPrice, stockFilter, ivaFilter, parentChildrenMap]);
 
   const cartItems: CartItem[] = useMemo(() => {
     return Object.entries(cart)
@@ -392,6 +409,9 @@ export default function B2BPortal() {
     setMinPrice("");
     setMaxPrice("");
     setSearch("");
+    setStockFilter("all");
+    setIvaFilter("all");
+    setVisibleCount(50);
   }
 
   // ─── PRODUCT MODAL ────────────────────────────────────────────────────
@@ -527,6 +547,11 @@ export default function B2BPortal() {
                   </div>
                 </div>
               )}
+
+              {/* Price history sparkline */}
+              <div className="mb-4">
+                <PriceSparkline productId={p.id} currentPrice={p.cost_price} isDark={isDark} />
+              </div>
             </div>
           </div>
 
@@ -669,6 +694,7 @@ export default function B2BPortal() {
           { id: "catalog", label: "Catálogo", icon: Package },
           { id: "orders",  label: `Mis Pedidos${orders.length ? ` (${orders.length})` : ""}`, icon: ClipboardList },
           { id: "quotes",  label: `Cotizaciones${quotes.length ? ` (${quotes.length})` : ""}`, icon: FileText },
+          { id: "lists",   label: `Listas${purchaseLists.length ? ` (${purchaseLists.length})` : ""}`, icon: Bookmark },
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -890,6 +916,55 @@ export default function B2BPortal() {
                 </div>
               </div>
             </div>
+
+            {/* Stock */}
+            <div>
+              <h3 className={`text-[10px] font-bold uppercase tracking-widest ${dk("text-[#525252]", "text-[#a3a3a3]")} mb-2 px-1`}>Stock</h3>
+              <div className="flex flex-col gap-0.5">
+                {([
+                  { value: "all",           label: "Todos" },
+                  { value: "in_stock",      label: "Disponible" },
+                  { value: "low_stock",     label: "Stock bajo (≤3)" },
+                  { value: "out_of_stock",  label: "Sin stock" },
+                ] as const).map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => setStockFilter(value)}
+                    className={`text-left text-xs px-2.5 py-1.5 rounded-lg transition border-l-2 ${
+                      stockFilter === value
+                        ? `${dk("bg-[#171717] text-white", "bg-[#f0faf5] text-[#1a7a50]")} font-medium border-[#2D9F6A]`
+                        : `${dk("text-[#737373] hover:text-[#e5e5e5] hover:bg-[#171717]", "text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")} border-transparent`
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* IVA */}
+            <div>
+              <h3 className={`text-[10px] font-bold uppercase tracking-widest ${dk("text-[#525252]", "text-[#a3a3a3]")} mb-2 px-1`}>IVA</h3>
+              <div className="flex flex-col gap-0.5">
+                {([
+                  { value: "all",   label: "Todos" },
+                  { value: "10.5",  label: "10.5%" },
+                  { value: "21",    label: "21%" },
+                ] as const).map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => setIvaFilter(value)}
+                    className={`text-left text-xs px-2.5 py-1.5 rounded-lg transition border-l-2 ${
+                      ivaFilter === value
+                        ? `${dk("bg-[#171717] text-white", "bg-[#f0faf5] text-[#1a7a50]")} font-medium border-[#2D9F6A]`
+                        : `${dk("text-[#737373] hover:text-[#e5e5e5] hover:bg-[#171717]", "text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")} border-transparent`
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </aside>
         )}
 
@@ -966,7 +1041,7 @@ export default function B2BPortal() {
 
                 // ── GRID ──────────────────────────────────────────────
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {filteredProducts.map((product) => {
+                  {filteredProducts.slice(0, visibleCount).map((product) => {
                     const inCart = cart[product.id] || 0;
                     const displayQty = inCart || 1;
                     const { margin } = resolveMarginWithContext(product, pricingRules, globalMargin, profile?.id, displayQty);
@@ -1021,7 +1096,9 @@ export default function B2BPortal() {
                           {product.price_tiers && product.price_tiers.length > 0 && (
                             <div className="mt-1 flex flex-wrap gap-1">
                               {product.price_tiers.map((t, i) => (
-                                <span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#2D9F6A]/10 text-[#2D9F6A] border border-[#2D9F6A]/20">
+                                <span key={i}
+                                  title={`Precio por volumen: mín. ${t.min} u.${t.max ? ` — máx. ${t.max} u.` : "+"} → ${formatPrice(t.price * (1 + margin / 100))} s/IVA`}
+                                  className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#2D9F6A]/10 text-[#2D9F6A] border border-[#2D9F6A]/20 cursor-help">
                                   {t.min}{t.max ? `–${t.max}` : "+"} → {formatPrice(t.price * (1 + margin / 100))}
                                 </span>
                               ))}
@@ -1061,7 +1138,7 @@ export default function B2BPortal() {
 
                 // ── LISTA ─────────────────────────────────────────────
                 <div className="flex flex-col gap-1.5">
-                  {filteredProducts.map((product) => {
+                  {filteredProducts.slice(0, visibleCount).map((product) => {
                     const inCart = cart[product.id] || 0;
                     const displayQty = inCart || 1;
                     const { margin } = resolveMarginWithContext(product, pricingRules, globalMargin, profile?.id, displayQty);
@@ -1125,7 +1202,9 @@ export default function B2BPortal() {
                             {product.price_tiers && product.price_tiers.length > 0 && (
                               <div className="flex flex-wrap gap-0.5 mt-1 justify-end">
                                 {product.price_tiers.map((t, i) => (
-                                  <span key={i} className="text-[8px] font-mono px-1 py-0.5 rounded bg-[#2D9F6A]/10 text-[#2D9F6A] border border-[#2D9F6A]/20">
+                                  <span key={i}
+                                    title={`Precio por volumen: mín. ${t.min} u.${t.max ? ` — máx. ${t.max} u.` : "+"} → ${formatPrice(t.price * (1 + margin / 100))} s/IVA`}
+                                    className="text-[8px] font-mono px-1 py-0.5 rounded bg-[#2D9F6A]/10 text-[#2D9F6A] border border-[#2D9F6A]/20 cursor-help">
                                     {t.min}{t.max ? `–${t.max}` : "+"}u
                                   </span>
                                 ))}
@@ -1165,6 +1244,18 @@ export default function B2BPortal() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {/* Load more — L1 pagination */}
+              {visibleCount < filteredProducts.length && (
+                <div className="flex justify-center mt-4">
+                  <button
+                    onClick={() => setVisibleCount((n) => n + 50)}
+                    className={`px-5 py-2 text-sm font-semibold rounded-xl border transition ${dk("border-[#2a2a2a] text-[#a3a3a3] hover:text-white hover:border-[#3a3a3a] hover:bg-[#1a1a1a]", "border-[#e5e5e5] text-[#525252] hover:text-[#171717] hover:border-[#d4d4d4] hover:bg-[#f5f5f5]")}`}
+                  >
+                    Cargar más ({filteredProducts.length - visibleCount} restantes)
+                  </button>
                 </div>
               )}
             </>
@@ -1256,6 +1347,95 @@ export default function B2BPortal() {
                           void proofs;
                         }}
                       />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── LISTAS DE COMPRA ── */}
+          {activeTab === "lists" && (
+            <div className="max-w-2xl space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className={`text-base font-bold ${dk("text-white", "text-[#171717]")}`}>
+                  Listas de compra frecuente
+                </h2>
+                {cartItems.length > 0 && (
+                  <button
+                    onClick={async () => {
+                      const name = `Lista ${new Date().toLocaleDateString("es-AR")} — ${cartItems.length} prod.`;
+                      const prods = cartItems.map((i) => ({
+                        product_id: i.product.id,
+                        name:       i.product.name,
+                        sku:        i.product.sku,
+                        quantity:   i.quantity,
+                      }));
+                      await createPurchaseList(name, prods);
+                    }}
+                    className="flex items-center gap-1.5 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-xs font-bold px-3 py-1.5 rounded-lg transition"
+                  >
+                    <Bookmark size={12} /> Guardar carrito actual
+                  </button>
+                )}
+              </div>
+
+              {purchaseLists.length === 0 ? (
+                <div className={`flex flex-col items-center py-20 gap-3 ${dk("text-[#525252]", "text-[#737373]")}`}>
+                  <Bookmark size={32} className="opacity-20" />
+                  <p className="text-sm font-medium">No tenés listas guardadas</p>
+                  <p className="text-xs">Guardá tu carrito como lista para repetir pedidos rápidamente</p>
+                  <button
+                    onClick={() => setActiveTab("catalog")}
+                    className="mt-2 text-xs text-[#2D9F6A] hover:underline"
+                  >
+                    Ir al catálogo
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {purchaseLists.map((list) => (
+                    <div
+                      key={list.id}
+                      className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl overflow-hidden`}
+                    >
+                      <div className={`flex items-center justify-between px-4 py-3 border-b ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
+                        <div>
+                          <p className={`text-sm font-semibold ${dk("text-white", "text-[#171717]")}`}>{list.name}</p>
+                          <p className="text-[11px] text-[#525252] mt-0.5">
+                            {new Date(list.updated_at).toLocaleDateString("es-AR")} · {list.products.length} producto{list.products.length !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              const newCart: Record<number, number> = {};
+                              list.products.forEach((p) => { newCart[p.product_id] = p.quantity; });
+                              setCart(newCart);
+                              setActiveTab("catalog");
+                            }}
+                            className="text-xs bg-[#2D9F6A] hover:bg-[#25835A] text-white font-bold px-3 py-1.5 rounded-lg transition"
+                          >
+                            Cargar en carrito
+                          </button>
+                          <button
+                            onClick={() => deletePurchaseList(list.id)}
+                            className={`p-1.5 rounded-lg transition ${dk("text-[#525252] hover:text-red-400 hover:bg-red-500/10", "text-[#a3a3a3] hover:text-red-500 hover:bg-red-50")}`}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+                      <div className={`px-4 py-2.5 flex flex-wrap gap-1.5`}>
+                        {list.products.slice(0, 5).map((p) => (
+                          <span key={p.product_id} className={`text-[11px] px-2 py-0.5 rounded-full ${dk("bg-[#1c1c1c] text-[#a3a3a3] border-[#262626]", "bg-[#f0f0f0] text-[#525252] border-[#e5e5e5]")} border`}>
+                            {p.quantity}× {p.name}
+                          </span>
+                        ))}
+                        {list.products.length > 5 && (
+                          <span className="text-[11px] text-[#525252]">+{list.products.length - 5} más</span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -9,6 +9,7 @@ import { useCurrency } from "@/context/CurrencyContext";
 import { generateQuotePDF } from "@/components/QuotePDF";
 import { getAvailableStock } from "@/lib/pricing";
 import { resolveMarginWithContext } from "@/lib/pricingEngine";
+import { estimateShipping, type ShippingEstimate } from "@/lib/shipping";
 import type { Product } from "@/models/products";
 import {
   ArrowLeft, ShoppingCart, AlertTriangle, AlertCircle, Minus, Plus,
@@ -101,6 +102,9 @@ export default function CartPage() {
   const [shippingAddress,   setShippingAddress]   = useState("");
   const [shippingTransport, setShippingTransport] = useState<Transport>("andreani");
   const [shippingCost,      setShippingCost]      = useState("");
+  const [postalCode,        setPostalCode]        = useState("");
+  const [shippingEstimates, setShippingEstimates] = useState<ShippingEstimate[]>([]);
+  const [estimating,        setEstimating]        = useState(false);
 
   // ── Notes ────────────────────────────────────────────────────────────────────
   const [notes, setNotes] = useState("");
@@ -197,6 +201,24 @@ export default function CartPage() {
   const creditAvailable = (creditLimit != null && creditLimit > 0)
     ? Math.max(0, creditLimit - creditUsed)
     : null;
+
+  // ── Shipping estimation ──────────────────────────────────────────────────────
+  function handleEstimateShipping() {
+    const cp = postalCode.trim();
+    if (!cp) return;
+    setEstimating(true);
+    const items = cartItems.map((i) => ({
+      weight_kg: (i.product as any).weight_kg ?? 0.5,
+      quantity:  i.quantity,
+    }));
+    const estimates = estimateShipping(items, cp, exchangeRate, cartSubtotal);
+    setShippingEstimates(estimates);
+    setEstimating(false);
+    if (estimates.length > 0) {
+      setShippingTransport(estimates[0].carrier as Transport);
+      setShippingCost(String(convertPrice(estimates[0].price_usd)));
+    }
+  }
 
   // ── Validation ───────────────────────────────────────────────────────────────
   function validate(): string[] {
@@ -749,6 +771,73 @@ export default function CartPage() {
 
                 {shippingType === "envio" && (
                   <div className="flex flex-col gap-3">
+                    {/* Postal code + estimate */}
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>
+                          Código postal destino
+                        </label>
+                        <input
+                          type="text"
+                          value={postalCode}
+                          onChange={(e) => { setPostalCode(e.target.value); setShippingEstimates([]); }}
+                          placeholder="Ej: 1425"
+                          className={`w-full text-sm outline-none rounded-lg px-3 py-2 border transition
+                            ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A] placeholder-[#525252]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A] placeholder-[#a3a3a3]")}`}
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <button
+                          type="button"
+                          onClick={handleEstimateShipping}
+                          disabled={!postalCode.trim() || estimating}
+                          className="h-[38px] px-3 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-xs font-bold rounded-lg transition disabled:opacity-40 whitespace-nowrap flex items-center gap-1.5"
+                        >
+                          <Truck size={12} /> Estimar
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Carrier estimate cards */}
+                    {shippingEstimates.length > 0 && (
+                      <div className="flex flex-col gap-2">
+                        <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Tarifas estimadas</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {shippingEstimates.map((est) => {
+                            const isSelected = shippingTransport === est.carrier;
+                            return (
+                              <button
+                                key={est.carrier}
+                                type="button"
+                                onClick={() => {
+                                  setShippingTransport(est.carrier as Transport);
+                                  setShippingCost(String(convertPrice(est.price_usd)));
+                                }}
+                                className={`text-left p-2.5 rounded-lg border transition text-xs ${
+                                  isSelected
+                                    ? "border-[#2D9F6A] bg-[#2D9F6A]/10"
+                                    : dk("border-[#2a2a2a] hover:border-[#3a3a3a]", "border-[#e5e5e5] hover:border-[#d4d4d4]")
+                                }`}
+                              >
+                                <p className={`font-bold mb-0.5 ${isSelected ? "text-[#2D9F6A]" : dk("text-white", "text-[#171717]")}`}>
+                                  {est.label}
+                                </p>
+                                <p className="text-[#2D9F6A] font-semibold tabular-nums">
+                                  {formatPrice(convertPrice(est.price_usd))}
+                                </p>
+                                <p className={`text-[10px] mt-0.5 ${dk("text-gray-500", "text-gray-500")}`}>
+                                  {est.days_min}–{est.days_max} días hábiles
+                                </p>
+                                {est.notes && (
+                                  <p className="text-[9px] text-amber-400 mt-0.5">{est.notes}</p>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     <div>
                       <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>
                         <MapPin size={11} className="inline mr-1" />

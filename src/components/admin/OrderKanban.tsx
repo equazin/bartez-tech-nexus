@@ -18,6 +18,8 @@ export interface KanbanOrder {
   order_number?: string;
   client_name?: string;
   total: number;
+  cost_total?: number;
+  margin_pct?: number;
   created_at: string;
   status: KanbanStatus;
   products: { name: string; quantity: number }[];
@@ -180,16 +182,23 @@ export default function OrderKanban({ orders, onStatusChange, formatPrice, isDar
                       {order.products.length > 2 && ` +${order.products.length - 2} más`}
                     </div>
 
-                    {/* Total */}
+                    {/* Total + margin */}
                     <div className="flex items-center justify-between">
                       <span className={`text-xs font-semibold text-blue-400`}>
                         {formatPrice(order.total)}
                       </span>
-                      {isUpdating && (
-                        <span className={`text-[10px] ${textMuted} animate-pulse`}>
-                          Guardando…
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {order.margin_pct !== undefined && !isUpdating && (
+                          <span className="text-[10px] font-semibold text-emerald-400">
+                            +{order.margin_pct.toFixed(0)}%
+                          </span>
+                        )}
+                        {isUpdating && (
+                          <span className={`text-[10px] ${textMuted} animate-pulse`}>
+                            Guardando…
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

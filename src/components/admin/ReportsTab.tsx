@@ -1,7 +1,8 @@
 import { useEffect } from "react";
-import { AlertTriangle, PackageX, RefreshCw, TrendingDown, Clock } from "lucide-react";
+import { AlertTriangle, PackageX, RefreshCw, TrendingDown, Clock, Download } from "lucide-react";
 import { useReports } from "@/hooks/useReports";
 import type { Product } from "@/models/products";
+import Papa from "papaparse";
 
 interface Props {
   products: Product[];
@@ -15,6 +16,42 @@ export function ReportsTab({ products, orders, formatPrice, isDark = true }: Pro
   const dk = (d: string, l: string) => isDark ? d : l;
 
   useEffect(() => { refresh(); }, []); // eslint-disable-line
+
+  function downloadCSV(filename: string, rows: object[]) {
+    const csv = Papa.unparse(rows);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportLowStock() {
+    const rows = lowStock.map((p) => ({
+      Nombre:       p.name,
+      SKU:          p.sku ?? "",
+      Categoría:    p.category,
+      Stock:        p.stock,
+      "Stock mín.": p.stock_min ?? "",
+      Disponible:   p.available,
+      Proveedor:    p.supplier_name ?? "",
+    }));
+    downloadCSV(`stock-bajo-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+  }
+
+  function exportStale() {
+    const rows = stale.map((p) => ({
+      Nombre:          p.name,
+      SKU:             p.sku ?? "",
+      Categoría:       p.category,
+      "Costo (USD)":   p.cost_price,
+      Stock:           p.stock,
+      "Días sin mov.": p.days_stale >= 9999 ? "Nunca" : p.days_stale,
+    }));
+    downloadCSV(`sin-movimiento-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+  }
 
   const bg = dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]");
   const rowEven = dk("bg-[#111]", "bg-white");
@@ -50,6 +87,14 @@ export function ReportsTab({ products, orders, formatPrice, isDark = true }: Pro
           }`}>
             {lowStock.length}
           </span>
+          {lowStock.length > 0 && (
+            <button
+              onClick={exportLowStock}
+              className={`ml-auto flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border transition ${dk("border-[#2a2a2a] text-gray-400 hover:text-white hover:bg-[#1c1c1c]", "border-[#e5e5e5] text-[#737373] hover:bg-[#f5f5f5]")}`}
+            >
+              <Download size={10} /> CSV
+            </button>
+          )}
         </div>
 
         {lowStock.length === 0 ? (
@@ -109,6 +154,14 @@ export function ReportsTab({ products, orders, formatPrice, isDark = true }: Pro
           }`}>
             {stale.length}
           </span>
+          {stale.length > 0 && (
+            <button
+              onClick={exportStale}
+              className={`ml-auto flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border transition ${dk("border-[#2a2a2a] text-gray-400 hover:text-white hover:bg-[#1c1c1c]", "border-[#e5e5e5] text-[#737373] hover:bg-[#f5f5f5]")}`}
+            >
+              <Download size={10} /> CSV
+            </button>
+          )}
         </div>
 
         {stale.length === 0 ? (

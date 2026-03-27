@@ -81,12 +81,17 @@ export function useOrdersRealtime() {
 // ── Mapper ────────────────────────────────────────────────────────────────────
 
 function rowToKanban(row: Record<string, unknown>): KanbanOrder {
-  const products = (row.products as { name?: string; quantity?: number }[]) ?? [];
+  const products = (row.products as { name?: string; quantity?: number; cost_price?: number; total_price?: number }[]) ?? [];
+  const total = Number(row.total ?? 0);
+  const costTotal = products.reduce((s, p) => s + (p.cost_price ?? 0) * (p.quantity ?? 0), 0);
+  const marginPct = costTotal > 0 ? ((total - costTotal) / costTotal) * 100 : undefined;
   return {
     id:           String(row.id),
     order_number: row.order_number as string | undefined,
     client_name:  (row.client_id as string) ?? undefined, // resolved by Admin from profiles
-    total:        Number(row.total ?? 0),
+    total,
+    cost_total:   costTotal > 0 ? costTotal : undefined,
+    margin_pct:   marginPct,
     created_at:   row.created_at as string,
     status:       (row.status as KanbanOrder["status"]) ?? "pending",
     products:     products.map((p) => ({
