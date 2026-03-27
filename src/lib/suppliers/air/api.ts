@@ -149,18 +149,11 @@ export class AirApiClient {
     return body.rubros ?? [];
   }
 
-  async fetchProductsPage(page: number, retries = 3): Promise<AirProduct[]> {
+  async fetchProductsPage(page: number): Promise<AirProduct[]> {
     const res = await this.post(`/?q=articulos&page=${page}`);
 
     if (res.status === 403) {
-      const body = await res.json().catch(() => ({})) as any;
-      if (retries > 0 && body?.error_id === 403) {
-        const wait = 6 * 60 * 1000; // 6 min
-        console.log(`[INFO]  Rate limit en página ${page} — esperando 5 min...`);
-        await new Promise((r) => setTimeout(r, wait));
-        return this.fetchProductsPage(page, retries - 1);
-      }
-      throw new Error(`fetchProductsPage(${page}) failed (HTTP 403)`);
+      throw new Error(`RATE_LIMIT: AIR bloqueó la solicitud (página ${page}). Esperá 6 minutos y volvé a correr con --skip-catalog`);
     }
 
     if (!res.ok) throw new Error(`fetchProductsPage(${page}) failed (HTTP ${res.status})`);
