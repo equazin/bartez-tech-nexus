@@ -61,13 +61,13 @@ async function syncCatalogo(supplierId: string, rubros: AirRubro[]): Promise<voi
 
   for (const rubro of rubros) {
     // Intentar resolver el rubro
-    const categoryId = await resolveCategory(supplierId, String(rubro.id));
+    const categoryId = await resolveCategory(supplierId, rubro.codigo);
 
     const { data: existing } = await supabase
       .from("category_mapping")
       .select("id, confidence")
       .eq("supplier_id", supplierId)
-      .eq("external_category_id", String(rubro.id))
+      .eq("external_category_id", rubro.codigo)
       .maybeSingle();
 
     // Solo crear/actualizar si no existe mapping manual previo
@@ -75,13 +75,13 @@ async function syncCatalogo(supplierId: string, rubros: AirRubro[]): Promise<voi
       if (!DRY_RUN) {
         await upsertCategoryMapping({
           supplierId,
-          externalCategoryId:   String(rubro.id),
+          externalCategoryId:   rubro.codigo,
           externalCategoryName: rubro.nombre,
           internalCategoryId:   categoryId,
-          confidence:           existing ? "auto_low" : "auto_low",
+          confidence:           "auto_low",
         });
       }
-      log.info(`  · Rubro ${rubro.id} "${rubro.nombre}" → mapeado (pendiente revisión manual)`);
+      log.info(`  · Rubro ${rubro.codigo} "${rubro.nombre}" → mapeado (pendiente revisión manual)`);
     }
   }
 }
@@ -132,10 +132,8 @@ async function run(): Promise<void> {
   const unmapped: Set<string> = new Set();
 
   for await (const product of client.fetchAllProducts()) {
-    // Usar rubro_id como external_category_id (es la categoría principal)
-    const externalCatId = product.rubro_id !== undefined
-      ? String(product.rubro_id)
-      : "0";
+    // Usar rubro como external_category_id — campo real de la API es "rubro" (codigo)
+    const externalCatId = (product.rubro as string) ?? (product.rubro_id !== undefined ? String(product.rubro_id) : "0");
 
     let categoryId: string;
     try {

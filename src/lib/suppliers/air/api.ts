@@ -12,15 +12,14 @@
  */
 
 export interface AirRubro {
-  id: number | string;
+  codigo: string;   // e.g. "001-1262"
   nombre: string;
-  grupos?: AirGrupo[];
+  arts:   number;   // cantidad de artículos
 }
 
 export interface AirGrupo {
-  id: number | string;
+  codigo: string;
   nombre: string;
-  rubro_id: number | string;
 }
 
 export interface AirProduct {
@@ -60,15 +59,18 @@ export class AirApiClient {
   private readonly pass: string;
   private token: string | null = null;
 
-  constructor(baseUrl: string, user: string, pass: string) {
+  constructor(baseUrl: string, user: string, pass: string, staticToken?: string) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.user    = user;
     this.pass    = pass;
+    if (staticToken) this.token = staticToken;
   }
 
   // ── Auth ────────────────────────────────────────────────────
 
   async login(): Promise<void> {
+    if (this.token) return; // ya tenemos token, no hace falta login
+
     const url = `${this.baseUrl}/?q=login&user=${encodeURIComponent(this.user)}&pass=${encodeURIComponent(this.pass)}`;
     const res  = await fetch(url);
 
@@ -155,13 +157,17 @@ export class AirApiClient {
 // ─── Factory ─────────────────────────────────────────────────
 
 export function createAirClient(): AirApiClient {
-  const url  = process.env.AIR_API_URL;
-  const user = process.env.AIR_API_USER;
-  const pass = process.env.AIR_API_PASS;
+  const url   = process.env.AIR_API_URL;
+  const user  = process.env.AIR_API_USER ?? "";
+  const pass  = process.env.AIR_API_PASS ?? "";
+  const token = process.env.AIR_API_TOKEN; // token pre-generado desde intranet (opcional)
 
-  if (!url || !user || !pass) {
-    throw new Error("Missing AIR_API_URL, AIR_API_USER or AIR_API_PASS env vars");
+  if (!url) {
+    throw new Error("Missing AIR_API_URL env var");
+  }
+  if (!token && (!user || !pass)) {
+    throw new Error("Set AIR_API_TOKEN or both AIR_API_USER and AIR_API_PASS");
   }
 
-  return new AirApiClient(url, user, pass);
+  return new AirApiClient(url, user, pass, token);
 }
