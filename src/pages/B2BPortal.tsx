@@ -1054,14 +1054,16 @@ export default function B2BPortal() {
             Margen: <span className="font-semibold text-[#2D9F6A]">{defaultMargin}%</span>
           </span>
           {profile.credit_limit != null && profile.credit_limit > 0 && (() => {
+            // credit_limit is stored in ARS — do NOT pass through formatPrice (which converts USD→ARS)
+            const fmtArsRaw = (n: number) => `$${Math.round(n).toLocaleString("es-AR")}`;
             const creditAvail = Math.max(0, profile.credit_limit! - creditUsed);
             const pct = Math.min(100, (creditUsed / profile.credit_limit!) * 100);
             const danger = pct >= 80;
             return (
               <div className="flex items-center gap-2 ml-auto">
                 <span className={`text-[11px] ${dk("text-gray-500", "text-[#737373]")}`}>
-                  Crédito: <span className={`font-semibold ${danger ? "text-red-400" : "text-[#2D9F6A]"}`}>{formatPrice(creditAvail)}</span>
-                  <span className={`${dk("text-gray-700", "text-[#c4c4c4]")} ml-1`}>/ {formatPrice(profile.credit_limit!)}</span>
+                  Crédito: <span className={`font-semibold ${danger ? "text-red-400" : "text-[#2D9F6A]"}`}>{fmtArsRaw(creditAvail)}</span>
+                  <span className={`${dk("text-gray-700", "text-[#c4c4c4]")} ml-1`}>/ {fmtArsRaw(profile.credit_limit!)}</span>
                 </span>
                 <div className={`w-24 h-1.5 rounded-full ${dk("bg-[#1c1c1c]", "bg-[#e5e5e5]")} overflow-hidden`}>
                   <div
@@ -1699,6 +1701,9 @@ export default function B2BPortal() {
             const creditLimit      = (profile as any).credit_limit ?? 0;
             const creditPct        = creditLimit > 0 ? Math.min(100, (creditUsed / creditLimit) * 100) : 0;
             const creditAvail      = Math.max(0, creditLimit - creditUsed);
+            // credit_limit is stored in ARS — format directly without USD→ARS conversion
+            const fmtCreditARS    = (n: number) => `$${Math.round(n).toLocaleString("es-AR")}`;
+
 
             return (
               <div className="max-w-3xl space-y-4">
@@ -1730,10 +1735,10 @@ export default function B2BPortal() {
                     <div className="flex items-end justify-between mb-2">
                       <div>
                         <span className={`text-2xl font-extrabold ${creditPct >= 80 ? "text-red-400" : "text-[#2D9F6A]"}`}>
-                          {formatPrice(creditAvail)}
+                          {fmtCreditARS(creditAvail)}
                         </span>
                         <span className={`text-xs ml-2 ${dk("text-gray-500", "text-[#737373]")}`}>
-                          disponible de {formatPrice(creditLimit)}
+                          disponible de {fmtCreditARS(creditLimit)}
                         </span>
                       </div>
                       <span className={`text-sm font-bold ${creditPct >= 80 ? "text-red-400" : dk("text-gray-400", "text-[#737373]")}`}>
