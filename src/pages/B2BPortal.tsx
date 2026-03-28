@@ -15,7 +15,7 @@ import {
   ClipboardList, CheckCircle2, XCircle, Clock, X, Plus, Minus,
   ShieldCheck, Check, AlertTriangle, AlertCircle, SlidersHorizontal,
   Star, Sun, Moon, ChevronDown, ChevronRight, FileText,
-  Table2, Zap, Truck, ChevronUp, Download, Upload,
+  Table2, Zap, Truck, ChevronUp, Download, Upload, Users,
 } from "lucide-react";
 import { getUnitPrice, getAvailableStock } from "@/lib/pricing";
 import { nextOrderNumber } from "@/lib/orderNumber";
