@@ -35,6 +35,7 @@ import { CreditTab } from "@/components/admin/CreditTab";
 import { QuotesAdminTab } from "@/components/admin/QuotesAdminTab";
 import { PurchaseOrdersTab } from "@/components/admin/PurchaseOrdersTab";
 import { SupplierPriceImport } from "@/components/admin/SupplierPriceImport";
+import { BulkDeleteProducts } from "@/components/admin/BulkDeleteProducts";
 import { ErrorBoundary } from "@/components/admin/ErrorBoundary";
 import { CreateOrderModal } from "@/components/admin/CreateOrderModal";
 import { NotificationBell } from "@/components/admin/NotificationBell";
@@ -801,6 +802,9 @@ const Admin = () => {
 
             {/* Importar precios de proveedores (product_suppliers) */}
             <SupplierPriceImport isDark={isDark} />
+
+            {/* Eliminar productos masivamente por CSV */}
+            <BulkDeleteProducts isDark={isDark} onDone={fetchProducts} />
 
             {/* Categorías */}
             <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
