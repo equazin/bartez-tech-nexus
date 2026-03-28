@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   invoice_number  TEXT UNIQUE NOT NULL
                     DEFAULT ('FAC-' || LPAD(nextval('invoice_number_seq')::TEXT, 6, '0')),
-  order_id        UUID REFERENCES orders(id) ON DELETE SET NULL,
+  order_id        BIGINT REFERENCES orders(id) ON DELETE SET NULL,
   client_id       UUID NOT NULL,                     -- denormalized for query speed
   client_snapshot JSONB,                              -- snapshot of client data at invoice time
   items           JSONB NOT NULL,                     -- line items at invoice time
@@ -56,7 +56,7 @@ CREATE TRIGGER invoices_updated_at
 
 -- Helper: create invoice from order
 CREATE OR REPLACE FUNCTION create_invoice_from_order(
-  p_order_id    UUID,
+  p_order_id    BIGINT,
   p_due_days    INTEGER DEFAULT 30,
   p_currency    TEXT    DEFAULT 'ARS',
   p_exch_rate   NUMERIC DEFAULT NULL
@@ -104,7 +104,7 @@ ALTER TABLE quotes
   ADD COLUMN IF NOT EXISTS status        TEXT DEFAULT 'draft'
     CHECK (status IN ('draft','sent','approved','rejected','converted','expired')),
   ADD COLUMN IF NOT EXISTS expires_at    TIMESTAMPTZ,
-  ADD COLUMN IF NOT EXISTS converted_to_order_id UUID REFERENCES orders(id),
+  ADD COLUMN IF NOT EXISTS converted_to_order_id BIGINT REFERENCES orders(id),
   ADD COLUMN IF NOT EXISTS valid_days    INTEGER DEFAULT 15,
   ADD COLUMN IF NOT EXISTS notes         TEXT;
 

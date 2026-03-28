@@ -57,30 +57,10 @@ CREATE INDEX IF NOT EXISTS idx_ps_product_id    ON product_suppliers(product_id)
 CREATE INDEX IF NOT EXISTS idx_ps_supplier_id   ON product_suppliers(supplier_id);
 CREATE INDEX IF NOT EXISTS idx_ps_preferred     ON product_suppliers(product_id, is_preferred) WHERE is_preferred = true;
 
--- 2. ── Backfill from existing products ──────────────────────────────────────
---    Migrate current supplier_id + cost_price + stock to product_suppliers
---    Only for products that have a valid UUID supplier reference
---    (Legacy integer supplier_id is ignored)
-INSERT INTO product_suppliers (
-  product_id,
-  supplier_id,
-  cost_price,
-  stock_available,
-  price_multiplier,
-  is_preferred,
-  external_id
-)
-SELECT
-  p.id                                   AS product_id,
-  p.supplier_uuid                        AS supplier_id,
-  p.cost_price                           AS cost_price,
-  GREATEST(0, p.stock - COALESCE(p.stock_reserved, 0)) AS stock_available,
-  COALESCE(p.supplier_multiplier, 1.0)   AS price_multiplier,
-  true                                   AS is_preferred,
-  p.external_id
-FROM products p
-WHERE p.supplier_uuid IS NOT NULL
-ON CONFLICT (product_id, supplier_id) DO NOTHING;
+-- 2. ── Backfill omitido ──────────────────────────────────────────────────────
+--    Los productos actuales usan supplier_id como INTEGER legacy,
+--    no como UUID FK a suppliers. El backfill se hace desde el admin
+--    asignando proveedores UUID a cada producto manualmente o via sync.
 
 -- 3. ── Helper: resolve best supplier for a product ───────────────────────────
 --    Priority: preferred → cheapest cost → most stock

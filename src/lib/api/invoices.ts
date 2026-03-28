@@ -5,7 +5,7 @@ export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "cancelled";
 export interface Invoice {
   id: string;
   invoice_number: string;
-  order_id?: string;
+  order_id?: number;
   client_id: string;
   client_snapshot?: {
     company_name?: string;
@@ -28,7 +28,7 @@ export interface Invoice {
 
 /** Create an invoice from an existing order (admin) */
 export async function createInvoiceFromOrder(
-  orderId: string,
+  orderId: number,
   opts?: { dueDays?: number; currency?: "ARS" | "USD"; exchangeRate?: number }
 ): Promise<string> {
   const { data, error } = await supabase.rpc("create_invoice_from_order", {
