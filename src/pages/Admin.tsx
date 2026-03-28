@@ -135,6 +135,8 @@ const Admin = () => {
   const [savingClient, setSavingClient] = useState<string | null>(null);
   const [showNewClient, setShowNewClient] = useState(false);
   const [showCreateOrder, setShowCreateOrder] = useState(false);
+  const [confirmZeroStock, setConfirmZeroStock] = useState(false);
+  const [deletingZeroStock, setDeletingZeroStock] = useState(false);
   const [newClient, setNewClient] = useState({ email: "", password: "", phone: "", company_name: "", contact_name: "", client_type: "reseller" as ClientType, default_margin: 20, role: "client" as "client" | "cliente" | "admin" | "vendedor" });
   const [creatingClient, setCreatingClient] = useState(false);
   const [createError, setCreateError] = useState("");
@@ -178,6 +180,14 @@ const Admin = () => {
   const [filterOrderClient, setFilterOrderClient] = useState("all");
   const [ordersPage,        setOrdersPage]        = useState(1);
   const ORDERS_PER_PAGE = 25;
+
+  async function deleteZeroStockProducts() {
+    setDeletingZeroStock(true);
+    await supabase.from("products").delete().eq("stock", 0);
+    setConfirmZeroStock(false);
+    setDeletingZeroStock(false);
+    fetchProducts();
+  }
 
   async function fetchProducts() {
     setLoadingProducts(true);
@@ -805,6 +815,48 @@ const Admin = () => {
 
             {/* Eliminar productos masivamente por CSV */}
             <BulkDeleteProducts isDark={isDark} onDone={fetchProducts} />
+
+            {/* Eliminar sin stock */}
+            {(() => {
+              const zeroCount = products.filter((p) => (p.stock ?? 0) === 0).length;
+              return (
+                <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5 space-y-3`}>
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div>
+                      <h3 className={`font-bold text-sm ${dk("text-white", "text-[#171717]")}`}>Eliminar productos sin stock</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {zeroCount === 0
+                          ? "No hay productos con stock 0."
+                          : <><span className="text-red-400 font-semibold">{zeroCount} producto{zeroCount !== 1 ? "s" : ""}</span> con stock = 0</>
+                        }
+                      </p>
+                    </div>
+                  </div>
+
+                  {zeroCount > 0 && (
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-red-400">
+                        <input
+                          type="checkbox"
+                          checked={confirmZeroStock}
+                          onChange={(e) => setConfirmZeroStock(e.target.checked)}
+                          className="accent-red-500"
+                        />
+                        Confirmo que quiero eliminar {zeroCount} producto{zeroCount !== 1 ? "s" : ""} sin stock de forma permanente.
+                      </label>
+                      <button
+                        onClick={deleteZeroStockProducts}
+                        disabled={!confirmZeroStock || deletingZeroStock}
+                        className="flex items-center gap-1.5 text-xs bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg transition"
+                      >
+                        <Trash2 size={12} />
+                        {deletingZeroStock ? "Eliminando…" : `Eliminar ${zeroCount} sin stock`}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Categorías */}
             <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
