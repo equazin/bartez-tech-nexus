@@ -52,22 +52,28 @@ export default function ProductImport({ onImport, isDark = true }: { onImport: (
           if (!row.sku?.trim())                   { errors.push(`Fila ${rowNum}: falta SKU`); return; }
           if (isNaN(cost_price) || cost_price <= 0) { errors.push(`Fila ${rowNum}: precio inválido`); return; }
 
-          products.push({
+          // Build payload with ONLY the fields that have values in the CSV.
+          // Blank fields are omitted so Supabase upsert won't overwrite
+          // existing data with empty/zero values.
+          const product: Record<string, unknown> = {
             name,
-            sku:                row.sku.trim().toUpperCase(),
-            description:        row.description?.trim() || "",
-            image:              row.image?.trim() || "/placeholder.png",
+            sku:       row.sku.trim().toUpperCase(),
             cost_price,
-            category:           row.category?.trim() || "General",
-            stock:              Number(row.stock) || 0,
-            stock_min:          Number(row.stock_min) || 0,
-            supplier_id:        row.supplier_id ? Number(row.supplier_id) : null,
-            supplier_multiplier: row.supplier_multiplier ? Number(row.supplier_multiplier) : 1,
-            featured:           parseBoolean(row.featured, false),
-            active:             parseBoolean(row.active, true),
-            tags:               parseTags(row.tags),
-            external_id:        row.external_id?.trim() || null,
-          });
+          };
+
+          if (row.description?.trim())     product.description        = row.description.trim();
+          if (row.image?.trim())           product.image              = row.image.trim();
+          if (row.category?.trim())        product.category           = row.category.trim();
+          if (row.stock?.trim())           product.stock              = Number(row.stock);
+          if (row.stock_min?.trim())       product.stock_min          = Number(row.stock_min);
+          if (row.supplier_id?.trim())     product.supplier_id        = Number(row.supplier_id);
+          if (row.supplier_multiplier?.trim()) product.supplier_multiplier = Number(row.supplier_multiplier);
+          if (row.featured?.trim())        product.featured           = parseBoolean(row.featured, false);
+          if (row.active?.trim())          product.active             = parseBoolean(row.active, true);
+          if (row.tags?.trim())            product.tags               = parseTags(row.tags);
+          if (row.external_id?.trim())     product.external_id        = row.external_id.trim();
+
+          products.push(product);
         });
 
         setPreview(products);
