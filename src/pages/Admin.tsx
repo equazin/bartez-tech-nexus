@@ -14,7 +14,7 @@ import {
   Users, Package, ClipboardList, LogOut, UserPlus, X,
   DollarSign, Pencil, Check, LayoutDashboard, Sun, Moon, Phone,
   Truck, Download, Building2, Tag, BarChart2, Activity, Wifi, Bookmark,
-  Layers, FileText, History, CreditCard, MessageSquare,
+  Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag,
 } from "lucide-react";
 import { exportOrdersCSV, exportCatalogCSV, exportCatalogPDF } from "@/lib/exports";
 import { SalesDashboard } from "@/components/admin/SalesDashboard";
@@ -33,6 +33,8 @@ import { InvoicesTab } from "@/components/admin/InvoicesTab";
 import { StockMovementsTab } from "@/components/admin/StockMovementsTab";
 import { CreditTab } from "@/components/admin/CreditTab";
 import { QuotesAdminTab } from "@/components/admin/QuotesAdminTab";
+import { PurchaseOrdersTab } from "@/components/admin/PurchaseOrdersTab";
+import { SupplierPriceImport } from "@/components/admin/SupplierPriceImport";
 import { ErrorBoundary } from "@/components/admin/ErrorBoundary";
 import { CreateOrderModal } from "@/components/admin/CreateOrderModal";
 import { logActivity } from "@/lib/api/activityLog";
@@ -82,7 +84,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-type Tab = "dashboard" | "products" | "orders" | "kanban" | "clients" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "airsync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin";
+type Tab = "dashboard" | "products" | "orders" | "kanban" | "clients" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "airsync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders";
 
 const Admin = () => {
   const { signOut, session, isAdmin, canManageProducts, canManageOrders } = useAuth();
@@ -387,8 +389,9 @@ const Admin = () => {
     { id: "clients",    label: "Clientes",   icon: Users,         badge: clients.length, adminOnly: true },
     { id: "suppliers",  label: "Proveedores",icon: Building2,     adminOnly: true },
     { id: "brands",     label: "Marcas",     icon: Bookmark,      adminOnly: true },
-    { id: "stock",        label: "Stock",        icon: Layers,         adminOnly: true },
-    { id: "movements",    label: "Movimientos",  icon: History,        adminOnly: true },
+    { id: "stock",          label: "Stock",          icon: Layers,        adminOnly: true },
+    { id: "movements",      label: "Movimientos",    icon: History,       adminOnly: true },
+    { id: "purchase_orders",label: "Órdenes Compra", icon: ShoppingBag,   adminOnly: true },
     { id: "invoices",     label: "Facturas",     icon: FileText,       adminOnly: true },
     { id: "credit",       label: "Crédito",      icon: CreditCard,     adminOnly: true },
     { id: "quotes_admin", label: "Cotizaciones", icon: MessageSquare,  adminOnly: true },
@@ -602,6 +605,9 @@ const Admin = () => {
                 userId={userId}
               />
             </div>
+
+            {/* Importar precios de proveedores (product_suppliers) */}
+            <SupplierPriceImport isDark={isDark} />
 
             {/* Categorías */}
             <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
@@ -1092,6 +1098,11 @@ const Admin = () => {
         {/* ── COTIZACIONES ADMIN ── */}
         {activeTab === "quotes_admin" && (
           <QuotesAdminTab isDark={isDark} />
+        )}
+
+        {/* ── ÓRDENES DE COMPRA ── */}
+        {activeTab === "purchase_orders" && (
+          <PurchaseOrdersTab isDark={isDark} />
         )}
 
         {/* ── MOTOR DE PRECIOS ── */}
