@@ -53,7 +53,7 @@ export default function ProductTable({ products, categories, brands = [], isDark
     return products
       .filter((p) => {
         if (term && !p.name.toLowerCase().includes(term) && !p.sku?.toLowerCase().includes(term)) return false;
-        if (filterCat !== "all" && p.category !== filterCat) return false;
+        if (matchingCatNames && !matchingCatNames.has((p.category ?? "").toLowerCase())) return false;
         if (filterBrand !== "all" && (p as any).brand_id !== filterBrand) return false;
         const active = (p as any).active !== false;
         if (filterStatus === "active"    && !active)                       return false;
@@ -71,11 +71,25 @@ export default function ProductTable({ products, categories, brands = [], isDark
         if (va > vb) return sortDir === "asc" ? 1 : -1;
         return 0;
       });
-  }, [products, search, filterCat, filterBrand, filterStatus, sortField, sortDir]);
+  }, [products, search, matchingCatNames, filterBrand, filterStatus, sortField, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const rootCats = categories.filter((c) => c.parent_id === null);
+
+  // Build set of category names that match the selected filter:
+  // if a root cat is selected, include its children too
+  const matchingCatNames = useMemo(() => {
+    if (filterCat === "all") return null;
+    const sel = categories.find((c) => c.name === filterCat);
+    if (!sel) return new Set([filterCat.toLowerCase()]);
+    const names = new Set<string>([sel.name.toLowerCase()]);
+    // include children of the selected category
+    categories
+      .filter((c) => c.parent_id === sel.id)
+      .forEach((c) => names.add(c.name.toLowerCase()));
+    return names;
+  }, [filterCat, categories]);
 
   // Reset page when filters change
   useMemo(() => { setPage(1); }, [search, filterCat, filterStatus, sortField, sortDir]);
@@ -178,7 +192,12 @@ export default function ProductTable({ products, categories, brands = [], isDark
         <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)}
           className={`border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D9F6A]/50 ${dk("bg-[#232323] border-[#2a2a2a] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}>
           <option value="all">Todas las categorías</option>
-          {rootCats.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+          {rootCats.map((root) => [
+            <option key={root.id} value={root.name}>{root.name}</option>,
+            ...categories
+              .filter((c) => c.parent_id === root.id)
+              .map((c) => <option key={c.id} value={c.name}>{"  · "}{c.name}</option>),
+          ])}
         </select>
 
         {/* Brand filter */}
