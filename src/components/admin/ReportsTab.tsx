@@ -1,8 +1,9 @@
-import { useEffect } from "react";
-import { AlertTriangle, PackageX, RefreshCw, TrendingDown, Clock, Download } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { AlertTriangle, PackageX, RefreshCw, TrendingDown, Clock, Download, Users, TrendingUp, Package } from "lucide-react";
 import { useReports } from "@/hooks/useReports";
 import type { Product } from "@/models/products";
 import Papa from "papaparse";
+import { supabase } from "@/lib/supabase";
 
 interface Props {
   products: Product[];
@@ -11,11 +12,44 @@ interface Props {
   isDark?: boolean;
 }
 
+interface RevenueByClient {
+  client_id: string;
+  company_name: string;
+  client_type: string;
+  order_count: number;
+  total_revenue: number;
+  avg_order_value: number;
+  last_order_date: string;
+}
+
+interface TopProduct {
+  product_id: number;
+  product_name: string;
+  units_sold: number;
+  revenue: number;
+  gross_margin: number;
+}
+
 export function ReportsTab({ products, orders, formatPrice, isDark = true }: Props) {
   const { lowStock, stale, loading, error, refresh } = useReports(products, orders);
   const dk = (d: string, l: string) => isDark ? d : l;
 
-  useEffect(() => { refresh(); }, []); // eslint-disable-line
+  const [revenueByClient, setRevenueByClient] = useState<RevenueByClient[]>([]);
+  const [topProducts, setTopProducts]         = useState<TopProduct[]>([]);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
+  const loadAnalytics = useCallback(async () => {
+    setLoadingAnalytics(true);
+    const [{ data: rev }, { data: top }] = await Promise.all([
+      supabase.from("revenue_by_client").select("*").order("total_revenue", { ascending: false }).limit(20),
+      supabase.from("top_products_revenue").select("*").limit(20),
+    ]);
+    setRevenueByClient((rev ?? []) as RevenueByClient[]);
+    setTopProducts((top ?? []) as TopProduct[]);
+    setLoadingAnalytics(false);
+  }, []);
+
+  useEffect(() => { refresh(); loadAnalytics(); }, []); // eslint-disable-line
 
   function downloadCSV(filename: string, rows: object[]) {
     const csv = Papa.unparse(rows);
@@ -205,6 +239,127 @@ export function ReportsTab({ products, orders, formatPrice, isDark = true }: Pro
           </div>
         )}
       </div>
+
+      {/* ── Revenue por cliente (últimos 90 días) ──── */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <Users size={15} className="text-[#2D9F6A]" />
+          <h3 className={`font-bold text-sm ${dk("text-white", "text-[#171717]")}`}>
+            Revenue por cliente <span className={`text-[11px] font-normal ${dk("text-gray-500", "text-[#a3a3a3]")}`}>· últimos 90 días</span>
+          </h3>
+          <button
+            onClick={loadAnalytics}
+            disabled={loadingAnalytics}
+            className={`ml-auto flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border transition ${dk("border-[#2a2a2a] text-gray-400 hover:text-white hover:bg-[#1c1c1c]", "border-[#e5e5e5] text-[#737373] hover:bg-[#f5f5f5]")} disabled:opacity-40`}
+          >
+            <RefreshCw size={10} className={loadingAnalytics ? "animate-spin" : ""} /> Actualizar
+          </button>
+        </div>
+
+        {loadingAnalytics ? (
+          <div className={`h-32 rounded-xl animate-pulse ${dk("bg-[#111]", "bg-white")}`} />
+        ) : revenueByClient.length === 0 ? (
+          <div className={`text-center py-8 text-sm ${dk("text-gray-600", "text-[#a3a3a3]")} ${bg} border rounded-xl`}>
+            Sin datos (vista revenue_by_client).
+          </div>
+        ) : (
+          <div className={`rounded-xl border overflow-hidden ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")}`}>
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th className={`${th} text-left`}>Cliente</th>
+                  <th className={`${th} text-left hidden sm:table-cell`}>Tipo</th>
+                  <th className={`${th} text-center`}>Pedidos</th>
+                  <th className={`${th} text-right`}>Revenue total</th>
+                  <th className={`${th} text-right hidden sm:table-cell`}>Ticket prom.</th>
+                  <th className={`${th} text-right hidden md:table-cell`}>Último pedido</th>
+                </tr>
+              </thead>
+              <tbody>
+                {revenueByClient.map((r, i) => (
+                  <tr key={r.client_id} className={`border-t ${dk("border-[#1a1a1a]", "border-[#f0f0f0]")} ${i % 2 === 0 ? rowEven : rowOdd}`}>
+                    <td className={`px-3 py-2.5 text-xs font-medium ${dk("text-gray-200", "text-[#171717]")}`}>
+                      {r.company_name || r.client_id?.slice(0, 8)}
+                    </td>
+                    <td className={`hidden sm:table-cell px-3 py-2.5 text-xs ${dk("text-gray-500", "text-[#737373]")}`}>
+                      {r.client_type}
+                    </td>
+                    <td className={`px-3 py-2.5 text-center text-xs ${dk("text-gray-400", "text-[#525252]")}`}>
+                      {r.order_count}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-xs font-bold text-[#2D9F6A]">
+                      {formatPrice(r.total_revenue)}
+                    </td>
+                    <td className={`hidden sm:table-cell px-3 py-2.5 text-right text-xs ${dk("text-gray-400", "text-[#737373]")}`}>
+                      {formatPrice(r.avg_order_value)}
+                    </td>
+                    <td className={`hidden md:table-cell px-3 py-2.5 text-right text-xs ${dk("text-gray-500", "text-[#a3a3a3]")}`}>
+                      {r.last_order_date ? new Date(r.last_order_date).toLocaleDateString("es-AR") : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Top productos por revenue ─────────────── */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <TrendingUp size={15} className="text-purple-400" />
+          <h3 className={`font-bold text-sm ${dk("text-white", "text-[#171717]")}`}>Top productos por revenue</h3>
+        </div>
+
+        {loadingAnalytics ? (
+          <div className={`h-32 rounded-xl animate-pulse ${dk("bg-[#111]", "bg-white")}`} />
+        ) : topProducts.length === 0 ? (
+          <div className={`text-center py-8 text-sm ${dk("text-gray-600", "text-[#a3a3a3]")} ${bg} border rounded-xl`}>
+            Sin datos (vista top_products_revenue).
+          </div>
+        ) : (
+          <div className={`rounded-xl border overflow-hidden ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")}`}>
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th className={`${th} text-center w-8`}>#</th>
+                  <th className={`${th} text-left`}>Producto</th>
+                  <th className={`${th} text-center`}>Unidades</th>
+                  <th className={`${th} text-right`}>Revenue</th>
+                  <th className={`${th} text-right hidden sm:table-cell`}>Margen bruto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topProducts.map((p, i) => {
+                  const marginPct = p.revenue > 0 ? (p.gross_margin / p.revenue) * 100 : 0;
+                  return (
+                    <tr key={p.product_id} className={`border-t ${dk("border-[#1a1a1a]", "border-[#f0f0f0]")} ${i % 2 === 0 ? rowEven : rowOdd}`}>
+                      <td className={`px-3 py-2.5 text-center text-xs font-bold ${dk("text-gray-500", "text-[#a3a3a3]")}`}>
+                        {i + 1}
+                      </td>
+                      <td className={`px-3 py-2.5 text-xs font-medium ${dk("text-gray-200", "text-[#171717]")}`}>
+                        {p.product_name}
+                      </td>
+                      <td className={`px-3 py-2.5 text-center text-xs ${dk("text-gray-400", "text-[#525252]")}`}>
+                        {p.units_sold}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-xs font-bold text-[#2D9F6A]">
+                        {formatPrice(p.revenue)}
+                      </td>
+                      <td className="hidden sm:table-cell px-3 py-2.5 text-right text-xs">
+                        <span className={marginPct >= 20 ? "text-emerald-400 font-semibold" : dk("text-gray-400", "text-[#737373]")}>
+                          {formatPrice(p.gross_margin)} ({marginPct.toFixed(1)}%)
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }

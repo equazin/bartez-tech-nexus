@@ -14,7 +14,7 @@ import {
   Users, Package, ClipboardList, LogOut, UserPlus, X,
   DollarSign, Pencil, Check, LayoutDashboard, Sun, Moon, Phone,
   Truck, Download, Building2, Tag, BarChart2, Activity, Wifi, Bookmark,
-  Layers, FileText,
+  Layers, FileText, History, CreditCard, MessageSquare,
 } from "lucide-react";
 import { exportOrdersCSV, exportCatalogCSV, exportCatalogPDF } from "@/lib/exports";
 import { SalesDashboard } from "@/components/admin/SalesDashboard";
@@ -30,6 +30,9 @@ import { PriceStockImport } from "@/components/admin/PriceStockImport";
 import { AirSyncTab } from "@/components/admin/AirSyncTab";
 import { StockTab } from "@/components/admin/StockTab";
 import { InvoicesTab } from "@/components/admin/InvoicesTab";
+import { StockMovementsTab } from "@/components/admin/StockMovementsTab";
+import { CreditTab } from "@/components/admin/CreditTab";
+import { QuotesAdminTab } from "@/components/admin/QuotesAdminTab";
 import { ErrorBoundary } from "@/components/admin/ErrorBoundary";
 import { CreateOrderModal } from "@/components/admin/CreateOrderModal";
 import { logActivity } from "@/lib/api/activityLog";
@@ -79,7 +82,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-type Tab = "dashboard" | "products" | "orders" | "kanban" | "clients" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "airsync" | "stock" | "invoices";
+type Tab = "dashboard" | "products" | "orders" | "kanban" | "clients" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "airsync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin";
 
 const Admin = () => {
   const { signOut, session, isAdmin, canManageProducts, canManageOrders } = useAuth();
@@ -384,9 +387,12 @@ const Admin = () => {
     { id: "clients",    label: "Clientes",   icon: Users,         badge: clients.length, adminOnly: true },
     { id: "suppliers",  label: "Proveedores",icon: Building2,     adminOnly: true },
     { id: "brands",     label: "Marcas",     icon: Bookmark,      adminOnly: true },
-    { id: "stock",      label: "Stock",      icon: Layers,        adminOnly: true },
-    { id: "invoices",   label: "Facturas",   icon: FileText,      adminOnly: true },
-    { id: "pricing",    label: "Precios",    icon: Tag,           adminOnly: true },
+    { id: "stock",        label: "Stock",        icon: Layers,         adminOnly: true },
+    { id: "movements",    label: "Movimientos",  icon: History,        adminOnly: true },
+    { id: "invoices",     label: "Facturas",     icon: FileText,       adminOnly: true },
+    { id: "credit",       label: "Crédito",      icon: CreditCard,     adminOnly: true },
+    { id: "quotes_admin", label: "Cotizaciones", icon: MessageSquare,  adminOnly: true },
+    { id: "pricing",      label: "Precios",      icon: Tag,            adminOnly: true },
     { id: "reports",    label: "Reportes",   icon: BarChart2,     adminOnly: true, badge: lowStockCount || undefined },
     { id: "activity",   label: "Actividad",  icon: Activity,      adminOnly: true },
     { id: "airsync",   label: "AIR Sync",   icon: Wifi,          adminOnly: true },
@@ -1068,9 +1074,24 @@ const Admin = () => {
           <StockTab isDark={isDark} />
         )}
 
+        {/* ── MOVIMIENTOS ── */}
+        {activeTab === "movements" && (
+          <StockMovementsTab isDark={isDark} />
+        )}
+
         {/* ── FACTURAS ── */}
         {activeTab === "invoices" && (
           <InvoicesTab isDark={isDark} />
+        )}
+
+        {/* ── CRÉDITO ── */}
+        {activeTab === "credit" && (
+          <CreditTab isDark={isDark} />
+        )}
+
+        {/* ── COTIZACIONES ADMIN ── */}
+        {activeTab === "quotes_admin" && (
+          <QuotesAdminTab isDark={isDark} />
         )}
 
         {/* ── MOTOR DE PRECIOS ── */}
