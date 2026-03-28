@@ -33,14 +33,16 @@ const LoadingScreen = () => (
 
 const RequireAuth = ({ children }: { children: JSX.Element }) => {
   const { session, loading } = useAuth();
-  if (loading) return <LoadingScreen />;
+  // Show loading only on the initial auth check (no session yet).
+  // If we already have a session, never flash loading — token refreshes are silent.
+  if (loading && !session) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
   return children;
 };
 
 const RequireAdmin = ({ children }: { children: JSX.Element }) => {
-  const { isAdmin, loading } = useAuth();
-  if (loading) return <LoadingScreen />;
+  const { session, isAdmin, loading } = useAuth();
+  if (loading && !session) return <LoadingScreen />;
   if (!isAdmin) return <Navigate to="/login" replace />;
   return children;
 };
