@@ -17,7 +17,7 @@ export interface ClientDetail {
   phone?: string;
   credit_limit: number;
   credit_used: number;
-  // campos nuevos (016)
+  // campos 016
   estado: ClientEstado;
   vendedor_id?: string;
   precio_lista: PrecioLista;
@@ -27,6 +27,14 @@ export interface ClientDetail {
   ciudad?: string;
   provincia?: string;
   notas_internas?: string;
+  // campos 017 – crédito
+  payment_terms: number;          // días netos: 15/30/45/60/90/120
+  credit_approved: boolean;
+  credit_approved_by?: string;
+  credit_approved_at?: string;
+  credit_review_date?: string;
+  notas_credito?: string;
+  max_order_value: number;        // 0 = sin límite
 }
 
 export interface AccountMovement {
@@ -71,19 +79,27 @@ export interface ClientQuote {
 
 // ── Queries ────────────────────────────────────────────────────────────────────
 
-/** Perfil completo del cliente (incluye campos de la migración 016). */
+/** Perfil completo del cliente (incluye campos 016 + 017). */
 export async function fetchClientProfile(clientId: string): Promise<ClientDetail> {
   const { data, error } = await supabase
     .from("profiles")
     .select(
       "id, company_name, contact_name, client_type, default_margin, role, phone, " +
       "credit_limit, credit_used, estado, vendedor_id, precio_lista, " +
-      "razon_social, cuit, direccion, ciudad, provincia, notas_internas"
+      "razon_social, cuit, direccion, ciudad, provincia, notas_internas, " +
+      "payment_terms, credit_approved, credit_approved_by, credit_approved_at, " +
+      "credit_review_date, notas_credito, max_order_value"
     )
     .eq("id", clientId)
     .single();
   if (error) throw new Error(error.message);
-  return data as ClientDetail;
+  const raw = data as Record<string, unknown>;
+  return {
+    ...raw,
+    payment_terms:   (raw.payment_terms   as number)  ?? 30,
+    credit_approved: (raw.credit_approved as boolean) ?? false,
+    max_order_value: (raw.max_order_value as number)  ?? 0,
+  } as ClientDetail;
 }
 
 /** Patch parcial del perfil. */
@@ -203,6 +219,39 @@ export async function puedeComprar(clientId: string): Promise<{
   });
   if (error) throw new Error(error.message);
   return data as { puede: boolean; razon?: string; disponible?: number };
+}
+
+// ── Notifications ──────────────────────────────────────────────────────────────
+
+export interface AppNotification {
+  id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  body?: string;
+  read: boolean;
+  entity_type?: string;
+  entity_id?: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}
+
+export async function fetchNotifications(limit = 50): Promise<AppNotification[]> {
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as AppNotification[];
+}
+
+export async function markNotificationsRead(): Promise<void> {
+  await supabase.rpc("mark_notifications_read");
+}
+
+export async function markOneNotificationRead(id: string): Promise<void> {
+  await supabase.from("notifications").update({ read: true }).eq("id", id);
 }
 
 /** Registrar movimiento manual (factura, nota de crédito, ajuste). */

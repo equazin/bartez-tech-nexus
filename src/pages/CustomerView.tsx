@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, ShoppingBag, FileText, Receipt,
   Wallet, Settings, Loader2, Upload, ExternalLink,
+  CreditCard, CheckCircle2, XCircle, AlertTriangle,
+  Save, Calendar, Shield,
 } from "lucide-react";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { NotesFeed } from "@/components/customer/NotesFeed";
@@ -27,15 +29,16 @@ import { useCurrency } from "@/context/CurrencyContext";
 
 // ── Tab config ────────────────────────────────────────────────────────────────
 
-type Tab = "resumen" | "pedidos" | "cotizaciones" | "facturas" | "cuenta" | "config";
+type Tab = "resumen" | "pedidos" | "cotizaciones" | "facturas" | "cuenta" | "credito" | "datos";
 
 const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: "resumen",      label: "Resumen",         icon: LayoutDashboard },
   { id: "pedidos",      label: "Pedidos",          icon: ShoppingBag     },
   { id: "cotizaciones", label: "Cotizaciones",     icon: FileText        },
   { id: "facturas",     label: "Facturas",         icon: Receipt         },
-  { id: "cuenta",       label: "Cuenta corriente", icon: Wallet          },
-  { id: "config",       label: "Configuración",    icon: Settings        },
+  { id: "cuenta",       label: "Cuenta",           icon: Wallet          },
+  { id: "credito",      label: "Crédito",          icon: CreditCard      },
+  { id: "datos",        label: "Datos",            icon: Settings        },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -478,9 +481,291 @@ function CuentaTab({ movements, isDark }: { movements: AccountMovement[]; isDark
   );
 }
 
-// ── Config Tab ────────────────────────────────────────────────────────────────
+// ── Crédito Tab ───────────────────────────────────────────────────────────────
 
-function ConfigTab({
+const PAYMENT_TERMS_OPTIONS = [
+  { value: 0,   label: "Contado (0 días)" },
+  { value: 15,  label: "15 días" },
+  { value: 30,  label: "30 días" },
+  { value: 45,  label: "45 días" },
+  { value: 60,  label: "60 días" },
+  { value: 90,  label: "90 días" },
+  { value: 120, label: "120 días" },
+];
+
+function CreditoTab({
+  client,
+  isDark,
+  onRefresh,
+}: {
+  client: ClientDetail;
+  isDark: boolean;
+  onRefresh: () => void;
+}) {
+  const dk = (d: string, l: string) => (isDark ? d : l);
+  const { formatPrice } = useCurrency();
+
+  const [form, setForm] = useState({
+    credit_limit:       client.credit_limit ?? 0,
+    payment_terms:      client.payment_terms ?? 30,
+    credit_approved:    client.credit_approved ?? false,
+    credit_review_date: client.credit_review_date ?? "",
+    notas_credito:      client.notas_credito ?? "",
+    max_order_value:    client.max_order_value ?? 0,
+    estado:             client.estado,
+  });
+  const [saving, setSaving] = useState(false);
+  const [saved,  setSaved]  = useState(false);
+  const [err,    setErr]    = useState("");
+
+  const creditUsed      = client.credit_used ?? 0;
+  const creditAvail     = Math.max(0, form.credit_limit - creditUsed);
+  const creditPct       = form.credit_limit > 0 ? Math.min(100, (creditUsed / form.credit_limit) * 100) : 0;
+  const danger          = creditPct >= 80;
+
+  async function save() {
+    setSaving(true); setSaved(false); setErr("");
+    try {
+      await updateClientProfile(client.id, {
+        credit_limit:       form.credit_limit,
+        payment_terms:      form.payment_terms,
+        credit_approved:    form.credit_approved,
+        credit_review_date: form.credit_review_date || undefined,
+        notas_credito:      form.notas_credito,
+        max_order_value:    form.max_order_value,
+        estado:             form.estado,
+      } as Parameters<typeof updateClientProfile>[1]);
+      setSaved(true);
+      onRefresh();
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Error al guardar");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputCls = `w-full border rounded-lg px-3 py-2 text-sm outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-[#f5f5f5] border-[#e0e0e0] text-[#171717]")}`;
+  const labelCls = "text-xs text-[#737373] mb-1 block font-medium";
+
+  return (
+    <div className="space-y-4">
+
+      {/* Estado de crédito overview */}
+      <div className={`${dk("bg-[#111] border-[#1f1f1f]","bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <CreditCard size={15} className="text-[#2D9F6A]" />
+            <h3 className={`text-sm font-bold ${dk("text-white","text-[#171717]")}`}>Estado de Crédito</h3>
+          </div>
+          {/* Approval badge */}
+          {form.credit_approved ? (
+            <span className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+              <CheckCircle2 size={10} /> Aprobado
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/30">
+              <XCircle size={10} /> No aprobado
+            </span>
+          )}
+        </div>
+
+        {/* Credit bar */}
+        {form.credit_limit > 0 && (
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-[#737373]">Uso de crédito</span>
+              <span className={`text-xs font-bold tabular-nums ${danger ? "text-red-400" : "text-[#2D9F6A]"}`}>
+                {formatPrice(creditUsed)} / {formatPrice(form.credit_limit)}
+              </span>
+            </div>
+            <div className={`h-2 rounded-full ${dk("bg-[#1c1c1c]","bg-[#e5e5e5]")} overflow-hidden`}>
+              <div
+                className={`h-full rounded-full transition-all ${danger ? "bg-red-500" : creditPct >= 60 ? "bg-amber-400" : "bg-[#2D9F6A]"}`}
+                style={{ width: `${creditPct}%` }}
+              />
+            </div>
+            <div className="flex justify-between mt-1">
+              <span className="text-[10px] text-[#525252]">Disponible: <span className={`font-bold ${danger ? "text-red-400" : "text-[#2D9F6A]"}`}>{formatPrice(creditAvail)}</span></span>
+              <span className="text-[10px] text-[#525252]">{creditPct.toFixed(0)}% usado</span>
+            </div>
+          </div>
+        )}
+
+        {/* KPIs */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className={`rounded-lg px-3 py-2.5 ${dk("bg-[#0d0d0d]","bg-[#f9f9f9]")}`}>
+            <p className="text-[9px] font-bold uppercase tracking-widest text-[#525252]">Términos de pago</p>
+            <p className={`text-sm font-bold ${dk("text-white","text-[#171717]")} mt-0.5`}>
+              {form.payment_terms === 0 ? "Contado" : `${form.payment_terms} días`}
+            </p>
+          </div>
+          <div className={`rounded-lg px-3 py-2.5 ${dk("bg-[#0d0d0d]","bg-[#f9f9f9]")}`}>
+            <p className="text-[9px] font-bold uppercase tracking-widest text-[#525252]">Máx. por pedido</p>
+            <p className={`text-sm font-bold ${dk("text-white","text-[#171717]")} mt-0.5`}>
+              {form.max_order_value > 0 ? formatPrice(form.max_order_value) : "Sin límite"}
+            </p>
+          </div>
+          <div className={`rounded-lg px-3 py-2.5 ${dk("bg-[#0d0d0d]","bg-[#f9f9f9]")}`}>
+            <p className="text-[9px] font-bold uppercase tracking-widest text-[#525252]">Próx. revisión</p>
+            <p className={`text-sm font-bold ${dk("text-white","text-[#171717]")} mt-0.5`}>
+              {form.credit_review_date
+                ? new Date(form.credit_review_date).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })
+                : "—"}
+            </p>
+          </div>
+        </div>
+
+        {/* Alert if credit_approved but estado = bloqueado */}
+        {form.credit_approved && form.estado === "bloqueado" && (
+          <div className="mt-3 flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+            <AlertTriangle size={12} />
+            La cuenta está bloqueada aunque el crédito esté aprobado
+          </div>
+        )}
+      </div>
+
+      {/* Edit form */}
+      <div className={`${dk("bg-[#111] border-[#1f1f1f]","bg-white border-[#e5e5e5]")} border rounded-xl p-5 space-y-4`}>
+        <div className="flex items-center gap-2 mb-2">
+          <Shield size={14} className="text-[#2D9F6A]" />
+          <h3 className={`text-sm font-bold ${dk("text-white","text-[#171717]")}`}>Configuración de Crédito</h3>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          {/* Crédito aprobado toggle */}
+          <div className="flex items-center justify-between md:col-span-2 p-3 rounded-lg border ${dk('border-[#262626]','border-[#e0e0e0]')}">
+            <div>
+              <p className={`text-sm font-semibold ${dk("text-white","text-[#171717]")}`}>Crédito aprobado</p>
+              <p className="text-xs text-[#737373] mt-0.5">El cliente puede comprar a crédito</p>
+            </div>
+            <button
+              onClick={() => setForm((f) => ({ ...f, credit_approved: !f.credit_approved }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                form.credit_approved ? "bg-[#2D9F6A]" : dk("bg-[#333]","bg-[#d4d4d4]")
+              }`}
+            >
+              <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                form.credit_approved ? "translate-x-6" : "translate-x-1"
+              }`} />
+            </button>
+          </div>
+
+          {/* Estado cuenta */}
+          <div>
+            <label className={labelCls}>Estado de cuenta</label>
+            <select
+              value={form.estado}
+              onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value as ClientDetail["estado"] }))}
+              className={inputCls}
+            >
+              <option value="activo">Activo</option>
+              <option value="inactivo">Inactivo</option>
+              <option value="bloqueado">Bloqueado</option>
+            </select>
+          </div>
+
+          {/* Términos de pago */}
+          <div>
+            <label className={labelCls}>Términos de pago</label>
+            <select
+              value={form.payment_terms}
+              onChange={(e) => setForm((f) => ({ ...f, payment_terms: Number(e.target.value) }))}
+              className={inputCls}
+            >
+              {PAYMENT_TERMS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Límite de crédito */}
+          <div>
+            <label className={labelCls}>Límite de crédito (ARS)</label>
+            <input
+              type="number"
+              min={0}
+              step={1000}
+              value={form.credit_limit}
+              onChange={(e) => setForm((f) => ({ ...f, credit_limit: Number(e.target.value) }))}
+              className={inputCls}
+              placeholder="0 = sin límite"
+            />
+          </div>
+
+          {/* Máximo por pedido */}
+          <div>
+            <label className={labelCls}>Máximo por pedido (ARS)</label>
+            <input
+              type="number"
+              min={0}
+              step={1000}
+              value={form.max_order_value}
+              onChange={(e) => setForm((f) => ({ ...f, max_order_value: Number(e.target.value) }))}
+              className={inputCls}
+              placeholder="0 = sin límite"
+            />
+          </div>
+
+          {/* Próxima revisión */}
+          <div>
+            <label className={labelCls}>
+              <Calendar size={11} className="inline mr-1" />
+              Próxima revisión de crédito
+            </label>
+            <input
+              type="date"
+              value={form.credit_review_date}
+              onChange={(e) => setForm((f) => ({ ...f, credit_review_date: e.target.value }))}
+              className={inputCls}
+            />
+          </div>
+
+          {/* Notas de crédito */}
+          <div className="md:col-span-2">
+            <label className={labelCls}>Notas internas de crédito</label>
+            <textarea
+              rows={3}
+              value={form.notas_credito}
+              onChange={(e) => setForm((f) => ({ ...f, notas_credito: e.target.value }))}
+              placeholder="Historial de garantías, avales, condiciones especiales…"
+              className={`${inputCls} resize-none`}
+            />
+          </div>
+        </div>
+
+        {err && <p className="text-xs text-red-400">{err}</p>}
+
+        <div className="flex items-center gap-3 pt-2">
+          <button
+            onClick={save}
+            disabled={saving}
+            className="flex items-center gap-2 bg-[#2D9F6A] hover:bg-[#25875a] disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-medium transition"
+          >
+            {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+            {saving ? "Guardando…" : saved ? "¡Guardado!" : "Guardar cambios"}
+          </button>
+          {saved && <span className="text-xs text-emerald-400 flex items-center gap-1"><CheckCircle2 size={12} /> Guardado correctamente</span>}
+        </div>
+      </div>
+
+      {/* Approved by info */}
+      {client.credit_approved_at && (
+        <div className={`${dk("bg-[#111] border-[#1f1f1f]","bg-white border-[#e5e5e5]")} border rounded-xl px-4 py-3 flex items-center gap-2 text-xs text-[#525252]`}>
+          <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
+          Crédito aprobado el {new Date(client.credit_approved_at).toLocaleDateString("es-AR", {
+            day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit"
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Datos Tab (ex Config) ─────────────────────────────────────────────────────
+
+function DatosTab({
   client,
   isDark,
   onRefresh,
@@ -694,7 +979,8 @@ export default function CustomerView() {
         {activeTab === "cotizaciones" && <CotizacionesTab quotes={quotes}   isDark={isDark} />}
         {activeTab === "facturas"     && <FacturasTab     invoices={invoices} clientId={client.id} isDark={isDark} onRefresh={load} />}
         {activeTab === "cuenta"       && <CuentaTab       movements={movements} isDark={isDark} />}
-        {activeTab === "config"       && <ConfigTab       client={client} isDark={isDark} onRefresh={load} />}
+        {activeTab === "credito"      && <CreditoTab      client={client} isDark={isDark} onRefresh={load} />}
+        {activeTab === "datos"        && <DatosTab        client={client} isDark={isDark} onRefresh={load} />}
 
       </div>
     </div>

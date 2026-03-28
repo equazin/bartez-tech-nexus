@@ -381,97 +381,278 @@ const Admin = () => {
 
   const lowStockCount = products.filter((p) => p.stock <= 3 && (p as any).active !== false).length;
 
-  const allTabs: { id: Tab; label: string; icon: any; badge?: number; adminOnly?: boolean; manageProducts?: boolean; manageOrders?: boolean }[] = [
-    { id: "dashboard",  label: "Dashboard",  icon: LayoutDashboard },
-    { id: "products",   label: "Productos",  icon: Package,       badge: products.length, manageProducts: true },
-    { id: "orders",     label: "Pedidos",    icon: ClipboardList, badge: pendingOrders || undefined, manageOrders: true },
-    { id: "kanban",     label: "Kanban",     icon: LayoutDashboard, manageOrders: true },
-    { id: "clients",    label: "Clientes",   icon: Users,         badge: clients.length, adminOnly: true },
-    { id: "suppliers",  label: "Proveedores",icon: Building2,     adminOnly: true },
-    { id: "brands",     label: "Marcas",     icon: Bookmark,      adminOnly: true },
-    { id: "stock",          label: "Stock",          icon: Layers,        adminOnly: true },
-    { id: "movements",      label: "Movimientos",    icon: History,       adminOnly: true },
-    { id: "purchase_orders",label: "Órdenes Compra", icon: ShoppingBag,   adminOnly: true },
-    { id: "invoices",     label: "Facturas",     icon: FileText,       adminOnly: true },
-    { id: "credit",       label: "Crédito",      icon: CreditCard,     adminOnly: true },
-    { id: "quotes_admin", label: "Cotizaciones", icon: MessageSquare,  adminOnly: true },
-    { id: "pricing",      label: "Precios",      icon: Tag,            adminOnly: true },
-    { id: "reports",    label: "Reportes",   icon: BarChart2,     adminOnly: true, badge: lowStockCount || undefined },
-    { id: "activity",   label: "Actividad",  icon: Activity,      adminOnly: true },
-    { id: "airsync",   label: "AIR Sync",   icon: Wifi,          adminOnly: true },
+  // ── Sidebar groups ──────────────────────────────────────────────────────────
+  type SidebarGroup = {
+    id: string;
+    label: string;
+    icon: any;
+    items: { id: Tab; label: string; icon: any; badge?: number; adminOnly?: boolean; manageProducts?: boolean; manageOrders?: boolean }[];
+  };
+
+  const sidebarGroups: SidebarGroup[] = [
+    {
+      id: "vision", label: "Visión", icon: LayoutDashboard,
+      items: [
+        { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+      ],
+    },
+    {
+      id: "ventas", label: "Ventas", icon: ClipboardList,
+      items: [
+        { id: "orders",      label: "Pedidos",      icon: ClipboardList,  badge: pendingOrders || undefined, manageOrders: true },
+        { id: "kanban",      label: "Kanban",        icon: Layers,         manageOrders: true },
+        { id: "quotes_admin",label: "Cotizaciones",  icon: MessageSquare,  adminOnly: true },
+      ],
+    },
+    {
+      id: "clientes", label: "Clientes", icon: Users,
+      items: [
+        { id: "clients", label: "Clientes", icon: Users,       badge: clients.length, adminOnly: true },
+        { id: "credit",  label: "Crédito",  icon: CreditCard,  adminOnly: true },
+      ],
+    },
+    {
+      id: "inventario", label: "Inventario", icon: Package,
+      items: [
+        { id: "products",        label: "Productos",       icon: Package,    badge: products.length, manageProducts: true },
+        { id: "stock",           label: "Stock",           icon: Layers,     adminOnly: true },
+        { id: "movements",       label: "Movimientos",     icon: History,    adminOnly: true },
+        { id: "purchase_orders", label: "Órdenes Compra",  icon: ShoppingBag, adminOnly: true },
+      ],
+    },
+    {
+      id: "proveedores", label: "Proveedores", icon: Building2,
+      items: [
+        { id: "suppliers", label: "Proveedores", icon: Building2, adminOnly: true },
+        { id: "brands",    label: "Marcas",      icon: Bookmark,  adminOnly: true },
+        { id: "pricing",   label: "Precios",     icon: Tag,       adminOnly: true },
+        { id: "airsync",   label: "AIR Sync",    icon: Wifi,      adminOnly: true },
+      ],
+    },
+    {
+      id: "finanzas", label: "Finanzas", icon: FileText,
+      items: [
+        { id: "invoices", label: "Facturas",  icon: FileText, adminOnly: true },
+        { id: "reports",  label: "Reportes",  icon: BarChart2, adminOnly: true, badge: lowStockCount || undefined },
+      ],
+    },
+    {
+      id: "sistema", label: "Sistema", icon: Activity,
+      items: [
+        { id: "activity", label: "Actividad", icon: Activity, adminOnly: true },
+      ],
+    },
   ];
 
-  const tabs = allTabs.filter((t) => {
-    if (t.adminOnly) return isAdmin;
-    if (t.manageProducts) return canManageProducts;
-    if (t.manageOrders) return canManageOrders;
-    return true;
+  const SIDEBAR_COLLAPSE_KEY = "admin_sidebar_collapsed";
+  const SIDEBAR_GROUPS_KEY   = "admin_sidebar_groups";
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() =>
+    localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === "true"
+  );
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem(SIDEBAR_GROUPS_KEY);
+      return saved ? new Set(JSON.parse(saved)) : new Set<string>();
+    } catch { return new Set<string>(); }
   });
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  function toggleSidebar() {
+    const next = !sidebarCollapsed;
+    setSidebarCollapsed(next);
+    localStorage.setItem(SIDEBAR_COLLAPSE_KEY, String(next));
+  }
+
+  function toggleGroup(gid: string) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      next.has(gid) ? next.delete(gid) : next.add(gid);
+      localStorage.setItem(SIDEBAR_GROUPS_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  }
+
+  function canSeeItem(item: SidebarGroup["items"][number]) {
+    if (item.adminOnly) return isAdmin;
+    if (item.manageProducts) return canManageProducts;
+    if (item.manageOrders) return canManageOrders;
+    return true;
+  }
+
+  function SidebarContent({ mobile = false }: { mobile?: boolean }) {
+    return (
+      <nav className="flex flex-col h-full overflow-y-auto py-3 gap-0.5">
+        {sidebarGroups.map((group) => {
+          const visibleItems = group.items.filter(canSeeItem);
+          if (visibleItems.length === 0) return null;
+          const isGroupCollapsed = collapsedGroups.has(group.id);
+          const GIcon = group.icon;
+          const hasActiveBadge = visibleItems.some((i) => i.badge && i.badge > 0);
+
+          return (
+            <div key={group.id} className="px-2">
+              {/* Group header */}
+              {(!sidebarCollapsed || mobile) && (
+                <button
+                  onClick={() => toggleGroup(group.id)}
+                  className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition mb-0.5 ${dk("text-[#444] hover:text-[#666]","text-[#c4c4c4] hover:text-[#a3a3a3]")}`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <GIcon size={11} />
+                    {group.label}
+                    {hasActiveBadge && <span className="h-1.5 w-1.5 rounded-full bg-[#2D9F6A]" />}
+                  </div>
+                  <span className={`transition-transform ${isGroupCollapsed ? "" : "rotate-180"}`}>
+                    ▾
+                  </span>
+                </button>
+              )}
+
+              {/* Group items */}
+              {(!isGroupCollapsed || sidebarCollapsed) && (
+                <div className={`space-y-0.5 ${sidebarCollapsed && !mobile ? "mb-2" : "mb-1"}`}>
+                  {visibleItems.map(({ id, label, icon: Icon, badge }) => {
+                    const active = activeTab === id;
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => { setActiveTab(id); if (mobile) setMobileSidebarOpen(false); }}
+                        title={sidebarCollapsed && !mobile ? label : undefined}
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition ${
+                          active
+                            ? dk("bg-[#1a2e22] text-[#2D9F6A] font-semibold","bg-[#f0faf5] text-[#1a7a50] font-semibold")
+                            : dk("text-[#737373] hover:text-white hover:bg-[#181818]","text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")
+                        }`}
+                      >
+                        <Icon size={14} className={active ? "text-[#2D9F6A]" : ""} />
+                        {(!sidebarCollapsed || mobile) && (
+                          <>
+                            <span className="flex-1 text-left truncate">{label}</span>
+                            {badge !== undefined && badge > 0 && (
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                                id === "orders"
+                                  ? "bg-[#2D9F6A] text-white"
+                                  : dk("bg-[#222] text-[#525252]","bg-[#e8e8e8] text-[#737373]")
+                              }`}>
+                                {badge}
+                              </span>
+                            )}
+                          </>
+                        )}
+                        {sidebarCollapsed && !mobile && badge !== undefined && badge > 0 && (
+                          <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[#2D9F6A]" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {(!sidebarCollapsed || mobile) && (
+                <div className={`h-px mx-2 my-1 ${dk("bg-[#1f1f1f]","bg-[#f0f0f0]")}`} />
+              )}
+            </div>
+          );
+        })}
+      </nav>
+    );
+  }
 
   return (
     <div className={`flex min-h-screen flex-col ${dk("bg-[#0a0a0a]", "bg-[#f0f0f0]")}`}>
 
       {/* TOPBAR */}
-      <header className={`flex items-center gap-3 px-4 md:px-6 py-3 border-b ${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-white border-[#e5e5e5]")}`}>
-        <div className="flex items-center gap-2.5">
-          <img src="/icon.png" alt="Bartez" className="h-8 w-8 object-contain" />
-          <div>
+      <header className={`flex items-center gap-2 px-3 md:px-4 py-2.5 border-b z-30 relative ${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-white border-[#e5e5e5]")}`}>
+        {/* Mobile hamburger */}
+        <button
+          onClick={() => setMobileSidebarOpen((o) => !o)}
+          className={`md:hidden p-2 rounded-lg transition ${dk("text-[#525252] hover:text-white hover:bg-[#1c1c1c]","text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
+        >
+          <LayoutDashboard size={16} />
+        </button>
+
+        <div className="flex items-center gap-2">
+          <img src="/icon.png" alt="Bartez" className="h-7 w-7 object-contain" />
+          <div className="hidden sm:block">
             <span className={`font-bold text-sm leading-none ${dk("text-white", "text-[#171717]")}`}>Panel Admin</span>
-            <span className="block text-xs text-[#2D9F6A] leading-none mt-0.5">Bartez Tecnología</span>
+            <span className="block text-[10px] text-[#2D9F6A] leading-none mt-0.5">Bartez Tecnología</span>
           </div>
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        {/* Active tab breadcrumb */}
+        <span className={`text-xs font-semibold hidden md:block ml-2 ${dk("text-[#525252]","text-[#a3a3a3]")}`}>
+          / {sidebarGroups.flatMap((g) => g.items).find((i) => i.id === activeTab)?.label ?? ""}
+        </span>
+
+        <div className="ml-auto flex items-center gap-1.5">
           <button
             onClick={() => { fetchProducts(); fetchOrders(); fetchClients(); }}
-            className={`flex items-center gap-1.5 text-xs transition px-3 py-2 rounded-lg ${dk("text-[#737373] hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
+            className={`flex items-center gap-1.5 text-xs transition px-2.5 py-1.5 rounded-lg ${dk("text-[#737373] hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
           >
-            <RefreshCw size={13} /> Actualizar
+            <RefreshCw size={12} /> <span className="hidden sm:inline">Actualizar</span>
           </button>
           <button
             onClick={toggleTheme}
-            className={`p-2 rounded-lg transition ${dk("text-[#525252] hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
-            title={isDark ? "Cambiar a tema claro" : "Cambiar a tema oscuro"}
+            className={`p-1.5 rounded-lg transition ${dk("text-[#525252] hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
+            title={isDark ? "Tema claro" : "Tema oscuro"}
           >
             {isDark ? <Sun size={14} /> : <Moon size={14} />}
           </button>
           <button
             onClick={handleLogout}
-            className={`flex items-center gap-1.5 text-xs transition px-3 py-2 rounded-lg ${dk("text-[#737373] hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
+            className={`flex items-center gap-1.5 text-xs transition px-2.5 py-1.5 rounded-lg ${dk("text-[#737373] hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
           >
-            <LogOut size={13} /> Salir
+            <LogOut size={12} /> <span className="hidden sm:inline">Salir</span>
           </button>
         </div>
       </header>
 
-      {/* TABS */}
-      <div className={`flex border-b px-4 md:px-6 ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")}`}>
-        {tabs.map(({ id, label, icon: Icon, badge }) => (
-          <button
-            key={id}
-            onClick={() => setActiveTab(id)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition ${
-              activeTab === id
-                ? `border-[#2D9F6A] ${dk("text-white", "text-[#171717]")}`
-                : `border-transparent ${dk("text-[#525252] hover:text-[#a3a3a3]", "text-[#737373] hover:text-[#525252]")}`
-            }`}
-          >
-            <Icon size={14} />
-            {label}
-            {badge !== undefined && (
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                id === "orders" && pendingOrders > 0
-                  ? "bg-[#2D9F6A] text-white"
-                  : dk("bg-[#1c1c1c] text-[#525252]", "bg-[#e8e8e8] text-[#737373]")
-              }`}>
-                {badge}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      {/* BODY: sidebar + content */}
+      <div className="flex flex-1 overflow-hidden">
 
-      <main className="flex-1 p-4 md:p-6 overflow-y-auto">
+        {/* Mobile overlay */}
+        {mobileSidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/60 z-20 md:hidden"
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+        )}
+
+        {/* SIDEBAR */}
+        <aside className={`
+          hidden md:flex flex-col shrink-0 border-r overflow-hidden transition-all duration-200
+          ${sidebarCollapsed ? "w-[52px]" : "w-[200px]"}
+          ${dk("bg-[#0d0d0d] border-[#1a1a1a]","bg-white border-[#e5e5e5]")}
+        `}>
+          <SidebarContent />
+          {/* Collapse toggle */}
+          <button
+            onClick={toggleSidebar}
+            className={`flex items-center justify-center py-3 border-t text-xs transition ${dk("border-[#1a1a1a] text-[#444] hover:text-white hover:bg-[#141414]","border-[#e5e5e5] text-[#c4c4c4] hover:text-[#171717] hover:bg-[#f5f5f5]")}`}
+            title={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
+          >
+            {sidebarCollapsed ? "→" : "←"}
+          </button>
+        </aside>
+
+        {/* Mobile drawer */}
+        <aside className={`
+          fixed left-0 top-0 h-full w-[220px] z-30 md:hidden flex flex-col border-r transition-transform duration-200
+          ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"}
+          ${dk("bg-[#0d0d0d] border-[#1a1a1a]","bg-white border-[#e5e5e5]")}
+        `}>
+          <div className={`flex items-center gap-2 px-4 py-3 border-b ${dk("border-[#1a1a1a]","border-[#e5e5e5]")}`}>
+            <img src="/icon.png" alt="Bartez" className="h-7 w-7 object-contain" />
+            <div>
+              <span className={`font-bold text-sm leading-none ${dk("text-white","text-[#171717]")}`}>Admin</span>
+              <span className="block text-[10px] text-[#2D9F6A]">Bartez</span>
+            </div>
+          </div>
+          <SidebarContent mobile />
+        </aside>
+
+      <main className="flex-1 p-4 md:p-5 overflow-y-auto min-w-0">
       <ErrorBoundary section={activeTab}>
 
         {/* ── DASHBOARD ── */}
@@ -1132,6 +1313,7 @@ const Admin = () => {
 
       </ErrorBoundary>
       </main>
+      </div>{/* end body flex */}
 
       {/* ── Create order modal ── */}
       {showCreateOrder && (
