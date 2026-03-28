@@ -618,6 +618,41 @@ function ClientDetail({
   );
 }
 
+// ── Money input (formats on blur, strips non-digits on change) ────────────────
+function MoneyInput({
+  value, onChange, isDark, placeholder = "0",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  isDark: boolean;
+  placeholder?: string;
+}) {
+  const dk = (d: string, l: string) => isDark ? d : l;
+  const [focused, setFocused] = useState(false);
+  const numVal = Number(value) || 0;
+  const displayVal = focused
+    ? value
+    : (numVal === 0 ? "" : numVal.toLocaleString("es-AR"));
+
+  return (
+    <div className="relative">
+      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#525252] font-semibold pointer-events-none select-none">$</span>
+      <input
+        type="text"
+        inputMode="numeric"
+        placeholder={focused ? placeholder : ""}
+        value={displayVal}
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))}
+        onFocus={() => setFocused(true)}
+        onBlur={() => { setFocused(false); }}
+        className={`w-full border rounded-lg pl-6 pr-3 py-1.5 text-sm outline-none focus:border-[#2D9F6A]/40 transition tabular-nums ${
+          dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")
+        }`}
+      />
+    </div>
+  );
+}
+
 // ── Credit sub-panel ──────────────────────────────────────────────────────────
 const PAYMENT_TERMS_OPTIONS = [0, 15, 30, 45, 60, 90, 120];
 
@@ -672,12 +707,17 @@ function CreditPanel({ profile, isDark, onRefresh }: { profile: ClientDetailData
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Límite de crédito</label>
-          <input type="number" min="0" value={limit} onChange={(e) => setLimit(e.target.value)} className={`w-full border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#2D9F6A]/40 transition ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`} />
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 flex items-center gap-1.5">
+            Límite de crédito <span className="text-[9px] bg-[#2D9F6A]/10 text-[#2D9F6A] border border-[#2D9F6A]/20 px-1 py-0.5 rounded font-bold">ARS</span>
+          </label>
+          <MoneyInput value={limit} onChange={setLimit} isDark={isDark} />
         </div>
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Máx. por pedido (0 = sin límite)</label>
-          <input type="number" min="0" value={maxOrder} onChange={(e) => setMaxOrder(e.target.value)} className={`w-full border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#2D9F6A]/40 transition ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`} />
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 flex items-center gap-1.5">
+            Máx. por pedido <span className="text-[9px] bg-[#2D9F6A]/10 text-[#2D9F6A] border border-[#2D9F6A]/20 px-1 py-0.5 rounded font-bold">ARS</span>
+            <span className="text-[#444] normal-case font-normal tracking-normal">(0 = sin límite)</span>
+          </label>
+          <MoneyInput value={maxOrder} onChange={setMaxOrder} isDark={isDark} />
         </div>
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Días netos</label>
@@ -697,7 +737,10 @@ function CreditPanel({ profile, isDark, onRefresh }: { profile: ClientDetailData
       {creditLimit > 0 && (
         <div>
           <div className="flex justify-between text-[10px] text-[#525252] mb-1">
-            <span>Uso de crédito</span><span>{usagePct.toFixed(0)}%</span>
+            <span>Uso de crédito</span>
+            <span className="tabular-nums">
+              ${creditUsed.toLocaleString("es-AR")} / ${creditLimit.toLocaleString("es-AR")} ARS · {usagePct.toFixed(0)}%
+            </span>
           </div>
           <div className={`h-2 rounded-full overflow-hidden ${dk("bg-[#1f1f1f]", "bg-[#e5e5e5]")}`}>
             <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${usagePct}%` }} />
