@@ -1,14 +1,19 @@
 import { useState, useMemo, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { Quote, QuoteStatus } from "@/models/quote";
 import { useCurrency } from "@/context/CurrencyContext";
 import { CLIENT_TYPE_MARGINS, ClientType, supabase } from "@/lib/supabase";
+import {
+  fetchClientProfile, fetchClientInvoices, fetchAccountMovements, updateClientProfile,
+  type ClientDetail as ClientDetailData, type AccountMovement,
+} from "@/lib/api/clientDetail";
+import type { Invoice } from "@/lib/api/invoices";
 import {
   Users, Search, UserPlus, ChevronRight, Mail,
   Percent, ShoppingBag, FileText, CheckCircle2, XCircle, Clock,
   TrendingUp, Package, Save, X, Send, Eye, AlertTriangle,
   ArrowLeft, Pencil, Activity, LogIn, LogOut, MousePointer,
-  ShoppingCart, Hash, ExternalLink,
+  ShoppingCart, Hash, CreditCard, BarChart2, Landmark, Settings,
+  LayoutGrid, Shield, CalendarDays,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -172,6 +177,16 @@ function StatPill({ icon: Icon, label, value, accent, isDark }: { icon: any; lab
   );
 }
 
+type DetailTab = "resumen" | "credito" | "movimientos" | "facturas" | "datos";
+
+const DETAIL_TABS: { id: DetailTab; label: string; icon: any }[] = [
+  { id: "resumen",     label: "Resumen",     icon: LayoutGrid  },
+  { id: "credito",     label: "Crédito",     icon: CreditCard  },
+  { id: "movimientos", label: "Cuenta",      icon: BarChart2   },
+  { id: "facturas",    label: "Facturas",    icon: Landmark    },
+  { id: "datos",       label: "Datos",       icon: Settings    },
+];
+
 // ── Detail panel ──────────────────────────────────────────────────────────────
 function ClientDetail({
   client, orders, isDark, onSave, onBack,
@@ -184,7 +199,7 @@ function ClientDetail({
 }) {
   const dk = (d: string, l: string) => isDark ? d : l;
   const { formatPrice } = useCurrency();
-  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<DetailTab>("resumen");
   const [editing, setEditing] = useState(false);
   const [editType, setEditType] = useState<ClientType>(client.client_type);
   const [editMargin, setEditMargin] = useState(String(client.default_margin));
@@ -192,15 +207,22 @@ function ClientDetail({
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
 
+  // lazy-loaded for extra tabs
+  const [extProfile, setExtProfile] = useState<ClientDetailData | null>(null);
+  const [movements,  setMovements]  = useState<AccountMovement[]>([]);
+  const [invoices,   setInvoices]   = useState<Invoice[]>([]);
+  const [tabLoading, setTabLoading] = useState(false);
+
+  // reset tabs when client changes
+  useEffect(() => { setActiveTab("resumen"); setExtProfile(null); setMovements([]); setInvoices([]); }, [client.id]);
+
   useEffect(() => {
     supabase
       .from("quotes")
       .select("*")
       .eq("client_id", client.id)
       .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        if (data) setQuotes(data as Quote[]);
-      });
+      .then(({ data }) => { if (data) setQuotes(data as Quote[]); });
 
     supabase
       .from("activity_logs")
@@ -208,10 +230,30 @@ function ClientDetail({
       .eq("user_id", client.id)
       .order("created_at", { ascending: false })
       .limit(25)
-      .then(({ data }) => {
-        if (data) setActivityLogs(data as ActivityLog[]);
-      });
+      .then(({ data }) => { if (data) setActivityLogs(data as ActivityLog[]); });
   }, [client.id]);
+
+  async function loadTab(tab: DetailTab) {
+    setActiveTab(tab);
+    if (tab === "credito" || tab === "datos") {
+      if (extProfile) return;
+      setTabLoading(true);
+      try { setExtProfile(await fetchClientProfile(client.id)); } catch { /* silent */ }
+      finally { setTabLoading(false); }
+    }
+    if (tab === "movimientos") {
+      if (movements.length) return;
+      setTabLoading(true);
+      try { setMovements(await fetchAccountMovements(client.id)); } catch { /* silent */ }
+      finally { setTabLoading(false); }
+    }
+    if (tab === "facturas") {
+      if (invoices.length) return;
+      setTabLoading(true);
+      try { setInvoices(await fetchClientInvoices(client.id)); } catch { /* silent */ }
+      finally { setTabLoading(false); }
+    }
+  }
 
   const clientOrders = useMemo(
     () => orders.filter((o) => o.client_id === client.id)
@@ -251,7 +293,7 @@ function ClientDetail({
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
 
       {/* Header */}
       <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-5`}>
@@ -285,13 +327,6 @@ function ClientDetail({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate(`/clientes/${client.id}`)}
-              title="Ver Customer 360"
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#2D9F6A]/40 text-[#2D9F6A] hover:bg-[#2D9F6A]/10 transition"
-            >
-              <ExternalLink size={11} /> Ver 360°
-            </button>
             {!editing && (
               <button
                 onClick={() => { setEditing(true); setEditType(client.client_type); setEditMargin(String(client.default_margin)); }}
@@ -372,151 +407,356 @@ function ClientDetail({
         )}
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatPill icon={ShoppingBag}  label="Pedidos"         value={String(clientOrders.length)}  accent="bg-[#2D9F6A]/15 text-[#2D9F6A]"  isDark={isDark} />
-        <StatPill icon={TrendingUp}   label="Total facturado" value={formatPrice(totalSpent)}       accent="bg-green-500/15 text-green-400"   isDark={isDark} />
-        <StatPill icon={FileText}     label="Cotizaciones"    value={String(quotes.length)}         accent="bg-blue-500/15 text-blue-400"     isDark={isDark} />
-        <StatPill icon={CheckCircle2} label="Cot. aprobadas"  value={String(approvedQuotes)}        accent="bg-purple-500/15 text-purple-400" isDark={isDark} />
+      {/* Tab nav */}
+      <div className={`flex gap-0.5 p-1 rounded-xl border ${dk("bg-[#0d0d0d] border-[#1f1f1f]", "bg-[#f5f5f5] border-[#e5e5e5]")}`}>
+        {DETAIL_TABS.map(({ id: tid, label, icon: Icon }) => (
+          <button
+            key={tid}
+            onClick={() => loadTab(tid)}
+            className={`flex-1 flex items-center justify-center gap-1.5 text-[11px] py-1.5 rounded-lg transition font-medium ${
+              activeTab === tid
+                ? "bg-[#2D9F6A] text-white"
+                : dk("text-[#737373] hover:text-white hover:bg-[#1a1a1a]", "text-[#737373] hover:text-[#171717] hover:bg-white")
+            }`}
+          >
+            <Icon size={11} />
+            <span className="hidden sm:inline">{label}</span>
+          </button>
+        ))}
       </div>
 
-      {/* Orders history */}
-      <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
-        <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
-          <ShoppingBag size={13} className="text-[#2D9F6A]" />
-          <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Historial de pedidos</h3>
-          <span className="ml-auto text-xs text-[#525252]">{clientOrders.length} en total</span>
-        </div>
-
-        {clientOrders.length === 0 ? (
-          <div className="flex flex-col items-center py-12 text-[#525252] gap-2">
-            <Package size={24} className="opacity-20" />
-            <p className="text-xs">Sin pedidos registrados</p>
+      {/* Tab: Resumen */}
+      {activeTab === "resumen" && (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatPill icon={ShoppingBag}  label="Pedidos"         value={String(clientOrders.length)}  accent="bg-[#2D9F6A]/15 text-[#2D9F6A]"  isDark={isDark} />
+            <StatPill icon={TrendingUp}   label="Total facturado" value={formatPrice(totalSpent)}       accent="bg-green-500/15 text-green-400"   isDark={isDark} />
+            <StatPill icon={FileText}     label="Cotizaciones"    value={String(quotes.length)}         accent="bg-blue-500/15 text-blue-400"     isDark={isDark} />
+            <StatPill icon={CheckCircle2} label="Cot. aprobadas"  value={String(approvedQuotes)}        accent="bg-purple-500/15 text-purple-400" isDark={isDark} />
           </div>
-        ) : (
-          <div className={`divide-y ${dk("divide-[#141414]", "divide-[#f0f0f0]")}`}>
-            {clientOrders.map((o) => (
-              <div key={o.id} className={`flex items-center justify-between px-5 py-3 ${dk("hover:bg-[#141414]", "hover:bg-[#fafafa]")} transition`}>
-                <div className="min-w-0">
-                  <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>
-                    #{String(o.id).slice(-6).toUpperCase()}
-                  </p>
-                  <p className="text-[10px] text-[#525252] mt-0.5">
-                    {fmtDate(o.created_at)} · {o.products?.length ?? 0} producto{(o.products?.length ?? 0) !== 1 ? "s" : ""}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 shrink-0 ml-4">
-                  <StatusBadge status={o.status} map={ORDER_STATUS} />
-                  <span className="text-sm font-bold text-[#2D9F6A] tabular-nums">{formatPrice(o.total)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
-      {/* Quotes history */}
-      <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
-        <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
-          <FileText size={13} className="text-blue-400" />
-          <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Cotizaciones</h3>
-          <span className="ml-auto text-xs text-[#525252]">{quotes.length} en total</span>
-        </div>
-
-        {quotes.length === 0 ? (
-          <div className="flex flex-col items-center py-12 text-[#525252] gap-2">
-            <FileText size={24} className="opacity-20" />
-            <p className="text-xs">Sin cotizaciones guardadas</p>
-          </div>
-        ) : (
-          <div className={`divide-y ${dk("divide-[#141414]", "divide-[#f0f0f0]")}`}>
-            {quotes.map((q) => (
-              <div key={q.id} className={`flex items-center justify-between px-5 py-3 ${dk("hover:bg-[#141414]", "hover:bg-[#fafafa]")} transition`}>
-                <div className="min-w-0">
-                  <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>
-                    COT-{String(q.id).padStart(4, "0")}
-                  </p>
-                  <p className="text-[10px] text-[#525252] mt-0.5">
-                    {fmtDate(q.created_at)} · {(q.items?.length ?? 0)} producto{(q.items?.length ?? 0) !== 1 ? "s" : ""} · {q.currency}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0 ml-4">
-                  <StatusBadge status={q.status} map={QUOTE_STATUS as any} />
-                  <span className="text-sm font-bold text-[#2D9F6A] tabular-nums">{formatPrice(q.total)}</span>
-                  {q.status === "draft" && (
-                    <button
-                      onClick={() => updateQuoteStatus(q.id, "sent")}
-                      title="Marcar como enviada"
-                      className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 transition"
-                    >
-                      <Send size={10} /> Enviar
-                    </button>
-                  )}
-                  {(q.status === "sent" || q.status === "viewed") && (
-                    <>
-                      <button
-                        onClick={() => updateQuoteStatus(q.id, "approved")}
-                        title="Aprobar cotización"
-                        className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border border-green-500/30 text-green-400 hover:bg-green-500/10 transition"
-                      >
-                        <CheckCircle2 size={10} /> Aprobar
-                      </button>
-                      <button
-                        onClick={() => updateQuoteStatus(q.id, "rejected")}
-                        title="Rechazar cotización"
-                        className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 transition"
-                      >
-                        <XCircle size={10} /> Rechazar
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Activity log */}
-      <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
-        <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
-          <Activity size={13} className="text-amber-400" />
-          <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Actividad reciente</h3>
-          <span className="ml-auto text-xs text-[#525252]">{activityLogs.length} eventos</span>
-        </div>
-
-        {activityLogs.length === 0 ? (
-          <div className="flex flex-col items-center py-12 text-[#525252] gap-2">
-            <Activity size={24} className="opacity-20" />
-            <p className="text-xs">Sin actividad registrada</p>
-          </div>
-        ) : (
-          <div className="px-5 py-4 space-y-3">
-            {activityLogs.map((log) => {
-              const cfg = ACTION_CONFIG[log.action] ?? { label: log.action, icon: Activity, color: "text-gray-400" };
-              const Icon = cfg.icon;
-              return (
-                <div key={log.id} className="flex items-start gap-3">
-                  <div className={`mt-0.5 shrink-0 h-6 w-6 rounded-lg flex items-center justify-center ${dk("bg-[#1a1a1a]", "bg-[#f5f5f5]")}`}>
-                    <Icon size={12} className={cfg.color} />
+          {/* Orders */}
+          <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
+            <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
+              <ShoppingBag size={13} className="text-[#2D9F6A]" />
+              <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Historial de pedidos</h3>
+              <span className="ml-auto text-xs text-[#525252]">{clientOrders.length} en total</span>
+            </div>
+            {clientOrders.length === 0 ? (
+              <div className="flex flex-col items-center py-12 text-[#525252] gap-2"><Package size={24} className="opacity-20" /><p className="text-xs">Sin pedidos registrados</p></div>
+            ) : (
+              <div className={`divide-y ${dk("divide-[#141414]", "divide-[#f0f0f0]")}`}>
+                {clientOrders.map((o) => (
+                  <div key={o.id} className={`flex items-center justify-between px-5 py-3 ${dk("hover:bg-[#141414]", "hover:bg-[#fafafa]")} transition`}>
+                    <div className="min-w-0">
+                      <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>#{String(o.id).slice(-6).toUpperCase()}</p>
+                      <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(o.created_at)} · {o.products?.length ?? 0} productos</p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0 ml-4">
+                      <StatusBadge status={o.status} map={ORDER_STATUS} />
+                      <span className="text-sm font-bold text-[#2D9F6A] tabular-nums">{formatPrice(o.total)}</span>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-medium ${dk("text-[#d4d4d4]", "text-[#404040]")}`}>{cfg.label}
-                      {log.metadata?.name && (
-                        <span className={`ml-1 font-normal ${dk("text-[#737373]", "text-[#737373]")}`}>
-                          — {String(log.metadata.name)}
-                        </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Quotes */}
+          <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
+            <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
+              <FileText size={13} className="text-blue-400" />
+              <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Cotizaciones</h3>
+              <span className="ml-auto text-xs text-[#525252]">{quotes.length} en total</span>
+            </div>
+            {quotes.length === 0 ? (
+              <div className="flex flex-col items-center py-12 text-[#525252] gap-2"><FileText size={24} className="opacity-20" /><p className="text-xs">Sin cotizaciones guardadas</p></div>
+            ) : (
+              <div className={`divide-y ${dk("divide-[#141414]", "divide-[#f0f0f0]")}`}>
+                {quotes.map((q) => (
+                  <div key={q.id} className={`flex items-center justify-between px-5 py-3 ${dk("hover:bg-[#141414]", "hover:bg-[#fafafa]")} transition`}>
+                    <div className="min-w-0">
+                      <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>COT-{String(q.id).padStart(4, "0")}</p>
+                      <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(q.created_at)} · {q.items?.length ?? 0} productos · {q.currency}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 ml-4">
+                      <StatusBadge status={q.status} map={QUOTE_STATUS as any} />
+                      <span className="text-sm font-bold text-[#2D9F6A] tabular-nums">{formatPrice(q.total)}</span>
+                      {q.status === "draft" && (
+                        <button onClick={() => updateQuoteStatus(q.id, "sent")} className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 transition"><Send size={10} /> Enviar</button>
                       )}
-                    </p>
-                    <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(log.created_at)}</p>
+                      {(q.status === "sent" || q.status === "viewed") && (
+                        <>
+                          <button onClick={() => updateQuoteStatus(q.id, "approved")} className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border border-green-500/30 text-green-400 hover:bg-green-500/10 transition"><CheckCircle2 size={10} /> Aprobar</button>
+                          <button onClick={() => updateQuoteStatus(q.id, "rejected")} className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 transition"><XCircle size={10} /> Rechazar</button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                ))}
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Activity */}
+          <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
+            <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
+              <Activity size={13} className="text-amber-400" />
+              <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Actividad reciente</h3>
+              <span className="ml-auto text-xs text-[#525252]">{activityLogs.length} eventos</span>
+            </div>
+            {activityLogs.length === 0 ? (
+              <div className="flex flex-col items-center py-12 text-[#525252] gap-2"><Activity size={24} className="opacity-20" /><p className="text-xs">Sin actividad registrada</p></div>
+            ) : (
+              <div className="px-5 py-4 space-y-3">
+                {activityLogs.map((log) => {
+                  const cfg = ACTION_CONFIG[log.action] ?? { label: log.action, icon: Activity, color: "text-gray-400" };
+                  const Icon = cfg.icon;
+                  return (
+                    <div key={log.id} className="flex items-start gap-3">
+                      <div className={`mt-0.5 shrink-0 h-6 w-6 rounded-lg flex items-center justify-center ${dk("bg-[#1a1a1a]", "bg-[#f5f5f5]")}`}><Icon size={12} className={cfg.color} /></div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-medium ${dk("text-[#d4d4d4]", "text-[#404040]")}`}>{cfg.label}{log.metadata?.name && <span className="ml-1 font-normal text-[#737373]">— {String(log.metadata.name)}</span>}</p>
+                        <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(log.created_at)}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Tab: Crédito */}
+      {activeTab === "credito" && (
+        <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-5`}>
+          {tabLoading ? (
+            <div className="py-10 text-center text-xs text-[#525252]">Cargando…</div>
+          ) : !extProfile ? (
+            <div className="py-10 text-center text-xs text-red-400">No se pudo cargar el perfil extendido.</div>
+          ) : (
+            <CreditPanel profile={extProfile} isDark={isDark} onRefresh={async () => { setExtProfile(await fetchClientProfile(client.id)); }} />
+          )}
+        </div>
+      )}
+
+      {/* Tab: Movimientos */}
+      {activeTab === "movimientos" && (
+        <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
+          <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
+            <BarChart2 size={13} className="text-purple-400" />
+            <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Movimientos de cuenta</h3>
+            <span className="ml-auto text-xs text-[#525252]">{movements.length} registros</span>
+          </div>
+          {tabLoading ? (
+            <div className="py-10 text-center text-xs text-[#525252]">Cargando…</div>
+          ) : movements.length === 0 ? (
+            <div className="flex flex-col items-center py-12 text-[#525252] gap-2"><BarChart2 size={24} className="opacity-20" /><p className="text-xs">Sin movimientos registrados</p></div>
+          ) : (
+            <div className={`divide-y ${dk("divide-[#141414]", "divide-[#f0f0f0]")}`}>
+              {movements.map((m) => (
+                <div key={m.id} className={`flex items-center justify-between px-5 py-3 ${dk("hover:bg-[#141414]", "hover:bg-[#fafafa]")} transition`}>
+                  <div className="min-w-0">
+                    <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>{m.descripcion || m.tipo}</p>
+                    <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(m.fecha)} · {m.tipo}</p>
+                  </div>
+                  <span className={`text-sm font-bold tabular-nums shrink-0 ml-4 ${m.monto >= 0 ? "text-red-400" : "text-emerald-400"}`}>
+                    {m.monto >= 0 ? "+" : ""}{formatPrice(m.monto)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab: Facturas */}
+      {activeTab === "facturas" && (
+        <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
+          <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
+            <Landmark size={13} className="text-amber-400" />
+            <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Facturas</h3>
+            <span className="ml-auto text-xs text-[#525252]">{invoices.length} registros</span>
+          </div>
+          {tabLoading ? (
+            <div className="py-10 text-center text-xs text-[#525252]">Cargando…</div>
+          ) : invoices.length === 0 ? (
+            <div className="flex flex-col items-center py-12 text-[#525252] gap-2"><Landmark size={24} className="opacity-20" /><p className="text-xs">Sin facturas registradas</p></div>
+          ) : (
+            <div className={`divide-y ${dk("divide-[#141414]", "divide-[#f0f0f0]")}`}>
+              {invoices.map((inv) => (
+                <div key={inv.id} className={`flex items-center justify-between px-5 py-3 ${dk("hover:bg-[#141414]", "hover:bg-[#fafafa]")} transition`}>
+                  <div className="min-w-0">
+                    <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>{inv.invoice_number || `FAC-${String(inv.id).slice(-6).toUpperCase()}`}</p>
+                    <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(inv.created_at)} · {inv.status}</p>
+                  </div>
+                  <span className="text-sm font-bold text-[#2D9F6A] tabular-nums shrink-0 ml-4">{formatPrice(inv.total)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab: Datos */}
+      {activeTab === "datos" && (
+        <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-5`}>
+          {tabLoading ? (
+            <div className="py-10 text-center text-xs text-[#525252]">Cargando…</div>
+          ) : !extProfile ? (
+            <div className="py-10 text-center text-xs text-red-400">No se pudo cargar el perfil extendido.</div>
+          ) : (
+            <DatosPanel profile={extProfile} isDark={isDark} onRefresh={async () => { setExtProfile(await fetchClientProfile(client.id)); }} />
+          )}
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+// ── Credit sub-panel ──────────────────────────────────────────────────────────
+const PAYMENT_TERMS_OPTIONS = [0, 15, 30, 45, 60, 90, 120];
+
+function CreditPanel({ profile, isDark, onRefresh }: { profile: ClientDetailData; isDark: boolean; onRefresh: () => Promise<void> }) {
+  const dk = (d: string, l: string) => isDark ? d : l;
+  const [approved, setApproved] = useState(profile.credit_approved);
+  const [limit, setLimit]       = useState(String(profile.credit_limit ?? 0));
+  const [terms, setTerms]       = useState(profile.payment_terms ?? 30);
+  const [maxOrder, setMaxOrder] = useState(String(profile.max_order_value ?? 0));
+  const [reviewDate, setReviewDate] = useState(profile.credit_review_date ?? "");
+  const [notas, setNotas]       = useState(profile.notas_credito ?? "");
+  const [saving, setSaving]     = useState(false);
+
+  const creditUsed    = profile.credit_used ?? 0;
+  const creditLimit   = Number(limit) || 0;
+  const usagePct      = creditLimit > 0 ? Math.min((creditUsed / creditLimit) * 100, 100) : 0;
+  const barColor      = usagePct >= 80 ? "bg-red-500" : usagePct >= 60 ? "bg-amber-400" : "bg-[#2D9F6A]";
+
+  async function save() {
+    setSaving(true);
+    await updateClientProfile(profile.id, {
+      credit_approved: approved,
+      credit_limit: Number(limit) || 0,
+      payment_terms: terms,
+      max_order_value: Number(maxOrder) || 0,
+      credit_review_date: reviewDate || undefined,
+      notas_credito: notas || undefined,
+    });
+    await onRefresh();
+    setSaving(false);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Crédito</p>
+        <button onClick={save} disabled={saving} className="flex items-center gap-1.5 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-xs font-bold px-3 py-1.5 rounded-lg transition disabled:opacity-50">
+          <Save size={12} /> {saving ? "Guardando…" : "Guardar"}
+        </button>
       </div>
 
+      {/* Approval toggle */}
+      <div className={`flex items-center justify-between p-3 rounded-xl border ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-[#f9f9f9]")}`}>
+        <div className="flex items-center gap-2">
+          <Shield size={14} className={approved ? "text-[#2D9F6A]" : "text-[#525252]"} />
+          <span className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>Crédito aprobado</span>
+        </div>
+        <button onClick={() => setApproved(!approved)} className={`relative h-5 w-9 rounded-full transition-colors ${approved ? "bg-[#2D9F6A]" : dk("bg-[#333]", "bg-[#d4d4d4]")}`}>
+          <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${approved ? "translate-x-4" : "translate-x-0.5"}`} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Límite de crédito</label>
+          <input type="number" min="0" value={limit} onChange={(e) => setLimit(e.target.value)} className={`w-full border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#2D9F6A]/40 transition ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`} />
+        </div>
+        <div>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Máx. por pedido (0 = sin límite)</label>
+          <input type="number" min="0" value={maxOrder} onChange={(e) => setMaxOrder(e.target.value)} className={`w-full border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#2D9F6A]/40 transition ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`} />
+        </div>
+        <div>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Días netos</label>
+          <select value={terms} onChange={(e) => setTerms(Number(e.target.value))} className={`w-full border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#2D9F6A]/40 transition ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}>
+            {PAYMENT_TERMS_OPTIONS.map((d) => <option key={d} value={d}>{d === 0 ? "Contado" : `Net ${d}`}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Fecha de revisión</label>
+          <div className="relative">
+            <CalendarDays size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#525252]" />
+            <input type="date" value={reviewDate} onChange={(e) => setReviewDate(e.target.value)} className={`w-full border rounded-lg pl-8 pr-3 py-1.5 text-sm outline-none focus:border-[#2D9F6A]/40 transition ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`} />
+          </div>
+        </div>
+      </div>
+
+      {creditLimit > 0 && (
+        <div>
+          <div className="flex justify-between text-[10px] text-[#525252] mb-1">
+            <span>Uso de crédito</span><span>{usagePct.toFixed(0)}%</span>
+          </div>
+          <div className={`h-2 rounded-full overflow-hidden ${dk("bg-[#1f1f1f]", "bg-[#e5e5e5]")}`}>
+            <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${usagePct}%` }} />
+          </div>
+        </div>
+      )}
+
+      <div>
+        <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Notas de crédito</label>
+        <textarea rows={3} value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Observaciones internas…" className={`w-full border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D9F6A]/40 resize-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white placeholder:text-[#404040]", "bg-white border-[#d4d4d4] text-[#171717] placeholder:text-[#a3a3a3]")}`} />
+      </div>
+    </div>
+  );
+}
+
+// ── Datos sub-panel ────────────────────────────────────────────────────────────
+function DatosPanel({ profile, isDark, onRefresh }: { profile: ClientDetailData; isDark: boolean; onRefresh: () => Promise<void> }) {
+  const dk = (d: string, l: string) => isDark ? d : l;
+  const [form, setForm] = useState({
+    razon_social: profile.razon_social ?? "",
+    cuit:         profile.cuit ?? "",
+    direccion:    profile.direccion ?? "",
+    ciudad:       profile.ciudad ?? "",
+    provincia:    profile.provincia ?? "",
+    phone:        profile.phone ?? "",
+    notas_internas: profile.notas_internas ?? "",
+  });
+  const [saving, setSaving] = useState(false);
+
+  const field = (k: keyof typeof form) => (
+    <input value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+      className={`w-full border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#2D9F6A]/40 transition ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`} />
+  );
+
+  async function save() {
+    setSaving(true);
+    await updateClientProfile(profile.id, form);
+    await onRefresh();
+    setSaving(false);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Datos fiscales y contacto</p>
+        <button onClick={save} disabled={saving} className="flex items-center gap-1.5 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-xs font-bold px-3 py-1.5 rounded-lg transition disabled:opacity-50">
+          <Save size={12} /> {saving ? "Guardando…" : "Guardar"}
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Razón social</label>{field("razon_social")}</div>
+        <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">CUIT</label>{field("cuit")}</div>
+        <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Teléfono</label>{field("phone")}</div>
+        <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Dirección</label>{field("direccion")}</div>
+        <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Ciudad</label>{field("ciudad")}</div>
+        <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Provincia</label>{field("provincia")}</div>
+      </div>
+      <div>
+        <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Notas internas</label>
+        <textarea rows={3} value={form.notas_internas} onChange={(e) => setForm({ ...form, notas_internas: e.target.value })} className={`w-full border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D9F6A]/40 resize-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white placeholder:text-[#404040]", "bg-white border-[#d4d4d4] text-[#171717]")}`} />
+      </div>
     </div>
   );
 }

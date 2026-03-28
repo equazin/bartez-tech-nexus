@@ -21,7 +21,9 @@ import Admin from "./pages/Admin";
 import CustomerView from "./pages/CustomerView";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { refetchOnWindowFocus: false } },
+});
 
 const LoadingScreen = () => (
   <div className="min-h-screen bg-background flex items-center justify-center">
