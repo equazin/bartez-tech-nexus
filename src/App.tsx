@@ -18,6 +18,7 @@ import B2BPortal from "./pages/B2BPortal";
 import CartPage from "./pages/CartPage";
 import QuoteRequest from "./pages/QuoteRequest";
 import Admin from "./pages/Admin";
+import CustomerView from "./pages/CustomerView";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -67,6 +68,7 @@ const App = () => (
             <Route path="/b2b-portal" element={<RequireAuth><B2BPortal /></RequireAuth>} />
             <Route path="/cart"      element={<RequireAuth><CartPage /></RequireAuth>} />
             <Route path="/admin" element={<RequireAdmin><Admin /></RequireAdmin>} />
+            <Route path="/clientes/:id" element={<RequireAdmin><CustomerView /></RequireAdmin>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </CurrencyProvider>
