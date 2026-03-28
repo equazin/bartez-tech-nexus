@@ -765,7 +765,7 @@ const Admin = () => {
             <div className="grid md:grid-cols-2 gap-6">
               <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
                 <h2 className={`text-sm font-bold mb-4 ${dk("text-white", "text-[#171717]")}`}>Agregar producto</h2>
-                <ProductForm isDark={isDark} onAdd={(p) => setProducts((prev) => [p, ...prev])} />
+                <ProductForm isDark={isDark} brands={brands} onAdd={(p) => setProducts((prev) => [p, ...prev])} />
               </div>
               <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
                 <div className="flex items-center justify-between mb-4">

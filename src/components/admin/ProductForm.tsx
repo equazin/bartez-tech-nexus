@@ -11,6 +11,7 @@ import {
 const DRAFT_KEY = "bartez_product_draft";
 
 interface Category { id: number; name: string; parent_id: number | null; }
+interface BrandOption { id: string; name: string; }
 interface Spec { key: string; value: string; }
 
 function Toggle({ value, onChange, label, activeColor = "bg-green-500", isDark = true }: {
@@ -36,7 +37,7 @@ function loadDraft() {
   catch { return null; }
 }
 
-export default function ProductForm({ onAdd, isDark = true }: { onAdd: (product: Product) => void; isDark?: boolean }) {
+export default function ProductForm({ onAdd, isDark = true, brands = [] }: { onAdd: (product: Product) => void; isDark?: boolean; brands?: BrandOption[] }) {
   const dk = (d: string, l: string) => isDark ? d : l;
   const INPUT = `w-full ${dk("bg-[#141414] border-[#2a2a2a] text-white placeholder:text-gray-600", "bg-white border-[#d4d4d4] text-[#171717] placeholder:text-gray-400")} border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D9F6A] transition`;
   const LABEL = `block text-xs font-medium ${dk("text-gray-400", "text-gray-600")} mb-1`;
@@ -54,6 +55,7 @@ export default function ProductForm({ onAdd, isDark = true }: { onAdd: (product:
   const [supplierMult, setSupplierMult]    = useState(saved?.supplierMult ?? "1");
   const [categoryId, setCategoryId]        = useState(saved?.categoryId ?? "");
   const [subcategoryId, setSubcategoryId] = useState(saved?.subcategoryId ?? "");
+  const [brandId, setBrandId]             = useState(saved?.brandId ?? "");
   const [newCatName, setNewCatName]        = useState("");
   const [addingCat, setAddingCat]          = useState(false);
   const [stock, setStock]                  = useState(saved?.stock ?? "");
@@ -95,14 +97,14 @@ export default function ProductForm({ onAdd, isDark = true }: { onAdd: (product:
   /* ── persist draft to localStorage on every change ───── */
   useEffect(() => {
     const draft = { name, sku, description, costPrice, ivaRate, supplierId, supplierMult,
-      categoryId, subcategoryId, stock, stockMin, active, featured, specs, tags };
+      categoryId, subcategoryId, brandId, stock, stockMin, active, featured, specs, tags };
 
     // Only save if there's something meaningful
     if (Object.values(draft).some((v) => v !== "" && v !== "0" && v !== "1" && v !== true && !(Array.isArray(v) && v.length === 0))) {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     }
   }, [name, sku, description, costPrice, ivaRate, supplierId, supplierMult,
-      categoryId, subcategoryId, stock, stockMin, active, featured, specs, tags]);
+      categoryId, subcategoryId, brandId, stock, stockMin, active, featured, specs, tags]);
 
   /* ── sku uniqueness debounce ──────────────────────────── */
   useEffect(() => {
@@ -211,6 +213,7 @@ export default function ProductForm({ onAdd, isDark = true }: { onAdd: (product:
       return acc;
     }, {});
 
+    const selectedBrand = brands.find((b) => b.id === brandId);
     const payload = {
       name:                name.trim(),
       sku:                 sku.trim(),
@@ -227,6 +230,8 @@ export default function ProductForm({ onAdd, isDark = true }: { onAdd: (product:
       specs:               specsObj,
       tags,
       iva_rate:            Number(ivaRate),
+      brand_id:            brandId || null,
+      brand_name:          selectedBrand?.name ?? null,
     };
 
     const { data, error: sbError } = await supabase
@@ -244,7 +249,7 @@ export default function ProductForm({ onAdd, isDark = true }: { onAdd: (product:
   function resetForm() {
     localStorage.removeItem(DRAFT_KEY);
     setName(""); setSku(""); setDescription(""); setCostPrice(""); setIvaRate("21");
-    setSupplierId(""); setSupplierMult("1"); setCategoryId(""); setSubcategoryId("");
+    setSupplierId(""); setSupplierMult("1"); setCategoryId(""); setSubcategoryId(""); setBrandId("");
     setStock(""); setStockMin("0"); setActive(true); setFeatured(false);
     setSpecs([]); setTags([]); setTagInput(""); setImageFile(null); setImagePreview("");
     setErrors({});
@@ -410,6 +415,15 @@ export default function ProductForm({ onAdd, isDark = true }: { onAdd: (product:
                 className={INPUT}>
                 <option value="">— General —</option>
                 {subCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          )}
+          {brands.length > 0 && (
+            <div>
+              <label className={LABEL}>Marca</label>
+              <select value={brandId} onChange={(e) => setBrandId(e.target.value)} className={INPUT}>
+                <option value="">— Sin marca —</option>
+                {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
           )}
