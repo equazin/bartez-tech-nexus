@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Upload, Trash2, AlertTriangle, CheckCircle2, X } from "lucide-react";
+import { Upload, Trash2, AlertTriangle, CheckCircle2, X, Download } from "lucide-react";
 import Papa from "papaparse";
 import { supabase } from "@/lib/supabase";
 
@@ -10,6 +10,15 @@ interface PreviewRow { sku: string; id: number; name: string; found: boolean }
 export function BulkDeleteProducts({ isDark = true, onDone }: Props) {
   const dk = (d: string, l: string) => (isDark ? d : l);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  function downloadTemplate() {
+    const csv = ["sku", "LAP-C15I7", "NET-SW24", "UPS-1500"].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = "template_eliminar_productos.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const [preview,   setPreview]   = useState<PreviewRow[]>([]);
   const [running,   setRunning]   = useState(false);
@@ -80,9 +89,17 @@ export function BulkDeleteProducts({ isDark = true, onDone }: Props) {
 
   return (
     <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5 space-y-4`}>
-      <div>
-        <h3 className={`font-bold text-sm ${dk("text-white", "text-[#171717]")}`}>Eliminar productos por CSV</h3>
-        <p className="text-xs text-gray-500 mt-0.5">CSV con columna <code className="font-mono">sku</code> — se muestran los productos a borrar antes de confirmar.</p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h3 className={`font-bold text-sm ${dk("text-white", "text-[#171717]")}`}>Eliminar productos por CSV</h3>
+          <p className="text-xs text-gray-500 mt-0.5">CSV con columna <code className="font-mono">sku</code> — se muestran los productos a borrar antes de confirmar.</p>
+        </div>
+        <button
+          onClick={downloadTemplate}
+          className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition shrink-0 ${dk("border-[#2a2a2a] text-gray-400 hover:text-white hover:bg-[#1c1c1c]", "border-[#e5e5e5] text-[#737373] hover:bg-[#f5f5f5]")}`}
+        >
+          <Download size={11} /> Plantilla CSV
+        </button>
       </div>
 
       {/* Upload zone */}
