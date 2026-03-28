@@ -76,7 +76,14 @@ export default function ProductImport({ onImport, isDark = true }: { onImport: (
           products.push(product);
         });
 
-        setPreview(products);
+        // Deduplicate by SKU — keep last occurrence (same as DB upsert behavior)
+        const seen = new Map<string, Record<string, unknown>>();
+        products.forEach((p) => seen.set(p.sku as string, p));
+        const deduped = Array.from(seen.values());
+        const dupCount = products.length - deduped.length;
+        if (dupCount > 0) errors.push(`⚠ ${dupCount} SKU${dupCount > 1 ? "s" : ""} duplicado${dupCount > 1 ? "s" : ""} en el CSV — se conservó la última fila de cada uno.`);
+
+        setPreview(deduped);
         setParseErrors(errors);
       },
       error: (err) => setParseErrors([err.message]),
