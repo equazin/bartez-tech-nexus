@@ -30,6 +30,7 @@ import {
   uploadPaymentProof,
   type PaymentProofType,
 } from "@/lib/orderEnhancements";
+import { fetchMyInvoices, type Invoice, type InvoiceStatus } from "@/lib/api/invoices";
 
 type CartItem = {
   product: any;
@@ -147,7 +148,26 @@ export default function B2BPortal() {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list" | "table">("list");
-  const [activeTab, setActiveTab] = useState<"catalog" | "orders" | "quotes">("catalog");
+  const [activeTab, setActiveTab] = useState<"catalog" | "orders" | "quotes" | "invoices">("catalog");
+  const [myInvoices, setMyInvoices] = useState<Invoice[]>([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
+
+  const loadMyInvoices = useCallback(async () => {
+    setLoadingInvoices(true);
+    try {
+      const data = await fetchMyInvoices();
+      setMyInvoices(data);
+    } catch {
+      // non-blocking
+    } finally {
+      setLoadingInvoices(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "invoices") loadMyInvoices();
+  }, [activeTab, loadMyInvoices]);
+
   // Quick Order
   const [quickSku, setQuickSku] = useState("");
   const [quickError, setQuickError] = useState("");
@@ -967,9 +987,10 @@ export default function B2BPortal() {
       {/* TABS */}
       <div className={`flex border-b ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")} px-4 md:px-6`}>
         {[
-          { id: "catalog", label: "Catálogo", icon: Package },
-          { id: "orders",  label: `Mis Pedidos${orders.length ? ` (${orders.length})` : ""}`, icon: ClipboardList },
-          { id: "quotes",  label: `Cotizaciones${quotes.length ? ` (${quotes.length})` : ""}`, icon: FileText },
+          { id: "catalog",  label: "Catálogo", icon: Package },
+          { id: "orders",   label: `Mis Pedidos${orders.length ? ` (${orders.length})` : ""}`, icon: ClipboardList },
+          { id: "quotes",   label: `Cotizaciones${quotes.length ? ` (${quotes.length})` : ""}`, icon: FileText },
+          { id: "invoices", label: `Facturas${myInvoices.length ? ` (${myInvoices.length})` : ""}`, icon: FileText },
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -1634,6 +1655,67 @@ export default function B2BPortal() {
               onDelete={deleteQuote}
               onGoToCatalog={() => setActiveTab("catalog")}
             />
+          )}
+
+          {/* ── MIS FACTURAS ── */}
+          {activeTab === "invoices" && (
+            <div className="max-w-3xl">
+              {loadingInvoices ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className={`h-16 rounded-xl animate-pulse ${dk("bg-[#111]", "bg-white")}`} />
+                  ))}
+                </div>
+              ) : myInvoices.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-24 text-gray-600">
+                  <FileText size={36} className="mb-3 opacity-20" />
+                  <p className="text-sm font-medium text-gray-500">No tenés facturas todavía</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {myInvoices.map((inv: Invoice) => {
+                    const STATUS_LABELS: Record<InvoiceStatus, { label: string; cls: string }> = {
+                      draft:     { label: "Borrador",  cls: "text-gray-400" },
+                      sent:      { label: "Enviada",   cls: "text-blue-400" },
+                      paid:      { label: "Pagada",    cls: "text-emerald-400" },
+                      overdue:   { label: "Vencida",   cls: "text-red-400" },
+                      cancelled: { label: "Cancelada", cls: "text-gray-500" },
+                    };
+                    const statusInfo = STATUS_LABELS[inv.status] ?? STATUS_LABELS.draft;
+                    const fmtCur = (n: number) =>
+                      new Intl.NumberFormat("es-AR", { style: "currency", currency: inv.currency, maximumFractionDigits: 0 }).format(n);
+                    return (
+                      <div key={inv.id} className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-5 py-4`}>
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${dk("bg-[#1a1a1a]", "bg-[#f0f0f0]")}`}>
+                              <FileText size={13} className="text-[#2D9F6A]" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className={`text-xs font-bold font-mono ${dk("text-gray-300", "text-[#525252]")}`}>{inv.invoice_number}</p>
+                              <p className="text-[11px] text-gray-500">
+                                {inv.due_date ? `Vence ${new Date(inv.due_date).toLocaleDateString("es-AR")}` : "Sin vencimiento"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4 shrink-0">
+                            <span className={`text-[11px] font-semibold ${statusInfo.cls}`}>{statusInfo.label}</span>
+                            <div className="text-right">
+                              <p className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>{fmtCur(inv.total)}</p>
+                              {inv.paid_at && (
+                                <p className="text-[11px] text-emerald-500">
+                                  Pagada {new Date(inv.paid_at).toLocaleDateString("es-AR")}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
 
           {/* ── MIS PEDIDOS ── */}

@@ -14,6 +14,7 @@ import {
   Users, Package, ClipboardList, LogOut, UserPlus, X,
   DollarSign, Pencil, Check, LayoutDashboard, Sun, Moon, Phone,
   Truck, Download, Building2, Tag, BarChart2, Activity, Wifi, Bookmark,
+  Layers, FileText,
 } from "lucide-react";
 import { exportOrdersCSV, exportCatalogCSV, exportCatalogPDF } from "@/lib/exports";
 import { SalesDashboard } from "@/components/admin/SalesDashboard";
@@ -27,6 +28,8 @@ import { ReportsTab } from "@/components/admin/ReportsTab";
 import { ActivityLogTab } from "@/components/admin/ActivityLogTab";
 import { PriceStockImport } from "@/components/admin/PriceStockImport";
 import { AirSyncTab } from "@/components/admin/AirSyncTab";
+import { StockTab } from "@/components/admin/StockTab";
+import { InvoicesTab } from "@/components/admin/InvoicesTab";
 import { ErrorBoundary } from "@/components/admin/ErrorBoundary";
 import { CreateOrderModal } from "@/components/admin/CreateOrderModal";
 import { logActivity } from "@/lib/api/activityLog";
@@ -76,7 +79,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-type Tab = "dashboard" | "products" | "orders" | "kanban" | "clients" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "airsync";
+type Tab = "dashboard" | "products" | "orders" | "kanban" | "clients" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "airsync" | "stock" | "invoices";
 
 const Admin = () => {
   const { signOut, session, isAdmin, canManageProducts, canManageOrders } = useAuth();
@@ -381,6 +384,8 @@ const Admin = () => {
     { id: "clients",    label: "Clientes",   icon: Users,         badge: clients.length, adminOnly: true },
     { id: "suppliers",  label: "Proveedores",icon: Building2,     adminOnly: true },
     { id: "brands",     label: "Marcas",     icon: Bookmark,      adminOnly: true },
+    { id: "stock",      label: "Stock",      icon: Layers,        adminOnly: true },
+    { id: "invoices",   label: "Facturas",   icon: FileText,      adminOnly: true },
     { id: "pricing",    label: "Precios",    icon: Tag,           adminOnly: true },
     { id: "reports",    label: "Reportes",   icon: BarChart2,     adminOnly: true, badge: lowStockCount || undefined },
     { id: "activity",   label: "Actividad",  icon: Activity,      adminOnly: true },
@@ -1056,6 +1061,16 @@ const Admin = () => {
         {/* ── MARCAS ── */}
         {activeTab === "brands" && (
           <BrandsTab isDark={isDark} />
+        )}
+
+        {/* ── STOCK ── */}
+        {activeTab === "stock" && (
+          <StockTab isDark={isDark} />
+        )}
+
+        {/* ── FACTURAS ── */}
+        {activeTab === "invoices" && (
+          <InvoicesTab isDark={isDark} />
         )}
 
         {/* ── MOTOR DE PRECIOS ── */}
