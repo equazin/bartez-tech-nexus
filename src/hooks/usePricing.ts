@@ -1,13 +1,15 @@
 import { useCallback } from "react";
 import { usePricingRules } from "@/hooks/usePricingRules";
 import { resolveMarginWithContext } from "@/lib/pricingEngine";
-import { getUnitPrice } from "@/lib/pricing";
+import { getUnitPrice, getEffectiveCostPrice } from "@/lib/pricing";
 import type { Product } from "@/models/products";
 import type { UserProfile } from "@/lib/supabase";
 
 export interface PriceResult {
-  /** Base cost price (respects price_tiers) */
+  /** Costo base del proveedor (sin multiplicador) — para mostrar al admin */
   cost: number;
+  /** Costo efectivo = cost × supplier_multiplier — base real del precio de venta */
+  effectiveCost: number;
   /** Effective margin % after all rules */
   margin: number;
   /** Unit sell price sin IVA */
@@ -43,14 +45,16 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
         profile?.id,
         quantity
       );
-      const cost       = getUnitPrice(product, quantity);
-      const unitPrice  = cost * (1 + margin / 100);
+      const cost         = getUnitPrice(product, quantity);
+      const effectiveCost = getEffectiveCostPrice(product, quantity);
+      const unitPrice    = effectiveCost * (1 + margin / 100);
       const totalPrice = unitPrice * quantity;
       const ivaRate    = product.iva_rate ?? 21;
       const ivaAmount  = totalPrice * (ivaRate / 100);
 
       return {
         cost,
+        effectiveCost,
         margin,
         unitPrice,
         totalPrice,
@@ -75,9 +79,10 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
     ) => {
       return items.map(({ product, quantity, margin: overrideMargin }) => {
         const base = computePrice(product, quantity);
-        const actualMargin = overrideMargin ?? base.margin;
-        const cost = getUnitPrice(product, quantity);
-        const unitPrice = cost * (1 + actualMargin / 100);
+        const actualMargin  = overrideMargin ?? base.margin;
+        const cost          = getUnitPrice(product, quantity);
+        const effectiveCost = getEffectiveCostPrice(product, quantity);
+        const unitPrice     = effectiveCost * (1 + actualMargin / 100);
         const totalPriceRaw = unitPrice * quantity;
         const ivaRate = product.iva_rate ?? 21;
         const ivaAmountRaw = totalPriceRaw * (ivaRate / 100);
@@ -93,6 +98,7 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
           totalWithIVA: Number(convertPrice(totalWithIVARaw).toFixed(2)),
           margin:       actualMargin,
           cost:         Number(convertPrice(cost).toFixed(2)),
+          effectiveCost: Number(convertPrice(effectiveCost).toFixed(2)),
         };
       });
     },
