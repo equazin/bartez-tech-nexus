@@ -148,7 +148,7 @@ export default function B2BPortal() {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list" | "table">("list");
-  const [activeTab, setActiveTab] = useState<"catalog" | "orders" | "quotes" | "invoices">("catalog");
+  const [activeTab, setActiveTab] = useState<"catalog" | "orders" | "quotes" | "invoices" | "cuenta">("catalog");
   const [myInvoices, setMyInvoices] = useState<Invoice[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
 
@@ -991,6 +991,7 @@ export default function B2BPortal() {
           { id: "orders",   label: `Mis Pedidos${orders.length ? ` (${orders.length})` : ""}`, icon: ClipboardList },
           { id: "quotes",   label: `Cotizaciones${quotes.length ? ` (${quotes.length})` : ""}`, icon: FileText },
           { id: "invoices", label: `Facturas${myInvoices.length ? ` (${myInvoices.length})` : ""}`, icon: FileText },
+          { id: "cuenta",   label: "Mi Cuenta", icon: Users },
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -1656,6 +1657,141 @@ export default function B2BPortal() {
               onGoToCatalog={() => setActiveTab("catalog")}
             />
           )}
+
+          {/* ── MI CUENTA ── */}
+          {activeTab === "cuenta" && profile && (() => {
+            const confirmedOrders  = orders.filter((o) => !["rejected"].includes(o.status));
+            const totalSpent       = confirmedOrders.reduce((s, o) => s + o.total, 0);
+            const pendingOrders    = orders.filter((o) => ["pending", "approved", "preparing"].includes(o.status));
+            const pendingTotal     = pendingOrders.reduce((s, o) => s + o.total, 0);
+            const paidInvoices     = myInvoices.filter((i) => i.status === "paid");
+            const paidTotal        = paidInvoices.reduce((s, i) => s + i.total, 0);
+            const unpaidInvoices   = myInvoices.filter((i) => ["sent", "overdue", "draft"].includes(i.status));
+            const unpaidTotal      = unpaidInvoices.reduce((s, i) => s + i.total, 0);
+            const overdueInvoices  = myInvoices.filter((i) => i.status === "overdue");
+            const creditLimit      = (profile as any).credit_limit ?? 0;
+            const creditPct        = creditLimit > 0 ? Math.min(100, (creditUsed / creditLimit) * 100) : 0;
+            const creditAvail      = Math.max(0, creditLimit - creditUsed);
+
+            return (
+              <div className="max-w-3xl space-y-4">
+                {/* Header */}
+                <div>
+                  <h2 className={`text-base font-bold ${dk("text-white", "text-[#171717]")}`}>Mi Cuenta</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">{profile.company_name || profile.contact_name}</p>
+                </div>
+
+                {/* KPI grid */}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {[
+                    { label: "Total comprado", value: formatPrice(totalSpent), color: "text-[#2D9F6A]" },
+                    { label: "En curso", value: formatPrice(pendingTotal), color: "text-amber-400" },
+                    { label: "Facturas pagadas", value: formatPrice(paidTotal), color: "text-emerald-400" },
+                    { label: "Facturas pendientes", value: formatPrice(unpaidTotal), color: unpaidTotal > 0 ? "text-red-400" : dk("text-gray-400", "text-[#737373]") },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className={`border rounded-xl px-4 py-3 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
+                      <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{label}</p>
+                      <p className={`text-lg font-bold ${color}`}>{value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Credit */}
+                {creditLimit > 0 && (
+                  <div className={`border rounded-xl px-5 py-4 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
+                    <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${dk("text-gray-400", "text-[#737373]")}`}>Crédito disponible</p>
+                    <div className="flex items-end justify-between mb-2">
+                      <div>
+                        <span className={`text-2xl font-extrabold ${creditPct >= 80 ? "text-red-400" : "text-[#2D9F6A]"}`}>
+                          {formatPrice(creditAvail)}
+                        </span>
+                        <span className={`text-xs ml-2 ${dk("text-gray-500", "text-[#737373]")}`}>
+                          disponible de {formatPrice(creditLimit)}
+                        </span>
+                      </div>
+                      <span className={`text-sm font-bold ${creditPct >= 80 ? "text-red-400" : dk("text-gray-400", "text-[#737373]")}`}>
+                        {creditPct.toFixed(0)}% usado
+                      </span>
+                    </div>
+                    <div className={`h-2 rounded-full overflow-hidden ${dk("bg-[#1c1c1c]", "bg-[#e8e8e8]")}`}>
+                      <div
+                        className={`h-full rounded-full transition-all ${creditPct >= 100 ? "bg-red-500" : creditPct >= 80 ? "bg-amber-400" : "bg-[#2D9F6A]"}`}
+                        style={{ width: `${creditPct}%` }}
+                      />
+                    </div>
+                    {creditUsed > 0 && (
+                      <p className={`text-[11px] mt-1.5 ${dk("text-gray-500", "text-[#a3a3a3]")}`}>
+                        {formatPrice(creditUsed)} comprometido en pedidos activos
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Overdue invoices alert */}
+                {overdueInvoices.length > 0 && (
+                  <div className="flex items-start gap-3 border border-red-500/30 bg-red-500/10 rounded-xl px-4 py-3">
+                    <AlertTriangle size={16} className="text-red-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-red-400">
+                        {overdueInvoices.length} factura{overdueInvoices.length > 1 ? "s" : ""} vencida{overdueInvoices.length > 1 ? "s" : ""}
+                      </p>
+                      <p className="text-xs text-red-400/70 mt-0.5">
+                        Total pendiente: {formatPrice(overdueInvoices.reduce((s, i) => s + i.total, 0))}. Contactá a tu ejecutivo de cuenta.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Recent orders */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className={`text-xs font-bold uppercase tracking-wider ${dk("text-gray-400", "text-[#737373]")}`}>Últimos pedidos</p>
+                    <button onClick={() => setActiveTab("orders")} className="text-xs text-[#2D9F6A] hover:underline">Ver todos</button>
+                  </div>
+                  {confirmedOrders.slice(0, 5).map((o) => {
+                    const lbl = (o as any).order_number ?? `#${String(o.id).slice(-6).toUpperCase()}`;
+                    return (
+                      <div key={o.id} className={`flex items-center justify-between px-4 py-2.5 rounded-lg mb-1 ${dk("bg-[#111]", "bg-white border border-[#f0f0f0]")}`}>
+                        <span className={`text-xs font-mono ${dk("text-gray-300", "text-[#525252]")}`}>{lbl}</span>
+                        <span className="text-xs text-gray-500">{new Date((o as any).created_at).toLocaleDateString("es-AR")}</span>
+                        <span className={`text-xs font-bold ${dk("text-white", "text-[#171717]")}`}>{formatPrice(o.total)}</span>
+                      </div>
+                    );
+                  })}
+                  {confirmedOrders.length === 0 && (
+                    <p className="text-xs text-gray-500">Sin pedidos confirmados.</p>
+                  )}
+                </div>
+
+                {/* Recent invoices */}
+                {myInvoices.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className={`text-xs font-bold uppercase tracking-wider ${dk("text-gray-400", "text-[#737373]")}`}>Últimas facturas</p>
+                      <button onClick={() => setActiveTab("invoices")} className="text-xs text-[#2D9F6A] hover:underline">Ver todas</button>
+                    </div>
+                    {myInvoices.slice(0, 5).map((inv) => {
+                      const STATUS_CLS: Record<string, string> = {
+                        paid: "text-emerald-400", sent: "text-blue-400", overdue: "text-red-400",
+                        draft: "text-gray-500", cancelled: "text-gray-600",
+                      };
+                      return (
+                        <div key={inv.id} className={`flex items-center justify-between px-4 py-2.5 rounded-lg mb-1 ${dk("bg-[#111]", "bg-white border border-[#f0f0f0]")}`}>
+                          <span className={`text-xs font-mono ${dk("text-gray-300", "text-[#525252]")}`}>{inv.invoice_number}</span>
+                          <span className={`text-xs font-semibold ${STATUS_CLS[inv.status] ?? "text-gray-500"}`}>
+                            {{ paid: "Pagada", sent: "Enviada", overdue: "Vencida", draft: "Borrador", cancelled: "Cancelada" }[inv.status as string] ?? inv.status}
+                          </span>
+                          <span className={`text-xs font-bold ${dk("text-white", "text-[#171717]")}`}>
+                            {new Intl.NumberFormat("es-AR", { style: "currency", currency: inv.currency, maximumFractionDigits: 0 }).format(inv.total)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* ── MIS FACTURAS ── */}
           {activeTab === "invoices" && (
