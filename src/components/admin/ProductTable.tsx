@@ -47,6 +47,21 @@ export default function ProductTable({ products, categories, brands = [], isDark
   // Bulk action dropdown
   const [bulkOpen, setBulkOpen] = useState(false);
 
+  const rootCats = categories.filter((c) => c.parent_id === null);
+
+  // Build set of category names that match the selected filter:
+  // if a root cat is selected, include its children too
+  const matchingCatNames = useMemo(() => {
+    if (filterCat === "all") return null;
+    const sel = categories.find((c) => c.name === filterCat);
+    if (!sel) return new Set([filterCat.toLowerCase()]);
+    const names = new Set<string>([sel.name.toLowerCase()]);
+    categories
+      .filter((c) => c.parent_id === sel.id)
+      .forEach((c) => names.add(c.name.toLowerCase()));
+    return names;
+  }, [filterCat, categories]);
+
   // ── Filtering & sorting ──────────────────────────────────────
   const filtered = useMemo(() => {
     const term = search.toLowerCase();
@@ -75,21 +90,6 @@ export default function ProductTable({ products, categories, brands = [], isDark
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const rootCats = categories.filter((c) => c.parent_id === null);
-
-  // Build set of category names that match the selected filter:
-  // if a root cat is selected, include its children too
-  const matchingCatNames = useMemo(() => {
-    if (filterCat === "all") return null;
-    const sel = categories.find((c) => c.name === filterCat);
-    if (!sel) return new Set([filterCat.toLowerCase()]);
-    const names = new Set<string>([sel.name.toLowerCase()]);
-    // include children of the selected category
-    categories
-      .filter((c) => c.parent_id === sel.id)
-      .forEach((c) => names.add(c.name.toLowerCase()));
-    return names;
-  }, [filterCat, categories]);
 
   // Reset page when filters change
   useMemo(() => { setPage(1); }, [search, filterCat, filterStatus, sortField, sortDir]);
