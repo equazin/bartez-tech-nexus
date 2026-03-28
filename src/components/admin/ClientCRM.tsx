@@ -13,7 +13,7 @@ import {
   TrendingUp, Package, Save, X, Send, Eye, AlertTriangle,
   ArrowLeft, Pencil, Activity, LogIn, LogOut, MousePointer,
   ShoppingCart, Hash, CreditCard, BarChart2, Landmark, Settings,
-  LayoutGrid, Shield, CalendarDays, UserCheck, UserX,
+  LayoutGrid, Shield, CalendarDays, UserCheck, UserX, Loader2,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -26,6 +26,7 @@ export interface ClientProfile {
   role: string;
   phone?: string;
   active?: boolean;
+  email?: string;
 }
 
 interface SupabaseOrder {
@@ -609,7 +610,7 @@ function ClientDetail({
           ) : !extProfile ? (
             <div className="py-10 text-center text-xs text-red-400">No se pudo cargar el perfil extendido.</div>
           ) : (
-            <DatosPanel profile={extProfile} isDark={isDark} onRefresh={async () => { setExtProfile(await fetchClientProfile(client.id)); }} />
+            <DatosPanel profile={extProfile} isDark={isDark} clientEmail={client.email} onRefresh={async () => { setExtProfile(await fetchClientProfile(client.id)); }} />
           )}
         </div>
       )}
@@ -757,7 +758,14 @@ function CreditPanel({ profile, isDark, onRefresh }: { profile: ClientDetailData
 }
 
 // ── Datos sub-panel ────────────────────────────────────────────────────────────
-function DatosPanel({ profile, isDark, onRefresh }: { profile: ClientDetailData; isDark: boolean; onRefresh: () => Promise<void> }) {
+function DatosPanel({
+  profile, isDark, clientEmail, onRefresh,
+}: {
+  profile: ClientDetailData;
+  isDark: boolean;
+  clientEmail?: string;
+  onRefresh: () => Promise<void>;
+}) {
   const dk = (d: string, l: string) => isDark ? d : l;
   const [form, setForm] = useState({
     razon_social: profile.razon_social ?? "",
@@ -769,6 +777,7 @@ function DatosPanel({ profile, isDark, onRefresh }: { profile: ClientDetailData;
     notas_internas: profile.notas_internas ?? "",
   });
   const [saving, setSaving] = useState(false);
+  const [resetState, setResetState] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   const field = (k: keyof typeof form) => (
     <input value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })}
@@ -782,8 +791,59 @@ function DatosPanel({ profile, isDark, onRefresh }: { profile: ClientDetailData;
     setSaving(false);
   }
 
+  async function sendPasswordReset() {
+    if (!clientEmail) return;
+    setResetState("sending");
+    const { error } = await supabase.auth.resetPasswordForEmail(clientEmail, {
+      redirectTo: `${window.location.origin}/login`,
+    });
+    setResetState(error ? "error" : "sent");
+    if (!error) setTimeout(() => setResetState("idle"), 4000);
+  }
+
+  const email = clientEmail || profile.email;
+
   return (
     <div className="space-y-4">
+      {/* Email + password reset */}
+      <div className={`${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-[#f9f9f9] border-[#e5e5e5]")} border rounded-xl p-4 space-y-3`}>
+        <p className={`text-xs font-bold ${dk("text-white", "text-[#171717]")}`}>Acceso al portal</p>
+        <div>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Email de acceso</label>
+          <div className={`flex items-center gap-2 border rounded-lg px-3 py-1.5 ${dk("bg-[#0d0d0d] border-[#262626]", "bg-white border-[#d4d4d4]")}`}>
+            <Mail size={13} className="text-[#525252] shrink-0" />
+            <span className={`text-sm flex-1 ${email ? dk("text-white", "text-[#171717]") : "text-[#525252] italic"}`}>
+              {email || "Sin email registrado"}
+            </span>
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Contraseña</label>
+          <div className={`flex items-center justify-between gap-3 border rounded-lg px-3 py-1.5 ${dk("bg-[#0d0d0d] border-[#262626]", "bg-white border-[#d4d4d4]")}`}>
+            <span className="text-sm text-[#525252] italic tracking-widest select-none">••••••••••••</span>
+            <button
+              onClick={sendPasswordReset}
+              disabled={!email || resetState === "sending" || resetState === "sent"}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-lg transition shrink-0 ${
+                resetState === "sent"
+                  ? "bg-emerald-500/20 text-emerald-400"
+                  : resetState === "error"
+                  ? "bg-red-500/20 text-red-400"
+                  : "bg-[#2D9F6A]/15 text-[#2D9F6A] hover:bg-[#2D9F6A]/25 disabled:opacity-40"
+              }`}
+            >
+              {resetState === "sending" && <><Loader2 size={11} className="animate-spin" /> Enviando…</>}
+              {resetState === "sent"    && <><CheckCircle2 size={11} /> Email enviado</>}
+              {resetState === "error"   && <><AlertTriangle size={11} /> Error al enviar</>}
+              {resetState === "idle"    && <><Send size={11} /> Enviar recuperación</>}
+            </button>
+          </div>
+          {!email && (
+            <p className="text-[10px] text-amber-500 mt-1">Sin email registrado — no se puede enviar recuperación.</p>
+          )}
+        </div>
+      </div>
+
       <div className="flex items-center justify-between">
         <p className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Datos fiscales y contacto</p>
         <button onClick={save} disabled={saving} className="flex items-center gap-1.5 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-xs font-bold px-3 py-1.5 rounded-lg transition disabled:opacity-50">

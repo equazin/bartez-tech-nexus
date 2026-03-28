@@ -220,7 +220,7 @@ const Admin = () => {
     setLoadingClients(true);
     const { data } = await supabase
       .from("profiles")
-      .select("id, company_name, contact_name, client_type, default_margin, role, phone, active")
+      .select("id, company_name, contact_name, client_type, default_margin, role, phone, active, email")
       .order("company_name");
     if (data) setClients(data as ClientProfile[]);
     setLoadingClients(false);
@@ -283,6 +283,7 @@ const Admin = () => {
       default_margin: newClient.default_margin,
       role: newClient.role,
       phone: newClient.phone.trim() || null,
+      email: newClient.email,
     }).eq("id", data.user.id);
 
     setCreatingClient(false);

@@ -15,6 +15,7 @@ export interface ClientDetail {
   default_margin: number;
   role: string;
   phone?: string;
+  email?: string;
   credit_limit: number;
   credit_used: number;
   // campos 016
@@ -84,7 +85,7 @@ export async function fetchClientProfile(clientId: string): Promise<ClientDetail
   const { data, error } = await supabase
     .from("profiles")
     .select(
-      "id, company_name, contact_name, client_type, default_margin, role, phone, " +
+      "id, company_name, contact_name, client_type, default_margin, role, phone, email, " +
       "credit_limit, credit_used, estado, vendedor_id, precio_lista, " +
       "razon_social, cuit, direccion, ciudad, provincia, notas_internas, " +
       "payment_terms, credit_approved, credit_approved_by, credit_approved_at, " +
