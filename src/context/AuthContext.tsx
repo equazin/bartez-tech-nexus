@@ -61,7 +61,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // TOKEN_REFRESHED fires on every tab focus — ignore it to avoid
+      // resetting loading state and re-fetching the profile unnecessarily.
+      if (event === "TOKEN_REFRESHED") return;
+
       setSession(session);
       if (session?.user) {
         setLoading(true);
