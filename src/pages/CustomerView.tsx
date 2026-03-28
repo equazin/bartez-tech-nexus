@@ -13,11 +13,13 @@ import {
   fetchClientInvoices,
   fetchAccountMovements,
   fetchClientNotes,
+  updateClientProfile,
   type ClientDetail,
   type ClientOrder,
   type ClientQuote,
   type AccountMovement,
   type ClientNote,
+  type PrecioLista,
 } from "@/lib/api/clientDetail";
 import type { Invoice } from "@/lib/api/invoices";
 import { supabase } from "@/lib/supabase";
@@ -495,8 +497,7 @@ function ConfigTab({
   async function save() {
     setSaving(true);
     setSaved(false);
-    const { updateClientProfile: update } = await import("@/lib/api/clientDetail");
-    await update(client.id, {
+    await updateClientProfile(client.id, {
       company_name:   form.company_name,
       contact_name:   form.contact_name,
       razon_social:   form.razon_social,
@@ -552,7 +553,7 @@ function ConfigTab({
           <label className="text-xs text-[#737373] mb-1 block">Lista de precios</label>
           <select
             value={form.precio_lista}
-            onChange={(e) => setForm((f) => ({ ...f, precio_lista: e.target.value as typeof f.precio_lista }))}
+            onChange={(e) => setForm((f) => ({ ...f, precio_lista: e.target.value as PrecioLista }))}
             className={`w-full border rounded-lg px-3 py-2 text-sm outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white","bg-[#f5f5f5] border-[#e0e0e0] text-[#171717]")}`}
           >
             <option value="standard">Standard</option>
