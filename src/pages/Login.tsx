@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
@@ -8,12 +8,15 @@ import { motion } from "framer-motion";
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { session, loading, signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const isInactive = (location.state as { inactive?: boolean } | null)?.inactive === true;
 
   useEffect(() => {
     if (!loading && session) {
@@ -126,6 +129,16 @@ const Login = () => {
                 </button>
               </div>
             </div>
+
+            {isInactive && (
+              <motion.p
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-sm text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2"
+              >
+                Tu cuenta está pendiente de aprobación. Contactanos para activar el acceso.
+              </motion.p>
+            )}
 
             {error && (
               <motion.p

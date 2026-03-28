@@ -32,11 +32,15 @@ const LoadingScreen = () => (
 );
 
 const RequireAuth = ({ children }: { children: JSX.Element }) => {
-  const { session, loading } = useAuth();
+  const { session, profile, loading } = useAuth();
   // Show loading only on the initial auth check (no session yet).
   // If we already have a session, never flash loading — token refreshes are silent.
   if (loading && !session) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
+  // Block inactive clients from the B2B portal
+  if (profile && profile.active === false && profile.role !== "admin" && profile.role !== "vendedor") {
+    return <Navigate to="/login" replace state={{ inactive: true }} />;
+  }
   return children;
 };
 

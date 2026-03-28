@@ -32,4 +32,6 @@ export interface UserProfile {
   role: UserRole;
   /** Límite de crédito en USD (0 = sin límite) */
   credit_limit?: number;
+  /** Cuenta activa — false = acceso bloqueado al portal */
+  active?: boolean;
 }

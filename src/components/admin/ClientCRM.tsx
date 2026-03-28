@@ -13,7 +13,7 @@ import {
   TrendingUp, Package, Save, X, Send, Eye, AlertTriangle,
   ArrowLeft, Pencil, Activity, LogIn, LogOut, MousePointer,
   ShoppingCart, Hash, CreditCard, BarChart2, Landmark, Settings,
-  LayoutGrid, Shield, CalendarDays,
+  LayoutGrid, Shield, CalendarDays, UserCheck, UserX,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -25,6 +25,7 @@ export interface ClientProfile {
   default_margin: number;
   role: string;
   phone?: string;
+  active?: boolean;
 }
 
 interface SupabaseOrder {
@@ -43,6 +44,7 @@ export interface ClientCRMProps {
   isDark: boolean;
   onSave: (id: string, changes: { client_type?: ClientType; default_margin?: number }) => Promise<void>;
   onNewClient: () => void;
+  onRefreshClients?: () => void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -762,20 +764,37 @@ function DatosPanel({ profile, isDark, onRefresh }: { profile: ClientDetailData;
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export function ClientCRM({ clients, orders, loading, isDark, onSave, onNewClient }: ClientCRMProps) {
+export function ClientCRM({ clients, orders, loading, isDark, onSave, onNewClient, onRefreshClients }: ClientCRMProps) {
   const dk = (d: string, l: string) => isDark ? d : l;
-  const [search, setSearch] = useState("");
+  const [search, setSearch]       = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "all">("active");
+  const [activating, setActivating] = useState<string | null>(null);
+
+  const inactiveCount = useMemo(() => clients.filter((c) => c.active === false).length, [clients]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return clients.filter((c) =>
-      !q ||
-      c.company_name?.toLowerCase().includes(q) ||
-      c.contact_name?.toLowerCase().includes(q) ||
-      c.client_type?.toLowerCase().includes(q)
-    );
-  }, [clients, search]);
+    return clients.filter((c) => {
+      const isActive = c.active !== false; // default true for existing rows
+      if (statusFilter === "active"   && !isActive) return false;
+      if (statusFilter === "inactive" && isActive)  return false;
+      return (
+        !q ||
+        c.company_name?.toLowerCase().includes(q) ||
+        c.contact_name?.toLowerCase().includes(q) ||
+        c.client_type?.toLowerCase().includes(q)
+      );
+    });
+  }, [clients, search, statusFilter]);
+
+  async function toggleActive(client: ClientProfile) {
+    setActivating(client.id);
+    const newVal = client.active === false;
+    await supabase.from("profiles").update({ active: newVal }).eq("id", client.id);
+    setActivating(null);
+    onRefreshClients?.();
+  }
 
   const selected = clients.find((c) => c.id === selectedId) ?? null;
 
@@ -816,6 +835,27 @@ export function ClientCRM({ clients, orders, loading, isDark, onSave, onNewClien
           </button>
         </div>
 
+        {/* Status filter */}
+        <div className={`flex rounded-lg p-0.5 gap-0.5 ${dk("bg-[#0d0d0d]", "bg-[#f0f0f0]")}`}>
+          {(["active", "inactive", "all"] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setStatusFilter(f)}
+              className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-[10px] font-semibold transition ${
+                statusFilter === f
+                  ? f === "inactive"
+                    ? "bg-amber-500/20 text-amber-400"
+                    : dk("bg-[#1a1a1a] text-white", "bg-white text-[#171717] shadow-sm")
+                  : "text-[#525252] hover:text-[#737373]"
+              }`}
+            >
+              {f === "active"   && <><UserCheck size={10} /> Activos</>}
+              {f === "inactive" && <><UserX size={10} /> Pendientes {inactiveCount > 0 && <span className="bg-amber-500/30 text-amber-400 px-1 rounded">{inactiveCount}</span>}</>}
+              {f === "all"      && <>Todos</>}
+            </button>
+          ))}
+        </div>
+
         <div className="relative">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#525252] pointer-events-none" />
           <input
@@ -837,19 +877,33 @@ export function ClientCRM({ clients, orders, loading, isDark, onSave, onNewClien
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center py-16 text-[#525252] gap-2">
               <Users size={28} className="opacity-20" />
-              <p className="text-xs">{search ? "Sin resultados" : "Sin clientes"}</p>
+              <p className="text-xs">{search ? "Sin resultados" : statusFilter === "inactive" ? "Sin clientes pendientes" : "Sin clientes"}</p>
             </div>
           ) : (
             filtered.map((c) => (
-              <ClientListItem
-                key={c.id}
-                client={c}
-                isDark={isDark}
-                isActive={c.id === selectedId}
-                orderCount={orderCountMap[c.id] || 0}
-                quoteCount={quoteCountMap[c.id] || 0}
-                onClick={() => setSelectedId(c.id === selectedId ? null : c.id)}
-              />
+              <div key={c.id} className="relative group/row">
+                <ClientListItem
+                  client={c}
+                  isDark={isDark}
+                  isActive={c.id === selectedId}
+                  orderCount={orderCountMap[c.id] || 0}
+                  quoteCount={quoteCountMap[c.id] || 0}
+                  onClick={() => setSelectedId(c.id === selectedId ? null : c.id)}
+                />
+                {/* Activate / deactivate quick action */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleActive(c); }}
+                  disabled={activating === c.id}
+                  title={c.active === false ? "Activar cliente" : "Desactivar cliente"}
+                  className={`absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/row:opacity-100 transition p-1 rounded-lg text-[10px] font-semibold ${
+                    c.active === false
+                      ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                      : "bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                  } ${activating === c.id ? "opacity-50 pointer-events-none" : ""}`}
+                >
+                  {c.active === false ? <UserCheck size={12} /> : <UserX size={12} />}
+                </button>
+              </div>
             ))
           )}
         </div>

@@ -59,16 +59,20 @@ export function BulkDeleteProducts({ isDark = true, onDone }: Props) {
   async function lookupSkus(skus: string[]) {
     setRunning(true);
     try {
+      // Fetch all products (same approach as SupplierPriceImport) to avoid
+      // URL-length issues with large .in() arrays
+      const skuSet = new Set(skus);
       const { data: products, error } = await supabase
         .from("products")
         .select("id, sku, name")
-        .in("sku", skus);
+        .limit(5000);
 
       if (error) { setParseError(error.message); return; }
 
       const productMap: Record<string, { id: number; name: string }> = {};
       (products ?? []).forEach((p: any) => {
-        if (p.sku) productMap[p.sku.toUpperCase()] = { id: p.id, name: p.name };
+        if (p.sku && skuSet.has(p.sku.toUpperCase()))
+          productMap[p.sku.toUpperCase()] = { id: p.id, name: p.name };
       });
 
       setPreview(skus.map((sku) => ({

@@ -210,7 +210,7 @@ const Admin = () => {
     setLoadingClients(true);
     const { data } = await supabase
       .from("profiles")
-      .select("id, company_name, contact_name, client_type, default_margin, role, phone")
+      .select("id, company_name, contact_name, client_type, default_margin, role, phone, active")
       .order("company_name");
     if (data) setClients(data as ClientProfile[]);
     setLoadingClients(false);
@@ -1191,6 +1191,7 @@ const Admin = () => {
             isDark={isDark}
             onSave={saveClientFields}
             onNewClient={() => { setShowNewClient(true); setCreateError(""); }}
+            onRefreshClients={fetchClients}
           />
 
             {/* Modal nuevo cliente */}
