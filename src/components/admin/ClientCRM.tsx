@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Quote, QuoteStatus } from "@/models/quote";
 import { useCurrency } from "@/context/CurrencyContext";
 import { CLIENT_TYPE_MARGINS, ClientType, supabase } from "@/lib/supabase";
@@ -7,7 +8,7 @@ import {
   Percent, ShoppingBag, FileText, CheckCircle2, XCircle, Clock,
   TrendingUp, Package, Save, X, Send, Eye, AlertTriangle,
   ArrowLeft, Pencil, Activity, LogIn, LogOut, MousePointer,
-  ShoppingCart, Hash,
+  ShoppingCart, Hash, ExternalLink,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -183,6 +184,7 @@ function ClientDetail({
 }) {
   const dk = (d: string, l: string) => isDark ? d : l;
   const { formatPrice } = useCurrency();
+  const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [editType, setEditType] = useState<ClientType>(client.client_type);
   const [editMargin, setEditMargin] = useState(String(client.default_margin));
@@ -282,17 +284,26 @@ function ClientDetail({
             </div>
           </div>
 
-          {!editing && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => { setEditing(true); setEditType(client.client_type); setEditMargin(String(client.default_margin)); }}
-              className={`flex items-center gap-1.5 text-xs transition px-3 py-1.5 rounded-lg ${
-                dk("text-[#737373] hover:text-white border border-[#1f1f1f] hover:border-[#2a2a2a]",
-                   "text-[#737373] hover:text-[#171717] border border-[#e5e5e5] hover:border-[#d4d4d4]")
-              }`}
+              onClick={() => navigate(`/clientes/${client.id}`)}
+              title="Ver Customer 360"
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#2D9F6A]/40 text-[#2D9F6A] hover:bg-[#2D9F6A]/10 transition"
             >
-              <Pencil size={11} /> Editar
+              <ExternalLink size={11} /> Ver 360°
             </button>
-          )}
+            {!editing && (
+              <button
+                onClick={() => { setEditing(true); setEditType(client.client_type); setEditMargin(String(client.default_margin)); }}
+                className={`flex items-center gap-1.5 text-xs transition px-3 py-1.5 rounded-lg ${
+                  dk("text-[#737373] hover:text-white border border-[#1f1f1f] hover:border-[#2a2a2a]",
+                     "text-[#737373] hover:text-[#171717] border border-[#e5e5e5] hover:border-[#d4d4d4]")
+                }`}
+              >
+                <Pencil size={11} /> Editar
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-4 text-xs text-[#737373]">

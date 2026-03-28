@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, ShoppingBag, FileText, Receipt,
-  Wallet, Settings, Loader2,
+  Wallet, Settings, Loader2, Upload, ExternalLink,
 } from "lucide-react";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
+import { NotesFeed } from "@/components/customer/NotesFeed";
 import {
   fetchClientProfile,
   fetchClientOrders,
@@ -19,6 +20,7 @@ import {
   type ClientNote,
 } from "@/lib/api/clientDetail";
 import type { Invoice } from "@/lib/api/invoices";
+import { supabase } from "@/lib/supabase";
 import { useCurrency } from "@/context/CurrencyContext";
 
 // ── Tab config ────────────────────────────────────────────────────────────────
@@ -87,13 +89,15 @@ function fmtDate(iso: string) {
 // ── Resumen Tab ───────────────────────────────────────────────────────────────
 
 function ResumenTab({
-  client, orders, invoices, movements, isDark,
+  client, orders, invoices, movements, notes, isDark, onNotesRefresh,
 }: {
   client: ClientDetail;
   orders: ClientOrder[];
   invoices: Invoice[];
   movements: AccountMovement[];
+  notes: ClientNote[];
   isDark: boolean;
+  onNotesRefresh: () => void;
 }) {
   const dk = (d: string, l: string) => (isDark ? d : l);
   const { formatPrice } = useCurrency();
@@ -196,6 +200,14 @@ function ResumenTab({
           <p className="px-4 py-6 text-xs text-[#525252] text-center">Sin actividad aún</p>
         )}
       </div>
+
+      {/* Notas CRM */}
+      <NotesFeed
+        clientId={client.id}
+        notes={notes}
+        isDark={isDark}
+        onAdd={onNotesRefresh}
+      />
     </div>
   );
 }
@@ -279,50 +291,124 @@ function CotizacionesTab({ quotes, isDark }: { quotes: ClientQuote[]; isDark: bo
 
 // ── Facturas Tab ──────────────────────────────────────────────────────────────
 
-function FacturasTab({ invoices, isDark }: { invoices: Invoice[]; isDark: boolean }) {
+function FacturasTab({
+  invoices, clientId, isDark, onRefresh,
+}: {
+  invoices: Invoice[];
+  clientId: string;
+  isDark: boolean;
+  onRefresh: () => void;
+}) {
   const dk = (d: string, l: string) => (isDark ? d : l);
   const { formatPrice } = useCurrency();
+  const fileRef  = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState<string | null>(null); // invoice id being uploaded
+  const [uploadErr, setUploadErr] = useState("");
+
+  async function handlePdfUpload(inv: Invoice, file: File) {
+    // Validate MIME
+    if (file.type !== "application/pdf") {
+      setUploadErr(`${inv.invoice_number}: Solo se aceptan archivos PDF`);
+      return;
+    }
+    setUploading(inv.id);
+    setUploadErr("");
+    try {
+      const path = `${clientId}/${inv.id}.pdf`;
+      const { error: upErr } = await supabase.storage
+        .from("invoices")
+        .upload(path, file, { upsert: true, contentType: "application/pdf" });
+      if (upErr) throw new Error(upErr.message);
+
+      const { data: urlData } = supabase.storage
+        .from("invoices")
+        .getPublicUrl(path);
+
+      const { error: dbErr } = await supabase
+        .from("invoices")
+        .update({ pdf_url: urlData.publicUrl })
+        .eq("id", inv.id);
+      if (dbErr) throw new Error(dbErr.message);
+
+      onRefresh();
+    } catch (e: unknown) {
+      setUploadErr(e instanceof Error ? e.message : "Error al subir PDF");
+    } finally {
+      setUploading(null);
+    }
+  }
 
   return (
-    <div className={`${dk("bg-[#111] border-[#1f1f1f]","bg-white border-[#e5e5e5]")} border rounded-xl overflow-hidden`}>
-      <div className={`grid grid-cols-[1fr_100px_90px_90px_70px] gap-2 px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest ${dk("bg-[#0a0a0a] text-[#525252]","bg-[#f5f5f5] text-[#a3a3a3]")}`}>
-        <span>Factura</span><span>Emisión</span><span>Vencim.</span><span className="text-right">Total</span><span className="text-right">Estado</span>
-      </div>
-      {invoices.length === 0 && (
-        <p className="text-center text-xs text-[#525252] py-10">Sin facturas</p>
+    <div className="space-y-2">
+      {uploadErr && (
+        <p className="text-xs text-red-400 px-1">{uploadErr}</p>
       )}
-      {invoices.map((inv) => (
-        <div key={inv.id} className={`grid grid-cols-[1fr_100px_90px_90px_70px] gap-2 px-4 py-2.5 border-t items-center ${dk("border-[#1a1a1a] odd:bg-[#0d0d0d]","border-[#f0f0f0] odd:bg-[#fafafa]")}`}>
-          <div className="flex items-center gap-2">
-            <span className={`text-xs font-medium ${dk("text-[#d4d4d4]","text-[#171717]")}`}>
+      {/* Hidden file input — shared, triggered per-row */}
+      <input ref={fileRef} type="file" accept="application/pdf" className="hidden" />
+
+      <div className={`${dk("bg-[#111] border-[#1f1f1f]","bg-white border-[#e5e5e5]")} border rounded-xl overflow-hidden`}>
+        <div className={`grid grid-cols-[1fr_95px_85px_90px_80px_50px] gap-2 px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest ${dk("bg-[#0a0a0a] text-[#525252]","bg-[#f5f5f5] text-[#a3a3a3]")}`}>
+          <span>Factura</span><span>Emisión</span><span>Vencim.</span>
+          <span className="text-right">Total</span><span className="text-right">Estado</span>
+          <span className="text-right">PDF</span>
+        </div>
+        {invoices.length === 0 && (
+          <p className="text-center text-xs text-[#525252] py-10">Sin facturas</p>
+        )}
+        {invoices.map((inv) => (
+          <div key={inv.id} className={`grid grid-cols-[1fr_95px_85px_90px_80px_50px] gap-2 px-4 py-2.5 border-t items-center ${dk("border-[#1a1a1a] odd:bg-[#0d0d0d]","border-[#f0f0f0] odd:bg-[#fafafa]")}`}>
+            <span className={`text-xs font-medium truncate ${dk("text-[#d4d4d4]","text-[#171717]")}`}>
               {inv.invoice_number}
             </span>
-            {inv.pdf_url && (
-              <a
-                href={inv.pdf_url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-[10px] text-[#2D9F6A] hover:underline"
-              >
-                PDF
-              </a>
-            )}
+            <span className="text-xs text-[#737373]">{fmtDate(inv.created_at)}</span>
+            <span className={`text-xs ${inv.status === "overdue" ? "text-red-400" : "text-[#737373]"}`}>
+              {inv.due_date ? fmtDate(inv.due_date) : "—"}
+            </span>
+            <span className={`text-xs font-bold tabular-nums text-right ${dk("text-white","text-[#171717]")}`}>
+              {formatPrice(inv.total)}
+            </span>
+            <div className="flex justify-end">
+              <StatusBadge
+                label={(INVOICE_STATUS[inv.status] ?? { label: inv.status, cls: "" }).label}
+                cls={(INVOICE_STATUS[inv.status] ?? { cls: "" }).cls}
+              />
+            </div>
+            {/* PDF upload / view */}
+            <div className="flex justify-end">
+              {uploading === inv.id ? (
+                <Loader2 size={13} className="animate-spin text-[#2D9F6A]" />
+              ) : inv.pdf_url ? (
+                <a
+                  href={inv.pdf_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Ver PDF"
+                  className="text-[#2D9F6A] hover:text-[#25875a] transition"
+                >
+                  <ExternalLink size={13} />
+                </a>
+              ) : (
+                <button
+                  title="Subir PDF"
+                  onClick={() => {
+                    const input = fileRef.current;
+                    if (!input) return;
+                    input.onchange = (e) => {
+                      const file = (e.target as HTMLInputElement).files?.[0];
+                      if (file) handlePdfUpload(inv, file);
+                      input.value = "";
+                    };
+                    input.click();
+                  }}
+                  className={`transition ${dk("text-[#525252] hover:text-white","text-[#aaa] hover:text-[#171717]")}`}
+                >
+                  <Upload size={13} />
+                </button>
+              )}
+            </div>
           </div>
-          <span className="text-xs text-[#737373]">{fmtDate(inv.created_at)}</span>
-          <span className={`text-xs ${inv.status === "overdue" ? "text-red-400" : "text-[#737373]"}`}>
-            {inv.due_date ? fmtDate(inv.due_date) : "—"}
-          </span>
-          <span className={`text-xs font-bold tabular-nums text-right ${dk("text-white","text-[#171717]")}`}>
-            {formatPrice(inv.total)}
-          </span>
-          <div className="flex justify-end">
-            <StatusBadge
-              label={(INVOICE_STATUS[inv.status] ?? { label: inv.status, cls: "" }).label}
-              cls={(INVOICE_STATUS[inv.status] ?? { cls: "" }).cls}
-            />
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
@@ -602,10 +688,10 @@ export default function CustomerView() {
         </div>
 
         {/* Tab content */}
-        {activeTab === "resumen"      && <ResumenTab      client={client} orders={orders} invoices={invoices} movements={movements} isDark={isDark} />}
+        {activeTab === "resumen"      && <ResumenTab      client={client} orders={orders} invoices={invoices} movements={movements} notes={notes} isDark={isDark} onNotesRefresh={load} />}
         {activeTab === "pedidos"      && <PedidosTab      orders={orders}   isDark={isDark} />}
         {activeTab === "cotizaciones" && <CotizacionesTab quotes={quotes}   isDark={isDark} />}
-        {activeTab === "facturas"     && <FacturasTab     invoices={invoices} isDark={isDark} />}
+        {activeTab === "facturas"     && <FacturasTab     invoices={invoices} clientId={client.id} isDark={isDark} onRefresh={load} />}
         {activeTab === "cuenta"       && <CuentaTab       movements={movements} isDark={isDark} />}
         {activeTab === "config"       && <ConfigTab       client={client} isDark={isDark} onRefresh={load} />}
 

@@ -31,6 +31,7 @@ import {
   type PaymentProofType,
 } from "@/lib/orderEnhancements";
 import { fetchMyInvoices, type Invoice, type InvoiceStatus } from "@/lib/api/invoices";
+import { puedeComprar } from "@/lib/api/clientDetail";
 
 type CartItem = {
   product: any;
@@ -180,7 +181,8 @@ export default function B2BPortal() {
     getSavedCarts(profile?.id || "guest")
   );
   const [orderSubmitting, setOrderSubmitting] = useState(false);
-  const [orderSuccess, setOrderSuccess] = useState(false);
+  const [orderSuccess, setOrderSuccess]   = useState(false);
+  const [creditError,  setCreditError]    = useState("");
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
   const [orderProofs, setOrderProofs] = useState<Record<string, ReturnType<typeof getOrderProofs>>>({});
@@ -466,6 +468,24 @@ export default function B2BPortal() {
 
   const handleConfirmOrder = async () => {
     if (!cartItems.length) return;
+    setCreditError("");
+
+    // ── Validar crédito y estado de cuenta ────────────────────────────────
+    if (profile?.id) {
+      try {
+        const check = await puedeComprar(profile.id);
+        if (!check.puede) {
+          const msgs: Record<string, string> = {
+            cuenta_bloqueada: "Tu cuenta está bloqueada. Contactá a tu ejecutivo de cuenta.",
+            cuenta_inactiva:  "Tu cuenta está inactiva. Contactá a tu ejecutivo de cuenta.",
+            credito_agotado:  "No tenés crédito disponible para realizar este pedido. Revisá tu cuenta corriente.",
+          };
+          setCreditError(msgs[check.razon ?? ""] ?? "No podés realizar pedidos en este momento.");
+          return;
+        }
+      } catch { /* si el RPC falla, no bloqueamos el pedido */ }
+    }
+
     // Validar stock y mínimo antes de confirmar
     for (const item of cartItems) {
       if (item.quantity > getAvailableStock(item.product)) {
@@ -1052,6 +1072,13 @@ export default function B2BPortal() {
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {creditError && (
+        <div className="mx-4 mt-3 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl p-3 text-sm font-medium flex items-center gap-2">
+          <AlertTriangle size={15} />
+          {creditError}
         </div>
       )}
 
