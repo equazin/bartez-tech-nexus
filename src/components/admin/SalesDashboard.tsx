@@ -1,11 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Quote, QuoteStatus } from "@/models/quote";
 import { useCurrency } from "@/context/CurrencyContext";
 import {
   TrendingUp, FileText, Clock, Target, ShoppingBag,
   CheckCircle2, XCircle, AlertTriangle, Send, Eye, Ban,
   ArrowUpRight, ArrowDownRight, Minus as MinusIcon,
-  Package, Users, Trash2,
+  Package, Users, Trash2, Receipt, CreditCard,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
@@ -536,11 +536,48 @@ function DeleteHistoryPanel({ isDark, onRefreshOrders }: { isDark: boolean; onRe
   );
 }
 
+// ── Async invoice/credit KPIs ─────────────────────────────────────────────────
+interface InvoiceKpis {
+  pendingAmount: number;
+  overdueCount: number;
+  overdueAmount: number;
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Props) {
   const dk = (d: string, l: string) => isDark ? d : l;
   const { formatPrice } = useCurrency();
   const quotes = useMemo(() => getAllQuotes(), []);
+
+  // Async: invoices + credit exposure
+  const [invoiceKpis, setInvoiceKpis] = useState<InvoiceKpis | null>(null);
+  const [creditExposure, setCreditExposure] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Invoice KPIs (sent + overdue)
+    supabase
+      .from("invoices")
+      .select("total, status")
+      .in("status", ["sent", "overdue"])
+      .then(({ data }) => {
+        const rows = data ?? [];
+        setInvoiceKpis({
+          pendingAmount: rows.reduce((s, r) => s + (r.total ?? 0), 0),
+          overdueCount:  rows.filter((r) => r.status === "overdue").length,
+          overdueAmount: rows.filter((r) => r.status === "overdue").reduce((s, r) => s + (r.total ?? 0), 0),
+        });
+      });
+
+    // Credit exposure (sum of credit_used across all clients)
+    supabase
+      .from("profiles")
+      .select("credit_used")
+      .not("credit_used", "is", null)
+      .then(({ data }) => {
+        const total = (data ?? []).reduce((s, r) => s + (r.credit_used ?? 0), 0);
+        setCreditExposure(total);
+      });
+  }, []);
 
   const approvedOrders  = useMemo(() => orders.filter(isRevenueOrder), [orders]);
   const pendingOrders   = useMemo(() => orders.filter((o) => o.status === "pending"),  [orders]);
@@ -659,6 +696,42 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
             <Users size={14} className="text-[#2D9F6A]" />
             <p className={`text-xl font-extrabold tabular-nums ${dk("text-white", "text-[#171717]")}`}>{clients.length}</p>
           </div>
+        </div>
+      </div>
+
+      {/* ── Invoice + Credit KPIs ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-4 py-3`}>
+          <div className="flex items-center gap-2 mb-1">
+            <Receipt size={12} className="text-blue-400" />
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#525252]">Facturas pendientes</p>
+          </div>
+          <p className={`text-xl font-extrabold tabular-nums ${invoiceKpis ? "text-blue-400" : dk("text-[#525252]", "text-[#a3a3a3]")}`}>
+            {invoiceKpis != null ? formatPrice(invoiceKpis.pendingAmount) : "…"}
+          </p>
+        </div>
+        <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-4 py-3`}>
+          <div className="flex items-center gap-2 mb-1">
+            <AlertTriangle size={12} className="text-red-400" />
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#525252]">Facturas vencidas</p>
+          </div>
+          <div className="flex items-end gap-2">
+            <p className={`text-xl font-extrabold tabular-nums ${invoiceKpis && invoiceKpis.overdueCount > 0 ? "text-red-400" : dk("text-[#525252]", "text-[#a3a3a3]")}`}>
+              {invoiceKpis != null ? invoiceKpis.overdueCount : "…"}
+            </p>
+            {invoiceKpis != null && invoiceKpis.overdueAmount > 0 && (
+              <p className="text-[10px] text-red-400/70 mb-0.5 tabular-nums">{formatPrice(invoiceKpis.overdueAmount)}</p>
+            )}
+          </div>
+        </div>
+        <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-4 py-3`}>
+          <div className="flex items-center gap-2 mb-1">
+            <CreditCard size={12} className="text-amber-400" />
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#525252]">Exposición crédito</p>
+          </div>
+          <p className={`text-xl font-extrabold tabular-nums ${creditExposure != null && creditExposure > 0 ? "text-amber-400" : dk("text-[#525252]", "text-[#a3a3a3]")}`}>
+            {creditExposure != null ? formatPrice(creditExposure) : "…"}
+          </p>
         </div>
       </div>
 
