@@ -20,6 +20,7 @@ interface ImportResult {
   supplier: string;
   status: "ok" | "not_found" | "no_supplier" | "error";
   message: string;
+  priceAlert?: { oldPrice: number; newPrice: number; pct: number }; // >10% change
 }
 
 interface SupplierOption { id: string; name: string }
@@ -120,6 +121,23 @@ export function SupplierPriceImport({ isDark = true }: Props) {
       if (leadTime   != null && !isNaN(leadTime)   && leadTime   >= 0) updates.lead_time_days   = leadTime;
       if (externalId)                                                    updates.external_id      = externalId;
 
+      // Check existing price for alert detection
+      let priceAlert: ImportResult["priceAlert"] | undefined;
+      if (costPrice != null) {
+        const { data: existing } = await supabase
+          .from("product_suppliers")
+          .select("cost_price")
+          .eq("product_id", productId)
+          .eq("supplier_id", resolvedSupplierId)
+          .maybeSingle();
+        if (existing?.cost_price && existing.cost_price > 0) {
+          const pct = ((costPrice - existing.cost_price) / existing.cost_price) * 100;
+          if (Math.abs(pct) >= 10) {
+            priceAlert = { oldPrice: existing.cost_price, newPrice: costPrice, pct };
+          }
+        }
+      }
+
       // Upsert product_suppliers row
       const { error } = await supabase
         .from("product_suppliers")
@@ -149,7 +167,7 @@ export function SupplierPriceImport({ isDark = true }: Props) {
         externalId                       ? `ExtID: ${externalId}`                   : null,
       ].filter(Boolean).join(" · ");
 
-      out.push({ sku, supplier: supplierLabel, status: "ok", message: changes || "Sin cambios válidos" });
+      out.push({ sku, supplier: supplierLabel, status: "ok", message: changes || "Sin cambios válidos", priceAlert });
     }
 
     setResults(out);
@@ -258,7 +276,19 @@ export function SupplierPriceImport({ isDark = true }: Props) {
                 <span className={`text-[10px] ${r.status === "ok" ? "text-emerald-400" : "text-red-400"}`}>
                   {r.status === "ok" ? "OK" : r.status === "not_found" ? "SKU no encontrado" : r.status === "no_supplier" ? "Sin proveedor" : "Error"}
                 </span>
-                <span className={`text-[10px] break-all ${dk("text-gray-400", "text-[#737373]")}`}>{r.message}</span>
+                <div className="text-[10px] break-all">
+                  <span className={dk("text-gray-400", "text-[#737373]")}>{r.message}</span>
+                  {r.priceAlert && (
+                    <div className="flex items-center gap-1 mt-0.5 text-amber-400">
+                      <AlertTriangle size={9} />
+                      <span>
+                        {r.priceAlert.pct > 0 ? "▲" : "▼"}
+                        {Math.abs(r.priceAlert.pct).toFixed(1)}%
+                        {" "}({r.priceAlert.oldPrice.toLocaleString()} → {r.priceAlert.newPrice.toLocaleString()})
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>

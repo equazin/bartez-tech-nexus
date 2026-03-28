@@ -109,6 +109,114 @@ export function exportCatalogPDF(
   doc.save("catalogo-bartez.pdf");
 }
 
+// ── Reports CSV (ventas por cliente) ─────────────────────────────────────────
+
+export function exportReportsCSV(
+  orders: Array<{
+    id: string;
+    order_number?: string;
+    total: number;
+    status: string;
+    created_at: string;
+    client_id?: string;
+  }>,
+  clients: Array<{ id: string; company_name?: string; contact_name?: string }>
+) {
+  const clientMap = new Map(clients.map((c) => [c.id, c.company_name || c.contact_name || c.id]));
+  const rows = orders.map((o) => ({
+    "Nro. Pedido": o.order_number ?? `ORD-${o.id.slice(-6).toUpperCase()}`,
+    "Cliente":     clientMap.get(o.client_id ?? "") ?? o.client_id ?? "",
+    "Fecha":       new Date(o.created_at).toLocaleDateString("es-AR"),
+    "Estado":      o.status,
+    "Total":       o.total,
+  }));
+  const csv = Papa.unparse(rows);
+  downloadBlob(csv, `reporte-ventas-${new Date().toISOString().slice(0, 10)}.csv`, "text/csv;charset=utf-8;");
+}
+
+// ── Remito PDF ────────────────────────────────────────────────────────────────
+
+export function exportRemitoPDF(order: {
+  id: string;
+  order_number?: string;
+  numero_remito?: string;
+  created_at: string;
+  status: string;
+  total: number;
+  products: Array<{ name: string; sku?: string; quantity: number; total_price?: number; unit_price?: number }>;
+}, clientName: string, formatPrice: (v: number) => string) {
+  const doc = new jsPDF();
+  const fecha = new Date(order.created_at).toLocaleDateString("es-AR");
+  const label = order.order_number ?? `ORD-${order.id.slice(-6).toUpperCase()}`;
+
+  // Header strip
+  doc.setFillColor(45, 159, 106);
+  doc.rect(0, 0, 210, 22, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text("REMITO DE ENTREGA", 14, 10);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.text("Bartez Tecnología · bartez.com.ar", 14, 17);
+
+  doc.setTextColor(0, 0, 0);
+
+  // Meta block
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.text("Pedido:", 14, 32);
+  doc.text("Remito:", 14, 38);
+  doc.text("Fecha:", 14, 44);
+  doc.text("Cliente:", 14, 50);
+
+  doc.setFont("helvetica", "normal");
+  doc.text(label, 40, 32);
+  doc.text(order.numero_remito || "—", 40, 38);
+  doc.text(fecha, 40, 44);
+  doc.text(clientName, 40, 50);
+
+  // Items table
+  autoTable(doc, {
+    startY: 60,
+    head: [["SKU", "Descripción", "Cant.", "P. Unit.", "Total"]],
+    body: order.products.map((p) => [
+      p.sku ?? "—",
+      p.name,
+      String(p.quantity),
+      formatPrice(p.unit_price ?? 0),
+      formatPrice(p.total_price ?? 0),
+    ]),
+    styles: { fontSize: 9, cellPadding: 3 },
+    headStyles: { fillColor: [45, 159, 106], textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [250, 250, 250] },
+    columnStyles: {
+      0: { cellWidth: 25, font: "courier" },
+      1: { cellWidth: 85 },
+      2: { cellWidth: 18, halign: "center" },
+      3: { cellWidth: 28, halign: "right" },
+      4: { cellWidth: 28, halign: "right" },
+    },
+  });
+
+  // Total footer
+  const finalY = (doc as any).lastAutoTable?.finalY ?? 140;
+  doc.setFillColor(45, 159, 106);
+  doc.rect(130, finalY + 4, 68, 9, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text(`TOTAL: ${formatPrice(order.total)}`, 198, finalY + 10, { align: "right" });
+
+  // Footer
+  doc.setTextColor(150, 150, 150);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.text("Bartez Tecnología — Este documento es válido como comprobante de entrega.", 14, 285);
+
+  doc.save(`remito-${label}-${fecha}.pdf`);
+}
+
 // ── Orders CSV ────────────────────────────────────────────────────────────────
 
 export function exportOrdersCSV(orders: PortalOrder[]) {

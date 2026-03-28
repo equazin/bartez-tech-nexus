@@ -16,7 +16,7 @@ import {
   Truck, Download, Building2, Tag, BarChart2, Activity, Wifi, Bookmark,
   Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag,
 } from "lucide-react";
-import { exportOrdersCSV, exportCatalogCSV, exportCatalogPDF } from "@/lib/exports";
+import { exportOrdersCSV, exportCatalogCSV, exportCatalogPDF, exportReportsCSV, exportRemitoPDF } from "@/lib/exports";
 import { SalesDashboard } from "@/components/admin/SalesDashboard";
 import { ClientCRM } from "@/components/admin/ClientCRM";
 import OrderKanban, { type KanbanStatus, type KanbanOrder } from "@/components/admin/OrderKanban";
@@ -37,6 +37,8 @@ import { PurchaseOrdersTab } from "@/components/admin/PurchaseOrdersTab";
 import { SupplierPriceImport } from "@/components/admin/SupplierPriceImport";
 import { ErrorBoundary } from "@/components/admin/ErrorBoundary";
 import { CreateOrderModal } from "@/components/admin/CreateOrderModal";
+import { NotificationBell } from "@/components/admin/NotificationBell";
+import { AdminSearch } from "@/components/admin/AdminSearch";
 import { logActivity } from "@/lib/api/activityLog";
 
 interface SupabaseOrder {
@@ -170,9 +172,11 @@ const Admin = () => {
   // Realtime orders for kanban
   const { orders: rtOrders, updateStatus: rtUpdateStatus } = useOrdersRealtime();
 
-  // Order tab filters
+  // Order tab filters + pagination
   const [filterOrderStatus, setFilterOrderStatus] = useState("all");
   const [filterOrderClient, setFilterOrderClient] = useState("all");
+  const [ordersPage,        setOrdersPage]        = useState(1);
+  const ORDERS_PER_PAGE = 25;
 
   async function fetchProducts() {
     setLoadingProducts(true);
@@ -586,12 +590,20 @@ const Admin = () => {
         </span>
 
         <div className="ml-auto flex items-center gap-1.5">
+          <AdminSearch
+            isDark={isDark}
+            products={products}
+            clients={clients}
+            orders={orders}
+            onNavigate={(tab) => setActiveTab(tab as Tab)}
+          />
           <button
             onClick={() => { fetchProducts(); fetchOrders(); fetchClients(); }}
             className={`flex items-center gap-1.5 text-xs transition px-2.5 py-1.5 rounded-lg ${dk("text-[#737373] hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
           >
             <RefreshCw size={12} /> <span className="hidden sm:inline">Actualizar</span>
           </button>
+          <NotificationBell isDark={isDark} />
           <button
             onClick={toggleTheme}
             className={`p-1.5 rounded-lg transition ${dk("text-[#525252] hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
@@ -892,7 +904,7 @@ const Admin = () => {
               <div className="flex gap-2 flex-wrap">
                 <select
                   value={filterOrderStatus}
-                  onChange={(e) => setFilterOrderStatus(e.target.value)}
+                  onChange={(e) => { setFilterOrderStatus(e.target.value); setOrdersPage(1); }}
                   className={`border rounded-lg px-2 py-1.5 text-xs outline-none flex-1 min-w-[120px] ${dk("bg-[#111] border-[#2a2a2a] text-gray-300", "bg-white border-[#d4d4d4] text-[#525252]")}`}
                 >
                   <option value="all">Todos los estados</option>
@@ -906,7 +918,7 @@ const Admin = () => {
                 </select>
                 <select
                   value={filterOrderClient}
-                  onChange={(e) => setFilterOrderClient(e.target.value)}
+                  onChange={(e) => { setFilterOrderClient(e.target.value); setOrdersPage(1); }}
                   className={`border rounded-lg px-2 py-1.5 text-xs outline-none flex-1 min-w-[140px] ${dk("bg-[#111] border-[#2a2a2a] text-gray-300", "bg-white border-[#d4d4d4] text-[#525252]")}`}
                 >
                   <option value="all">Todos los clientes</option>
@@ -931,12 +943,14 @@ const Admin = () => {
               ) : orders.length === 0 ? (
                 <div className="text-center py-20 text-gray-500 text-sm">No hay pedidos todavía.</div>
               ) : (() => {
-                const visibleOrders = orders.filter((o) => {
+                const allFiltered = orders.filter((o) => {
                   if (filterOrderStatus !== "all" && o.status !== filterOrderStatus) return false;
                   if (filterOrderClient !== "all" && o.client_id !== filterOrderClient) return false;
                   return true;
                 });
-                return visibleOrders.length === 0 ? (
+                const totalPages = Math.ceil(allFiltered.length / ORDERS_PER_PAGE);
+                const visibleOrders = allFiltered.slice((ordersPage - 1) * ORDERS_PER_PAGE, ordersPage * ORDERS_PER_PAGE);
+                return allFiltered.length === 0 ? (
                   <div className="text-center py-12 text-gray-500 text-sm">Sin resultados para los filtros seleccionados.</div>
                 ) : (
                 <div className="space-y-2">
@@ -972,6 +986,30 @@ const Admin = () => {
                       </div>
                     </div>
                   ))}
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between pt-2">
+                      <span className={`text-xs ${dk("text-[#525252]","text-[#a3a3a3]")}`}>
+                        {allFiltered.length} pedidos · pág. {ordersPage} de {totalPages}
+                      </span>
+                      <div className="flex gap-1">
+                        <button
+                          disabled={ordersPage === 1}
+                          onClick={() => setOrdersPage((p) => p - 1)}
+                          className={`text-xs px-2.5 py-1 rounded-lg border transition disabled:opacity-30 ${dk("border-[#2a2a2a] text-[#737373] hover:text-white hover:bg-[#1c1c1c]","border-[#e5e5e5] text-[#737373] hover:bg-[#f5f5f5]")}`}
+                        >
+                          ← Ant.
+                        </button>
+                        <button
+                          disabled={ordersPage === totalPages}
+                          onClick={() => setOrdersPage((p) => p + 1)}
+                          className={`text-xs px-2.5 py-1 rounded-lg border transition disabled:opacity-30 ${dk("border-[#2a2a2a] text-[#737373] hover:text-white hover:bg-[#1c1c1c]","border-[#e5e5e5] text-[#737373] hover:bg-[#f5f5f5]")}`}
+                        >
+                          Sig. →
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })()}
@@ -986,9 +1024,21 @@ const Admin = () => {
                   <StatusBadge status={selectedOrder.status} />
                 </div>
                 {selectedOrder.numero_remito && (
-                  <div className={`flex items-center gap-1.5 mb-3 text-xs ${dk("text-blue-400", "text-blue-600")}`}>
-                    <Truck size={11} />
-                    Remito: <span className="font-mono font-bold">{selectedOrder.numero_remito}</span>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`flex items-center gap-1.5 text-xs ${dk("text-blue-400", "text-blue-600")}`}>
+                      <Truck size={11} />
+                      Remito: <span className="font-mono font-bold">{selectedOrder.numero_remito}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const client = clients.find((c) => c.id === selectedOrder.client_id);
+                        const clientName = client ? (client.company_name || client.contact_name || client.id) : "";
+                        exportRemitoPDF(selectedOrder as any, clientName, formatPrice);
+                      }}
+                      className="flex items-center gap-1 text-[10px] text-[#2D9F6A] hover:underline font-medium"
+                    >
+                      <Download size={11} /> Descargar PDF
+                    </button>
                   </div>
                 )}
 
@@ -1293,12 +1343,23 @@ const Admin = () => {
 
         {/* ── REPORTES ── */}
         {activeTab === "reports" && (
-          <ReportsTab
-            products={products}
-            orders={orders as any}
-            formatPrice={formatPrice}
-            isDark={isDark}
-          />
+          <div className="space-y-4 max-w-5xl">
+            {/* Export ventas CSV */}
+            <div className="flex justify-end">
+              <button
+                onClick={() => exportReportsCSV(orders as any, clients)}
+                className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border transition ${dk("border-[#2a2a2a] text-gray-400 hover:text-white hover:bg-[#1c1c1c]","border-[#e5e5e5] text-[#737373] hover:bg-[#f5f5f5]")}`}
+              >
+                <Download size={12} /> Exportar ventas CSV
+              </button>
+            </div>
+            <ReportsTab
+              products={products}
+              orders={orders as any}
+              formatPrice={formatPrice}
+              isDark={isDark}
+            />
+          </div>
         )}
 
         {/* ── ACTIVIDAD ── */}
