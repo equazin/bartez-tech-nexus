@@ -63,9 +63,12 @@ export function SupplierPriceImport({ isDark = true }: Props) {
     Papa.parse<CsvRow>(file, {
       header: true,
       skipEmptyLines: true,
-      complete: (res) => setPreview(res.data),
+      complete: (res) => {
+        e.target.value = "";
+        setPreview(res.data);
+      },
+      error: () => { e.target.value = ""; },
     });
-    e.target.value = "";
   }
 
   async function runImport() {

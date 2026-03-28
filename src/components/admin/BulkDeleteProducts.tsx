@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { Upload, Trash2, AlertTriangle, CheckCircle2, X, Download } from "lucide-react";
+import { useState } from "react";
+import { Upload, Trash2, AlertTriangle, CheckCircle2, X, Download, Loader2 } from "lucide-react";
 import Papa from "papaparse";
 import { supabase } from "@/lib/supabase";
 
@@ -9,7 +9,6 @@ interface PreviewRow { sku: string; id: number; name: string; found: boolean }
 
 export function BulkDeleteProducts({ isDark = true, onDone }: Props) {
   const dk = (d: string, l: string) => (isDark ? d : l);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   function downloadTemplate() {
     const csv = ["sku", "LAP-C15I7", "NET-SW24", "UPS-1500"].join("\n");
@@ -24,40 +23,65 @@ export function BulkDeleteProducts({ isDark = true, onDone }: Props) {
   const [running,   setRunning]   = useState(false);
   const [results,   setResults]   = useState<{ sku: string; ok: boolean; message: string }[]>([]);
   const [confirmed, setConfirmed] = useState(false);
+  const [parseError, setParseError] = useState("");
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setResults([]);
     setConfirmed(false);
     setPreview([]);
+    setParseError("");
 
     Papa.parse<{ sku: string }>(file, {
       header: true,
       skipEmptyLines: true,
-      complete: async (res) => {
-        const skus = res.data.map((r) => (r.sku ?? "").trim().toUpperCase()).filter(Boolean);
-        if (!skus.length) return;
-
-        const { data: products } = await supabase
-          .from("products")
-          .select("id, sku, name")
-          .in("sku", skus);
-
-        const productMap: Record<string, { id: number; name: string }> = {};
-        (products ?? []).forEach((p: any) => {
-          if (p.sku) productMap[p.sku.toUpperCase()] = { id: p.id, name: p.name };
-        });
-
-        setPreview(skus.map((sku) => ({
-          sku,
-          id:    productMap[sku]?.id ?? 0,
-          name:  productMap[sku]?.name ?? "—",
-          found: !!productMap[sku],
-        })));
+      complete: (res) => {
+        // Reset input here, inside complete, so File is fully read first
+        e.target.value = "";
+        const skus = res.data
+          .map((r) => (r.sku ?? "").trim().toUpperCase())
+          .filter(Boolean);
+        if (!skus.length) {
+          setParseError("No se encontraron SKUs. Verificá que la columna se llame exactamente \"sku\".");
+          return;
+        }
+        // Async lookup extracted from PapaParse callback
+        lookupSkus(skus);
+      },
+      error: (err) => {
+        e.target.value = "";
+        setParseError(err.message);
       },
     });
-    e.target.value = "";
+  }
+
+  async function lookupSkus(skus: string[]) {
+    setRunning(true);
+    try {
+      const { data: products, error } = await supabase
+        .from("products")
+        .select("id, sku, name")
+        .in("sku", skus);
+
+      if (error) { setParseError(error.message); return; }
+
+      const productMap: Record<string, { id: number; name: string }> = {};
+      (products ?? []).forEach((p: any) => {
+        if (p.sku) productMap[p.sku.toUpperCase()] = { id: p.id, name: p.name };
+      });
+
+      setPreview(skus.map((sku) => ({
+        sku,
+        id:    productMap[sku]?.id ?? 0,
+        name:  productMap[sku]?.name ?? "—",
+        found: !!productMap[sku],
+      })));
+    } catch (err: unknown) {
+      setParseError(err instanceof Error ? err.message : "Error al buscar productos");
+    } finally {
+      setRunning(false);
+    }
   }
 
   async function runDelete() {
@@ -103,15 +127,24 @@ export function BulkDeleteProducts({ isDark = true, onDone }: Props) {
       </div>
 
       {/* Upload zone */}
-      <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} className="hidden" />
+      {parseError && (
+        <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+          <AlertTriangle size={12} className="shrink-0" /> {parseError}
+        </div>
+      )}
+
       {preview.length === 0 && results.length === 0 && (
-        <button
-          onClick={() => fileRef.current?.click()}
-          className={`w-full border-2 border-dashed rounded-xl py-8 text-sm flex flex-col items-center gap-2 transition ${dk("border-[#2a2a2a] text-gray-500 hover:border-[#3a3a3a] hover:text-gray-300", "border-[#e5e5e5] text-[#737373] hover:border-[#d4d4d4] hover:text-[#525252]")}`}
+        <label
+          className={`w-full border-2 border-dashed rounded-xl py-8 text-sm flex flex-col items-center gap-2 transition cursor-pointer ${
+            running
+              ? "border-[#2D9F6A]/40 text-[#2D9F6A]"
+              : dk("border-[#2a2a2a] text-gray-500 hover:border-[#3a3a3a] hover:text-gray-300", "border-[#e5e5e5] text-[#737373] hover:border-[#d4d4d4] hover:text-[#525252]")
+          }`}
         >
-          <Upload size={22} />
-          <span>Seleccionar CSV de SKUs</span>
-        </button>
+          <input type="file" accept=".csv" onChange={handleFile} className="hidden" />
+          {running ? <Loader2 size={22} className="animate-spin" /> : <Upload size={22} />}
+          <span>{running ? "Buscando productos…" : "Seleccionar CSV de SKUs"}</span>
+        </label>
       )}
 
       {/* Preview */}

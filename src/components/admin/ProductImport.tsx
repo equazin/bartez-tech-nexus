@@ -39,6 +39,7 @@ export default function ProductImport({ onImport, isDark = true }: { onImport: (
       header: true,
       skipEmptyLines: true,
       complete: ({ data }) => {
+        if (inputRef.current) inputRef.current.value = "";
         const products: any[] = [];
         const errors: string[] = [];
 
