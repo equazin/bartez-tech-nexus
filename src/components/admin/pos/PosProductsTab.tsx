@@ -140,7 +140,7 @@ export function PosProductsTab({ products, categories, brands, onRefreshProducts
         <div className="divide-y divide-[#1a1a1a]">
           {visibleProducts.length === 0 && (
             <div className={`px-4 py-10 text-center text-xs ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>
-              {showAll ? "No hay productos que coincidan." : "No hay productos POS. Activá el toggle en cualquier producto o hacé clic en "Mostrando todos"."}
+              {showAll ? "No hay productos que coincidan." : "No hay productos POS. Activá el toggle en cualquier producto."}
             </div>
           )}
 
