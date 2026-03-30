@@ -15,6 +15,7 @@ interface Props {
   products: Product[];
   categories: Category[];
   brands?: BrandOption[];
+  apiSourcesByProductId?: Record<number, Array<"AIR" | "ELIT">>;
   isDark?: boolean;
   onRefresh: () => void;
 }
@@ -55,6 +56,64 @@ function normalizeCompact(value: string | null | undefined): string {
 
 function getDisplayName(product: Product): string {
   return product.name_custom?.trim() || product.name_original?.trim() || product.name || "";
+}
+
+function getProductSpecsObject(product: Product): Record<string, unknown> {
+  const raw = product.specs as unknown;
+  if (!raw) return {};
+  if (typeof raw === "object" && !Array.isArray(raw)) return raw as Record<string, unknown>;
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+function readProductSpec(product: Product, key: string): string {
+  const value = getProductSpecsObject(product)[key];
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+}
+
+function normalizeApiSupplierLabel(value: string | null | undefined): "AIR" | "ELIT" | null {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return null;
+  if (raw.includes("air")) return "AIR";
+  if (raw.includes("elit")) return "ELIT";
+  return null;
+}
+
+function inferApiSuppliers(
+  product: Product,
+  explicitSources: Array<"AIR" | "ELIT"> = []
+): Array<"AIR" | "ELIT"> {
+  const found = new Set<"AIR" | "ELIT">();
+  explicitSources.forEach((source) => found.add(source));
+
+  const fromSyncSupplier = normalizeApiSupplierLabel(readProductSpec(product, "sync_supplier"));
+  if (fromSyncSupplier) found.add(fromSyncSupplier);
+
+  const fromPreferredName = normalizeApiSupplierLabel(readProductSpec(product, "preferred_supplier_name"));
+  if (fromPreferredName) found.add(fromPreferredName);
+
+  const fromSupplierName = normalizeApiSupplierLabel(product.supplier_name);
+  if (fromSupplierName) found.add(fromSupplierName);
+
+  const fromSupplierSource = normalizeApiSupplierLabel(readProductSpec(product, "supplier_source"));
+  if (fromSupplierSource) found.add(fromSupplierSource);
+
+  const specKeys = Object.keys(getProductSpecsObject(product));
+  if (specKeys.some((key) => key.toLowerCase().startsWith("air_"))) found.add("AIR");
+  if (specKeys.some((key) => key.toLowerCase().startsWith("elit_"))) found.add("ELIT");
+  if (specKeys.some((key) => key.toLowerCase() === "lug_stock")) found.add("AIR");
+
+  return Array.from(found);
 }
 
 function tokenizeForMatch(value: string): string[] {
@@ -156,7 +215,14 @@ function buildDuplicateGroups(products: Product[]): DuplicateGroup[] {
   });
 }
 
-export default function ProductTable({ products, categories, brands = [], isDark = true, onRefresh }: Props) {
+export default function ProductTable({
+  products,
+  categories,
+  brands = [],
+  apiSourcesByProductId = {},
+  isDark = true,
+  onRefresh,
+}: Props) {
   const dk = (d: string, l: string) => isDark ? d : l;
   const [search,       setSearch]       = useState("");
   const [filterCat,    setFilterCat]    = useState("all");
@@ -538,6 +604,7 @@ export default function ProductTable({ products, categories, brands = [], isDark
                 const lowStock = p.stock <= 3 && p.stock > 0;
                 const noStock  = p.stock === 0;
                 const isSelected = selected.has(p.id);
+                const apiSuppliers = inferApiSuppliers(p, apiSourcesByProductId[p.id] ?? []);
 
                 return (
                   <tr key={p.id}
@@ -582,7 +649,23 @@ export default function ProductTable({ products, categories, brands = [], isDark
                     </td>
 
                     {/* SKU */}
-                    <td className="px-3 py-3 text-xs text-gray-500 font-mono">{p.sku || "—"}</td>
+                    <td className="px-3 py-3">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-gray-500 font-mono">{p.sku || "—"}</span>
+                        {apiSuppliers.map((source) => (
+                          <span
+                            key={`${p.id}-${source}`}
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold w-fit ${
+                              source === "AIR"
+                                ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/25"
+                                : "bg-blue-500/15 text-blue-500 border border-blue-500/25"
+                            }`}
+                          >
+                            API {source}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
 
                     {/* Category */}
                     <td className="px-3 py-3 text-xs text-gray-400">{p.category}</td>

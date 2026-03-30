@@ -131,6 +131,14 @@ const CLIENT_TYPE_LABELS: Record<ClientType, string> = {
   empresa:   "Empresa",
 };
 
+function detectApiProviderLabel(name: string | null | undefined): "AIR" | "ELIT" | null {
+  const normalized = String(name ?? "").trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized.includes("air") || normalized.includes("intranet")) return "AIR";
+  if (normalized.includes("elit") || normalized.includes("elite")) return "ELIT";
+  return null;
+}
+
 function LegacyStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; icon: LucideIcon; className: string }> = {
     pending:    { label: "En revisión", icon: Clock,        className: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" },
@@ -186,6 +194,7 @@ const Admin = () => {
   }
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [productApiSources, setProductApiSources] = useState<Record<number, Array<"AIR" | "ELIT">>>({});
   const [orders, setOrders] = useState<SupabaseOrder[]>([]);
   const [clients, setClients] = useState<ClientProfile[]>([]);
   const [invoiceSearchItems, setInvoiceSearchItems] = useState<Array<{
@@ -301,7 +310,46 @@ const Admin = () => {
       from += PAGE;
     }
     if (all.length > 0) setProducts(all);
+    else setProducts([]);
+    await fetchProductApiSources();
     setLoadingProducts(false);
+  }
+
+  async function fetchProductApiSources() {
+    const [{ data: links, error: linksError }, { data: suppliers, error: suppliersError }] = await Promise.all([
+      supabase.from("product_suppliers").select("product_id, supplier_id, active"),
+      supabase.from("suppliers").select("id, name"),
+    ]);
+
+    if (linksError || suppliersError || !links || !suppliers) {
+      setProductApiSources({});
+      return;
+    }
+
+    const providerBySupplierId = new Map<string, "AIR" | "ELIT">();
+    for (const supplier of suppliers as Array<{ id: string; name: string | null }>) {
+      const provider = detectApiProviderLabel(supplier.name);
+      if (!provider) continue;
+      providerBySupplierId.set(String(supplier.id), provider);
+    }
+
+    const grouped = new Map<number, Set<"AIR" | "ELIT">>();
+    for (const link of links as Array<{ product_id: number; supplier_id: string | null; active?: boolean | null }>) {
+      const supplierId = String(link.supplier_id ?? "");
+      const provider = providerBySupplierId.get(supplierId) ?? detectApiProviderLabel(supplierId);
+      if (!provider) continue;
+      const productId = Number(link.product_id);
+      if (!Number.isFinite(productId)) continue;
+      const current = grouped.get(productId) ?? new Set<"AIR" | "ELIT">();
+      current.add(provider);
+      grouped.set(productId, current);
+    }
+
+    const next: Record<number, Array<"AIR" | "ELIT">> = {};
+    for (const [productId, providers] of grouped.entries()) {
+      next[productId] = Array.from(providers).sort();
+    }
+    setProductApiSources(next);
   }
 
   async function fetchOrders() {
@@ -1260,7 +1308,7 @@ const Admin = () => {
 
         {/* ── PRODUCTOS ── */}
         {activeTab === "products" && (
-          <div className="space-y-6 max-w-6xl">
+          <div className="space-y-6 w-full max-w-none">
 
             {/* ── Cotización del dólar ── */}
             <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-5 py-4 flex flex-wrap items-center gap-4`}>
@@ -1347,9 +1395,10 @@ const Admin = () => {
               </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid xl:grid-cols-2 gap-6 items-start">
+              <div className="space-y-6">
               <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
-                <h2 className={`text-sm font-bold mb-4 ${dk("text-white", "text-[#171717]")}`}>Agregar producto</h2>
+                <h2 className={`text-sm font-bold mb-4 ${dk("text-white", "text-[#171717]")}`}>Agregar producto manual</h2>
                 <ProductForm isDark={isDark} brands={brands} onAdd={(p) => setProducts((prev) => [p, ...prev])} />
               </div>
               <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
@@ -1372,24 +1421,30 @@ const Admin = () => {
                   </div>
                 )}
               </div>
-            </div>
 
-            {/* Importar precios / stock por SKU */}
-            <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
-              <h2 className={`text-sm font-bold mb-4 ${dk("text-white", "text-[#171717]")}`}>Actualizar precios / stock por SKU</h2>
-              <PriceStockImport
-                products={products}
-                isDark={isDark}
-                onDone={fetchProducts}
-                userId={userId}
-              />
-            </div>
+              {/* Importar precios / stock por SKU */}
+              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
+                <h2 className={`text-sm font-bold mb-4 ${dk("text-white", "text-[#171717]")}`}>Actualizar precios / stock por SKU</h2>
+                <PriceStockImport
+                  products={products}
+                  isDark={isDark}
+                  onDone={fetchProducts}
+                  userId={userId}
+                />
+              </div>
+              </div>
+
+            <div className="space-y-6">
 
             {/* Importar precios de proveedores (product_suppliers) */}
-            <SupplierPriceImport isDark={isDark} />
+            <div>
+              <SupplierPriceImport isDark={isDark} />
+            </div>
 
             {/* Eliminar productos masivamente por CSV */}
-            <BulkDeleteProducts isDark={isDark} onDone={fetchProducts} />
+            <div>
+              <BulkDeleteProducts isDark={isDark} onDone={fetchProducts} />
+            </div>
 
             {/* Eliminar sin stock */}
             {(() => {
@@ -1432,9 +1487,10 @@ const Admin = () => {
                 </div>
               );
             })()}
+            </div>
 
             {/* Categorías */}
-            <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
+            <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5 xl:col-span-2`}>
               <h2 className={`text-sm font-bold mb-4 ${dk("text-white", "text-[#171717]")}`}>Categorías y Subcategorías</h2>
               <div className="flex flex-wrap items-center gap-2 mb-4">
                 <button
@@ -1540,11 +1596,11 @@ const Admin = () => {
             </div>
 
             {loadingProducts ? (
-              <div className="space-y-2">
+              <div className="space-y-2 xl:col-span-2">
                 {Array.from({ length: 6 }).map((_, i) => <div key={i} className={`h-10 ${dk("bg-[#111]", "bg-[#e8e8e8]")} rounded-lg animate-pulse`} />)}
               </div>
             ) : (
-              <>
+              <div className="w-full min-w-0 xl:col-span-2">
                 {products.length > 0 && (
                   <div className="flex items-center gap-2 mb-3">
                     <span className={`text-xs ${dk("text-gray-500", "text-[#737373]")}`}>Exportar catálogo:</span>
@@ -1562,9 +1618,17 @@ const Admin = () => {
                     </button>
                   </div>
                 )}
-                <ProductTable isDark={isDark} products={products} categories={categories} brands={brands} onRefresh={fetchProducts} />
-              </>
+                <ProductTable
+                  isDark={isDark}
+                  products={products}
+                  categories={categories}
+                  brands={brands}
+                  apiSourcesByProductId={productApiSources}
+                  onRefresh={fetchProducts}
+                />
+              </div>
             )}
+          </div>
           </div>
         )}
 
