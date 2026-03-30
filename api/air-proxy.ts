@@ -1,11 +1,3 @@
-/**
- * Proxy Edge para la API AIR Intranet.
- * Edge Runtime: 30s timeout (vs 10s Node.js en Hobby plan).
- * Streaming directo: no buffering, sin límites de tamaño de respuesta.
- */
-
-export const config = { runtime: "edge" };
-
 const AIR_BASE = "https://api.air-intra.com/v2";
 
 const ALLOWED_QUERIES = new Set([
@@ -16,6 +8,10 @@ const ALLOWED_QUERIES = new Set([
   "syp_list",
   "get_meta",
 ]);
+
+export const config = {
+  runtime: "edge",
+};
 
 export default async function handler(request: Request): Promise<Response> {
   if (request.method !== "POST") {
@@ -30,14 +26,17 @@ export default async function handler(request: Request): Promise<Response> {
     return json({ ok: false, error: "Missing or disallowed query parameter." }, 400);
   }
 
-  const token = process.env.VITE_AIR_TOKEN ?? "";
+  const token =
+    process.env.AIR_API_TOKEN?.trim() ||
+    process.env.AIR_TOKEN?.trim() ||
+    process.env.VITE_AIR_TOKEN?.trim() ||
+    "";
   if (!token) {
     return json({ ok: false, error: "AIR token not configured." }, 500);
   }
 
-  // Reenviar todos los query params a AIR
   const airUrl = `${AIR_BASE}/?${url.searchParams.toString()}`;
-  console.log(`[air-proxy] → ${airUrl}`);
+  console.log(`[air-proxy] -> ${airUrl}`);
 
   try {
     const body = request.body ? await request.text() : undefined;
@@ -51,9 +50,8 @@ export default async function handler(request: Request): Promise<Response> {
       body,
     });
 
-    console.log(`[air-proxy] ← status=${airRes.status} q=${q}`);
+    console.log(`[air-proxy] <- status=${airRes.status} q=${q}`);
 
-    // Streaming directo: evita buffering y límites de tamaño
     return new Response(airRes.body, {
       status: airRes.status,
       headers: {
@@ -62,9 +60,9 @@ export default async function handler(request: Request): Promise<Response> {
       },
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[air-proxy] fetch error q=${q}:`, msg);
-    return json({ ok: false, error: msg }, 502);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[air-proxy] fetch error q=${q}:`, message);
+    return json({ ok: false, error: message }, 502);
   }
 }
 

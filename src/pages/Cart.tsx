@@ -8,7 +8,7 @@ import { useCurrency } from "@/context/CurrencyContext";
 import { useQuotes } from "@/hooks/useQuotes";
 import { getUnitPrice, getAvailableStock } from "@/lib/pricing";
 import { saveCart } from "@/lib/savedCarts";
-import { generateQuotePDF } from "@/components/QuotePDF";
+import { generateQuotePdfOnDemand } from "@/lib/quotePdfClient";
 import type { Product } from "@/models/products";
 
 type CartItem = {
@@ -182,7 +182,7 @@ export default function Cart() {
     setSaveListName("");
   }
 
-  function generateQuote() {
+  async function generateQuote() {
     if (!cartItems.length) return;
     const multiplier = exportForClient ? 1 + exportMargin / 100 : 1;
     const quoteProducts = cartItems.map((item) => {
@@ -201,7 +201,7 @@ export default function Cart() {
     });
     const quoteSubtotal = quoteProducts.reduce((s, p) => s + p.total, 0);
     const quoteIVA = quoteProducts.reduce((s, p) => s + p.ivaAmount, 0);
-    generateQuotePDF({
+    await generateQuotePdfOnDemand({
       clientName: profile?.company_name || profile?.contact_name || "Cliente",
       companyName: "Bartez Tecnología",
       currency,

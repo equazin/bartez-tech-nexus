@@ -31,7 +31,7 @@ export async function getRoleFromRequest(
   return "client";
 }
 
-export function normalizeRole(role: ApiRole): "admin" | "vendedor" | "cliente" {
+export function normalizeRole(role: ApiRole): "admin" | "vendedor" | "cliente" | "anonymous" {
   if (role === "client") return "cliente";
   return role;
 }

@@ -3,21 +3,34 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { FileDown, Loader2, ShoppingCart, Minus, Plus, X, BookmarkPlus, TrendingUp } from "lucide-react";
-import { generateQuotePDF } from "@/components/QuotePDF";
+import type { Product } from "@/models/products";
+import { generateQuotePdfOnDemand } from "@/lib/quotePdfClient";
 import { UserProfile } from "@/lib/supabase";
 import { useCurrency } from "@/context/CurrencyContext";
+
+interface CartDrawerItem {
+  product: Product;
+  quantity: number;
+  cost?: number;
+  margin: number;
+  unitPrice: number;
+  totalPrice: number;
+  ivaRate: number;
+  ivaAmount: number;
+  totalWithIVA: number;
+}
 
 interface CartDrawerProps {
   open: boolean;
   onClose: () => void;
-  cartItems: any[];
+  cartItems: CartDrawerItem[];
   cartSubtotal: number;
   cartIVATotal: number;
   cartTotal: number;
   globalMargin: number;
   profile?: UserProfile | null;
-  onAddToCart: (product: any) => void;
-  onRemoveFromCart: (product: any) => void;
+  onAddToCart: (product: Product) => void;
+  onRemoveFromCart: (product: Product) => void;
   onMarginChange?: (productId: number, margin: number) => void;
   onConfirmOrder?: () => void;
   onSaveQuote?: () => void;
@@ -30,8 +43,8 @@ export function CartDrawer({
 }: CartDrawerProps) {
   const { formatPrice, formatUSD, formatARS, currency, exchangeRate, convertPrice } = useCurrency();
 
-  function handleExportPDF() {
-    generateQuotePDF({
+  async function handleExportPDF() {
+    await generateQuotePdfOnDemand({
       clientName:  profile?.company_name || profile?.contact_name || "Cliente",
       companyName: profile?.company_name || profile?.contact_name || "Cliente",
       whiteLabel:  true,   // client-facing: no Bartez branding
@@ -194,7 +207,7 @@ export function CartDrawer({
                 Guardar cotización
               </button>
               <button
-                onClick={handleExportPDF}
+                onClick={() => { void handleExportPDF(); }}
                 className="flex-1 flex items-center justify-center gap-2 border border-[#1f1f1f] hover:border-[#2e2e2e] text-[#737373] hover:text-white bg-transparent hover:bg-[#171717] rounded-xl py-2.5 text-sm transition-all"
               >
                 <FileDown size={14} />

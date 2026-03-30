@@ -3,20 +3,21 @@ import { Quote, QuoteStatus } from "@/models/quote";
 import { useCurrency } from "@/context/CurrencyContext";
 import { CLIENT_TYPE_MARGINS, ClientType, supabase } from "@/lib/supabase";
 import {
-  fetchClientProfile, fetchClientInvoices, fetchAccountMovements, updateClientProfile,
-  type ClientDetail as ClientDetailData, type AccountMovement,
+  addClientNote,
+  fetchClientProfile, fetchClientInvoices, fetchAccountMovements, fetchClientNotes, updateClientProfile,
+  type ClientDetail as ClientDetailData, type AccountMovement, type ClientNote,
 } from "@/lib/api/clientDetail";
 import type { Invoice } from "@/lib/api/invoices";
 import {
   Users, Search, UserPlus, ChevronRight, Mail,
-  Percent, ShoppingBag, FileText, CheckCircle2, XCircle, Clock,
+  Percent, ShoppingBag, FileText, CheckCircle2, XCircle, Clock, MessageSquare,
   TrendingUp, Package, Save, X, Send, Eye, AlertTriangle,
   ArrowLeft, Pencil, Activity, LogIn, LogOut, MousePointer,
   ShoppingCart, Hash, CreditCard, BarChart2, Landmark, Settings,
-  LayoutGrid, Shield, CalendarDays, UserCheck, UserX, Loader2,
+  LayoutGrid, Shield, CalendarDays, UserCheck, UserX, Loader2, type LucideIcon,
 } from "lucide-react";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// -- Types ---------------------------------------------------------------------
 export interface ClientProfile {
   id: string;
   company_name: string;
@@ -32,6 +33,7 @@ export interface ClientProfile {
 interface SupabaseOrder {
   id: string;
   client_id: string;
+  order_number?: string;
   products: Array<{ name: string; quantity: number; total_price?: number }>;
   total: number;
   status: string;
@@ -48,7 +50,7 @@ export interface ClientCRMProps {
   onRefreshClients?: () => void;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// -- Helpers -------------------------------------------------------------------
 const CLIENT_TYPE_LABELS: Record<ClientType, string> = {
   mayorista: "Mayorista",
   reseller:  "Revendedor",
@@ -61,22 +63,25 @@ const CLIENT_TYPE_STYLES: Record<ClientType, string> = {
   empresa:   "bg-purple-500/15 text-purple-400 border-purple-500/30",
 };
 
-const ORDER_STATUS: Record<string, { label: string; icon: any; cls: string }> = {
-  pending:  { label: "En revisión", icon: Clock,        cls: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" },
+type StatusConfig = { label: string; icon: LucideIcon; cls: string };
+
+const ORDER_STATUS: Record<string, StatusConfig> = {
+  pending:  { label: "En revision", icon: Clock,        cls: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" },
   approved: { label: "Aprobado",    icon: CheckCircle2, cls: "bg-green-500/15 text-green-400 border-green-500/30" },
   rejected: { label: "Rechazado",   icon: XCircle,      cls: "bg-red-500/15 text-red-400 border-red-500/30" },
 };
 
-const QUOTE_STATUS: Record<QuoteStatus, { label: string; icon: any; cls: string }> = {
+const QUOTE_STATUS: Record<QuoteStatus, StatusConfig> = {
   draft:    { label: "Borrador",  icon: FileText,      cls: "bg-[#1f1f1f] text-[#a3a3a3] border-[#2a2a2a]" },
   sent:     { label: "Enviada",   icon: Send,          cls: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
   viewed:   { label: "Vista",     icon: Eye,           cls: "bg-purple-500/15 text-purple-400 border-purple-500/30" },
   approved: { label: "Aprobada",  icon: CheckCircle2,  cls: "bg-green-500/15 text-green-400 border-green-500/30" },
   rejected: { label: "Rechazada", icon: XCircle,       cls: "bg-red-500/15 text-red-400 border-red-500/30" },
+  converted:{ label: "Convertida",icon: CheckCircle2,  cls: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
   expired:  { label: "Expirada",  icon: AlertTriangle, cls: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
 };
 
-// ── Activity log types ────────────────────────────────────────────────────────
+// -- Activity log types --------------------------------------------------------
 interface ActivityLog {
   id: string;
   action: string;
@@ -86,13 +91,13 @@ interface ActivityLog {
   created_at: string;
 }
 
-const ACTION_CONFIG: Record<string, { label: string; icon: any; color: string }> = {
-  login:         { label: "Inicio de sesión",  icon: LogIn,          color: "text-blue-400"    },
-  logout:        { label: "Cierre de sesión",  icon: LogOut,         color: "text-gray-400"    },
+const ACTION_CONFIG: Record<string, { label: string; icon: LucideIcon; color: string }> = {
+  login:         { label: "Inicio de sesion",  icon: LogIn,          color: "text-blue-400"    },
+  logout:        { label: "Cierre de sesion",  icon: LogOut,         color: "text-gray-400"    },
   view_product:  { label: "Vio producto",      icon: MousePointer,   color: "text-purple-400"  },
-  add_to_cart:   { label: "Agregó al carrito", icon: ShoppingCart,   color: "text-yellow-400"  },
-  place_order:   { label: "Realizó pedido",    icon: Package,        color: "text-emerald-400" },
-  search:        { label: "Búsqueda",          icon: Hash,           color: "text-gray-400"    },
+  add_to_cart:   { label: "Agrego al carrito", icon: ShoppingCart,   color: "text-yellow-400"  },
+  place_order:   { label: "Realizo pedido",    icon: Package,        color: "text-emerald-400" },
+  search:        { label: "Busqueda",          icon: Hash,           color: "text-gray-400"    },
 };
 
 function initials(c: ClientProfile) {
@@ -106,9 +111,10 @@ function fmtDate(iso: string) {
   });
 }
 
-// ── Status badge ──────────────────────────────────────────────────────────────
-function StatusBadge({ status, map }: { status: string; map: Record<string, { label: string; icon: any; cls: string }> }) {
-  const cfg = map[status] ?? map.pending ?? Object.values(map)[0];
+// -- Status badge --------------------------------------------------------------
+function StatusBadge<T extends string>({ status, map }: { status: T; map: Record<T, StatusConfig> | Record<string, StatusConfig> }) {
+  const statusMap = map as Record<string, StatusConfig>;
+  const cfg = statusMap[status] ?? statusMap.pending ?? Object.values(statusMap)[0];
   const Icon = cfg.icon;
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${cfg.cls}`}>
@@ -117,7 +123,7 @@ function StatusBadge({ status, map }: { status: string; map: Record<string, { la
   );
 }
 
-// ── Client avatar ─────────────────────────────────────────────────────────────
+// -- Client avatar -------------------------------------------------------------
 function Avatar({ client, size = "md" }: { client: ClientProfile; size?: "sm" | "md" | "lg" }) {
   const dims = { sm: "h-7 w-7 text-[10px]", md: "h-9 w-9 text-xs", lg: "h-12 w-12 text-sm" }[size];
   return (
@@ -127,7 +133,7 @@ function Avatar({ client, size = "md" }: { client: ClientProfile; size?: "sm" | 
   );
 }
 
-// ── List item ─────────────────────────────────────────────────────────────────
+// -- List item -----------------------------------------------------------------
 function ClientListItem({
   client, isActive, orderCount, quoteCount, onClick, isDark,
 }: {
@@ -148,15 +154,15 @@ function ClientListItem({
         <p className={`text-sm font-semibold truncate leading-tight ${
           isActive ? dk("text-white", "text-[#171717]") : dk("text-[#d4d4d4] group-hover:text-white", "text-[#404040] group-hover:text-[#171717]")
         }`}>
-          {client.company_name || client.contact_name || "—"}
+          {client.company_name || client.contact_name || "-"}
         </p>
         <p className="text-[10px] text-[#525252] truncate mt-0.5">
-          {CLIENT_TYPE_LABELS[client.client_type]} · {client.default_margin}% margen
+          {CLIENT_TYPE_LABELS[client.client_type]}  -  {client.default_margin}% margen
         </p>
       </div>
       <div className="flex flex-col items-end gap-0.5 shrink-0">
         <span className={`text-[9px] font-medium ${isActive ? "text-[#2D9F6A]" : "text-[#525252]"}`}>
-          {orderCount}p · {quoteCount}c
+          {orderCount}p  -  {quoteCount}c
         </span>
         <ChevronRight size={11} className={`${isActive ? "text-[#2D9F6A]" : dk("text-[#333] group-hover:text-[#525252]", "text-[#ccc] group-hover:text-[#999]")} transition`} />
       </div>
@@ -164,8 +170,8 @@ function ClientListItem({
   );
 }
 
-// ── Stat mini-card ─────────────────────────────────────────────────────────────
-function StatPill({ icon: Icon, label, value, accent, isDark }: { icon: any; label: string; value: string; accent: string; isDark: boolean }) {
+// -- Stat mini-card -------------------------------------------------------------
+function StatPill({ icon: Icon, label, value, accent, isDark }: { icon: LucideIcon; label: string; value: string; accent: string; isDark: boolean }) {
   const dk = (d: string, l: string) => isDark ? d : l;
   return (
     <div className={`${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-[#f5f5f5] border-[#e5e5e5]")} border rounded-xl px-4 py-3 flex items-center gap-3`}>
@@ -180,17 +186,18 @@ function StatPill({ icon: Icon, label, value, accent, isDark }: { icon: any; lab
   );
 }
 
-type DetailTab = "resumen" | "credito" | "movimientos" | "facturas" | "datos";
+type DetailTab = "vista360" | "resumen" | "credito" | "movimientos" | "facturas" | "datos";
 
-const DETAIL_TABS: { id: DetailTab; label: string; icon: any }[] = [
+const DETAIL_TABS: Array<{ id: DetailTab; label: string; icon: LucideIcon }> = [
+  { id: "vista360",    label: "Vista 360",   icon: Users       },
   { id: "resumen",     label: "Resumen",     icon: LayoutGrid  },
-  { id: "credito",     label: "Crédito",     icon: CreditCard  },
+  { id: "credito",     label: "Credito",     icon: CreditCard  },
   { id: "movimientos", label: "Cuenta",      icon: BarChart2   },
   { id: "facturas",    label: "Facturas",    icon: Landmark    },
   { id: "datos",       label: "Datos",       icon: Settings    },
 ];
 
-// ── Detail panel ──────────────────────────────────────────────────────────────
+// -- Detail panel --------------------------------------------------------------
 function ClientDetail({
   client, orders, isDark, onSave, onBack,
 }: {
@@ -202,7 +209,7 @@ function ClientDetail({
 }) {
   const dk = (d: string, l: string) => isDark ? d : l;
   const { formatPrice } = useCurrency();
-  const [activeTab, setActiveTab] = useState<DetailTab>("resumen");
+  const [activeTab, setActiveTab] = useState<DetailTab>("vista360");
   const [editing, setEditing] = useState(false);
   const [editType, setEditType] = useState<ClientType>(client.client_type);
   const [editMargin, setEditMargin] = useState(String(client.default_margin));
@@ -214,10 +221,22 @@ function ClientDetail({
   const [extProfile, setExtProfile] = useState<ClientDetailData | null>(null);
   const [movements,  setMovements]  = useState<AccountMovement[]>([]);
   const [invoices,   setInvoices]   = useState<Invoice[]>([]);
+  const [notes,      setNotes]      = useState<ClientNote[]>([]);
+  const [noteBody,   setNoteBody]   = useState("");
+  const [noteType,   setNoteType]   = useState<ClientNote["tipo"]>("nota");
+  const [savingNote, setSavingNote] = useState(false);
   const [tabLoading, setTabLoading] = useState(false);
 
   // reset tabs when client changes
-  useEffect(() => { setActiveTab("resumen"); setExtProfile(null); setMovements([]); setInvoices([]); }, [client.id]);
+  useEffect(() => {
+    setActiveTab("vista360");
+    setExtProfile(null);
+    setMovements([]);
+    setInvoices([]);
+    setNotes([]);
+    setNoteBody("");
+    setNoteType("nota");
+  }, [client.id]);
 
   useEffect(() => {
     supabase
@@ -236,8 +255,67 @@ function ClientDetail({
       .then(({ data }) => { if (data) setActivityLogs(data as ActivityLog[]); });
   }, [client.id]);
 
+  async function loadOverviewData(force = false) {
+    const shouldFetchProfile = force || !extProfile;
+    const shouldFetchMovements = force || movements.length === 0;
+    const shouldFetchInvoices = force || invoices.length === 0;
+    const shouldFetchNotes = force || notes.length === 0;
+
+    if (!shouldFetchProfile && !shouldFetchMovements && !shouldFetchInvoices && !shouldFetchNotes) return;
+
+    setTabLoading(true);
+    try {
+      const [profileData, movementData, invoiceData, noteData] = await Promise.all([
+        shouldFetchProfile ? fetchClientProfile(client.id).catch(() => null) : Promise.resolve(extProfile),
+        shouldFetchMovements ? fetchAccountMovements(client.id).catch(() => []) : Promise.resolve(movements),
+        shouldFetchInvoices ? fetchClientInvoices(client.id).catch(() => []) : Promise.resolve(invoices),
+        shouldFetchNotes ? fetchClientNotes(client.id).catch(() => []) : Promise.resolve(notes),
+      ]);
+
+      if (profileData) setExtProfile(profileData);
+      setMovements(movementData);
+      setInvoices(invoiceData);
+      setNotes(noteData);
+    } finally {
+      setTabLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function preloadOverview() {
+      setTabLoading(true);
+      try {
+        const [profileData, movementData, invoiceData, noteData] = await Promise.all([
+          fetchClientProfile(client.id).catch(() => null),
+          fetchAccountMovements(client.id).catch(() => []),
+          fetchClientInvoices(client.id).catch(() => []),
+          fetchClientNotes(client.id).catch(() => []),
+        ]);
+
+        if (cancelled) return;
+        if (profileData) setExtProfile(profileData);
+        setMovements(movementData);
+        setInvoices(invoiceData);
+        setNotes(noteData);
+      } finally {
+        if (!cancelled) setTabLoading(false);
+      }
+    }
+
+    void preloadOverview();
+    return () => {
+      cancelled = true;
+    };
+  }, [client.id]);
+
   async function loadTab(tab: DetailTab) {
     setActiveTab(tab);
+    if (tab === "vista360") {
+      await loadOverviewData();
+      return;
+    }
     if (tab === "credito" || tab === "datos") {
       if (extProfile) return;
       setTabLoading(true);
@@ -269,6 +347,46 @@ function ClientDetail({
     [clientOrders]
   );
   const approvedQuotes = quotes.filter((q) => q.status === "approved").length;
+  const openDebt = useMemo(
+    () => movements.reduce((sum, movement) => sum + (movement.monto > 0 ? movement.monto : 0), 0),
+    [movements]
+  );
+  const overdueInvoices = useMemo(
+    () => invoices.filter((invoice) => invoice.status === "overdue"),
+    [invoices]
+  );
+  const availableCredit = extProfile ? Math.max((extProfile.credit_limit ?? 0) - (extProfile.credit_used ?? 0), 0) : 0;
+  const nextDueDate = invoices.find((invoice) => invoice.status !== "paid" && invoice.due_date)?.due_date;
+  const recentDocuments = useMemo(() => {
+    const orderDocs = clientOrders.slice(0, 3).map((order) => ({
+      id: `order-${order.id}`,
+      type: "Pedido",
+      code: order.order_number || `#${String(order.id).slice(-6).toUpperCase()}`,
+      status: order.status,
+      amount: order.total,
+      date: order.created_at,
+    }));
+    const quoteDocs = quotes.slice(0, 3).map((quote) => ({
+      id: `quote-${quote.id}`,
+      type: "Cotizacion",
+      code: `COT-${String(quote.id).padStart(4, "0")}`,
+      status: quote.status,
+      amount: quote.total,
+      date: quote.created_at,
+    }));
+    const invoiceDocs = invoices.slice(0, 3).map((invoice) => ({
+      id: `invoice-${invoice.id}`,
+      type: "Factura",
+      code: invoice.invoice_number || `FAC-${String(invoice.id).slice(-6).toUpperCase()}`,
+      status: invoice.status,
+      amount: invoice.total,
+      date: invoice.created_at,
+    }));
+
+    return [...orderDocs, ...quoteDocs, ...invoiceDocs]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 8);
+  }, [clientOrders, quotes, invoices]);
 
   async function handleSave() {
     setSaving(true);
@@ -295,6 +413,20 @@ function ClientDetail({
     setEditMargin(String(CLIENT_TYPE_MARGINS[t]));
   }
 
+  async function handleAddNote() {
+    const trimmed = noteBody.trim();
+    if (!trimmed) return;
+    setSavingNote(true);
+    try {
+      await addClientNote(client.id, trimmed, noteType);
+      setNotes(await fetchClientNotes(client.id));
+      setNoteBody("");
+      setNoteType("nota");
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
 
@@ -310,7 +442,7 @@ function ClientDetail({
               <h2 className={`text-base font-bold leading-tight ${dk("text-white", "text-[#171717]")}`}>
                 {client.company_name || "Sin empresa"}
               </h2>
-              <p className="text-xs text-[#737373] mt-0.5">{client.contact_name || "—"}</p>
+              <p className="text-xs text-[#737373] mt-0.5">{client.contact_name || "-"}</p>
               {client.phone && (
                 <p className="text-xs text-[#525252] mt-0.5 font-mono">{client.phone}</p>
               )}
@@ -347,7 +479,7 @@ function ClientDetail({
         <div className="flex flex-wrap gap-4 text-xs text-[#737373]">
           <span className="flex items-center gap-1.5">
             <Mail size={11} className="text-[#525252]" />
-            ID: {client.id.slice(0, 12)}…
+            ID: {client.id.slice(0, 12)}...
           </span>
           <span className="flex items-center gap-1.5">
             <Percent size={11} className="text-[#525252]" />
@@ -396,7 +528,7 @@ function ClientDetail({
                   onClick={handleSave} disabled={saving}
                   className="flex items-center gap-1.5 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-xs font-bold px-3 py-1.5 rounded-lg transition disabled:opacity-50"
                 >
-                  <Save size={12} /> {saving ? "Guardando…" : "Guardar"}
+                  <Save size={12} /> {saving ? "Guardando..." : "Guardar"}
                 </button>
                 <button
                   onClick={() => setEditing(false)}
@@ -428,6 +560,209 @@ function ClientDetail({
         ))}
       </div>
 
+      {activeTab === "vista360" && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+            <StatPill icon={ShoppingBag} label="Compras" value={formatPrice(totalSpent)} accent="bg-[#2D9F6A]/15 text-[#2D9F6A]" isDark={isDark} />
+            <StatPill icon={CreditCard} label="Deuda abierta" value={formatPrice(openDebt)} accent="bg-red-500/15 text-red-400" isDark={isDark} />
+            <StatPill icon={Shield} label="Credito disponible" value={formatPrice(availableCredit)} accent="bg-blue-500/15 text-blue-400" isDark={isDark} />
+            <StatPill icon={AlertTriangle} label="Facturas vencidas" value={String(overdueInvoices.length)} accent="bg-amber-500/15 text-amber-400" isDark={isDark} />
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+            <div className="space-y-4">
+              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-5`}>
+                <div className="flex items-center gap-2 mb-4">
+                  <Shield size={14} className="text-[#2D9F6A]" />
+                  <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Estado comercial</h3>
+                </div>
+                {tabLoading && !extProfile ? (
+                  <div className="py-8 text-center text-xs text-[#525252]">Cargando...</div>
+                ) : (
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {[
+                      ["Estado", extProfile?.estado ?? "activo"],
+                      ["Dias netos", extProfile ? `${extProfile.payment_terms || 0} dias` : "-"],
+                      ["Limite de credito", extProfile ? formatPrice(extProfile.credit_limit || 0) : "-"],
+                      ["Credito usado", extProfile ? formatPrice(extProfile.credit_used || 0) : "-"],
+                      ["Max. por pedido", extProfile ? formatPrice(extProfile.max_order_value || 0) : "-"],
+                      ["Revision", extProfile?.credit_review_date ? fmtDate(extProfile.credit_review_date) : "Sin fecha"],
+                    ].map(([label, value]) => (
+                      <div key={label} className={`rounded-xl border px-4 py-3 ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
+                        <p className="text-[10px] uppercase tracking-widest text-[#525252] font-semibold">{label}</p>
+                        <p className={`text-sm font-semibold mt-1 ${dk("text-white", "text-[#171717]")}`}>{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-5`}>
+                <div className="flex items-center gap-2 mb-4">
+                  <Users size={14} className="text-blue-400" />
+                  <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Contactos y datos</h3>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                  {[
+                    ["Empresa", client.company_name || "Sin empresa"],
+                    ["Contacto", client.contact_name || "Sin nombre"],
+                    ["Email", client.email || extProfile?.email || "Sin email"],
+                    ["Telefono", client.phone || extProfile?.phone || "Sin telefono"],
+                    ["Razon social", extProfile?.razon_social || "No registrada"],
+                    ["CUIT", extProfile?.cuit || "No registrado"],
+                    ["Direccion", [extProfile?.direccion, extProfile?.ciudad, extProfile?.provincia].filter(Boolean).join(", ") || "Sin direccion"],
+                    ["Condiciones", extProfile ? `${extProfile.precio_lista || "standard"}  -  ${extProfile.payment_terms || 0} dias` : `${client.client_type}  -  ${client.default_margin}%`],
+                  ].map(([label, value]) => (
+                    <div key={label} className={`rounded-xl border px-4 py-3 ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
+                      <p className="text-[10px] uppercase tracking-widest text-[#525252] font-semibold">{label}</p>
+                      <p className={`text-sm mt-1 ${dk("text-[#d4d4d4]", "text-[#404040]")}`}>{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
+                <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
+                  <FileText size={13} className="text-amber-400" />
+                  <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Documentos vinculados</h3>
+                  <span className="ml-auto text-xs text-[#525252]">{recentDocuments.length} recientes</span>
+                </div>
+                {recentDocuments.length === 0 ? (
+                  <div className="py-10 text-center text-xs text-[#525252]">Todavia no hay documentos.</div>
+                ) : (
+                  <div className={`divide-y ${dk("divide-[#141414]", "divide-[#f0f0f0]")}`}>
+                    {recentDocuments.map((doc) => (
+                      <div key={doc.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>{doc.code}</p>
+                          <p className="text-[10px] text-[#525252] mt-0.5">{doc.type}  -  {fmtDate(doc.date)}  -  {doc.status}</p>
+                        </div>
+                        <span className="text-sm font-bold text-[#2D9F6A] shrink-0">{formatPrice(doc.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
+                <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
+                  <BarChart2 size={13} className="text-purple-400" />
+                  <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Deuda y cuenta</h3>
+                </div>
+                <div className="px-5 py-4 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className={`rounded-xl border px-4 py-3 ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
+                      <p className="text-[10px] uppercase tracking-widest text-[#525252] font-semibold">Saldo abierto</p>
+                      <p className="text-sm font-bold text-red-400 mt-1">{formatPrice(openDebt)}</p>
+                    </div>
+                    <div className={`rounded-xl border px-4 py-3 ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
+                      <p className="text-[10px] uppercase tracking-widest text-[#525252] font-semibold">Proximo pago</p>
+                      <p className={`text-sm font-semibold mt-1 ${dk("text-white", "text-[#171717]")}`}>{nextDueDate ? fmtDate(nextDueDate) : "Sin vencimientos"}</p>
+                    </div>
+                  </div>
+                  {movements.length === 0 ? (
+                    <p className="text-xs text-[#525252]">Sin movimientos registrados.</p>
+                  ) : (
+                    movements.slice(0, 5).map((movement) => (
+                      <div key={movement.id} className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className={`text-xs font-medium ${dk("text-[#d4d4d4]", "text-[#404040]")}`}>{movement.descripcion || movement.tipo}</p>
+                          <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(movement.fecha)}  -  {movement.tipo}</p>
+                        </div>
+                        <span className={`text-xs font-bold shrink-0 ${movement.monto >= 0 ? "text-red-400" : "text-emerald-400"}`}>
+                          {movement.monto >= 0 ? "+" : ""}{formatPrice(movement.monto)}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
+                <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
+                  <MessageSquare size={13} className="text-[#2D9F6A]" />
+                  <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Notas CRM</h3>
+                </div>
+                <div className="px-5 py-4 space-y-3">
+                  <div className="flex gap-2">
+                    <select
+                      value={noteType}
+                      onChange={(event) => setNoteType(event.target.value as ClientNote["tipo"])}
+                      className={`rounded-lg border px-3 py-2 text-sm outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-[#fafafa] border-[#ececec] text-[#171717]")}`}
+                    >
+                      <option value="nota">Nota</option>
+                      <option value="llamada">Llamada</option>
+                      <option value="reunion">Reunion</option>
+                      <option value="alerta">Alerta</option>
+                      <option value="seguimiento">Seguimiento</option>
+                    </select>
+                    <button
+                      onClick={() => void handleAddNote()}
+                      disabled={savingNote || !noteBody.trim()}
+                      className="shrink-0 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-xs font-bold px-3 py-2 rounded-lg transition disabled:opacity-50"
+                    >
+                      {savingNote ? "Guardando..." : "Agregar nota"}
+                    </button>
+                  </div>
+                  <textarea
+                    rows={3}
+                    value={noteBody}
+                    onChange={(event) => setNoteBody(event.target.value)}
+                    placeholder="Seguimiento comercial, acuerdos, riesgo, devoluciones..."
+                    className={`w-full rounded-lg border px-3 py-2 text-sm outline-none resize-none ${dk("bg-[#0d0d0d] border-[#262626] text-white placeholder:text-[#404040]", "bg-[#fafafa] border-[#ececec] text-[#171717] placeholder:text-[#a3a3a3]")}`}
+                  />
+                  <div className="space-y-2">
+                    {notes.length === 0 ? (
+                      <p className="text-xs text-[#525252]">Sin notas todavia.</p>
+                    ) : (
+                      notes.slice(0, 6).map((note) => (
+                        <div key={note.id} className={`rounded-xl border px-3 py-3 ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] uppercase tracking-widest text-[#2D9F6A] font-semibold">{note.tipo}</span>
+                            <span className="text-[10px] text-[#525252]">{fmtDate(note.created_at)}</span>
+                          </div>
+                          <p className={`text-sm mt-2 ${dk("text-[#d4d4d4]", "text-[#404040]")}`}>{note.body}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
+                <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
+                  <Activity size={13} className="text-amber-400" />
+                  <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Actividad reciente</h3>
+                </div>
+                <div className="px-5 py-4 space-y-3">
+                  {activityLogs.length === 0 ? (
+                    <p className="text-xs text-[#525252]">Sin actividad registrada.</p>
+                  ) : (
+                    activityLogs.slice(0, 6).map((log) => {
+                      const cfg = ACTION_CONFIG[log.action] ?? { label: log.action, icon: Activity, color: "text-gray-400" };
+                      const Icon = cfg.icon;
+                      return (
+                        <div key={log.id} className="flex items-start gap-3">
+                          <div className={`mt-0.5 shrink-0 h-6 w-6 rounded-lg flex items-center justify-center ${dk("bg-[#1a1a1a]", "bg-[#f5f5f5]")}`}>
+                            <Icon size={12} className={cfg.color} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className={`text-xs font-medium ${dk("text-[#d4d4d4]", "text-[#404040]")}`}>{cfg.label}</p>
+                            <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(log.created_at)}</p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tab: Resumen */}
       {activeTab === "resumen" && (
         <>
@@ -453,7 +788,7 @@ function ClientDetail({
                   <div key={o.id} className={`flex items-center justify-between px-5 py-3 ${dk("hover:bg-[#141414]", "hover:bg-[#fafafa]")} transition`}>
                     <div className="min-w-0">
                       <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>#{String(o.id).slice(-6).toUpperCase()}</p>
-                      <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(o.created_at)} · {o.products?.length ?? 0} productos</p>
+                      <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(o.created_at)}  -  {o.products?.length ?? 0} productos</p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0 ml-4">
                       <StatusBadge status={o.status} map={ORDER_STATUS} />
@@ -480,10 +815,10 @@ function ClientDetail({
                   <div key={q.id} className={`flex items-center justify-between px-5 py-3 ${dk("hover:bg-[#141414]", "hover:bg-[#fafafa]")} transition`}>
                     <div className="min-w-0">
                       <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>COT-{String(q.id).padStart(4, "0")}</p>
-                      <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(q.created_at)} · {q.items?.length ?? 0} productos · {q.currency}</p>
+                      <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(q.created_at)}  -  {q.items?.length ?? 0} productos  -  {q.currency}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0 ml-4">
-                      <StatusBadge status={q.status} map={QUOTE_STATUS as any} />
+                      <StatusBadge status={q.status} map={QUOTE_STATUS} />
                       <span className="text-sm font-bold text-[#2D9F6A] tabular-nums">{formatPrice(q.total)}</span>
                       {q.status === "draft" && (
                         <button onClick={() => updateQuoteStatus(q.id, "sent")} className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 transition"><Send size={10} /> Enviar</button>
@@ -519,7 +854,7 @@ function ClientDetail({
                     <div key={log.id} className="flex items-start gap-3">
                       <div className={`mt-0.5 shrink-0 h-6 w-6 rounded-lg flex items-center justify-center ${dk("bg-[#1a1a1a]", "bg-[#f5f5f5]")}`}><Icon size={12} className={cfg.color} /></div>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-medium ${dk("text-[#d4d4d4]", "text-[#404040]")}`}>{cfg.label}{log.metadata?.name && <span className="ml-1 font-normal text-[#737373]">— {String(log.metadata.name)}</span>}</p>
+                        <p className={`text-xs font-medium ${dk("text-[#d4d4d4]", "text-[#404040]")}`}>{cfg.label}{log.metadata?.name && <span className="ml-1 font-normal text-[#737373]"> -  {String(log.metadata.name)}</span>}</p>
                         <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(log.created_at)}</p>
                       </div>
                     </div>
@@ -531,11 +866,11 @@ function ClientDetail({
         </>
       )}
 
-      {/* Tab: Crédito */}
+      {/* Tab: Credito */}
       {activeTab === "credito" && (
         <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-5`}>
           {tabLoading ? (
-            <div className="py-10 text-center text-xs text-[#525252]">Cargando…</div>
+            <div className="py-10 text-center text-xs text-[#525252]">Cargando...</div>
           ) : !extProfile ? (
             <div className="py-10 text-center text-xs text-red-400">No se pudo cargar el perfil extendido.</div>
           ) : (
@@ -553,7 +888,7 @@ function ClientDetail({
             <span className="ml-auto text-xs text-[#525252]">{movements.length} registros</span>
           </div>
           {tabLoading ? (
-            <div className="py-10 text-center text-xs text-[#525252]">Cargando…</div>
+            <div className="py-10 text-center text-xs text-[#525252]">Cargando...</div>
           ) : movements.length === 0 ? (
             <div className="flex flex-col items-center py-12 text-[#525252] gap-2"><BarChart2 size={24} className="opacity-20" /><p className="text-xs">Sin movimientos registrados</p></div>
           ) : (
@@ -562,7 +897,7 @@ function ClientDetail({
                 <div key={m.id} className={`flex items-center justify-between px-5 py-3 ${dk("hover:bg-[#141414]", "hover:bg-[#fafafa]")} transition`}>
                   <div className="min-w-0">
                     <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>{m.descripcion || m.tipo}</p>
-                    <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(m.fecha)} · {m.tipo}</p>
+                    <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(m.fecha)} - {m.tipo}</p>
                   </div>
                   <span className={`text-sm font-bold tabular-nums shrink-0 ml-4 ${m.monto >= 0 ? "text-red-400" : "text-emerald-400"}`}>
                     {m.monto >= 0 ? "+" : ""}{formatPrice(m.monto)}
@@ -583,7 +918,7 @@ function ClientDetail({
             <span className="ml-auto text-xs text-[#525252]">{invoices.length} registros</span>
           </div>
           {tabLoading ? (
-            <div className="py-10 text-center text-xs text-[#525252]">Cargando…</div>
+            <div className="py-10 text-center text-xs text-[#525252]">Cargando...</div>
           ) : invoices.length === 0 ? (
             <div className="flex flex-col items-center py-12 text-[#525252] gap-2"><Landmark size={24} className="opacity-20" /><p className="text-xs">Sin facturas registradas</p></div>
           ) : (
@@ -592,7 +927,7 @@ function ClientDetail({
                 <div key={inv.id} className={`flex items-center justify-between px-5 py-3 ${dk("hover:bg-[#141414]", "hover:bg-[#fafafa]")} transition`}>
                   <div className="min-w-0">
                     <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>{inv.invoice_number || `FAC-${String(inv.id).slice(-6).toUpperCase()}`}</p>
-                    <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(inv.created_at)} · {inv.status}</p>
+                    <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(inv.created_at)} - {inv.status}</p>
                   </div>
                   <span className="text-sm font-bold text-[#2D9F6A] tabular-nums shrink-0 ml-4">{formatPrice(inv.total)}</span>
                 </div>
@@ -606,7 +941,7 @@ function ClientDetail({
       {activeTab === "datos" && (
         <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-5`}>
           {tabLoading ? (
-            <div className="py-10 text-center text-xs text-[#525252]">Cargando…</div>
+            <div className="py-10 text-center text-xs text-[#525252]">Cargando...</div>
           ) : !extProfile ? (
             <div className="py-10 text-center text-xs text-red-400">No se pudo cargar el perfil extendido.</div>
           ) : (
@@ -619,7 +954,7 @@ function ClientDetail({
   );
 }
 
-// ── Money input (formats on blur, strips non-digits on change) ────────────────
+// -- Money input (formats on blur, strips non-digits on change) ----------------
 function MoneyInput({
   value, onChange, isDark, placeholder = "0",
 }: {
@@ -654,7 +989,7 @@ function MoneyInput({
   );
 }
 
-// ── Credit sub-panel ──────────────────────────────────────────────────────────
+// -- Credit sub-panel ----------------------------------------------------------
 const PAYMENT_TERMS_OPTIONS = [0, 15, 30, 45, 60, 90, 120];
 
 function CreditPanel({ profile, isDark, onRefresh }: { profile: ClientDetailData; isDark: boolean; onRefresh: () => Promise<void> }) {
@@ -689,9 +1024,9 @@ function CreditPanel({ profile, isDark, onRefresh }: { profile: ClientDetailData
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Crédito</p>
+        <p className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Credito</p>
         <button onClick={save} disabled={saving} className="flex items-center gap-1.5 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-xs font-bold px-3 py-1.5 rounded-lg transition disabled:opacity-50">
-          <Save size={12} /> {saving ? "Guardando…" : "Guardar"}
+          <Save size={12} /> {saving ? "Guardando..." : "Guardar"}
         </button>
       </div>
 
@@ -699,7 +1034,7 @@ function CreditPanel({ profile, isDark, onRefresh }: { profile: ClientDetailData
       <div className={`flex items-center justify-between p-3 rounded-xl border ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-[#f9f9f9]")}`}>
         <div className="flex items-center gap-2">
           <Shield size={14} className={approved ? "text-[#2D9F6A]" : "text-[#525252]"} />
-          <span className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>Crédito aprobado</span>
+          <span className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>Credito aprobado</span>
         </div>
         <button onClick={() => setApproved(!approved)} className={`relative h-5 w-9 rounded-full transition-colors ${approved ? "bg-[#2D9F6A]" : dk("bg-[#333]", "bg-[#d4d4d4]")}`}>
           <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${approved ? "translate-x-4" : "translate-x-0.5"}`} />
@@ -709,25 +1044,25 @@ function CreditPanel({ profile, isDark, onRefresh }: { profile: ClientDetailData
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 flex items-center gap-1.5">
-            Límite de crédito <span className="text-[9px] bg-[#2D9F6A]/10 text-[#2D9F6A] border border-[#2D9F6A]/20 px-1 py-0.5 rounded font-bold">ARS</span>
+            Limite de credito <span className="text-[9px] bg-[#2D9F6A]/10 text-[#2D9F6A] border border-[#2D9F6A]/20 px-1 py-0.5 rounded font-bold">ARS</span>
           </label>
           <MoneyInput value={limit} onChange={setLimit} isDark={isDark} />
         </div>
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 flex items-center gap-1.5">
-            Máx. por pedido <span className="text-[9px] bg-[#2D9F6A]/10 text-[#2D9F6A] border border-[#2D9F6A]/20 px-1 py-0.5 rounded font-bold">ARS</span>
-            <span className="text-[#444] normal-case font-normal tracking-normal">(0 = sin límite)</span>
+            Max. por pedido <span className="text-[9px] bg-[#2D9F6A]/10 text-[#2D9F6A] border border-[#2D9F6A]/20 px-1 py-0.5 rounded font-bold">ARS</span>
+            <span className="text-[#444] normal-case font-normal tracking-normal">(0 = sin limite)</span>
           </label>
           <MoneyInput value={maxOrder} onChange={setMaxOrder} isDark={isDark} />
         </div>
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Días netos</label>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Dias netos</label>
           <select value={terms} onChange={(e) => setTerms(Number(e.target.value))} className={`w-full border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#2D9F6A]/40 transition ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}>
             {PAYMENT_TERMS_OPTIONS.map((d) => <option key={d} value={d}>{d === 0 ? "Contado" : `Net ${d}`}</option>)}
           </select>
         </div>
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Fecha de revisión</label>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Fecha de revision</label>
           <div className="relative">
             <CalendarDays size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#525252]" />
             <input type="date" value={reviewDate} onChange={(e) => setReviewDate(e.target.value)} className={`w-full border rounded-lg pl-8 pr-3 py-1.5 text-sm outline-none focus:border-[#2D9F6A]/40 transition ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`} />
@@ -738,9 +1073,9 @@ function CreditPanel({ profile, isDark, onRefresh }: { profile: ClientDetailData
       {creditLimit > 0 && (
         <div>
           <div className="flex justify-between text-[10px] text-[#525252] mb-1">
-            <span>Uso de crédito</span>
+            <span>Uso de credito</span>
             <span className="tabular-nums">
-              ${creditUsed.toLocaleString("es-AR")} / ${creditLimit.toLocaleString("es-AR")} ARS · {usagePct.toFixed(0)}%
+              ${creditUsed.toLocaleString("es-AR")} / ${creditLimit.toLocaleString("es-AR")} ARS - {usagePct.toFixed(0)}%
             </span>
           </div>
           <div className={`h-2 rounded-full overflow-hidden ${dk("bg-[#1f1f1f]", "bg-[#e5e5e5]")}`}>
@@ -750,14 +1085,14 @@ function CreditPanel({ profile, isDark, onRefresh }: { profile: ClientDetailData
       )}
 
       <div>
-        <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Notas de crédito</label>
-        <textarea rows={3} value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Observaciones internas…" className={`w-full border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D9F6A]/40 resize-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white placeholder:text-[#404040]", "bg-white border-[#d4d4d4] text-[#171717] placeholder:text-[#a3a3a3]")}`} />
+        <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Notas de credito</label>
+        <textarea rows={3} value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Observaciones internas..." className={`w-full border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D9F6A]/40 resize-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white placeholder:text-[#404040]", "bg-white border-[#d4d4d4] text-[#171717] placeholder:text-[#a3a3a3]")}`} />
       </div>
     </div>
   );
 }
 
-// ── Datos sub-panel ────────────────────────────────────────────────────────────
+// -- Datos sub-panel ------------------------------------------------------------
 function DatosPanel({
   profile, isDark, clientEmail, onRefresh,
 }: {
@@ -818,9 +1153,9 @@ function DatosPanel({
           </div>
         </div>
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Contraseña</label>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Contrasena</label>
           <div className={`flex items-center justify-between gap-3 border rounded-lg px-3 py-1.5 ${dk("bg-[#0d0d0d] border-[#262626]", "bg-white border-[#d4d4d4]")}`}>
-            <span className="text-sm text-[#525252] italic tracking-widest select-none">••••••••••••</span>
+            <span className="text-sm text-[#525252] italic tracking-widest select-none">************</span>
             <button
               onClick={sendPasswordReset}
               disabled={!email || resetState === "sending" || resetState === "sent"}
@@ -832,14 +1167,14 @@ function DatosPanel({
                   : "bg-[#2D9F6A]/15 text-[#2D9F6A] hover:bg-[#2D9F6A]/25 disabled:opacity-40"
               }`}
             >
-              {resetState === "sending" && <><Loader2 size={11} className="animate-spin" /> Enviando…</>}
+              {resetState === "sending" && <><Loader2 size={11} className="animate-spin" /> Enviando...</>}
               {resetState === "sent"    && <><CheckCircle2 size={11} /> Email enviado</>}
               {resetState === "error"   && <><AlertTriangle size={11} /> Error al enviar</>}
-              {resetState === "idle"    && <><Send size={11} /> Enviar recuperación</>}
+              {resetState === "idle"    && <><Send size={11} /> Enviar recuperacion</>}
             </button>
           </div>
           {!email && (
-            <p className="text-[10px] text-amber-500 mt-1">Sin email registrado — no se puede enviar recuperación.</p>
+            <p className="text-[10px] text-amber-500 mt-1">Sin email registrado - no se puede enviar recuperacion.</p>
           )}
         </div>
       </div>
@@ -847,14 +1182,14 @@ function DatosPanel({
       <div className="flex items-center justify-between">
         <p className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Datos fiscales y contacto</p>
         <button onClick={save} disabled={saving} className="flex items-center gap-1.5 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-xs font-bold px-3 py-1.5 rounded-lg transition disabled:opacity-50">
-          <Save size={12} /> {saving ? "Guardando…" : "Guardar"}
+          <Save size={12} /> {saving ? "Guardando..." : "Guardar"}
         </button>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Razón social</label>{field("razon_social")}</div>
+        <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Razon social</label>{field("razon_social")}</div>
         <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">CUIT</label>{field("cuit")}</div>
-        <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Teléfono</label>{field("phone")}</div>
-        <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Dirección</label>{field("direccion")}</div>
+        <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Telefono</label>{field("phone")}</div>
+        <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Direccion</label>{field("direccion")}</div>
         <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Ciudad</label>{field("ciudad")}</div>
         <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Provincia</label>{field("provincia")}</div>
       </div>
@@ -866,7 +1201,7 @@ function DatosPanel({
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// -- Main component ------------------------------------------------------------
 export function ClientCRM({ clients, orders, loading, isDark, onSave, onNewClient, onRefreshClients }: ClientCRMProps) {
   const dk = (d: string, l: string) => isDark ? d : l;
   const [search, setSearch]       = useState("");
@@ -923,7 +1258,7 @@ export function ClientCRM({ clients, orders, loading, isDark, onSave, onNewClien
   return (
     <div className="flex gap-4 max-w-6xl h-[calc(100vh-130px)]">
 
-      {/* ── LEFT: Client list ── */}
+      {/* -- LEFT: Client list -- */}
       <div className={`flex flex-col gap-3 ${selected ? "hidden md:flex w-72 shrink-0" : "flex w-full md:w-72 md:shrink-0"}`}>
 
         <div className="flex items-center justify-between">
@@ -964,7 +1299,7 @@ export function ClientCRM({ clients, orders, loading, isDark, onSave, onNewClien
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar cliente…"
+            placeholder="Buscar cliente..."
             className={`w-full border rounded-xl pl-8 pr-3 py-2 text-sm placeholder:text-[#525252] outline-none focus:border-[#2D9F6A]/40 transition ${
               dk("bg-[#111] border-[#1f1f1f] text-white", "bg-white border-[#e5e5e5] text-[#171717]")
             }`}
@@ -1012,7 +1347,7 @@ export function ClientCRM({ clients, orders, loading, isDark, onSave, onNewClien
         </div>
       </div>
 
-      {/* ── RIGHT: Detail panel ── */}
+      {/* -- RIGHT: Detail panel -- */}
       <div className={`flex-1 overflow-y-auto ${selected ? "flex flex-col" : "hidden md:flex md:flex-col"}`}>
         {selected ? (
           <ClientDetail
@@ -1027,7 +1362,7 @@ export function ClientCRM({ clients, orders, loading, isDark, onSave, onNewClien
             <div className={`h-14 w-14 rounded-2xl border flex items-center justify-center ${dk("bg-[#111] border-[#1f1f1f]", "bg-[#f5f5f5] border-[#e5e5e5]")}`}>
               <Users size={22} className="opacity-30" />
             </div>
-            <p className={`text-sm font-medium ${dk("text-[#737373]", "text-[#525252]")}`}>Seleccioná un cliente</p>
+            <p className={`text-sm font-medium ${dk("text-[#737373]", "text-[#525252]")}`}>Selecciona un cliente</p>
             <p className="text-xs text-[#525252]">Ver historial de pedidos y cotizaciones</p>
           </div>
         )}
@@ -1036,3 +1371,4 @@ export function ClientCRM({ clients, orders, loading, isDark, onSave, onNewClien
     </div>
   );
 }
+

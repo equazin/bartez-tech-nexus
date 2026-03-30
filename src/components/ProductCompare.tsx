@@ -11,22 +11,130 @@ interface ProductCompareProps {
 }
 
 const SPEC_LABELS: Record<string, string> = {
-  cpu: "CPU",
-  ram: "RAM",
+  cpu: "Procesador",
+  gpu: "Gráficos",
+  ram: "Memoria RAM",
   storage: "Almacenamiento",
+  screen: "Pantalla",
+  resolution: "Resolución",
+  refresh_rate: "Frecuencia",
   ports: "Puertos",
-  poe: "PoE",
-  throughput: "Throughput",
-  vpn: "VPN",
+  connectivity: "Conectividad",
+  chipset: "Chipset",
+  socket: "Socket",
+  form_factor: "Formato",
   warranty: "Garantía",
 };
 
-function specKeys(products: Product[]): string[] {
-  const keys = new Set<string>();
-  for (const p of products) {
-    if (p.specs) Object.keys(p.specs).forEach((k) => keys.add(k));
+const SPEC_PRIORITY = [
+  "cpu",
+  "gpu",
+  "ram",
+  "storage",
+  "screen",
+  "resolution",
+  "refresh_rate",
+  "ports",
+  "connectivity",
+  "chipset",
+  "socket",
+  "form_factor",
+  "warranty",
+];
+
+const HIDDEN_SPEC_PREFIXES = [
+  "elit_",
+  "air_",
+  "supplier_",
+  "preferred_supplier_",
+  "sync_",
+  "internal_",
+  "provider_",
+];
+
+const HIDDEN_SPEC_TOKENS = [
+  "cost",
+  "precio_costo",
+  "precio_compra",
+  "markup",
+  "pvp",
+  "exchange",
+  "cotizacion",
+  "external_id",
+  "uuid",
+  "token",
+  "source",
+  "last_update",
+  "stock_cd",
+  "stock_total",
+  "stock_deposito",
+  "lug_stock",
+  "iva",
+  "link",
+];
+
+function normalizeSpecKey(rawKey: string): string {
+  return rawKey.trim().toLowerCase();
+}
+
+function isClientVisibleSpecKey(rawKey: string): boolean {
+  const key = normalizeSpecKey(rawKey);
+  if (!key) return false;
+  if (HIDDEN_SPEC_PREFIXES.some((prefix) => key.startsWith(prefix))) return false;
+  if (HIDDEN_SPEC_TOKENS.some((token) => key.includes(token))) return false;
+  return true;
+}
+
+function formatSpecLabel(rawKey: string): string {
+  const normalized = normalizeSpecKey(rawKey);
+  if (SPEC_LABELS[normalized]) return SPEC_LABELS[normalized];
+  const withSpaces = rawKey
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1);
+}
+
+function formatSpecValue(value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  if (Array.isArray(value)) {
+    const joined = value.map((item) => String(item ?? "").trim()).filter(Boolean).join(", ");
+    return joined || "—";
   }
-  return Array.from(keys);
+  if (typeof value === "object") return JSON.stringify(value);
+  const text = String(value).trim();
+  return text || "—";
+}
+
+function collectSpecKeys(products: Product[]): string[] {
+  const keys = new Set<string>();
+  for (const product of products) {
+    if (!product.specs) continue;
+    Object.keys(product.specs).forEach((key) => {
+      if (isClientVisibleSpecKey(key)) keys.add(key);
+    });
+  }
+
+  const priorityIndex = new Map(SPEC_PRIORITY.map((key, index) => [key, index]));
+  return Array.from(keys).sort((a, b) => {
+    const aNorm = normalizeSpecKey(a);
+    const bNorm = normalizeSpecKey(b);
+    const aPriority = priorityIndex.has(aNorm) ? (priorityIndex.get(aNorm) as number) : Number.POSITIVE_INFINITY;
+    const bPriority = priorityIndex.has(bNorm) ? (priorityIndex.get(bNorm) as number) : Number.POSITIVE_INFINITY;
+    if (aPriority !== bPriority) return aPriority - bPriority;
+    return formatSpecLabel(a).localeCompare(formatSpecLabel(b), "es");
+  });
+}
+
+function allSame(values: string[]): boolean {
+  const normalized = values.map((value) => value.trim().toLowerCase());
+  if (normalized.length <= 1) return true;
+  return normalized.every((value) => value === normalized[0]);
+}
+
+function withFallbackImage(event: React.SyntheticEvent<HTMLImageElement, Event>) {
+  const target = event.currentTarget;
+  target.style.display = "none";
 }
 
 export default function ProductCompare({
@@ -38,51 +146,65 @@ export default function ProductCompare({
 }: ProductCompareProps) {
   if (products.length === 0) return null;
 
-  const specs = specKeys(products);
-  const colWidth = products.length === 1 ? "w-64" : products.length === 2 ? "w-56" : "w-48";
+  const specKeys = collectSpecKeys(products);
+  const descriptions = products.map((product) => (product.description || "").trim() || "Sin descripción técnica");
+  const descriptionsAreEqual = allSame(descriptions);
+  const minQty = products.map((product) => (product.min_order_qty ? `${product.min_order_qty} u.` : "—"));
+  const minQtyAreEqual = allSame(minQty);
+
+  const priceTiersByProduct = products.map((product) =>
+    product.price_tiers && product.price_tiers.length > 0
+      ? product.price_tiers.map((tier) => `${tier.min}${tier.max ? `–${tier.max}` : "+"}: ${formatPrice(tier.price)}`).join(" | ")
+      : "—"
+  );
+  const tiersAreEqual = allSame(priceTiersByProduct);
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 shadow-2xl border-t border-gray-200 bg-white animate-in slide-in-from-bottom duration-300">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
-        <span className="text-sm font-semibold text-gray-700">
-          Comparando {products.length} producto{products.length !== 1 ? "s" : ""}
-          <span className="ml-2 text-xs text-gray-400 font-normal">(máx. 3)</span>
+    <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#d4d4d4] bg-white/95 backdrop-blur shadow-[0_-10px_40px_rgba(0,0,0,0.12)] animate-in slide-in-from-bottom duration-300">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#e5e5e5] bg-[#f8f8f8]">
+        <span className="text-sm font-semibold text-[#171717]">
+          Comparador técnico ({products.length}/3)
+          <span className="ml-2 text-xs text-[#737373] font-normal">solo datos útiles para decidir</span>
         </span>
         <button
           onClick={onClear}
-          className="text-xs text-red-500 hover:text-red-700 font-medium flex items-center gap-1"
+          className="text-xs text-red-500 hover:text-red-600 font-semibold flex items-center gap-1"
         >
           <X size={14} /> Limpiar comparador
         </button>
       </div>
 
-      {/* Scrollable table */}
-      <div className="overflow-x-auto max-h-[55vh]">
+      <div className="overflow-x-auto max-h-[58vh]">
         <table className="w-full text-sm border-collapse">
           <thead className="sticky top-0 z-10 bg-white">
             <tr>
-              {/* Row label column */}
-              <th className="w-36 min-w-[9rem] text-left px-3 py-2 text-xs uppercase tracking-wide text-gray-500 border-b border-r border-gray-200 bg-gray-50">
+              <th className="w-44 min-w-[11rem] text-left px-3 py-2 text-xs uppercase tracking-wide text-[#737373] border-b border-r border-[#e5e5e5] bg-[#f8f8f8]">
                 Atributo
               </th>
-              {products.map((p) => (
+              {products.map((product) => (
                 <th
-                  key={p.id}
-                  className={`${colWidth} min-w-[11rem] px-3 py-2 border-b border-r border-gray-200 text-left bg-white`}
+                  key={product.id}
+                  className="min-w-[18rem] px-3 py-2 border-b border-r border-[#e5e5e5] text-left bg-white"
                 >
-                  <div className="flex items-start justify-between gap-1">
-                    <div>
-                      <div className="font-semibold text-gray-800 text-xs leading-tight line-clamp-2">
-                        {p.name}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2 min-w-0">
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        onError={withFallbackImage}
+                        className="h-10 w-10 rounded-md object-contain border border-[#e5e5e5] bg-[#f9f9f9] shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <p className="font-semibold text-[#171717] text-xs leading-tight line-clamp-2">{product.name}</p>
+                        {product.sku && (
+                          <p className="text-[10px] text-[#737373] font-mono mt-0.5">{product.sku}</p>
+                        )}
                       </div>
-                      {p.sku && (
-                        <div className="text-[10px] text-gray-400 font-mono mt-0.5">{p.sku}</div>
-                      )}
                     </div>
                     <button
-                      onClick={() => onRemove(p.id)}
-                      className="shrink-0 text-gray-400 hover:text-red-500 mt-0.5"
+                      onClick={() => onRemove(product.id)}
+                      className="shrink-0 text-[#a3a3a3] hover:text-red-500"
+                      title="Quitar del comparador"
                     >
                       <X size={14} />
                     </button>
@@ -93,172 +215,137 @@ export default function ProductCompare({
           </thead>
 
           <tbody>
-            {/* Image row */}
-            <tr className="bg-gray-50/50">
-              <td className="px-3 py-2 text-xs text-gray-500 border-b border-r border-gray-200 font-medium">
-                Imagen
-              </td>
-              {products.map((p) => (
-                <td key={p.id} className="px-3 py-2 border-b border-r border-gray-200">
-                  <img
-                    src={p.image}
-                    alt={p.name}
-                    className="h-14 w-auto object-contain rounded"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = "none";
-                    }}
-                  />
-                </td>
-              ))}
-            </tr>
-
-            {/* Category */}
-            <tr>
-              <td className="px-3 py-2 text-xs text-gray-500 border-b border-r border-gray-200 font-medium">
+            <tr className="bg-[#f9fafb]">
+              <td className="px-3 py-2 text-xs text-[#525252] border-b border-r border-[#e5e5e5] font-medium">
                 Categoría
               </td>
-              {products.map((p) => (
-                <td key={p.id} className="px-3 py-2 border-b border-r border-gray-200 text-xs text-gray-700">
-                  {p.category}
+              {products.map((product) => (
+                <td key={product.id} className="px-3 py-2 border-b border-r border-[#e5e5e5] text-xs text-[#171717]">
+                  {product.category}
                 </td>
               ))}
             </tr>
 
-            {/* Price */}
-            <tr className="bg-gray-50/50">
-              <td className="px-3 py-2 text-xs text-gray-500 border-b border-r border-gray-200 font-medium">
+            <tr>
+              <td className="px-3 py-2 text-xs text-[#525252] border-b border-r border-[#e5e5e5] font-medium">
                 Precio base ({currency})
               </td>
-              {products.map((p) => (
-                <td key={p.id} className="px-3 py-2 border-b border-r border-gray-200">
-                  <span className="font-semibold text-blue-700 text-sm">
-                    {formatPrice(p.cost_price)}
-                  </span>
+              {products.map((product) => (
+                <td key={product.id} className="px-3 py-2 border-b border-r border-[#e5e5e5]">
+                  <span className="font-extrabold text-[#2D9F6A] text-sm tabular-nums">{formatPrice(product.cost_price)}</span>
                 </td>
               ))}
             </tr>
 
-            {/* Price tiers */}
-            {products.some((p) => p.price_tiers && p.price_tiers.length > 0) && (
-              <tr>
-                <td className="px-3 py-2 text-xs text-gray-500 border-b border-r border-gray-200 font-medium align-top">
-                  Precios por volumen
-                </td>
-                {products.map((p) => (
-                  <td key={p.id} className="px-3 py-2 border-b border-r border-gray-200 text-xs">
-                    {p.price_tiers && p.price_tiers.length > 0 ? (
-                      <div className="space-y-0.5">
-                        {p.price_tiers.map((t, i) => (
-                          <div key={i} className="flex items-center gap-1 text-gray-600">
-                            <span className="text-gray-400 w-16 shrink-0">
-                              {t.min}
-                              {t.max ? `–${t.max}` : "+"}:
-                            </span>
-                            <span className="font-medium text-blue-600">
-                              {formatPrice(t.price)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
-                  </td>
-                ))}
-              </tr>
-            )}
-
-            {/* Stock */}
-            <tr className="bg-gray-50/50">
-              <td className="px-3 py-2 text-xs text-gray-500 border-b border-r border-gray-200 font-medium">
+            <tr className="bg-[#f9fafb]">
+              <td className="px-3 py-2 text-xs text-[#525252] border-b border-r border-[#e5e5e5] font-medium">
                 Stock disponible
               </td>
-              {products.map((p) => {
-                const avail = getAvailableStock(p);
+              {products.map((product) => {
+                const available = getAvailableStock(product);
                 return (
-                  <td key={p.id} className="px-3 py-2 border-b border-r border-gray-200 text-xs">
+                  <td key={product.id} className="px-3 py-2 border-b border-r border-[#e5e5e5] text-xs">
                     <span
                       className={
-                        avail === 0
+                        available === 0
                           ? "text-red-600 font-semibold"
-                          : avail <= 3
+                          : available <= 3
                           ? "text-amber-600 font-semibold"
                           : "text-green-600 font-semibold"
                       }
                     >
-                      {avail === 0 ? "Sin stock" : `${avail} unid.`}
+                      {available === 0 ? "Sin stock" : `${available} unid.`}
                     </span>
                   </td>
                 );
               })}
             </tr>
 
-            {/* Min order */}
-            {products.some((p) => p.min_order_qty) && (
-              <tr>
-                <td className="px-3 py-2 text-xs text-gray-500 border-b border-r border-gray-200 font-medium">
-                  Mínimo de compra
+            <tr>
+              <td className="px-3 py-2 text-xs text-[#525252] border-b border-r border-[#e5e5e5] font-medium">
+                Mínimo compra
+              </td>
+              {minQty.map((value, index) => (
+                <td
+                  key={`${products[index].id}-min`}
+                  className={`px-3 py-2 border-b border-r border-[#e5e5e5] text-xs text-[#171717] ${
+                    minQtyAreEqual ? "" : "bg-amber-50/70"
+                  }`}
+                >
+                  {value}
                 </td>
-                {products.map((p) => (
-                  <td key={p.id} className="px-3 py-2 border-b border-r border-gray-200 text-xs text-gray-700">
-                    {p.min_order_qty ? `${p.min_order_qty} unid.` : "—"}
-                  </td>
-                ))}
-              </tr>
-            )}
+              ))}
+            </tr>
 
-            {/* Dynamic specs */}
-            {specs.map((key, i) => (
-              <tr key={key} className={i % 2 === 0 ? "bg-gray-50/50" : ""}>
-                <td className="px-3 py-2 text-xs text-gray-500 border-b border-r border-gray-200 font-medium">
-                  {SPEC_LABELS[key] ?? key}
+            {products.some((product) => product.price_tiers && product.price_tiers.length > 0) && (
+              <tr className="bg-[#f9fafb]">
+                <td className="px-3 py-2 text-xs text-[#525252] border-b border-r border-[#e5e5e5] font-medium align-top">
+                  Precio por volumen
                 </td>
-                {products.map((p) => (
-                  <td key={p.id} className="px-3 py-2 border-b border-r border-gray-200 text-xs text-gray-700">
-                    {p.specs?.[key] ?? <span className="text-gray-300">—</span>}
-                  </td>
-                ))}
-              </tr>
-            ))}
-
-            {/* Tags */}
-            {products.some((p) => p.tags && p.tags.length > 0) && (
-              <tr>
-                <td className="px-3 py-2 text-xs text-gray-500 border-b border-r border-gray-200 font-medium">
-                  Etiquetas
-                </td>
-                {products.map((p) => (
-                  <td key={p.id} className="px-3 py-2 border-b border-r border-gray-200 text-xs">
-                    {p.tags && p.tags.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {p.tags.map((t) => (
-                          <span
-                            key={t}
-                            className="bg-blue-100 text-blue-700 rounded px-1.5 py-0.5 text-[10px]"
-                          >
-                            {t}
-                          </span>
+                {products.map((product, index) => (
+                  <td
+                    key={`${product.id}-tiers`}
+                    className={`px-3 py-2 border-b border-r border-[#e5e5e5] text-xs ${
+                      tiersAreEqual ? "text-[#171717]" : "bg-amber-50/70 text-[#171717]"
+                    }`}
+                  >
+                    {product.price_tiers && product.price_tiers.length > 0 ? (
+                      <div className="space-y-1">
+                        {product.price_tiers.map((tier, tierIndex) => (
+                          <div key={`${product.id}-${tierIndex}`} className="flex items-center justify-between gap-2">
+                            <span className="text-[#737373]">
+                              {tier.min}{tier.max ? `–${tier.max}` : "+"} u.
+                            </span>
+                            <span className="font-semibold text-[#2D9F6A]">{formatPrice(tier.price)}</span>
+                          </div>
                         ))}
                       </div>
                     ) : (
-                      <span className="text-gray-300">—</span>
+                      <span>{priceTiersByProduct[index]}</span>
                     )}
                   </td>
                 ))}
               </tr>
             )}
 
-            {/* IVA */}
             <tr>
-              <td className="px-3 py-2 text-xs text-gray-500 border-b border-r border-gray-200 font-medium">
-                IVA
+              <td className="px-3 py-2 text-xs text-[#525252] border-b border-r border-[#e5e5e5] font-medium align-top">
+                Descripción técnica
               </td>
-              {products.map((p) => (
-                <td key={p.id} className="px-3 py-2 border-b border-r border-gray-200 text-xs text-gray-700">
-                  {p.iva_rate != null ? `${p.iva_rate}%` : "21%"}
+              {descriptions.map((description, index) => (
+                <td
+                  key={`${products[index].id}-desc`}
+                  className={`px-3 py-2 border-b border-r border-[#e5e5e5] text-xs leading-relaxed ${
+                    descriptionsAreEqual ? "text-[#525252]" : "bg-amber-50/70 text-[#525252]"
+                  }`}
+                >
+                  <p className="line-clamp-4 whitespace-pre-line">{description}</p>
                 </td>
               ))}
             </tr>
+
+            {specKeys.map((key, rowIndex) => {
+              const values = products.map((product) => formatSpecValue(product.specs?.[key]));
+              const same = allSame(values);
+              const zebra = rowIndex % 2 === 0 ? "bg-[#f9fafb]" : "bg-white";
+              return (
+                <tr key={key} className={zebra}>
+                  <td className="px-3 py-2 text-xs text-[#525252] border-b border-r border-[#e5e5e5] font-medium align-top">
+                    {formatSpecLabel(key)}
+                  </td>
+                  {values.map((value, index) => (
+                    <td
+                      key={`${products[index].id}-${key}`}
+                      className={`px-3 py-2 border-b border-r border-[#e5e5e5] text-xs text-[#171717] ${
+                        same ? "" : "bg-amber-50/70"
+                      }`}
+                    >
+                      {value}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

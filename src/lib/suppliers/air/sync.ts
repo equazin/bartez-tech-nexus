@@ -94,7 +94,7 @@ async function syncCatalogo(supplierId: string, rubros: AirRubro[]): Promise<voi
 function buildProductPayload(
   product: AirProduct,
   supplierId: string,
-  categoryId: string
+  categoryId: number
 ): Record<string, unknown> {
   return {
     name:          product.descrip.trim(),
@@ -144,7 +144,7 @@ async function run(): Promise<void> {
   for await (const product of client.fetchAllProducts()) {
     const externalCatId = product.rubro ?? "0";
 
-    let categoryId: string;
+    let categoryId: number;
     try {
       categoryId = await resolveCategory(supplierId, externalCatId);
     } catch (err) {

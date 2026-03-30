@@ -6,8 +6,20 @@ import {
   CheckCircle2, XCircle, AlertTriangle, Send, Eye, Ban,
   ArrowUpRight, ArrowDownRight, Minus as MinusIcon,
   Package, Users, Trash2, Receipt, CreditCard,
+  type LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { formatMoneyInPreferredCurrency, getEffectiveInvoiceAmounts } from "@/lib/money";
+import {
+  buildCommercialAlerts,
+  buildCommercialStories,
+  buildCommercialTasks,
+  calculateOrderProfitability,
+  type CommercialAlert,
+  type CommercialPayment,
+  type CommercialProduct,
+  type CommercialProfile,
+} from "@/lib/commercialOps";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -17,7 +29,8 @@ import {
 interface SupabaseOrder {
   id: string;
   client_id: string;
-  products: Array<{ name: string; quantity: number; unit_price?: number; total_price?: number }>;
+  order_number?: string;
+  products: Array<{ name: string; quantity: number; unit_price?: number; total_price?: number; margin?: number }>;
   total: number;
   status: string;
   created_at: string;
@@ -34,6 +47,7 @@ interface Props {
   clients: ClientProfile[];
   isDark: boolean;
   onRefreshOrders?: () => void;
+  onOpenTab?: (tab: string) => void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -61,18 +75,19 @@ const REVENUE_STATUSES = new Set(["approved", "preparing", "shipped", "dispatche
 const isRevenueOrder = (o: { status: string }) => REVENUE_STATUSES.has(o.status);
 
 // ── Status configs ───────────────────────────────────────────────────────────
-const ORDER_STATUS: Record<string, { label: string; icon: any; color: string; bg: string; border: string }> = {
+const ORDER_STATUS: Record<string, { label: string; icon: LucideIcon; color: string; bg: string; border: string }> = {
   pending:  { label: "En revisión", icon: Clock,        color: "text-yellow-400", bg: "bg-yellow-500/15", border: "border-yellow-500/30" },
   approved: { label: "Aprobado",    icon: CheckCircle2, color: "text-green-400",  bg: "bg-green-500/15",  border: "border-green-500/30" },
   rejected: { label: "Rechazado",   icon: XCircle,      color: "text-red-400",    bg: "bg-red-500/15",    border: "border-red-500/30" },
 };
 
-const QUOTE_STATUS: Record<QuoteStatus, { label: string; icon: any; color: string; bar: string }> = {
+const QUOTE_STATUS: Record<QuoteStatus, { label: string; icon: LucideIcon; color: string; bar: string }> = {
   draft:    { label: "Borrador",  icon: FileText,      color: "text-[#a3a3a3]",  bar: "bg-[#404040]" },
   sent:     { label: "Enviada",   icon: Send,          color: "text-blue-400",   bar: "bg-blue-500" },
   viewed:   { label: "Vista",     icon: Eye,           color: "text-purple-400", bar: "bg-purple-500" },
   approved: { label: "Aprobada",  icon: CheckCircle2,  color: "text-green-400",  bar: "bg-green-500" },
   rejected: { label: "Rechazada", icon: XCircle,       color: "text-red-400",    bar: "bg-red-500" },
+  converted:{ label: "Convertida",icon: CheckCircle2,  color: "text-emerald-400",bar: "bg-emerald-500" },
   expired:  { label: "Expirada",  icon: AlertTriangle, color: "text-amber-400",  bar: "bg-amber-500" },
 };
 
@@ -80,7 +95,7 @@ const QUOTE_STATUS: Record<QuoteStatus, { label: string; icon: any; color: strin
 function KpiCard({
   label, value, sub, icon: Icon, accent, trend, trendPct, isDark,
 }: {
-  label: string; value: string; sub?: string; icon: any; accent: string;
+  label: string; value: string; sub?: string; icon: LucideIcon; accent: string;
   trend?: "up" | "down" | "flat"; trendPct?: number; isDark: boolean;
 }) {
   const dk = (d: string, l: string) => isDark ? d : l;
@@ -536,6 +551,134 @@ function DeleteHistoryPanel({ isDark, onRefreshOrders }: { isDark: boolean; onRe
   );
 }
 
+function CommercialAlertsPanel({
+  alerts,
+  isDark,
+}: {
+  alerts: CommercialAlert[];
+  isDark: boolean;
+}) {
+  const dk = (d: string, l: string) => isDark ? d : l;
+
+  return (
+    <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
+      <div className={`px-5 py-4 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
+        <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Alertas automáticas</h3>
+        <p className="text-xs text-[#737373] mt-0.5">Stock, crédito, cobranzas y pedidos demorados.</p>
+      </div>
+      <div className="px-5 py-4 space-y-3">
+        {alerts.length === 0 ? (
+          <p className="text-xs text-[#525252]">Sin alertas críticas por ahora.</p>
+        ) : (
+          alerts.map((alert) => (
+            <div key={alert.id} className={`rounded-xl border px-3 py-3 ${alert.severity === "high" ? "border-red-500/20 bg-red-500/10" : "border-amber-500/20 bg-amber-500/10"}`}>
+              <div className="flex items-center justify-between gap-3">
+                <p className={`text-xs font-semibold ${alert.severity === "high" ? "text-red-400" : "text-amber-400"}`}>{alert.title}</p>
+                <span className="text-[10px] uppercase tracking-widest text-[#525252]">{alert.type.replace(/_/g, " ")}</span>
+              </div>
+              <p className="text-[11px] text-[#737373] mt-1">{alert.detail}</p>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CommercialTasksPanel({
+  tasks,
+  isDark,
+}: {
+  tasks: ReturnType<typeof buildCommercialTasks>;
+  isDark: boolean;
+}) {
+  const dk = (d: string, l: string) => isDark ? d : l;
+
+  return (
+    <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
+      <div className={`px-5 py-4 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
+        <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Seguimiento y cobranza</h3>
+        <p className="text-xs text-[#737373] mt-0.5">Acciones sugeridas para hoy, sin perder el hilo comercial.</p>
+      </div>
+      <div className="px-5 py-4 space-y-3">
+        {tasks.length === 0 ? (
+          <p className="text-xs text-[#525252]">No hay acciones urgentes pendientes.</p>
+        ) : (
+          tasks.map((task) => (
+            <div key={task.id} className={`rounded-xl border px-3 py-3 ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
+              <div className="flex items-center justify-between gap-3">
+                <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>{task.title}</p>
+                <span className="text-[10px] uppercase tracking-widest text-[#2D9F6A]">{task.kind.replace(/_/g, " ")}</span>
+              </div>
+              <p className="text-[11px] text-[#737373] mt-1">{task.detail}</p>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ProfitabilityPanel({
+  orders,
+  isDark,
+}: {
+  orders: SupabaseOrder[];
+  isDark: boolean;
+}) {
+  const dk = (d: string, l: string) => isDark ? d : l;
+  const { formatPrice } = useCurrency();
+
+  const profitableOrders = useMemo(
+    () =>
+      orders
+        .map((order) => ({ order, metrics: calculateOrderProfitability(order) }))
+        .filter(({ metrics }) => metrics.revenue > 0 && metrics.cost > 0)
+        .sort((a, b) => b.metrics.grossProfit - a.metrics.grossProfit)
+        .slice(0, 6),
+    [orders]
+  );
+
+  return (
+    <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
+      <div className={`px-5 py-4 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
+        <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Rentabilidad por pedido</h3>
+        <p className="text-xs text-[#737373] mt-0.5">Visible solo en admin. El cliente nunca ve este margen real.</p>
+      </div>
+      <div className="px-5 py-4 space-y-3">
+        {profitableOrders.length === 0 ? (
+          <p className="text-xs text-[#525252]">Todavía no hay pedidos con costo suficiente para calcular margen real.</p>
+        ) : (
+          profitableOrders.map(({ order, metrics }) => (
+            <div key={order.id} className={`rounded-xl border px-3 py-3 ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
+              <div className="flex items-center justify-between gap-3">
+                <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>{order.order_number ?? `#${String(order.id).slice(-6).toUpperCase()}`}</p>
+                <span className={`text-xs font-bold ${metrics.marginPct >= 20 ? "text-[#2D9F6A]" : metrics.marginPct >= 10 ? "text-amber-400" : "text-red-400"}`}>
+                  {metrics.marginPct.toFixed(1)}%
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-3 mt-2 text-[11px]">
+                <div>
+                  <p className="text-[#525252] uppercase tracking-widest">Venta</p>
+                  <p className={`font-semibold ${dk("text-[#d4d4d4]", "text-[#404040]")}`}>{formatPrice(metrics.revenue)}</p>
+                </div>
+                <div>
+                  <p className="text-[#525252] uppercase tracking-widest">Costo</p>
+                  <p className={`font-semibold ${dk("text-[#d4d4d4]", "text-[#404040]")}`}>{formatPrice(metrics.cost)}</p>
+                </div>
+                <div>
+                  <p className="text-[#525252] uppercase tracking-widest">Margen</p>
+                  <p className="font-semibold text-[#2D9F6A]">{formatPrice(metrics.grossProfit)}</p>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Async invoice/credit KPIs ─────────────────────────────────────────────────
 interface InvoiceKpis {
   pendingAmount: number;
@@ -546,38 +689,115 @@ interface InvoiceKpis {
 // ── Main Component ────────────────────────────────────────────────────────────
 export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Props) {
   const dk = (d: string, l: string) => isDark ? d : l;
-  const { formatPrice } = useCurrency();
+  const { currency, exchangeRate, formatPrice } = useCurrency();
   const quotes = useMemo(() => getAllQuotes(), []);
 
   // Async: invoices + credit exposure
   const [invoiceKpis, setInvoiceKpis] = useState<InvoiceKpis | null>(null);
   const [creditExposure, setCreditExposure] = useState<number | null>(null);
+  const [invoiceRows, setInvoiceRows] = useState<Array<{
+    id: string;
+    client_id: string;
+    order_id?: number;
+    invoice_number: string;
+    subtotal: number;
+    iva_total: number;
+    total: number;
+    currency: "ARS" | "USD";
+    exchange_rate?: number | null;
+    status: string;
+    created_at: string;
+    due_date?: string;
+  }>>([]);
+  const [paymentRows, setPaymentRows] = useState<CommercialPayment[]>([]);
+  const [profileRows, setProfileRows] = useState<CommercialProfile[]>([]);
+  const [productRows, setProductRows] = useState<CommercialProduct[]>([]);
 
   useEffect(() => {
-    // Invoice KPIs (sent + overdue)
-    supabase
-      .from("invoices")
-      .select("total, status")
-      .in("status", ["sent", "overdue"])
-      .then(({ data }) => {
-        const rows = data ?? [];
-        setInvoiceKpis({
-          pendingAmount: rows.reduce((s, r) => s + (r.total ?? 0), 0),
-          overdueCount:  rows.filter((r) => r.status === "overdue").length,
-          overdueAmount: rows.filter((r) => r.status === "overdue").reduce((s, r) => s + (r.total ?? 0), 0),
-        });
-      });
+    Promise.all([
+      supabase
+        .from("invoices")
+        .select("id, client_id, order_id, invoice_number, subtotal, iva_total, total, currency, exchange_rate, status, created_at, due_date")
+        .order("created_at", { ascending: false })
+        .limit(200),
+      supabase
+        .from("profiles")
+        .select("id, company_name, contact_name, credit_limit, credit_used, estado")
+        .limit(500),
+      supabase
+        .from("products")
+        .select("id, name, stock, stock_min")
+        .eq("active", true)
+        .limit(300),
+      supabase
+        .from("account_movements")
+        .select("id, client_id, monto, fecha, tipo, descripcion, reference_id, reference_type")
+        .eq("tipo", "pago")
+        .order("fecha", { ascending: false })
+        .limit(200),
+    ]).then(([invoiceResult, profileResult, productResult, paymentResult]) => {
+      const invoices = (invoiceResult.data ?? []) as Array<{
+        id: string;
+        client_id: string;
+        order_id?: number;
+        invoice_number: string;
+        subtotal: number;
+        iva_total: number;
+        total: number;
+        currency: "ARS" | "USD";
+        exchange_rate?: number | null;
+        status: string;
+        created_at: string;
+        due_date?: string;
+      }>;
+      const profiles = (profileResult.data ?? []) as CommercialProfile[];
 
-    // Credit exposure (sum of credit_used across all clients)
-    supabase
-      .from("profiles")
-      .select("credit_used")
-      .not("credit_used", "is", null)
-      .then(({ data }) => {
-        const total = (data ?? []).reduce((s, r) => s + (r.credit_used ?? 0), 0);
-        setCreditExposure(total);
+      setInvoiceRows(invoices);
+      setProfileRows(profiles);
+      setProductRows((productResult.data ?? []) as CommercialProduct[]);
+      setPaymentRows((paymentResult.data ?? []) as CommercialPayment[]);
+      const sumInvoiceTotalsInPreferredCurrency = (rows: typeof invoices) =>
+        rows.reduce((sum, row) => {
+          const effective = getEffectiveInvoiceAmounts(
+            {
+              id: row.id,
+              invoice_number: row.invoice_number,
+              client_id: row.client_id,
+              order_id: row.order_id,
+              items: [],
+              subtotal: row.subtotal ?? 0,
+              iva_total: row.iva_total ?? 0,
+              total: row.total ?? 0,
+              currency: row.currency ?? "USD",
+              exchange_rate: row.exchange_rate ?? undefined,
+              status: row.status as "draft" | "sent" | "paid" | "overdue" | "cancelled",
+              due_date: row.due_date,
+              created_at: row.created_at,
+            },
+            exchangeRate.rate
+          );
+
+          if (effective.currency === currency) {
+            return sum + effective.total;
+          }
+
+          return sum + (effective.currency === "USD"
+            ? effective.total * exchangeRate.rate
+            : effective.total / exchangeRate.rate);
+        }, 0);
+
+      setInvoiceKpis({
+        pendingAmount: sumInvoiceTotalsInPreferredCurrency(
+          invoices.filter((row) => ["sent", "overdue"].includes(row.status))
+        ),
+        overdueCount: invoices.filter((row) => row.status === "overdue").length,
+        overdueAmount: sumInvoiceTotalsInPreferredCurrency(
+          invoices.filter((row) => row.status === "overdue")
+        ),
       });
-  }, []);
+      setCreditExposure(profiles.reduce((s, r) => s + (r.credit_used ?? 0), 0));
+    });
+  }, [currency, exchangeRate.rate]);
 
   const approvedOrders  = useMemo(() => orders.filter(isRevenueOrder), [orders]);
   const pendingOrders   = useMemo(() => orders.filter((o) => o.status === "pending"),  [orders]);
@@ -635,6 +855,39 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
   const momTrend: "up" | "down" | "flat" = momPct == null ? "flat" : momPct > 0 ? "up" : momPct < 0 ? "down" : "flat";
   const ordersTrend: "up" | "down" | "flat" = ordersPct == null ? "flat" : ordersPct > 0 ? "up" : ordersPct < 0 ? "down" : "flat";
   const avgTicketTrend: "up" | "down" | "flat" = avgTicketPct == null ? "flat" : avgTicketPct > 0 ? "up" : avgTicketPct < 0 ? "down" : "flat";
+  const clientMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    clients.forEach((client) => {
+      map[client.id] = client.company_name || client.contact_name || client.id;
+    });
+    return map;
+  }, [clients]);
+  const stories = useMemo(
+    () =>
+      buildCommercialStories({
+        orders,
+        quotes: quotes.map((quote) => ({
+          id: quote.id,
+          client_id: quote.client_id,
+          total: quote.total,
+          status: quote.status,
+          created_at: quote.created_at,
+          order_id: quote.order_id,
+        })),
+        invoices: invoiceRows,
+        payments: paymentRows,
+        clientMap,
+      }),
+    [orders, quotes, invoiceRows, paymentRows, clientMap]
+  );
+  const commercialAlerts = useMemo(
+    () => buildCommercialAlerts({ orders, invoices: invoiceRows, profiles: profileRows, products: productRows }),
+    [orders, invoiceRows, profileRows, productRows]
+  );
+  const commercialTasks = useMemo(
+    () => buildCommercialTasks(stories, profileRows),
+    [stories, profileRows]
+  );
 
   return (
     <div className="space-y-6">
@@ -707,7 +960,7 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
             <p className="text-[10px] font-bold uppercase tracking-widest text-[#525252]">Facturas pendientes</p>
           </div>
           <p className={`text-xl font-extrabold tabular-nums ${invoiceKpis ? "text-blue-400" : dk("text-[#525252]", "text-[#a3a3a3]")}`}>
-            {invoiceKpis != null ? formatPrice(invoiceKpis.pendingAmount) : "…"}
+            {invoiceKpis != null ? formatMoneyInPreferredCurrency(invoiceKpis.pendingAmount, currency, currency, exchangeRate.rate, 0) : "…"}
           </p>
         </div>
         <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-4 py-3`}>
@@ -720,7 +973,9 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
               {invoiceKpis != null ? invoiceKpis.overdueCount : "…"}
             </p>
             {invoiceKpis != null && invoiceKpis.overdueAmount > 0 && (
-              <p className="text-[10px] text-red-400/70 mb-0.5 tabular-nums">{formatPrice(invoiceKpis.overdueAmount)}</p>
+              <p className="text-[10px] text-red-400/70 mb-0.5 tabular-nums">
+                {formatMoneyInPreferredCurrency(invoiceKpis.overdueAmount, currency, currency, exchangeRate.rate, 0)}
+              </p>
             )}
           </div>
         </div>
@@ -730,9 +985,15 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
             <p className="text-[10px] font-bold uppercase tracking-widest text-[#525252]">Exposición crédito</p>
           </div>
           <p className={`text-xl font-extrabold tabular-nums ${creditExposure != null && creditExposure > 0 ? "text-amber-400" : dk("text-[#525252]", "text-[#a3a3a3]")}`}>
-            {creditExposure != null ? formatPrice(creditExposure) : "…"}
+            {creditExposure != null ? formatMoneyInPreferredCurrency(creditExposure, "ARS", currency, exchangeRate.rate, 0) : "…"}
           </p>
         </div>
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-4">
+        <CommercialAlertsPanel alerts={commercialAlerts} isDark={isDark} />
+        <CommercialTasksPanel tasks={commercialTasks} isDark={isDark} />
+        <ProfitabilityPanel orders={approvedOrders} isDark={isDark} />
       </div>
 
       {/* ── Charts row ── */}

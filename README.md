@@ -1,73 +1,87 @@
-# Welcome to your Lovable project
+# Bartez Tech Nexus
 
-## Project info
+Portal comercial y operativo de Bartez para venta B2B, gestion administrativa y sincronizacion con Supabase/Vercel.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Stack
 
-## How can I edit this code?
+- Vite + React + TypeScript
+- Tailwind + shadcn/ui
+- Supabase para auth, datos, RPCs y RLS
+- Vercel Functions para integraciones server-side
+- Vitest para pruebas unitarias
 
-There are several ways of editing your application.
+## Modulos principales
 
-**Use Lovable**
+- Sitio corporativo y landing comercial
+- Portal B2B para clientes autenticados
+- Backoffice administrativo con stock, pedidos, clientes y reportes
+- Cotizaciones, invoices y reglas de pricing
+- Integracion con AIR y correo transaccional
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Requisitos
 
-Changes made via Lovable will be committed automatically to this repo.
+- Node.js 20+
+- npm 10+
 
-**Use your preferred IDE**
+## Primer inicio
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Variables de entorno
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Copiar `.env.example` y completar:
 
-**Use GitHub Codespaces**
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `AIR_API_URL`
+- `AIR_API_TOKEN`
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `FROM_EMAIL`
+- `ADMIN_EMAIL`
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Scripts
 
-## What technologies are used for this project?
+- `npm run dev`: desarrollo local
+- `npm run build`: build de produccion
+- `npm run preview`: preview local del build
+- `npm run test`: suite de Vitest
+- `npm run lint`: chequeos de ESLint
+- `npm run typecheck`: chequeos de TypeScript
+- `npm run check`: typecheck + lint + test + build
 
-This project is built with:
+## Base de datos
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Las migraciones viven en [`supabase/migrations`](C:/Users/nicop/OneDrive/Documentos/git/bartez-tech-nexus/supabase/migrations). El proyecto depende de RPCs y politicas RLS para:
 
-## How can I deploy this project?
+- reserva atomica de stock
+- credito por cliente
+- cotizaciones e invoices
+- auditoria de stock
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## Deploy
 
-## Can I connect a custom domain to my Lovable project?
+- Frontend estatico servido en Vercel
+- `vercel.json` reescribe las rutas SPA y expone `api/*.ts`
+- Las funciones usan `maxDuration` de 30s
 
-Yes, you can!
+## Calidad actual
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+Antes de abrir un deploy o PR:
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+```bash
+npm run check
+```
+
+## Notas
+
+- El package manager oficial del repo es `npm`
+- Las variables server-side deben vivir en Vercel/entorno local, no en el cliente

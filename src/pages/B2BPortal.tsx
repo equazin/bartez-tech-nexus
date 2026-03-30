@@ -5,21 +5,23 @@ import { useAuth } from "@/context/AuthContext";
 import { useProducts } from "@/hooks/useProducts";
 import { useBrands } from "@/hooks/useBrands";
 import { supabase } from "@/lib/supabase";
-import { useOrders } from "@/hooks/useOrders";
+import { useOrders, type PortalOrder } from "@/hooks/useOrders";
 import { useQuotes } from "@/hooks/useQuotes";
 import { Quote } from "@/models/quote";
 import { QuoteList } from "@/components/QuoteList";
 import { useCurrency } from "@/context/CurrencyContext";
+import { OrderStatusBadge as StatusBadge } from "@/components/OrderStatusBadge";
+import { toggleSetValue } from "@/lib/toggleSet";
 import {
   LogOut, ShoppingCart, Search, LayoutGrid, List, Package,
   ClipboardList, CheckCircle2, XCircle, Clock, X, Plus, Minus,
   ShieldCheck, Check, AlertTriangle, AlertCircle, SlidersHorizontal,
   Star, Sun, Moon, ChevronDown, ChevronRight, FileText,
-  Table2, Zap, Truck, ChevronUp, Download, Upload, Users,
+  Table2, Zap, Truck, ChevronUp, Download, Upload, Users, type LucideIcon,
 } from "lucide-react";
 import { getUnitPrice, getAvailableStock } from "@/lib/pricing";
-import { nextOrderNumber } from "@/lib/orderNumber";
-import { exportCatalogCSV, exportCatalogPDF } from "@/lib/exports";
+import { exportCatalogCSV } from "@/lib/exportCsv";
+import { exportCatalogPdf } from "@/lib/exportPdf";
 import { getSavedCarts, saveCart, deleteSavedCart, type SavedCart } from "@/lib/savedCarts";
 import { useNotifications } from "@/hooks/useNotifications";
 import ProductCompare from "@/components/ProductCompare";
@@ -32,9 +34,14 @@ import {
 } from "@/lib/orderEnhancements";
 import { fetchMyInvoices, type Invoice, type InvoiceStatus } from "@/lib/api/invoices";
 import { puedeComprar } from "@/lib/api/clientDetail";
+import type { Product } from "@/models/products";
+import { getFavoriteProducts, toggleFavoriteProduct } from "@/lib/favoriteProducts";
+import { OrdersPanel } from "@/components/b2b/OrdersPanel";
+import { InvoicesPanel } from "@/components/b2b/InvoicesPanel";
+import { AccountCenter } from "@/components/b2b/AccountCenter";
 
 type CartItem = {
-  product: any;
+  product: Product;
   quantity: number;
   cost: number;
   margin: number;
@@ -48,6 +55,58 @@ type CartItem = {
 /** Extrae el stock de Lugano desde specs del producto */
 function getLugStock(p: { specs?: Record<string, string> }): number {
   return p.specs?.lug_stock ? Number(p.specs.lug_stock) : 0;
+}
+
+const HIDDEN_SPEC_PREFIXES = [
+  "elit_",
+  "air_",
+  "supplier_",
+  "preferred_supplier_",
+  "sync_",
+  "internal_",
+  "provider_",
+];
+
+const HIDDEN_SPEC_TOKENS = [
+  "cost",
+  "precio_costo",
+  "precio_compra",
+  "markup",
+  "pvp",
+  "exchange",
+  "cotizacion",
+  "external_id",
+  "uuid",
+  "token",
+  "source",
+  "last_update",
+  "stock_cd",
+  "stock_total",
+  "stock_deposito",
+  "link",
+];
+
+function isClientVisibleSpecKey(rawKey: string): boolean {
+  const key = rawKey.trim().toLowerCase();
+  if (!key) return false;
+  if (HIDDEN_SPEC_PREFIXES.some((prefix) => key.startsWith(prefix))) return false;
+  if (HIDDEN_SPEC_TOKENS.some((token) => key.includes(token))) return false;
+  return true;
+}
+
+function formatSpecLabel(rawKey: string): string {
+  const withSpaces = rawKey
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1);
+}
+
+function formatSpecValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (Array.isArray(value)) return value.map((item) => String(item ?? "")).join(", ");
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
 }
 
 // ── Stock badge with pill background ──────────────────────────────────────
@@ -78,8 +137,8 @@ function StockBadge({ stock, lugStock = 0 }: { stock: number; lugStock?: number 
 }
 
 // ── Order status badge ─────────────────────────────────────────────────────
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; className: string; icon: any }> = {
+function LegacyStatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; className: string; icon: LucideIcon }> = {
     pending:    { label: "En revisión",  className: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",   icon: Clock },
     approved:   { label: "Aprobado",     className: "bg-green-500/15 text-green-400 border-green-500/30",     icon: CheckCircle2 },
     preparing:  { label: "Preparando",   className: "bg-orange-500/15 text-orange-400 border-orange-500/30",  icon: Package },
@@ -125,8 +184,10 @@ function SkeletonCard() {
 }
 
 export default function B2BPortal() {
+  type PortalTab = "catalog" | "orders" | "quotes" | "invoices" | "cuenta";
+
   const navigate = useNavigate();
-  const { profile, isAdmin, signOut } = useAuth();
+  const { profile, user, isAdmin, signOut } = useAuth();
   const { products, loading: productsLoading } = useProducts();
   const { brands } = useBrands();
   const { orders, addOrder, updateOrder } = useOrders();
@@ -149,7 +210,7 @@ export default function B2BPortal() {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list" | "table">("list");
-  const [activeTab, setActiveTab] = useState<"catalog" | "orders" | "quotes" | "invoices" | "cuenta">("catalog");
+  const [activeTab, setActiveTab] = useState<PortalTab>("catalog");
   const [myInvoices, setMyInvoices] = useState<Invoice[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
 
@@ -166,7 +227,7 @@ export default function B2BPortal() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === "invoices") loadMyInvoices();
+    if (activeTab === "invoices" || activeTab === "cuenta") loadMyInvoices();
   }, [activeTab, loadMyInvoices]);
 
   // Quick Order
@@ -180,10 +241,13 @@ export default function B2BPortal() {
   const [savedCarts, setSavedCarts] = useState<SavedCart[]>(() =>
     getSavedCarts(profile?.id || "guest")
   );
+  const [favoriteProductIds, setFavoriteProductIds] = useState<number[]>(() =>
+    getFavoriteProducts(profile?.id || "guest")
+  );
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess]   = useState(false);
   const [creditError,  setCreditError]    = useState("");
-  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
   const [orderProofs, setOrderProofs] = useState<Record<string, ReturnType<typeof getOrderProofs>>>({});
   const [proofForm, setProofForm] = useState<Record<string, {
@@ -210,6 +274,7 @@ export default function B2BPortal() {
   const [theme, setTheme] = useState<"dark" | "light">(() =>
     localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark"
   );
+  const showLegacyPortalSections = window.location.hash === "#legacy-portal";
   const isDark = theme === "dark";
   const toggleTheme = () => {
     const next = isDark ? "light" : "dark";
@@ -228,40 +293,78 @@ export default function B2BPortal() {
   }, [profile?.default_margin]);
 
   useEffect(() => {
+    const userId = profile?.id || "guest";
+    setSavedCarts(getSavedCarts(userId));
+    setFavoriteProductIds(getFavoriteProducts(userId));
+  }, [profile?.id]);
+
+  useEffect(() => {
     const meta = document.createElement("meta");
     meta.name = "robots";
     meta.content = "noindex, nofollow";
     document.head.appendChild(meta);
-    return () => document.head.removeChild(meta);
+    return () => {
+      document.head.removeChild(meta);
+    };
   }, []);
 
   // ── Build category tree from DB ─────────────────────────────────────────
   // parentTree: [{parent, children: string[]}] for parents with products
   // leafOnly: category names that have no parent in DB (standalone)
   const categoryTree = useMemo(() => {
-    const parentNodes = dbCats.filter((c) => c.parent_id === null);
-    const childrenOf  = (parentId: number) =>
-      dbCats.filter((c) => c.parent_id === parentId).map((c) => c.name);
+    const byId = new Map(dbCats.map((cat) => [cat.id, cat]));
+    const byName = new Map(dbCats.map((cat) => [cat.name, cat]));
+    const rootNodes = dbCats
+      .filter((cat) => cat.parent_id === null)
+      .sort((a, b) => a.name.localeCompare(b.name, "es"));
 
-    // All subcategory names that belong to some parent
-    const allSubNames = new Set(dbCats.filter((c) => c.parent_id !== null).map((c) => c.name));
+    const childrenByRoot = new Map<string, Set<string>>();
+    const hasOwnProductsAtRoot = new Set<string>();
+    rootNodes.forEach((root) => childrenByRoot.set(root.name, new Set()));
 
-    // Product category names (what products actually store)
-    const productCats = new Set(products.map((p) => p.category));
+    const standalone = new Set<string>();
+    const resolveRootName = (cat: DbCat): string | null => {
+      let current: DbCat | undefined = cat;
+      let guard = 0;
+      while (current && current.parent_id !== null && guard < 20) {
+        current = byId.get(current.parent_id);
+        guard += 1;
+      }
+      return current?.name ?? null;
+    };
 
-    // Parents that have at least one subcategory or direct product matching
-    const parents = parentNodes
-      .map((p) => ({ name: p.name, children: childrenOf(p.id) }))
-      .filter((p) =>
-        p.children.some((ch) => productCats.has(ch)) || productCats.has(p.name)
-      );
+    products.forEach((product) => {
+      const categoryName = product.category?.trim();
+      if (!categoryName) return;
 
-    // Leaf categories: product categories NOT covered by any parent's children
-    const coveredByParent = new Set(parents.flatMap((p) => p.children));
-    const leaves = [...productCats].filter(
-      (c) => !coveredByParent.has(c) && !parents.some((p) => p.name === c)
-    );
+      const dbMatch = byName.get(categoryName);
+      if (!dbMatch) {
+        standalone.add(categoryName);
+        return;
+      }
 
+      const rootName = resolveRootName(dbMatch);
+      if (!rootName) {
+        standalone.add(categoryName);
+        return;
+      }
+
+      if (dbMatch.name === rootName) {
+        hasOwnProductsAtRoot.add(rootName);
+      } else {
+        childrenByRoot.get(rootName)?.add(dbMatch.name);
+      }
+    });
+
+    const parents = rootNodes
+      .map((root) => {
+        const children = Array.from(childrenByRoot.get(root.name) ?? []).sort((a, b) => a.localeCompare(b, "es"));
+        if (!hasOwnProductsAtRoot.has(root.name) && children.length === 0) return null;
+        return { name: root.name, children };
+      })
+      .filter((item): item is { name: string; children: string[] } => item !== null);
+
+    const leaves = Array.from(standalone).sort((a, b) => a.localeCompare(b, "es"));
     return { parents, leaves };
   }, [dbCats, products]);
 
@@ -269,9 +372,10 @@ export default function B2BPortal() {
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = { all: products.length };
     products.forEach((p) => { counts[p.category] = (counts[p.category] || 0) + 1; });
-    // Parent count = sum of its children's counts
+    // Parent count = hijos + productos directos en la categoria padre
     categoryTree.parents.forEach(({ name, children }) => {
-      counts[name] = children.reduce((s, ch) => s + (counts[ch] || 0), 0);
+      const childrenTotal = children.reduce((sum, child) => sum + (counts[child] || 0), 0);
+      counts[name] = (counts[name] || 0) + childrenTotal;
     });
     return counts;
   }, [products, categoryTree]);
@@ -279,7 +383,9 @@ export default function B2BPortal() {
   // ── Children lookup for filtering ───────────────────────────────────────
   const parentChildrenMap = useMemo(() => {
     const map: Record<string, string[]> = {};
-    categoryTree.parents.forEach(({ name, children }) => { map[name] = children; });
+    categoryTree.parents.forEach(({ name, children }) => {
+      map[name] = [name, ...children];
+    });
     return map;
   }, [categoryTree]);
 
@@ -287,7 +393,7 @@ export default function B2BPortal() {
   const brandCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     products.forEach((p) => {
-      const bid = (p as any).brand_id;
+      const bid = p.brand_id;
       if (bid) counts[bid] = (counts[bid] ?? 0) + 1;
     });
     return counts;
@@ -315,12 +421,17 @@ export default function B2BPortal() {
           if (p.category !== categoryFilter) return false;
         }
       }
-      if (brandFilter !== "all" && (p as any).brand_id !== brandFilter) return false;
+      if (brandFilter !== "all" && p.brand_id !== brandFilter) return false;
       if (!isNaN(min) && min > 0 && p.cost_price < min) return false;
       if (!isNaN(max) && max > 0 && p.cost_price > max) return false;
       return true;
     });
   }, [products, search, categoryFilter, brandFilter, minPrice, maxPrice, parentChildrenMap]);
+
+  const favoriteProducts = useMemo(
+    () => products.filter((product) => favoriteProductIds.includes(product.id)),
+    [favoriteProductIds, products]
+  );
 
   const cartItems: CartItem[] = useMemo(() => {
     return Object.entries(cart)
@@ -406,6 +517,11 @@ export default function B2BPortal() {
     setSavedCarts(getSavedCarts(uid));
   }
 
+  function handleToggleFavorite(productId: number) {
+    const userId = profile?.id || "guest";
+    setFavoriteProductIds(toggleFavoriteProduct(userId, productId));
+  }
+
   // ── Compare helpers ────────────────────────────────────────────────────
   function toggleCompare(productId: number) {
     setCompareList((prev) => {
@@ -416,7 +532,7 @@ export default function B2BPortal() {
   }
 
   // Add to cart — verifica stock disponible y mínimo de compra
-  function handleAddToCart(product: any) {
+  function handleAddToCart(product: Product) {
     const available = getAvailableStock(product);
     const inCart = cart[product.id] || 0;
     if (inCart >= available) return; // sin stock suficiente
@@ -456,7 +572,7 @@ export default function B2BPortal() {
     setQuickError("");
   }
 
-  const onRemoveFromCart = (product: any) =>
+  const onRemoveFromCart = (product: Product) =>
     setCart((prev) => {
       const qty = prev[product.id] || 0;
       if (qty <= 1) { const { [product.id]: _, ...rest } = prev; return rest; }
@@ -499,7 +615,6 @@ export default function B2BPortal() {
       }
     }
     setOrderSubmitting(true);
-    const orderNumber = nextOrderNumber();
     const orderProducts = cartItems.map((item) => ({
       product_id: item.product.id,
       name: item.product.name,
@@ -514,7 +629,6 @@ export default function B2BPortal() {
       products: orderProducts,
       total: Number(cartTotal.toFixed(2)),
       status: "pending",
-      order_number: orderNumber,
       created_at: new Date().toISOString(),
     });
     if (!error) {
@@ -580,7 +694,7 @@ export default function B2BPortal() {
     setActiveTab("catalog");
   }
 
-  function handleRepeatOrder(order: any) {
+  function handleRepeatOrder(order: PortalOrder) {
     const newCart: Record<number, number> = {};
     for (const p of order.products) {
       const product = products.find((prod) => prod.id === p.product_id);
@@ -594,10 +708,14 @@ export default function B2BPortal() {
     setActiveTab("catalog");
   }
 
+  async function handleUpdateOrderProofs(orderId: string | number, proofs: unknown[]) {
+    await updateOrder(orderId, { payment_proofs: proofs });
+  }
+
   useEffect(() => {
     const map: Record<string, ReturnType<typeof getOrderProofs>> = {};
-    orders.forEach((o) => {
-      map[String(o.id)] = getOrderProofs(String(o.id));
+    orders.forEach((order) => {
+      map[String(order.id)] = getOrderProofs(String(order.id));
     });
     setOrderProofs(map);
   }, [orders]);
@@ -625,24 +743,14 @@ export default function B2BPortal() {
       addOrderProof(orderId, proof);
       const current = getOrderProofs(orderId);
       setOrderProofs((prev) => ({ ...prev, [orderId]: current }));
-
-      const { error: updateErr } = await updateOrder(orderId, { payment_proofs: current as unknown[] });
-      if (updateErr) {
-        setProofForm((prev) => ({
-          ...prev,
-          [orderId]: {
-            ...prev[orderId],
-            error: "Comprobante subido, pero no se pudo sincronizar en la orden.",
-          },
-        }));
-      }
+      await updateOrder(orderId, { payment_proofs: current as unknown[] });
 
       setProofForm((prev) => ({
         ...prev,
         [orderId]: { ...prev[orderId], file: null, amount: "", uploading: false },
       }));
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "No se pudo subir el comprobante";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudo subir el comprobante";
       setProofForm((prev) => ({
         ...prev,
         [orderId]: { ...prev[orderId], uploading: false, error: message },
@@ -660,6 +768,10 @@ export default function B2BPortal() {
     setSearch("");
   }
 
+  async function handleExportCatalogPDF() {
+    await exportCatalogPdf(filteredProducts, formatPrice, currency);
+  }
+
   // ─── PRODUCT MODAL ────────────────────────────────────────────────────
   const productModal = selectedProduct && (() => {
     const p = selectedProduct;
@@ -671,6 +783,16 @@ export default function B2BPortal() {
     const finalWithIVA = finalPrice + ivaAmt;
     const availableStock = getAvailableStock(p);
     const outOfStock = availableStock === 0;
+    const publicSpecs = p.specs
+      ? Object.entries(p.specs)
+          .filter(([key]) => isClientVisibleSpecKey(key))
+          .map(([key, value]) => ({
+            key,
+            label: formatSpecLabel(key),
+            value: formatSpecValue(value),
+          }))
+          .filter((entry) => entry.value.trim().length > 0)
+      : [];
 
     return (
       <div
@@ -804,14 +926,14 @@ export default function B2BPortal() {
               )}
 
               {/* Specs */}
-              {p.specs && Object.keys(p.specs).length > 0 && (
+              {publicSpecs.length > 0 && (
                 <div className="mb-4">
                   <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Especificaciones</p>
                   <div className={`rounded-xl border ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")} overflow-hidden`}>
-                    {Object.entries(p.specs).map(([k, v], i) => (
-                      <div key={k} className={`flex text-xs ${i % 2 === 0 ? dk("bg-[#0d0d0d]", "bg-[#f9f9f9]") : dk("bg-[#0a0a0a]", "bg-white")}`}>
-                        <span className={`${dk("text-gray-500", "text-[#737373]")} px-3 py-2 w-2/5 shrink-0 font-medium`}>{k}</span>
-                        <span className={`${dk("text-gray-300", "text-[#525252]")} px-3 py-2 flex-1`}>{String(v)}</span>
+                    {publicSpecs.map((spec, i) => (
+                      <div key={spec.key} className={`flex text-xs ${i % 2 === 0 ? dk("bg-[#0d0d0d]", "bg-[#f9f9f9]") : dk("bg-[#0a0a0a]", "bg-white")}`}>
+                        <span className={`${dk("text-gray-500", "text-[#737373]")} px-3 py-2 w-2/5 shrink-0 font-medium`}>{spec.label}</span>
+                        <span className={`${dk("text-gray-300", "text-[#525252]")} px-3 py-2 flex-1`}>{spec.value}</span>
                       </div>
                     ))}
                   </div>
@@ -957,14 +1079,14 @@ export default function B2BPortal() {
           {activeTab === "catalog" && (
             <div className={`hidden md:flex items-center ${dk("bg-[#0d0d0d] border-[#1f1f1f]", "bg-[#f0f0f0] border-[#e5e5e5]")} border rounded-lg p-1 gap-0.5`}>
               <button
-                onClick={() => exportCatalogCSV(filteredProducts as any)}
+                onClick={() => exportCatalogCSV(filteredProducts)}
                 title="Exportar CSV"
                 className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] transition ${dk("text-[#525252] hover:text-[#a3a3a3] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-white")}`}
               >
                 <Download size={11} /> CSV
               </button>
               <button
-                onClick={() => exportCatalogPDF(filteredProducts as any, formatPrice, currency)}
+                onClick={() => { void handleExportCatalogPDF(); }}
                 title="Exportar PDF"
                 className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] transition ${dk("text-[#525252] hover:text-[#a3a3a3] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-white")}`}
               >
@@ -1015,7 +1137,7 @@ export default function B2BPortal() {
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
-            onClick={() => setActiveTab(id as any)}
+            onClick={() => setActiveTab(id as PortalTab)}
             className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition ${
               activeTab === id
                 ? `border-[#2D9F6A] ${dk("text-white", "text-[#171717]")}`
@@ -1095,7 +1217,7 @@ export default function B2BPortal() {
 
         {/* SIDEBAR */}
         {activeTab === "catalog" && (
-          <aside className={`hidden md:flex flex-col w-52 ${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-white border-[#e5e5e5]")} border-r p-3 gap-4 shrink-0`}>
+          <aside className={`hidden md:flex flex-col w-64 xl:w-72 ${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-white border-[#e5e5e5]")} border-r p-3 gap-4 shrink-0 min-h-0 overflow-y-auto overflow-x-hidden`}>
 
             {/* Clear filters */}
             {hasActiveFilters && (
@@ -1110,7 +1232,7 @@ export default function B2BPortal() {
             {/* Categorías */}
             <div>
               <h3 className={`text-[10px] font-bold uppercase tracking-widest ${dk("text-[#525252]", "text-[#a3a3a3]")} mb-2 px-1`}>Categoría</h3>
-              <div className="flex flex-col gap-0.5">
+              <div className="flex flex-col gap-0.5 max-h-[54vh] overflow-y-auto overflow-x-hidden overscroll-contain pr-1">
 
                 {/* "Todas" */}
                 {(() => {
@@ -1136,8 +1258,8 @@ export default function B2BPortal() {
                 {/* Parent categories with children */}
                 {categoryTree.parents.map(({ name: parent, children }) => {
                   const isParentActive  = categoryFilter === parent;
-                  const isChildActive   = children.includes(categoryFilter);
-                  const isExpanded      = expandedParents.has(parent) || isParentActive || isChildActive;
+                  const canExpand       = children.length > 0;
+                  const isExpanded      = canExpand && expandedParents.has(parent);
                   const parentCount     = categoryCounts[parent] || 0;
 
                   return (
@@ -1145,18 +1267,18 @@ export default function B2BPortal() {
                       {/* Parent row */}
                       <div className="flex items-center gap-0">
                         {/* Expand/collapse chevron */}
-                        <button
-                          onClick={() => setExpandedParents((prev) => {
-                            const next = new Set(prev);
-                            next.has(parent) ? next.delete(parent) : next.add(parent);
-                            return next;
-                          })}
-                          className={`p-1 rounded transition shrink-0 ${dk("text-[#525252] hover:text-[#a3a3a3]", "text-[#a3a3a3] hover:text-[#525252]")}`}
-                        >
-                          {isExpanded
-                            ? <ChevronDown size={11} />
-                            : <ChevronRight size={11} />}
-                        </button>
+                        {canExpand ? (
+                          <button
+                            onClick={() => setExpandedParents((prev) => toggleSetValue(prev, parent))}
+                            className={`p-1 rounded transition shrink-0 ${dk("text-[#525252] hover:text-[#a3a3a3]", "text-[#a3a3a3] hover:text-[#525252]")}`}
+                          >
+                            {isExpanded
+                              ? <ChevronDown size={11} />
+                              : <ChevronRight size={11} />}
+                          </button>
+                        ) : (
+                          <span className="w-[18px] shrink-0" />
+                        )}
                         {/* Parent label (also clickable as filter) */}
                         <button
                           onClick={() => setCategoryFilter(parent)}
@@ -1166,7 +1288,7 @@ export default function B2BPortal() {
                               : `${dk("text-[#737373] hover:text-[#e5e5e5] hover:bg-[#171717]", "text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")} border-transparent`
                           }`}
                         >
-                          <span className="truncate font-medium">{parent}</span>
+                          <span className="min-w-0 pr-1 leading-tight break-words text-left font-medium" title={parent}>{parent}</span>
                           <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1 shrink-0 ${
                             isParentActive ? dk("bg-[#262626] text-white", "bg-[#2D9F6A]/20 text-[#1a7a50]")
                               : dk("bg-[#1a1a1a] text-[#525252] group-hover:bg-[#222]", "bg-[#f0f0f0] text-[#737373] group-hover:bg-[#e8e8e8]")
@@ -1183,14 +1305,22 @@ export default function B2BPortal() {
                             return (
                               <button
                                 key={child}
-                                onClick={() => setCategoryFilter(child)}
+                                onClick={() => {
+                                  setCategoryFilter(child);
+                                  setExpandedParents((prev) => {
+                                    if (prev.has(parent)) return prev;
+                                    const next = new Set(prev);
+                                    next.add(parent);
+                                    return next;
+                                  });
+                                }}
                                 className={`flex items-center justify-between text-left text-xs px-2.5 py-1.5 rounded-lg transition group border-l-2 ${
                                   isActive
                                     ? `${dk("bg-[#171717] text-white", "bg-[#f0faf5] text-[#1a7a50]")} font-medium border-[#2D9F6A]`
                                     : `${dk("text-[#525252] hover:text-[#e5e5e5] hover:bg-[#171717]", "text-[#a3a3a3] hover:text-[#171717] hover:bg-[#f5f5f5]")} border-transparent`
                                 }`}
                               >
-                                <span className="truncate">{child}</span>
+                                <span className="min-w-0 pr-1 leading-tight break-words text-left" title={child}>{child}</span>
                                 <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1 shrink-0 ${
                                   isActive ? dk("bg-[#262626] text-white", "bg-[#2D9F6A]/20 text-[#1a7a50]")
                                     : dk("bg-[#1a1a1a] text-[#525252] group-hover:bg-[#222]", "bg-[#f0f0f0] text-[#737373] group-hover:bg-[#e8e8e8]")
@@ -1217,7 +1347,7 @@ export default function B2BPortal() {
                           : `${dk("text-[#737373] hover:text-[#e5e5e5] hover:bg-[#171717]", "text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")} border-transparent`
                       }`}
                     >
-                      <span className="truncate">{c}</span>
+                      <span className="min-w-0 pr-1 leading-tight break-words text-left" title={c}>{c}</span>
                       <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1 shrink-0 ${
                         isActive ? dk("bg-[#262626] text-white", "bg-[#2D9F6A]/20 text-[#1a7a50]")
                           : dk("bg-[#1a1a1a] text-[#525252] group-hover:bg-[#222]", "bg-[#f0f0f0] text-[#737373] group-hover:bg-[#e8e8e8]")
@@ -1267,7 +1397,7 @@ export default function B2BPortal() {
                             : `${dk("text-[#737373] hover:text-[#e5e5e5] hover:bg-[#171717]", "text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")} border-transparent`
                         }`}
                       >
-                        <span className="truncate">{brand.name}</span>
+                        <span className="min-w-0 pr-1 leading-tight break-words text-left" title={brand.name}>{brand.name}</span>
                         <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1 shrink-0 ${
                           isActive ? dk("bg-[#262626] text-white", "bg-[#2D9F6A]/20 text-[#1a7a50]")
                             : dk("bg-[#1a1a1a] text-[#525252] group-hover:bg-[#222]", "bg-[#f0f0f0] text-[#737373] group-hover:bg-[#e8e8e8]")
@@ -1348,6 +1478,7 @@ export default function B2BPortal() {
                     const available = getAvailableStock(product);
                     const outOfStock = available === 0;
                     const wasAdded = addedIds.has(product.id);
+                    const isFavorite = favoriteProductIds.includes(product.id);
                     const lastUnit = latestPurchaseUnitPrice[product.id];
                     const deltaPct = lastUnit
                       ? ((finalPrice - lastUnit) / lastUnit) * 100
@@ -1373,11 +1504,24 @@ export default function B2BPortal() {
                                 {inCart}
                               </span>
                             )}
-                            {(product as any).featured && (
+                            {product.featured && (
                               <span className="absolute top-2 left-2 inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">
                                 <Star size={8} fill="currentColor" />
                               </span>
                             )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleFavorite(product.id);
+                              }}
+                              className={`absolute bottom-2 right-2 h-7 w-7 rounded-full border flex items-center justify-center transition ${
+                                isFavorite
+                                  ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
+                                  : dk("bg-[#111]/80 text-gray-500 border-[#222] hover:text-yellow-400", "bg-white/80 text-gray-400 border-gray-200 hover:text-yellow-500")
+                              }`}
+                            >
+                              <Star size={11} fill={isFavorite ? "currentColor" : "none"} />
+                            </button>
                             {/* Compare toggle */}
                             <button
                               onClick={(e) => { e.stopPropagation(); toggleCompare(product.id); }}
@@ -1453,6 +1597,7 @@ export default function B2BPortal() {
                     const available = getAvailableStock(product);
                     const outOfStock = available === 0;
                     const wasAdded = addedIds.has(product.id);
+                    const isFavorite = favoriteProductIds.includes(product.id);
                     const lastUnit = latestPurchaseUnitPrice[product.id];
                     const deltaPct = lastUnit
                       ? ((finalPrice - lastUnit) / lastUnit) * 100
@@ -1482,21 +1627,21 @@ export default function B2BPortal() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-0.5">
                               <p className={`text-sm font-bold ${dk("text-white", "text-[#171717]")} truncate leading-tight`}>{product.name}</p>
-                              {(product as any).featured && (
+                              {product.featured && (
                                 <Star size={11} className="text-yellow-500 shrink-0" fill="currentColor" />
                               )}
                             </div>
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-[11px] text-gray-600">{product.category}</span>
-                              {(product as any).brand_name && (
+                              {product.brand_name && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setBrandFilter((product as any).brand_id);
+                                    if (product.brand_id) setBrandFilter(product.brand_id);
                                   }}
                                   className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition"
                                 >
-                                  {(product as any).brand_name}
+                                  {product.brand_name}
                                 </button>
                               )}
                               {product.sku && (
@@ -1542,6 +1687,17 @@ export default function B2BPortal() {
                             }`}
                           >
                             ⇄
+                          </button>
+                          <button
+                            onClick={() => handleToggleFavorite(product.id)}
+                            title="Favorito"
+                            className={`hidden sm:flex h-8 w-8 items-center justify-center rounded-lg border transition ${
+                              isFavorite
+                                ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
+                                : dk("bg-[#1c1c1c] text-gray-600 border-[#262626] hover:text-yellow-400", "bg-[#f5f5f5] text-gray-400 border-[#e5e5e5] hover:text-yellow-500")
+                            }`}
+                          >
+                            <Star size={12} fill={isFavorite ? "currentColor" : "none"} />
                           </button>
                           {inCart > 0 ? (
                             <>
@@ -1597,6 +1753,7 @@ export default function B2BPortal() {
                         const available = getAvailableStock(product);
                         const outOfStock = available === 0;
                         const wasAdded = addedIds.has(product.id);
+                        const isFavorite = favoriteProductIds.includes(product.id);
                         const hasTiers = product.price_tiers && product.price_tiers.length > 1;
                         const lastUnit = latestPurchaseUnitPrice[product.id];
                         const deltaPct = lastUnit
@@ -1621,7 +1778,10 @@ export default function B2BPortal() {
                             </td>
                             <td className="px-3 py-2 max-w-[220px]">
                               <button className="text-left w-full" onClick={() => setSelectedProduct(product)}>
-                                <span className={`text-sm font-medium ${dk("text-gray-200", "text-[#171717]")} line-clamp-1`}>{product.name}</span>
+                                <span className={`text-sm font-medium ${dk("text-gray-200", "text-[#171717]")} line-clamp-1`}>
+                                  {product.name}
+                                  {isFavorite && <Star size={10} className="inline ml-1 text-yellow-500" fill="currentColor" />}
+                                </span>
                                 {hasTiers && (
                                   <span className="text-[10px] text-[#2D9F6A] font-semibold">Precio por volumen</span>
                                 )}
@@ -1688,7 +1848,22 @@ export default function B2BPortal() {
           )}
 
           {/* ── MI CUENTA ── */}
-          {activeTab === "cuenta" && profile && (() => {
+          {activeTab === "cuenta" && profile && (
+            <AccountCenter
+              profile={profile}
+              sessionEmail={user?.email}
+              isDark={isDark}
+              orders={orders}
+              quotes={quotes}
+              invoices={myInvoices}
+              favoriteProducts={favoriteProducts}
+              savedCarts={savedCarts}
+              onGoToTab={setActiveTab}
+              onLoadSavedCart={handleLoadSavedCart}
+              onDeleteSavedCart={handleDeleteSavedCart}
+            />
+          )}
+          {showLegacyPortalSections && activeTab === "cuenta" && profile && (() => {
             const confirmedOrders  = orders.filter((o) => !["rejected"].includes(o.status));
             const totalSpent       = confirmedOrders.reduce((s, o) => s + o.total, 0);
             const pendingOrders    = orders.filter((o) => ["pending", "approved", "preparing"].includes(o.status));
@@ -1698,7 +1873,7 @@ export default function B2BPortal() {
             const unpaidInvoices   = myInvoices.filter((i) => ["sent", "overdue", "draft"].includes(i.status));
             const unpaidTotal      = unpaidInvoices.reduce((s, i) => s + i.total, 0);
             const overdueInvoices  = myInvoices.filter((i) => i.status === "overdue");
-            const creditLimit      = (profile as any).credit_limit ?? 0;
+            const creditLimit      = profile.credit_limit ?? 0;
             const creditPct        = creditLimit > 0 ? Math.min(100, (creditUsed / creditLimit) * 100) : 0;
             const creditAvail      = Math.max(0, creditLimit - creditUsed);
             // credit_limit is stored in ARS — format directly without USD→ARS conversion
@@ -1781,11 +1956,11 @@ export default function B2BPortal() {
                     <button onClick={() => setActiveTab("orders")} className="text-xs text-[#2D9F6A] hover:underline">Ver todos</button>
                   </div>
                   {confirmedOrders.slice(0, 5).map((o) => {
-                    const lbl = (o as any).order_number ?? `#${String(o.id).slice(-6).toUpperCase()}`;
+                    const lbl = o.order_number ?? `#${String(o.id).slice(-6).toUpperCase()}`;
                     return (
                       <div key={o.id} className={`flex items-center justify-between px-4 py-2.5 rounded-lg mb-1 ${dk("bg-[#111]", "bg-white border border-[#f0f0f0]")}`}>
                         <span className={`text-xs font-mono ${dk("text-gray-300", "text-[#525252]")}`}>{lbl}</span>
-                        <span className="text-xs text-gray-500">{new Date((o as any).created_at).toLocaleDateString("es-AR")}</span>
+                        <span className="text-xs text-gray-500">{new Date(o.created_at).toLocaleDateString("es-AR")}</span>
                         <span className={`text-xs font-bold ${dk("text-white", "text-[#171717]")}`}>{formatPrice(o.total)}</span>
                       </div>
                     );
@@ -1827,6 +2002,15 @@ export default function B2BPortal() {
 
           {/* ── MIS FACTURAS ── */}
           {activeTab === "invoices" && (
+            <InvoicesPanel
+              invoices={myInvoices}
+              orders={orders}
+              isDark={isDark}
+              loading={loadingInvoices}
+              onGoToOrders={() => setActiveTab("orders")}
+            />
+          )}
+          {showLegacyPortalSections && activeTab === "invoices" && (
             <div className="max-w-3xl">
               {loadingInvoices ? (
                 <div className="space-y-2">
@@ -1888,6 +2072,21 @@ export default function B2BPortal() {
 
           {/* ── MIS PEDIDOS ── */}
           {activeTab === "orders" && (
+            <OrdersPanel
+              isDark={isDark}
+              orders={orders}
+              invoices={myInvoices}
+              formatPrice={formatPrice}
+              formatUSD={formatUSD}
+              formatARS={formatARS}
+              currency={currency}
+              onRepeatOrder={handleRepeatOrder}
+              onGoToCatalog={() => setActiveTab("catalog")}
+              onGoToInvoices={() => setActiveTab("invoices")}
+              onUpdateOrderProofs={handleUpdateOrderProofs}
+            />
+          )}
+          {showLegacyPortalSections && activeTab === "orders" && (
             <div className="max-w-3xl">
               {orders.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-24 text-gray-600">
@@ -1902,11 +2101,7 @@ export default function B2BPortal() {
                     const orderId = String(order.id);
                     const isExpanded = expandedOrders.has(orderId);
                     const toggleExpand = () =>
-                      setExpandedOrders((prev) => {
-                        const next = new Set(prev);
-                        next.has(orderId) ? next.delete(orderId) : next.add(orderId);
-                        return next;
-                      });
+                      setExpandedOrders((prev) => toggleSetValue(prev, orderId));
                     const orderLabel = order.order_number ?? `#${orderId.slice(-6).toUpperCase()}`;
                     return (
                       <div key={order.id} className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl overflow-hidden`}>

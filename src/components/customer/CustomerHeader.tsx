@@ -7,6 +7,7 @@ import {
 import type { ClientDetail, ClientEstado } from "@/lib/api/clientDetail";
 import { updateClientProfile, registrarPago } from "@/lib/api/clientDetail";
 import { useCurrency } from "@/context/CurrencyContext";
+import { formatMoneyInPreferredCurrency } from "@/lib/money";
 
 // ── Estado badge ──────────────────────────────────────────────────────────────
 
@@ -21,7 +22,7 @@ const ESTADO_CONFIG: Record<ClientEstado, {
 // ── Credit bar ────────────────────────────────────────────────────────────────
 
 function CreditBar({ used, limit, isDark }: { used: number; limit: number; isDark: boolean }) {
-  const { formatPrice } = useCurrency();
+  const { currency, exchangeRate } = useCurrency();
   const dk = (d: string, l: string) => (isDark ? d : l);
   if (limit <= 0) return null;
 
@@ -34,7 +35,7 @@ function CreditBar({ used, limit, isDark }: { used: number; limit: number; isDar
       <div className="flex items-center justify-between text-xs">
         <span className={dk("text-[#737373]", "text-[#737373]")}>Crédito utilizado</span>
         <span className={`font-bold tabular-nums ${textCls}`}>
-          {formatPrice(used)} / {formatPrice(limit)}
+          {formatMoneyInPreferredCurrency(used, "ARS", currency, exchangeRate.rate, 0)} / {formatMoneyInPreferredCurrency(limit, "ARS", currency, exchangeRate.rate, 0)}
         </span>
       </div>
       <div className={`h-2 rounded-full ${dk("bg-[#1f1f1f]", "bg-[#e8e8e8]")}`}>
@@ -45,7 +46,7 @@ function CreditBar({ used, limit, isDark }: { used: number; limit: number; isDar
       </div>
       <div className="flex justify-between text-[10px] text-[#525252]">
         <span>{pct.toFixed(0)}% utilizado</span>
-        <span>Disponible: {formatPrice(Math.max(0, limit - used))}</span>
+        <span>Disponible: {formatMoneyInPreferredCurrency(Math.max(0, limit - used), "ARS", currency, exchangeRate.rate, 0)}</span>
       </div>
     </div>
   );

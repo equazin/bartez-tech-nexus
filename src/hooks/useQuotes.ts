@@ -103,6 +103,9 @@ export function useQuotes(userId: string) {
         if (changes.version     !== undefined) patch.version     = changes.version;
         if (changes.parent_id   !== undefined) patch.parent_id   = changes.parent_id;
         if (changes.order_id    !== undefined) patch.order_id    = changes.order_id;
+        if (changes.valid_days  !== undefined) patch.valid_days  = changes.valid_days;
+        if (changes.expires_at  !== undefined) patch.expires_at  = changes.expires_at;
+        if (changes.notes       !== undefined) patch.notes       = changes.notes;
 
         const { data: row, error } = await supabase
           .from("quotes")
@@ -200,6 +203,9 @@ function dbToQuote(row: Record<string, unknown>): Quote {
     version:     (row.version as number) ?? 1,
     parent_id:   row.parent_id as number | undefined,
     order_id:    row.order_id as string | number | undefined,
+    valid_days:  row.valid_days as number | undefined,
+    expires_at:  row.expires_at as string | undefined,
+    notes:       row.notes as string | undefined,
     created_at:  row.created_at as string,
     updated_at:  row.updated_at as string,
   };
@@ -218,6 +224,9 @@ function quoteToDb(q: Omit<Quote, "id">, userId: string): Record<string, unknown
     version:     q.version  ?? 1,
     parent_id:   q.parent_id ?? null,
     order_id:    q.order_id  ?? null,
+    valid_days:  q.valid_days ?? null,
+    expires_at:  q.expires_at ?? null,
+    notes:       q.notes ?? null,
     created_at:  q.created_at,
     updated_at:  q.updated_at,
   };

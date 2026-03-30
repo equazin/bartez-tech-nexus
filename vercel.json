@@ -1,5 +1,10 @@
 {
   "cleanUrls": true,
+  "functions": {
+    "api/*.ts": {
+      "maxDuration": 30
+    }
+  },
   "redirects": [
     { "source": "/arrepentimiento", "destination": "/", "permanent": true },
     { "source": "/arrepentimiento/:path*", "destination": "/", "permanent": true },

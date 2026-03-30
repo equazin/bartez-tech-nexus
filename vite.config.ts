@@ -1,20 +1,225 @@
-import { defineConfig } from "vite";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { defineConfig, loadEnv, type PluginOption } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
+const AIR_BASE = "https://api.air-intra.com/v2";
+const ELIT_BASE = "https://clientes.elit.com.ar/v1/api";
+
+const AIR_ALLOWED_QUERIES = new Set([
+  "check_token",
+  "catalogo",
+  "articulos",
+  "syp",
+  "syp_list",
+  "get_meta",
+]);
+
+const ELIT_ALLOWED_PATHS = new Set(["productos"]);
+
+function resolveEnvValue(env: Record<string, string>, key: string): string {
+  return env[key]?.trim() || process.env[key]?.trim() || "";
+}
+
+async function readRequestBody(req: IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+function sendJson(res: ServerResponse, status: number, payload: unknown) {
+  res.statusCode = status;
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.end(JSON.stringify(payload));
+}
+
+async function sendFetchResponse(res: ServerResponse, upstream: Response) {
+  const contentType = upstream.headers.get("content-type") || "application/json";
+  const body = Buffer.from(await upstream.arrayBuffer());
+  res.statusCode = upstream.status;
+  res.setHeader("Content-Type", contentType);
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.end(body);
+}
+
+function devApiProxyPlugin(env: Record<string, string>): PluginOption {
+  return {
+    name: "dev-api-proxy",
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const requestUrl = req.url ? new URL(req.url, "http://localhost") : null;
+        const pathname = requestUrl?.pathname ?? "";
+
+        if (pathname !== "/api/air-proxy" && pathname !== "/api/elit-proxy") {
+          next();
+          return;
+        }
+
+        if (req.method !== "POST") {
+          sendJson(res, 405, { ok: false, error: "Method not allowed. Use POST." });
+          return;
+        }
+
+        try {
+          if (pathname === "/api/air-proxy") {
+            const q = requestUrl?.searchParams.get("q") ?? "";
+            const baseQuery = q.split("&")[0];
+            if (!q || !AIR_ALLOWED_QUERIES.has(baseQuery)) {
+              sendJson(res, 400, { ok: false, error: "Missing or disallowed query parameter." });
+              return;
+            }
+
+            const token =
+              resolveEnvValue(env, "AIR_API_TOKEN") ||
+              resolveEnvValue(env, "AIR_TOKEN") ||
+              resolveEnvValue(env, "VITE_AIR_TOKEN");
+
+            if (!token) {
+              sendJson(res, 500, { ok: false, error: "AIR token not configured." });
+              return;
+            }
+
+            const rawBody = await readRequestBody(req);
+            const airUrl = `${AIR_BASE}/?${requestUrl?.searchParams.toString() ?? ""}`;
+            const upstream = await fetch(airUrl, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              body: rawBody || undefined,
+            });
+
+            await sendFetchResponse(res, upstream);
+            return;
+          }
+
+          const pathParam = requestUrl?.searchParams.get("path") ?? "";
+          if (!pathParam || !ELIT_ALLOWED_PATHS.has(pathParam)) {
+            sendJson(res, 400, { ok: false, error: "Missing or disallowed path parameter." });
+            return;
+          }
+
+          const userId = resolveEnvValue(env, "ELIT_API_USER_ID");
+          const token = resolveEnvValue(env, "ELIT_API_TOKEN");
+          if (!userId || !token) {
+            sendJson(res, 500, { ok: false, error: "ELIT credentials not configured." });
+            return;
+          }
+
+          const query = new URLSearchParams();
+          requestUrl?.searchParams.forEach((value, key) => {
+            if (key !== "path") {
+              query.set(key, value);
+            }
+          });
+          if (!query.has("limit")) {
+            query.set("limit", "100");
+          }
+
+          const rawBody = await readRequestBody(req);
+          let body: Record<string, unknown> = {};
+          if (rawBody) {
+            const parsed = JSON.parse(rawBody);
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+              body = parsed as Record<string, unknown>;
+            }
+          }
+
+          const elitUrl = `${ELIT_BASE}/${pathParam}?${query.toString()}`;
+          const upstream = await fetch(elitUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              ...body,
+              user_id: Number(userId),
+              token,
+            }),
+          });
+
+          await sendFetchResponse(res, upstream);
+          return;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          sendJson(res, 502, { ok: false, error: message });
+        }
+      });
+    },
+  };
+}
+
 // https://vitejs.dev/config/
-export default defineConfig({
-  server: {
-    host: "::",
-    port: 8080,
-    hmr: {
-      overlay: false,
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "");
+
+  return {
+    server: {
+      host: "::",
+      port: 8080,
+      hmr: {
+        overlay: false,
+      },
     },
-  },
-  plugins: [react()],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
+    plugins: [react(), devApiProxyPlugin(env)],
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
     },
-  },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            const normalizedId = id.replace(/\\/g, "/");
+
+            if (!normalizedId.includes("node_modules")) {
+              return undefined;
+            }
+
+            if (
+              normalizedId.includes("/react/") ||
+              normalizedId.includes("/react-dom/") ||
+              normalizedId.includes("/react-router/") ||
+              normalizedId.includes("/react-router-dom/") ||
+              normalizedId.includes("/scheduler/") ||
+              normalizedId.includes("/@tanstack/react-query/")
+            ) {
+              return "framework";
+            }
+
+            if (normalizedId.includes("/@supabase/")) {
+              return "supabase";
+            }
+
+            if (normalizedId.includes("/jspdf/") || normalizedId.includes("/jspdf-autotable/")) {
+              return "jspdf-vendor";
+            }
+
+            if (normalizedId.includes("/html2canvas/")) {
+              return "html2canvas-vendor";
+            }
+
+            if (
+              normalizedId.includes("/@radix-ui/") ||
+              normalizedId.includes("/lucide-react/") ||
+              normalizedId.includes("/cmdk/") ||
+              normalizedId.includes("/class-variance-authority/") ||
+              normalizedId.includes("/clsx/") ||
+              normalizedId.includes("/tailwind-merge/")
+            ) {
+              return "ui-vendor";
+            }
+
+            // Let Rollup decide the rest to avoid artificial circular chunk groups.
+            return undefined;
+          },
+        },
+      },
+    },
+  };
 });

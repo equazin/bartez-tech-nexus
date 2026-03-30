@@ -1,18 +1,21 @@
 import { useState } from "react";
 import { Quote, QuoteStatus } from "@/models/quote";
 import { useCurrency } from "@/context/CurrencyContext";
+import { toggleSetValue } from "@/lib/toggleSet";
 import {
   FileText, ChevronDown, ChevronRight, RotateCcw, Trash2, ClipboardList,
   Clock, CheckCircle2, XCircle, Eye, Send, AlertTriangle, Copy, ShoppingBag,
+  type LucideIcon,
 } from "lucide-react";
 
 // ── Status config ────────────────────────────────────────────────────────────
-const STATUS_MAP: Record<QuoteStatus, { label: string; className: string; icon: any }> = {
+const STATUS_MAP: Record<QuoteStatus, { label: string; className: string; icon: LucideIcon }> = {
   draft:    { label: "Borrador",  className: "bg-[#1f1f1f] text-[#a3a3a3] border-[#2a2a2a]",      icon: FileText },
   sent:     { label: "Enviada",   className: "bg-blue-500/15 text-blue-400 border-blue-500/30",    icon: Send },
   viewed:   { label: "Vista",     className: "bg-purple-500/15 text-purple-400 border-purple-500/30", icon: Eye },
   approved: { label: "Aprobada",  className: "bg-green-500/15 text-green-400 border-green-500/30",  icon: CheckCircle2 },
   rejected: { label: "Rechazada", className: "bg-red-500/15 text-red-400 border-red-500/30",        icon: XCircle },
+  converted:{ label: "Convertida",className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", icon: CheckCircle2 },
   expired:  { label: "Expirada",  className: "bg-amber-500/15 text-amber-400 border-amber-500/30",  icon: AlertTriangle },
 };
 
@@ -26,7 +29,7 @@ function QuoteStatusBadge({ status }: { status: QuoteStatus }) {
 }
 
 // ── Status selector ───────────────────────────────────────────────────────────
-const STATUS_OPTIONS: QuoteStatus[] = ["draft", "sent", "viewed", "approved", "rejected", "expired"];
+const STATUS_OPTIONS: QuoteStatus[] = ["draft", "sent", "viewed", "approved", "rejected", "converted", "expired"];
 
 function StatusDropdown({
   current, onSelect,
@@ -81,11 +84,7 @@ export function QuoteList({ quotes, isDark, onLoad, onUpdateStatus, onDelete, on
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
   function toggle(id: number) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+    setExpanded((prev) => toggleSetValue(prev, id));
   }
 
   if (quotes.length === 0) {

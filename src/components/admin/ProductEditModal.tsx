@@ -15,10 +15,28 @@ interface Props {
   onClose: () => void;
 }
 
+type FormState = {
+  name: string;
+  name_custom: string;
+  sku: string;
+  description: string;
+  cost_price: string;
+  iva_rate: string;
+  stock: string;
+  category: string;
+  image: string;
+  featured: boolean;
+  active: boolean;
+  tags: string;
+  supplier_id: string;
+  supplier_multiplier: string;
+  brand_id: string;
+};
+
 export default function ProductEditModal({ product, categories, brands = [], onSave, onClose }: Props) {
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<FormState>({
     name:               product.name,
-    name_custom:        (product as any).name_custom || "",
+    name_custom:        product.name_custom || "",
     sku:                product.sku || "",
     description:        product.description || "",
     cost_price:         String(product.cost_price),
@@ -27,11 +45,11 @@ export default function ProductEditModal({ product, categories, brands = [], onS
     category:           product.category || "",
     image:              product.image || "",
     featured:           product.featured ?? false,
-    active:             (product as any).active !== false,
+    active:             product.active !== false,
     tags:               (product.tags ?? []).join(", "),
     supplier_id:        String(product.supplier_id || ""),
     supplier_multiplier: String(product.supplier_multiplier || ""),
-    brand_id:           (product as any).brand_id || "",
+    brand_id:           product.brand_id || "",
   });
   const [imageFile, setImageFile]   = useState<File | null>(null);
   const [imagePreview, setPreview]  = useState(product.image || "");
@@ -49,7 +67,7 @@ export default function ProductEditModal({ product, categories, brands = [], onS
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  function set(field: string, value: any) {
+  function set<K extends keyof FormState>(field: K, value: FormState[K]) {
     setForm((p) => ({ ...p, [field]: value }));
   }
 
@@ -77,7 +95,11 @@ export default function ProductEditModal({ product, categories, brands = [], onS
     let imageUrl = form.image;
     if (imageFile) {
       try { imageUrl = await uploadImage(imageFile); }
-      catch (e: any) { setError("Error subiendo imagen: " + e.message); setSaving(false); return; }
+      catch (e: unknown) {
+        setError(`Error subiendo imagen: ${e instanceof Error ? e.message : "desconocido"}`);
+        setSaving(false);
+        return;
+      }
     }
 
     const nameCustomVal = form.name_custom.trim() || null;
@@ -170,7 +192,7 @@ export default function ProductEditModal({ product, categories, brands = [], onS
           </div>
 
           {/* Name custom override (solo productos importados) */}
-          {(product as any).name_original && (
+          {product.name_original && (
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs text-gray-400 flex items-center gap-1.5">
@@ -192,11 +214,11 @@ export default function ProductEditModal({ product, categories, brands = [], onS
               <input
                 value={form.name_custom}
                 onChange={(e) => set("name_custom", e.target.value)}
-                placeholder={(product as any).name_original}
+                placeholder={product.name_original}
                 className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-yellow-500/50 placeholder:text-gray-600"
               />
               <p className="text-[11px] text-gray-600 mt-1">
-                Original: {(product as any).name_original}
+                Original: {product.name_original}
               </p>
             </div>
           )}

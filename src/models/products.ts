@@ -31,6 +31,8 @@ export interface Product {
   brand_id?: string;
   /** Denormalized brand name for fast display/filtering */
   brand_name?: string;
+  /** Optional product weight for shipping estimates */
+  weight_kg?: number;
 }
 
 /** Returns the display name: custom override → original → name */

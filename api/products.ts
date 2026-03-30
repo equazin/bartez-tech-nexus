@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { fail, methodNotAllowed, ok, parsePagination } from "./_shared/http";
 import { ensureWriteRole } from "./_shared/roles";
+import { createProductSchema } from "./_shared/schemas";
 import { getSupabaseClient } from "./_shared/supabaseServer";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -41,42 +42,26 @@ async function createProduct(req: VercelRequest, res: VercelResponse) {
     const supabase = getSupabaseClient(req);
     if (!(await ensureWriteRole(req, res, supabase))) return;
 
-    const body = req.body ?? {};
-    if (!body.name || !body.category || body.cost_price == null || body.stock == null) {
-      return fail(res, "Missing required fields: name, category, cost_price, stock");
+    const parsed = createProductSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return fail(res, "Invalid product payload", 400, parsed.error.flatten());
     }
 
-    const costPrice = Number(body.cost_price);
-    const stock = Number(body.stock);
-    const stockMin = body.stock_min != null ? Number(body.stock_min) : null;
-    const supplierId = body.supplier_id != null ? Number(body.supplier_id) : null;
-
-    if (!Number.isFinite(costPrice) || costPrice <= 0) {
-      return fail(res, "cost_price must be a positive number");
-    }
-    if (!Number.isFinite(stock) || stock < 0) {
-      return fail(res, "stock must be a positive number");
-    }
-    if (stockMin != null && (!Number.isFinite(stockMin) || stockMin < 0)) {
-      return fail(res, "stock_min must be a positive number");
-    }
-    if (supplierId != null && (!Number.isFinite(supplierId) || supplierId <= 0)) {
-      return fail(res, "supplier_id must be a positive number");
-    }
-
+    const body = parsed.data;
     const payload = {
-      name: String(body.name),
-      category: String(body.category),
-      cost_price: costPrice,
-      stock,
-      description: String(body.description ?? ""),
-      image: String(body.image ?? ""),
-      sku: body.sku ? String(body.sku) : null,
+      name: body.name,
+      category: body.category,
+      cost_price: body.cost_price,
+      stock: body.stock,
+      description: body.description ?? "",
+      image: body.image ?? "",
+      sku: body.sku ?? null,
       active: body.active ?? true,
-      stock_min: stockMin,
-      supplier_id: supplierId,
-      supplier_uuid: body.supplier_uuid ? String(body.supplier_uuid) : null,
+      stock_min: body.stock_min ?? null,
+      supplier_id: body.supplier_id ?? null,
+      supplier_uuid: body.supplier_uuid ?? null,
     };
+
     const { data, error } = await supabase
       .from("products")
       .insert(payload)

@@ -7,6 +7,9 @@ export interface ProductSupplier {
   supplier_id: string;
   supplier_name?: string;       // joined from suppliers
   cost_price: number;
+  source_cost_price?: number;
+  source_currency?: "USD" | "ARS";
+  source_exchange_rate?: number;
   stock_available: number;
   stock_reserved: number;
   price_multiplier: number;
@@ -25,6 +28,10 @@ export interface StockSummary {
   best_cost: number;
   min_lead_time: number;
   supplier_count: number;
+}
+
+interface ProductSupplierQueryRow extends ProductSupplier {
+  suppliers?: { name?: string | null } | null;
 }
 
 /**
@@ -58,9 +65,9 @@ export function useProductSuppliers(productId: number | null) {
     ]);
 
     setSuppliers(
-      (psData ?? []).map((row: any) => ({
+      ((psData ?? []) as ProductSupplierQueryRow[]).map((row) => ({
         ...row,
-        supplier_name: row.suppliers?.name,
+        supplier_name: row.suppliers?.name ?? undefined,
       }))
     );
     setSummary((sumData as StockSummary) ?? null);

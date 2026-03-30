@@ -1,10 +1,12 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { toggleSetValue } from "@/lib/toggleSet";
 import { Product } from "@/models/products";
 import ProductEditModal from "./ProductEditModal";
 import {
   Search, ArrowUpDown, ArrowUp, ArrowDown,
-  Pencil, Copy, Trash2, Star, AlertTriangle, ChevronDown,
+  Pencil, Copy, Trash2, Star, AlertTriangle, ChevronDown, RefreshCw,
+  X,
 } from "lucide-react";
 
 interface Category { id: number; name: string; parent_id: number | null; }
@@ -20,10 +22,138 @@ interface Props {
 type SortField = "name" | "cost_price" | "stock" | "category";
 type SortDir   = "asc" | "desc";
 type Filter    = "all" | "active" | "inactive" | "low_stock" | "featured";
+type DuplicateGroupType = "sku" | "name" | "similar";
+
+interface DuplicateGroup {
+  id: string;
+  type: DuplicateGroupType;
+  key: string;
+  title: string;
+  reason: string;
+  confidence: number;
+  products: Product[];
+}
 
 function SortIcon({ field, active, dir }: { field: string; active: boolean; dir: SortDir }) {
   if (!active) return <ArrowUpDown size={12} className="text-gray-600" />;
   return dir === "asc" ? <ArrowUp size={12} className="text-[#2D9F6A]" /> : <ArrowDown size={12} className="text-[#2D9F6A]" />;
+}
+
+function normalizeForMatch(value: string | null | undefined): string {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function normalizeCompact(value: string | null | undefined): string {
+  return normalizeForMatch(value).replace(/\s+/g, "");
+}
+
+function getDisplayName(product: Product): string {
+  return product.name_custom?.trim() || product.name_original?.trim() || product.name || "";
+}
+
+function tokenizeForMatch(value: string): string[] {
+  const stopWords = new Set([
+    "con", "para", "por", "del", "de", "the", "and",
+    "producto", "notebook", "laptop", "pc", "cpu", "ssd", "hdd", "disco",
+  ]);
+  return normalizeForMatch(value)
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !stopWords.has(token));
+}
+
+function buildDuplicateGroups(products: Product[]): DuplicateGroup[] {
+  const groups: DuplicateGroup[] = [];
+  const seenFingerprints = new Set<string>();
+
+  const addGroup = (
+    type: DuplicateGroupType,
+    key: string,
+    title: string,
+    reason: string,
+    confidence: number,
+    sourceProducts: Product[]
+  ) => {
+    const unique = Array.from(new Map(sourceProducts.map((p) => [p.id, p])).values());
+    if (unique.length < 2) return;
+    const fingerprint = unique.map((p) => p.id).sort((a, b) => a - b).join(",");
+    if (!fingerprint || seenFingerprints.has(`${type}:${fingerprint}`)) return;
+    seenFingerprints.add(`${type}:${fingerprint}`);
+    groups.push({
+      id: `${type}:${key}:${fingerprint}`,
+      type,
+      key,
+      title,
+      reason,
+      confidence,
+      products: unique.sort((a, b) => a.id - b.id),
+    });
+  };
+
+  const skuMap = new Map<string, Product[]>();
+  const nameMap = new Map<string, Product[]>();
+  const similarMap = new Map<string, Product[]>();
+
+  for (const product of products) {
+    const sku = normalizeCompact(product.sku);
+    if (sku) {
+      const list = skuMap.get(sku) ?? [];
+      list.push(product);
+      skuMap.set(sku, list);
+    }
+
+    const normalizedName = normalizeForMatch(getDisplayName(product));
+    if (normalizedName) {
+      const list = nameMap.get(normalizedName) ?? [];
+      list.push(product);
+      nameMap.set(normalizedName, list);
+    }
+
+    const tokens = tokenizeForMatch(getDisplayName(product));
+    if (tokens.length >= 2) {
+      const signature = [
+        normalizeCompact(product.brand_name || ""),
+        normalizeForMatch(product.category || "").split(" ")[0],
+        tokens.slice(0, 4).join(" "),
+      ].join("|");
+      const list = similarMap.get(signature) ?? [];
+      list.push(product);
+      similarMap.set(signature, list);
+    }
+  }
+
+  for (const [sku, list] of skuMap.entries()) {
+    if (list.length > 1) {
+      addGroup("sku", sku, `SKU repetido: ${sku}`, "Mismo SKU en varios productos", 1, list);
+    }
+  }
+
+  for (const [nameKey, list] of nameMap.entries()) {
+    if (list.length > 1) {
+      addGroup("name", nameKey, "Titulo exacto repetido", "Mismo titulo normalizado", 0.95, list);
+    }
+  }
+
+  for (const [signature, list] of similarMap.entries()) {
+    if (list.length > 1) {
+      addGroup("similar", signature, "Titulos muy parecidos", "Coincidencia por tokens, marca/categoria", 0.7, list);
+    }
+  }
+
+  return groups.sort((a, b) => {
+    if (a.type !== b.type) {
+      const order: Record<DuplicateGroupType, number> = { sku: 0, name: 1, similar: 2 };
+      return order[a.type] - order[b.type];
+    }
+    if (a.products.length !== b.products.length) return b.products.length - a.products.length;
+    return b.confidence - a.confidence;
+  });
 }
 
 export default function ProductTable({ products, categories, brands = [], isDark = true, onRefresh }: Props) {
@@ -46,8 +176,26 @@ export default function ProductTable({ products, categories, brands = [], isDark
 
   // Bulk action dropdown
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkCategory, setBulkCategory] = useState("");
+  const [duplicatesOpen, setDuplicatesOpen] = useState(false);
+  const [analyzingDuplicates, setAnalyzingDuplicates] = useState(false);
+  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
+  const [duplicateFilter, setDuplicateFilter] = useState<DuplicateGroupType | "all">("all");
+  const [duplicateSearch, setDuplicateSearch] = useState("");
 
   const rootCats = categories.filter((c) => c.parent_id === null);
+  const allCategoryNames = useMemo(() => {
+    const names = new Set<string>();
+    categories.forEach((c) => {
+      const name = c.name?.trim();
+      if (name) names.add(name);
+    });
+    products.forEach((p) => {
+      const name = p.category?.trim();
+      if (name) names.add(name);
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b, "es"));
+  }, [categories, products]);
 
   // Build set of category names that match the selected filter:
   // if a root cat is selected, include its children too
@@ -69,17 +217,17 @@ export default function ProductTable({ products, categories, brands = [], isDark
       .filter((p) => {
         if (term && !p.name.toLowerCase().includes(term) && !p.sku?.toLowerCase().includes(term)) return false;
         if (matchingCatNames && !matchingCatNames.has((p.category ?? "").toLowerCase())) return false;
-        if (filterBrand !== "all" && (p as any).brand_id !== filterBrand) return false;
-        const active = (p as any).active !== false;
+        if (filterBrand !== "all" && p.brand_id !== filterBrand) return false;
+        const active = p.active !== false;
         if (filterStatus === "active"    && !active)                       return false;
         if (filterStatus === "inactive"  && active)                        return false;
         if (filterStatus === "low_stock" && p.stock > 3)                   return false;
-        if (filterStatus === "featured"  && !(p as any).featured)         return false;
+        if (filterStatus === "featured"  && !p.featured)                   return false;
         return true;
       })
       .sort((a, b) => {
-        let va: any = a[sortField];
-        let vb: any = b[sortField];
+        let va: string | number = a[sortField];
+        let vb: string | number = b[sortField];
         if (typeof va === "string") va = va.toLowerCase();
         if (typeof vb === "string") vb = vb.toLowerCase();
         if (va < vb) return sortDir === "asc" ? -1 : 1;
@@ -92,7 +240,45 @@ export default function ProductTable({ products, categories, brands = [], isDark
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // Reset page when filters change
-  useMemo(() => { setPage(1); }, [search, filterCat, filterStatus, sortField, sortDir]);
+  useEffect(() => { setPage(1); }, [search, filterCat, filterBrand, filterStatus, sortField, sortDir]);
+
+  useEffect(() => {
+    if (!duplicatesOpen) return;
+    setDuplicateGroups(buildDuplicateGroups(products));
+  }, [products, duplicatesOpen]);
+
+  const visibleDuplicateGroups = useMemo(() => {
+    const q = duplicateSearch.trim().toLowerCase();
+    return duplicateGroups.filter((group) => {
+      if (duplicateFilter !== "all" && group.type !== duplicateFilter) return false;
+      if (!q) return true;
+      const haystack = [
+        group.title,
+        group.reason,
+        ...group.products.map((p) => `${p.id} ${getDisplayName(p)} ${p.sku || ""} ${p.category || ""}`),
+      ].join(" ").toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [duplicateGroups, duplicateFilter, duplicateSearch]);
+
+  const duplicateCounters = useMemo(() => {
+    return {
+      all: duplicateGroups.length,
+      sku: duplicateGroups.filter((g) => g.type === "sku").length,
+      name: duplicateGroups.filter((g) => g.type === "name").length,
+      similar: duplicateGroups.filter((g) => g.type === "similar").length,
+    };
+  }, [duplicateGroups]);
+
+  async function openDuplicateAnalyzer() {
+    setAnalyzingDuplicates(true);
+    setDuplicateSearch("");
+    setDuplicateFilter("all");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    setDuplicateGroups(buildDuplicateGroups(products));
+    setDuplicatesOpen(true);
+    setAnalyzingDuplicates(false);
+  }
 
   // ── Sort toggle ──────────────────────────────────────────────
   function toggleSort(field: SortField) {
@@ -106,11 +292,7 @@ export default function ProductTable({ products, categories, brands = [], isDark
     else setSelected(new Set(filtered.map((p) => p.id)));
   }
   function toggleOne(id: number) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+    setSelected((prev) => toggleSetValue(prev, id));
   }
 
   // ── Inline editing ───────────────────────────────────────────
@@ -131,17 +313,17 @@ export default function ProductTable({ products, categories, brands = [], isDark
 
   // ── Actions ──────────────────────────────────────────────────
   async function toggleActive(p: Product) {
-    await supabase.from("products").update({ active: !(p as any).active }).eq("id", p.id);
+    await supabase.from("products").update({ active: !p.active }).eq("id", p.id);
     onRefresh();
   }
 
   async function toggleFeatured(p: Product) {
-    await supabase.from("products").update({ featured: !(p as any).featured }).eq("id", p.id);
+    await supabase.from("products").update({ featured: !p.featured }).eq("id", p.id);
     onRefresh();
   }
 
   async function duplicate(p: Product) {
-    const { id, ...rest } = p as any;
+    const { id: _id, ...rest } = p;
     await supabase.from("products").insert({ ...rest, name: `${p.name} (copia)`, sku: p.sku ? `${p.sku}-copia` : null });
     onRefresh();
   }
@@ -153,6 +335,20 @@ export default function ProductTable({ products, categories, brands = [], isDark
   }
 
   // ── Bulk actions ─────────────────────────────────────────────
+  async function keepOnlyProduct(group: DuplicateGroup, keepId: number) {
+    const toDelete = group.products.map((p) => p.id).filter((id) => id !== keepId);
+    if (toDelete.length === 0) return;
+    if (!confirm(`Se eliminaran ${toDelete.length} productos de este grupo. Continuar?`)) return;
+    const { error } = await supabase.from("products").delete().in("id", toDelete);
+    if (error) return;
+    setDuplicateGroups((prev) =>
+      prev
+        .map((g) => ({ ...g, products: g.products.filter((p) => !toDelete.includes(p.id)) }))
+        .filter((g) => g.products.length > 1)
+    );
+    onRefresh();
+  }
+
   async function bulkDelete() {
     if (!confirm(`¿Eliminar ${selected.size} productos?`)) return;
     await supabase.from("products").delete().in("id", Array.from(selected));
@@ -168,6 +364,16 @@ export default function ProductTable({ products, categories, brands = [], isDark
     setBulkOpen(false);
   }
 
+  async function bulkSetCategory() {
+    const category = bulkCategory.trim();
+    if (!category || selected.size === 0) return;
+    await supabase.from("products").update({ category }).in("id", Array.from(selected));
+    setSelected(new Set());
+    setBulkCategory("");
+    onRefresh();
+    setBulkOpen(false);
+  }
+
   const colHeader = (label: string, field: SortField) => (
     <th className="px-3 py-3 text-left cursor-pointer select-none group" onClick={() => toggleSort(field)}>
       <div className="flex items-center gap-1 text-[11px] font-semibold text-gray-500 uppercase tracking-wider group-hover:text-gray-300 transition">
@@ -179,9 +385,9 @@ export default function ProductTable({ products, categories, brands = [], isDark
   return (
     <>
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2 mb-3">
+      <div className="relative z-30 flex flex-wrap items-center gap-2 mb-3">
         {/* Search */}
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
+        <div className="relative w-[320px] min-w-[320px] shrink-0">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nombre o SKU..."
@@ -219,32 +425,86 @@ export default function ProductTable({ products, categories, brands = [], isDark
           <option value="featured">Destacados</option>
         </select>
 
-        {/* Results count */}
-        <span className="text-xs text-gray-500 ml-auto">
-          {filtered.length} de {products.length} productos
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          {/* Results count */}
+          <span className="text-xs text-gray-500 whitespace-nowrap">
+            {filtered.length} de {products.length} productos
+          </span>
+
+        <button
+          onClick={() => { void openDuplicateAnalyzer(); }}
+          disabled={analyzingDuplicates}
+          className={`flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-lg transition border disabled:opacity-50 ${
+            dk("bg-[#232323] hover:bg-[#2b2b2b] text-white border-[#333]", "bg-white hover:bg-[#f5f5f5] text-[#171717] border-[#d4d4d4]")
+          }`}
+          title="Busca productos con SKU duplicado, titulo igual o titulo similar"
+        >
+          {analyzingDuplicates ? <RefreshCw size={13} className="animate-spin" /> : <AlertTriangle size={13} />}
+          {analyzingDuplicates ? "Analizando..." : "Analizar duplicados"}
+        </button>
 
         {/* Bulk actions */}
         {selected.size > 0 && (
-          <div className="relative">
+          <div className="relative z-[70] shrink-0">
             <button onClick={() => setBulkOpen((o) => !o)}
               className={`flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-lg transition border ${dk("bg-[#2a2a2a] hover:bg-[#333] text-white border-[#333]", "bg-[#f0f0f0] hover:bg-[#e8e8e8] text-[#171717] border-[#d4d4d4]")}`}>
               {selected.size} seleccionados <ChevronDown size={13} />
             </button>
             {bulkOpen && (
-              <div className={`absolute right-0 top-full mt-1 w-48 border rounded-xl shadow-xl z-20 py-1 ${dk("bg-[#1e1e1e] border-[#2a2a2a]", "bg-white border-[#e5e5e5]")}`}>
+              <div className={`absolute right-0 top-full mt-1 w-72 max-h-[65vh] overflow-y-auto overscroll-contain border rounded-xl shadow-2xl z-[90] py-1 ${dk("bg-[#1e1e1e] border-[#2a2a2a]", "bg-white border-[#e5e5e5]")}`}>
+                <div className="px-3 py-2">
+                  <label className="block text-[11px] text-gray-500 mb-1">Categoria masiva</label>
+                  <div className="flex flex-col gap-2">
+                    <div className={`w-full border rounded-lg overflow-hidden ${dk("bg-[#232323] border-[#2a2a2a]", "bg-white border-[#d4d4d4]")}`}>
+                      <div className={`max-h-40 overflow-y-auto ${dk("divide-[#2a2a2a]", "divide-[#efefef]")}`}>
+                        <button
+                          type="button"
+                          onClick={() => setBulkCategory("")}
+                          className={`w-full text-left px-2.5 py-1.5 text-xs border-b ${dk("border-[#2a2a2a] text-gray-300 hover:bg-[#2a2a2a]", "border-[#efefef] text-[#525252] hover:bg-[#f8f8f8]")} ${bulkCategory === "" ? dk("bg-[#2D9F6A]/20 text-white", "bg-[#e8f5ee] text-[#1f7a53]") : ""}`}
+                        >
+                          Seleccionar categoria...
+                        </button>
+                        {allCategoryNames.map((name) => (
+                          <button
+                            key={name}
+                            type="button"
+                            onClick={() => setBulkCategory(name)}
+                            className={`w-full text-left px-2.5 py-1.5 text-xs ${dk("text-gray-200 hover:bg-[#2a2a2a]", "text-[#171717] hover:bg-[#f8f8f8]")} ${bulkCategory === name ? dk("bg-[#2D9F6A]/20 text-white", "bg-[#e8f5ee] text-[#1f7a53]") : ""}`}
+                          >
+                            {name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={bulkSetCategory}
+                        disabled={!bulkCategory.trim()}
+                        className="w-full px-2.5 py-2 text-xs rounded-lg bg-[#2D9F6A] text-white font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Aplicar
+                      </button>
+                      <button
+                        onClick={bulkDelete}
+                        className="w-full px-2.5 py-2 text-xs rounded-lg bg-red-500/90 hover:bg-red-500 text-white font-semibold transition"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className={`border-t my-1 ${dk("border-[#2a2a2a]", "border-[#e5e5e5]")}`} />
                 <button onClick={() => bulkSetActive(true)}  className={`w-full text-left px-4 py-2 text-sm text-green-400 ${dk("hover:bg-[#2a2a2a]", "hover:bg-[#f5f5f5]")}`}>✓ Activar</button>
                 <button onClick={() => bulkSetActive(false)} className={`w-full text-left px-4 py-2 text-sm text-yellow-400 ${dk("hover:bg-[#2a2a2a]", "hover:bg-[#f5f5f5]")}`}>✗ Desactivar</button>
-                <div className={`border-t my-1 ${dk("border-[#2a2a2a]", "border-[#e5e5e5]")}`} />
-                <button onClick={bulkDelete} className={`w-full text-left px-4 py-2 text-sm text-red-400 ${dk("hover:bg-[#2a2a2a]", "hover:bg-[#f5f5f5]")}`}>🗑 Eliminar selección</button>
               </div>
             )}
           </div>
         )}
+        </div>
       </div>
 
       {/* Table */}
-      <div className={`border rounded-xl overflow-hidden ${dk("bg-[#232323] border-[#2a2a2a]", "bg-white border-[#e5e5e5]")}`}>
+      <div className={`relative z-0 border rounded-xl overflow-hidden ${dk("bg-[#232323] border-[#2a2a2a]", "bg-white border-[#e5e5e5]")}`}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[900px]">
             <thead className={`border-b ${dk("bg-[#1a1a1a] border-[#2a2a2a]", "bg-[#f5f5f5] border-[#e5e5e5]")}`}>
@@ -273,8 +533,8 @@ export default function ProductTable({ products, categories, brands = [], isDark
                   </td>
                 </tr>
               ) : paginated.map((p) => {
-                const active   = (p as any).active !== false;
-                const featured = (p as any).featured === true;
+                const active   = p.active !== false;
+                const featured = p.featured === true;
                 const lowStock = p.stock <= 3 && p.stock > 0;
                 const noStock  = p.stock === 0;
                 const isSelected = selected.has(p.id);
@@ -300,22 +560,22 @@ export default function ProductTable({ products, categories, brands = [], isDark
                       <div className="flex items-center gap-1.5">
                         {featured && <Star size={11} className="text-yellow-400 shrink-0" fill="currentColor" />}
                         <span className={`font-medium line-clamp-1 ${dk("text-white", "text-[#171717]")}`}>
-                          {(p as any).name_custom?.trim() || p.name}
+                          {p.name_custom?.trim() || p.name}
                         </span>
-                        {(p as any).name_custom?.trim() && (
-                          <span title={`Original: ${(p as any).name_original ?? p.name}`}
+                        {p.name_custom?.trim() && (
+                          <span title={`Original: ${p.name_original ?? p.name}`}
                             className="shrink-0 text-[9px] font-bold px-1 py-0.5 rounded bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">
                             custom
                           </span>
                         )}
                       </div>
                       <div className="flex gap-1 mt-0.5 flex-wrap">
-                        {(p as any).brand_name && (
+                        {p.brand_name && (
                           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                            {(p as any).brand_name}
+                            {p.brand_name}
                           </span>
                         )}
-                        {(p as any).tags?.slice(0, 2).map((t: string) => (
+                        {p.tags?.slice(0, 2).map((t) => (
                           <span key={t} className={`text-[10px] ${dk("bg-[#1a1a1a]", "bg-[#f0f0f0]")} text-gray-500 px-1.5 rounded`}>{t}</span>
                         ))}
                       </div>
@@ -342,11 +602,11 @@ export default function ProductTable({ products, categories, brands = [], isDark
                             ${p.cost_price.toLocaleString()}
                           </span>
                           <span className={`ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
-                            (p as any).iva_rate === 10.5
+                            p.iva_rate === 10.5
                               ? "text-blue-400 bg-blue-400/10 border-blue-400/20"
                               : "text-[#2D9F6A] bg-[#2D9F6A]/10 border-[#2D9F6A]/20"
                           }`}>
-                            IVA {(p as any).iva_rate ?? 21}%
+                            IVA {p.iva_rate ?? 21}%
                           </span>
                         </div>
                       )}
@@ -355,7 +615,7 @@ export default function ProductTable({ products, categories, brands = [], isDark
                     {/* P.+IVA */}
                     <td className="px-3 py-3">
                       <span className={`text-sm tabular-nums ${dk("text-gray-400", "text-[#525252]")}`}>
-                        ${(p.cost_price * (1 + ((p as any).iva_rate ?? 21) / 100)).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                        ${(p.cost_price * (1 + (p.iva_rate ?? 21) / 100)).toLocaleString("en-US", { maximumFractionDigits: 0 })}
                       </span>
                     </td>
 
@@ -440,6 +700,156 @@ export default function ProductTable({ products, categories, brands = [], isDark
             >
               Sig. →
             </button>
+          </div>
+        </div>
+      )}
+
+      {duplicatesOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center"
+          onClick={() => setDuplicatesOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className={`w-full max-w-6xl max-h-[88vh] rounded-2xl border flex flex-col overflow-hidden ${dk("bg-[#101010] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}
+          >
+            <div className={`px-5 py-4 border-b ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className={`font-bold text-base ${dk("text-white", "text-[#171717]")}`}>Analisis de duplicados y similares</h3>
+                  <p className={`text-xs mt-0.5 ${dk("text-gray-500", "text-[#737373]")}`}>
+                    Revisa coincidencias por SKU, titulo exacto y titulo similar para decidir si editar, duplicar o eliminar.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setDuplicatesOpen(false)}
+                  className={`p-1.5 rounded-lg transition ${dk("text-gray-500 hover:text-white hover:bg-[#1e1e1e]", "text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")}`}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-2 mt-3">
+                <button
+                  onClick={() => setDuplicateFilter("all")}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition ${
+                    duplicateFilter === "all"
+                      ? "bg-[#2D9F6A] text-white border-[#2D9F6A]"
+                      : dk("border-[#2a2a2a] text-gray-400 hover:bg-[#1b1b1b]", "border-[#d4d4d4] text-[#737373] hover:bg-[#f5f5f5]")
+                  }`}
+                >
+                  Todos ({duplicateCounters.all})
+                </button>
+                <button
+                  onClick={() => setDuplicateFilter("sku")}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition ${
+                    duplicateFilter === "sku"
+                      ? "bg-[#2D9F6A] text-white border-[#2D9F6A]"
+                      : dk("border-[#2a2a2a] text-gray-400 hover:bg-[#1b1b1b]", "border-[#d4d4d4] text-[#737373] hover:bg-[#f5f5f5]")
+                  }`}
+                >
+                  SKU ({duplicateCounters.sku})
+                </button>
+                <button
+                  onClick={() => setDuplicateFilter("name")}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition ${
+                    duplicateFilter === "name"
+                      ? "bg-[#2D9F6A] text-white border-[#2D9F6A]"
+                      : dk("border-[#2a2a2a] text-gray-400 hover:bg-[#1b1b1b]", "border-[#d4d4d4] text-[#737373] hover:bg-[#f5f5f5]")
+                  }`}
+                >
+                  Titulo exacto ({duplicateCounters.name})
+                </button>
+                <button
+                  onClick={() => setDuplicateFilter("similar")}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition ${
+                    duplicateFilter === "similar"
+                      ? "bg-[#2D9F6A] text-white border-[#2D9F6A]"
+                      : dk("border-[#2a2a2a] text-gray-400 hover:bg-[#1b1b1b]", "border-[#d4d4d4] text-[#737373] hover:bg-[#f5f5f5]")
+                  }`}
+                >
+                  Similares ({duplicateCounters.similar})
+                </button>
+
+                <div className="ml-auto min-w-[240px]">
+                  <input
+                    value={duplicateSearch}
+                    onChange={(e) => setDuplicateSearch(e.target.value)}
+                    placeholder="Buscar en coincidencias..."
+                    className={`w-full border rounded-lg px-3 py-1.5 text-xs outline-none ${
+                      dk("bg-[#141414] border-[#2a2a2a] text-gray-200", "bg-white border-[#d4d4d4] text-[#171717]")
+                    }`}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto px-5 py-4 space-y-3">
+              {visibleDuplicateGroups.length === 0 ? (
+                <div className={`rounded-xl border px-4 py-8 text-center text-sm ${dk("border-[#1f1f1f] text-gray-500", "border-[#e5e5e5] text-[#737373]")}`}>
+                  No se encontraron coincidencias con los filtros actuales.
+                </div>
+              ) : (
+                visibleDuplicateGroups.map((group) => (
+                  <div key={group.id} className={`rounded-xl border ${dk("border-[#1f1f1f] bg-[#0f0f0f]", "border-[#e8e8e8] bg-[#fcfcfc]")}`}>
+                    <div className={`px-4 py-3 border-b flex items-center justify-between gap-2 ${dk("border-[#1f1f1f]", "border-[#e8e8e8]")}`}>
+                      <div>
+                        <p className={`font-semibold text-sm ${dk("text-white", "text-[#171717]")}`}>{group.title}</p>
+                        <p className={`text-xs ${dk("text-gray-500", "text-[#737373]")}`}>
+                          {group.reason} - {group.products.length} productos - confianza {(group.confidence * 100).toFixed(0)}%
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="divide-y divide-[#1f1f1f]/40">
+                      {group.products.map((product) => (
+                        <div key={product.id} className="px-4 py-3 flex flex-wrap items-center gap-2">
+                          <div className="min-w-[300px] flex-1">
+                            <p className={`text-sm font-medium ${dk("text-white", "text-[#171717]")}`}>
+                              #{product.id} - {getDisplayName(product)}
+                            </p>
+                            <p className={`text-xs ${dk("text-gray-500", "text-[#737373]")}`}>
+                              SKU: {product.sku || "sin-sku"} - Cat: {product.category || "sin categoria"} - ${product.cost_price.toLocaleString("es-AR")} - Stock {product.stock}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => {
+                                setDuplicatesOpen(false);
+                                setEditingProduct(product);
+                              }}
+                              className={`text-xs px-2.5 py-1.5 rounded-lg border transition ${dk("border-[#2a2a2a] text-gray-300 hover:bg-[#1b1b1b]", "border-[#d4d4d4] text-[#525252] hover:bg-[#f5f5f5]")}`}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => { void duplicate(product); }}
+                              className={`text-xs px-2.5 py-1.5 rounded-lg border transition ${dk("border-[#2a2a2a] text-[#2D9F6A] hover:bg-[#2D9F6A]/10", "border-[#d4d4d4] text-[#2D9F6A] hover:bg-[#eef9f3]")}`}
+                            >
+                              Duplicar
+                            </button>
+                            <button
+                              onClick={() => { void deleteProduct(product.id); }}
+                              className={`text-xs px-2.5 py-1.5 rounded-lg border transition ${dk("border-red-500/40 text-red-400 hover:bg-red-500/10", "border-red-200 text-red-600 hover:bg-red-50")}`}
+                            >
+                              Eliminar
+                            </button>
+                            <button
+                              onClick={() => { void keepOnlyProduct(group, product.id); }}
+                              className={`text-xs px-2.5 py-1.5 rounded-lg border transition ${dk("border-amber-500/40 text-amber-300 hover:bg-amber-500/10", "border-amber-200 text-amber-700 hover:bg-amber-50")}`}
+                              title="Conserva este y elimina el resto del grupo"
+                            >
+                              Conservar este
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}

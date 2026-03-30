@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { Eye, EyeOff, Lock, Mail, ArrowRight, MessageCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -150,9 +151,19 @@ const Login = () => {
               </motion.p>
             )}
 
+            {!isSupabaseConfigured && (
+              <motion.p
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-sm text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2"
+              >
+                Configuración local incompleta. Creá un archivo <code>.env</code> con tus credenciales de Supabase antes de usar el portal.
+              </motion.p>
+            )}
+
             <Button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || !isSupabaseConfigured}
               className="w-full bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 h-11"
             >
               {submitting ? (

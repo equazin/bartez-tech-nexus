@@ -19,8 +19,8 @@ function downloadBlob(content: string, filename: string, mime: string) {
   URL.revokeObjectURL(url);
 }
 
-function orderLabel(order: PortalOrder): string {
-  return (order as any).order_number
+function orderLabel(order: Pick<PortalOrder, "id" | "order_number">): string {
+  return order.order_number
     ?? `ORD-${String(order.id).slice(-6).toUpperCase()}`;
 }
 
@@ -200,7 +200,7 @@ export function exportRemitoPDF(order: {
   });
 
   // Total footer
-  const finalY = (doc as any).lastAutoTable?.finalY ?? 140;
+  const finalY = (doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? 140;
   doc.setFillColor(45, 159, 106);
   doc.rect(130, finalY + 4, 68, 9, "F");
   doc.setTextColor(255, 255, 255);
@@ -219,7 +219,17 @@ export function exportRemitoPDF(order: {
 
 // ── Orders CSV ────────────────────────────────────────────────────────────────
 
-export function exportOrdersCSV(orders: PortalOrder[]) {
+export function exportOrdersCSV(orders: Array<Pick<PortalOrder, "id" | "order_number" | "numero_remito" | "created_at"> & {
+  status: string;
+  total: number;
+  products: Array<{
+    sku?: string;
+    name: string;
+    quantity: number;
+    unit_price?: number;
+    total_price?: number;
+  }>;
+}>) {
   const STATUS_LABELS: Record<string, string> = {
     pending:    "En revisión",
     approved:   "Aprobado",
@@ -234,7 +244,7 @@ export function exportOrdersCSV(orders: PortalOrder[]) {
         "Nro. Pedido":   orderLabel(order),
         "Estado":        STATUS_LABELS[order.status] ?? order.status,
         "Fecha":         new Date(order.created_at).toLocaleDateString("es-AR"),
-        "Nro. Remito":   (order as any).numero_remito ?? "",
+        "Nro. Remito":   order.numero_remito ?? "",
         "SKU":           p.sku,
         "Producto":      p.name,
         "Cantidad":      p.quantity,

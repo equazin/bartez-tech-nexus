@@ -1,8 +1,8 @@
 import { Product } from "@/models/product";
-import { Supplier } from "@/models/supplier";
+import { LegacySupplier } from "@/models/supplier";
 
 // Local mock data for now
-let suppliers: Supplier[] = [];
+let suppliers: LegacySupplier[] = [];
 let products: Product[] = [];
 
 export async function getProducts(): Promise<Product[]> {
@@ -25,11 +25,11 @@ export function updatePrices(supplierId: number, newMultiplier: number): void {
   );
 }
 
-export function getSuppliers(): Supplier[] {
+export function getSuppliers(): LegacySupplier[] {
   return suppliers;
 }
 
-export function addSupplier(supplier: Supplier): void {
+export function addSupplier(supplier: LegacySupplier): void {
   suppliers.push(supplier);
 }
 
@@ -37,6 +37,6 @@ export function setProducts(newProducts: Product[]): void {
   products = newProducts;
 }
 
-export function setSuppliers(newSuppliers: Supplier[]): void {
+export function setSuppliers(newSuppliers: LegacySupplier[]): void {
   suppliers = newSuppliers;
 }

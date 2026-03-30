@@ -4,6 +4,7 @@ export type QuoteStatus =
   | "viewed"
   | "approved"
   | "rejected"
+  | "converted"
   | "expired";
 
 export interface QuoteItem {
@@ -37,4 +38,10 @@ export interface Quote {
   parent_id?: number;
   /** ID of the order created from this quote */
   order_id?: string | number;
+  /** Optional validity for customer-facing proposals */
+  valid_days?: number;
+  /** Optional expiration timestamp */
+  expires_at?: string;
+  /** Commercial / operational notes */
+  notes?: string;
 }

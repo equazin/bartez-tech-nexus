@@ -94,7 +94,7 @@ export async function fetchClientProfile(clientId: string): Promise<ClientDetail
     .eq("id", clientId)
     .single();
   if (error) throw new Error(error.message);
-  const raw = data as Record<string, unknown>;
+  const raw = data as unknown as Record<string, unknown>;
   return {
     ...raw,
     payment_terms:   (raw.payment_terms   as number)  ?? 30,

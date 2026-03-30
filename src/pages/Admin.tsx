@@ -9,14 +9,17 @@ import ProductTable from "@/components/admin/ProductTable";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useCurrency } from "@/context/CurrencyContext";
+import { OrderStatusBadge as StatusBadge } from "@/components/OrderStatusBadge";
+import { toggleSetValue } from "@/lib/toggleSet";
 import {
   CheckCircle2, XCircle, Clock, Trash2, RefreshCw, Save,
   Users, Package, ClipboardList, LogOut, UserPlus, X,
   DollarSign, Pencil, Check, LayoutDashboard, Sun, Moon, Phone,
   Truck, Download, Building2, Tag, BarChart2, Activity, Wifi, Bookmark,
-  Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag,
+  Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag, type LucideIcon,
 } from "lucide-react";
-import { exportOrdersCSV, exportCatalogCSV, exportCatalogPDF, exportReportsCSV, exportRemitoPDF } from "@/lib/exports";
+import { exportOrdersCSV, exportCatalogCSV, exportReportsCSV } from "@/lib/exportCsv";
+import { exportCatalogPdf, exportRemitoPdf } from "@/lib/exportPdf";
 import { SalesDashboard } from "@/components/admin/SalesDashboard";
 import { ClientCRM } from "@/components/admin/ClientCRM";
 import OrderKanban, { type KanbanStatus, type KanbanOrder } from "@/components/admin/OrderKanban";
@@ -27,7 +30,7 @@ import { PricingRulesTab } from "@/components/admin/PricingRulesTab";
 import { ReportsTab } from "@/components/admin/ReportsTab";
 import { ActivityLogTab } from "@/components/admin/ActivityLogTab";
 import { PriceStockImport } from "@/components/admin/PriceStockImport";
-import { AirSyncTab } from "@/components/admin/AirSyncTab";
+import { SupplierApisSyncTab } from "@/components/admin/SupplierApisSyncTab";
 import { StockTab } from "@/components/admin/StockTab";
 import { InvoicesTab } from "@/components/admin/InvoicesTab";
 import { StockMovementsTab } from "@/components/admin/StockMovementsTab";
@@ -41,6 +44,10 @@ import { CreateOrderModal } from "@/components/admin/CreateOrderModal";
 import { NotificationBell } from "@/components/admin/NotificationBell";
 import { AdminSearch } from "@/components/admin/AdminSearch";
 import { logActivity } from "@/lib/api/activityLog";
+import { UsersPermissionsTab } from "@/components/admin/UsersPermissionsTab";
+import { ApprovalsTab } from "@/components/admin/ApprovalsTab";
+import { DocumentsTab } from "@/components/admin/DocumentsTab";
+import { SupportTab } from "@/components/admin/SupportTab";
 
 interface SupabaseOrder {
   id: string;
@@ -61,6 +68,61 @@ interface ClientProfile {
   default_margin: number;
   role: string;
   phone?: string;
+  active?: boolean;
+  email?: string;
+}
+
+function slugifyCategoryName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+type CategoryItem = { id: number; name: string; parent_id: number | null };
+
+const COMPONENTS_TEMPLATE: Array<{ name: string; children: string[] }> = [
+  { name: "Placa de Video", children: ["AMD", "NVIDIA", "Intel ARC"] },
+  { name: "Procesadores", children: ["AMD", "Intel"] },
+  { name: "Memoria Ram", children: ["DDR4", "DDR5"] },
+  { name: "Motherboard", children: ["AMD (AM4 / AM5)", "Intel (LGA 1700 / LGA1851)"] },
+];
+
+function normalizeCategoryKey(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function buildCategoryScopedSlug(
+  name: string,
+  parentId: number | null,
+  categories: CategoryItem[]
+) {
+  const ownSlug = slugifyCategoryName(name);
+  if (!ownSlug) return "";
+  if (!parentId) return ownSlug;
+
+  const byId = new Map(categories.map((category) => [category.id, category]));
+  const parts: string[] = [ownSlug];
+  let cursor: number | null = parentId;
+  let guard = 0;
+
+  while (cursor && guard < 20) {
+    const parent = byId.get(cursor);
+    if (!parent) break;
+    parts.unshift(slugifyCategoryName(parent.name) || String(parent.id));
+    cursor = parent.parent_id ?? null;
+    guard += 1;
+  }
+
+  return parts.join("-");
 }
 
 const CLIENT_TYPE_LABELS: Record<ClientType, string> = {
@@ -69,8 +131,8 @@ const CLIENT_TYPE_LABELS: Record<ClientType, string> = {
   empresa:   "Empresa",
 };
 
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; icon: any; className: string }> = {
+function LegacyStatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; icon: LucideIcon; className: string }> = {
     pending:    { label: "En revisión", icon: Clock,        className: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" },
     approved:   { label: "Aprobado",    icon: CheckCircle2, className: "bg-green-500/15 text-green-400 border-green-500/30" },
     preparing:  { label: "Preparando", icon: Package,      className: "bg-orange-500/15 text-orange-400 border-orange-500/30" },
@@ -87,12 +149,12 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-type Tab = "dashboard" | "products" | "orders" | "kanban" | "clients" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "airsync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders";
+type Tab = "dashboard" | "products" | "orders" | "kanban" | "clients" | "users_permissions" | "approvals" | "documents" | "support" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "supplier_sync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders";
 
 const Admin = () => {
   const { signOut, session, isAdmin, canManageProducts, canManageOrders } = useAuth();
   const navigate = useNavigate();
-  const { exchangeRate, setExchangeRate, fetchExchangeRate, formatPrice, formatARS, formatUSD, currency } = useCurrency();
+  const { exchangeRate, setExchangeRate, fetchExchangeRate, formatPrice, formatARS, formatUSD, currency, setCurrency } = useCurrency();
 
   const ADMIN_THEME_KEY = "admin_theme";
   const [theme, setTheme] = useState<"dark" | "light">(() =>
@@ -126,11 +188,44 @@ const Admin = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<SupabaseOrder[]>([]);
   const [clients, setClients] = useState<ClientProfile[]>([]);
-  const [categories, setCategories] = useState<{ id: number; name: string; parent_id: number | null }[]>([]);
+  const [invoiceSearchItems, setInvoiceSearchItems] = useState<Array<{
+    id: string;
+    invoice_number: string;
+    client_id: string;
+    status: string;
+    subtotal: number;
+    iva_total: number;
+    total: number;
+    currency: "USD" | "ARS";
+    exchange_rate?: number | null;
+    created_at: string;
+    due_date?: string;
+  }>>([]);
+  const [quoteSearchItems, setQuoteSearchItems] = useState<Array<{
+    id: number;
+    client_id: string;
+    status: string;
+    total: number;
+  }>>([]);
+  const [paymentSearchItems, setPaymentSearchItems] = useState<Array<{
+    id: string;
+    client_id: string;
+    descripcion?: string;
+    reference_id?: string;
+    monto: number;
+    tipo: string;
+  }>>([]);
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [brands, setBrandsState] = useState<{ id: string; name: string }[]>([]);
   const [newCatName, setNewCatName] = useState("");
   const [newCatParent, setNewCatParent] = useState("");
   const [savingCat, setSavingCat] = useState(false);
+  const [categoryError, setCategoryError] = useState("");
+  const [categorySuccess, setCategorySuccess] = useState("");
+  const [dragCategoryId, setDragCategoryId] = useState<number | null>(null);
+  const [dropParentPreview, setDropParentPreview] = useState<number | "root" | null>(null);
+  const [movingCategoryId, setMovingCategoryId] = useState<number | null>(null);
+  const [collapsedCategoryIds, setCollapsedCategoryIds] = useState<Set<number>>(new Set());
   const [editingClients, setEditingClients] = useState<Record<string, Partial<ClientProfile>>>({});
   const [savingClient, setSavingClient] = useState<string | null>(null);
   const [showNewClient, setShowNewClient] = useState(false);
@@ -228,7 +323,7 @@ const Admin = () => {
 
   async function fetchCategories() {
     const { data } = await supabase.from("categories").select("*").order("parent_id", { ascending: true }).order("name");
-    if (data) setCategories(data);
+    if (data) setCategories(data as CategoryItem[]);
   }
 
   async function fetchBrandsState() {
@@ -236,21 +331,439 @@ const Admin = () => {
     if (data) setBrandsState(data as { id: string; name: string }[]);
   }
 
-  useEffect(() => { fetchProducts(); fetchOrders(); fetchClients(); fetchCategories(); fetchBrandsState(); }, []);
+  async function fetchInvoiceSearchItems() {
+    const { data } = await supabase
+      .from("invoices")
+      .select("id, invoice_number, client_id, status, subtotal, iva_total, total, currency, exchange_rate, created_at, due_date")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (data) {
+      setInvoiceSearchItems(data as Array<{
+        id: string;
+        invoice_number: string;
+        client_id: string;
+        status: string;
+        subtotal: number;
+        iva_total: number;
+        total: number;
+        currency: "USD" | "ARS";
+        exchange_rate?: number | null;
+        created_at: string;
+        due_date?: string;
+      }>);
+    }
+  }
+
+  async function fetchQuoteSearchItems() {
+    const { data } = await supabase
+      .from("quotes")
+      .select("id, client_id, status, total")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (data) {
+      setQuoteSearchItems(data as Array<{
+        id: number;
+        client_id: string;
+        status: string;
+        total: number;
+      }>);
+    }
+  }
+
+  async function fetchPaymentSearchItems() {
+    const { data } = await supabase
+      .from("account_movements")
+      .select("id, client_id, descripcion, reference_id, monto, tipo")
+      .eq("tipo", "pago")
+      .order("fecha", { ascending: false })
+      .limit(100);
+    if (data) {
+      setPaymentSearchItems(data as Array<{
+        id: string;
+        client_id: string;
+        descripcion?: string;
+        reference_id?: string;
+        monto: number;
+        tipo: string;
+      }>);
+    }
+  }
+
+  useEffect(() => {
+    fetchProducts();
+    fetchOrders();
+    fetchClients();
+    fetchCategories();
+    fetchBrandsState();
+    fetchInvoiceSearchItems();
+    fetchQuoteSearchItems();
+    fetchPaymentSearchItems();
+  }, []);
+
+  useEffect(() => {
+    const validIds = new Set(categories.map((category) => category.id));
+    setCollapsedCategoryIds((prev) => {
+      const next = new Set(Array.from(prev).filter((id) => validIds.has(id)));
+      if (next.size === prev.size) return prev;
+      return next;
+    });
+  }, [categories]);
+
+  const categoryChildrenByParent = categories.reduce<Map<number | null, CategoryItem[]>>((acc, category) => {
+    const key = category.parent_id ?? null;
+    const list = acc.get(key) ?? [];
+    list.push(category);
+    acc.set(key, list);
+    return acc;
+  }, new Map<number | null, CategoryItem[]>());
+
+  for (const list of categoryChildrenByParent.values()) {
+    list.sort((a, b) => a.name.localeCompare(b.name, "es"));
+  }
+
+  const categoryParentOptions: Array<{ id: number; label: string; depth: number }> = [];
+  const walkCategoryOptions = (parentId: number | null, depth: number) => {
+    const nodes = categoryChildrenByParent.get(parentId) ?? [];
+    nodes.forEach((node) => {
+      categoryParentOptions.push({
+        id: node.id,
+        depth,
+        label: `${"  ".repeat(depth)}${depth > 0 ? "↳ " : ""}${node.name}`,
+      });
+      walkCategoryOptions(node.id, depth + 1);
+    });
+  };
+  walkCategoryOptions(null, 0);
+
+  const rootCategoryNodes = categoryChildrenByParent.get(null) ?? [];
+  const rootCategoryWithChildrenIds = rootCategoryNodes
+    .filter((node) => (categoryChildrenByParent.get(node.id)?.length ?? 0) > 0)
+    .map((node) => node.id);
+  const showLegacyCategoryBlock = false;
+  const collapsedRootCount = rootCategoryWithChildrenIds.filter((id) => collapsedCategoryIds.has(id)).length;
+
+  function toggleCategoryCollapsed(id: number) {
+    setCollapsedCategoryIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function collapseRootCategories() {
+    setCollapsedCategoryIds((prev) => {
+      const next = new Set(prev);
+      rootCategoryWithChildrenIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
+  function expandRootCategories() {
+    setCollapsedCategoryIds((prev) => {
+      const next = new Set(prev);
+      rootCategoryWithChildrenIds.forEach((id) => next.delete(id));
+      return next;
+    });
+  }
+
+  function findCategoryByNameAndParent(
+    list: CategoryItem[],
+    name: string,
+    parentId: number | null
+  ): CategoryItem | null {
+    const target = normalizeCategoryKey(name);
+    return list.find((category) =>
+      category.parent_id === parentId &&
+      normalizeCategoryKey(category.name) === target
+    ) ?? null;
+  }
+
+  async function ensureCategoryNode(
+    list: CategoryItem[],
+    name: string,
+    parentId: number | null
+  ): Promise<{ node: CategoryItem; created: boolean }> {
+    const existing = findCategoryByNameAndParent(list, name, parentId);
+    if (existing) {
+      return { node: existing, created: false };
+    }
+
+    const slug = buildCategoryScopedSlug(name, parentId, list);
+    if (!slug) {
+      throw new Error(`Nombre de categoria invalido: ${name}`);
+    }
+
+    const { data, error } = await supabase
+      .from("categories")
+      .insert({
+        name: name.trim(),
+        slug,
+        active: true,
+        parent_id: parentId,
+      })
+      .select("id, name, parent_id")
+      .single();
+
+    if (error || !data) {
+      throw new Error(error?.message || `No se pudo crear la categoria ${name}`);
+    }
+
+    const createdNode = data as CategoryItem;
+    list.push(createdNode);
+    return { node: createdNode, created: true };
+  }
 
   async function addCategory() {
-    if (!newCatName.trim()) return;
+    const trimmedName = newCatName.trim();
+    if (!trimmedName) return;
+
+    const parentId = newCatParent ? Number(newCatParent) : null;
+    const slug = buildCategoryScopedSlug(trimmedName, parentId, categories);
+    if (!slug) {
+      setCategoryError("Ingresá un nombre de categoría válido.");
+      setCategorySuccess("");
+      return;
+    }
+
     setSavingCat(true);
-    await supabase.from("categories").insert({ name: newCatName.trim(), parent_id: newCatParent ? Number(newCatParent) : null });
-    setNewCatName(""); setNewCatParent("");
+    setCategoryError("");
+    setCategorySuccess("");
+
+    const { error } = await supabase
+      .from("categories")
+      .insert({
+        name: trimmedName,
+        slug,
+        active: true,
+        parent_id: parentId,
+      });
+
+    if (error) {
+      const duplicateError = error.code === "23505";
+      setCategoryError(
+        duplicateError
+          ? "Ya existe una categoría con ese nombre o slug."
+          : `No se pudo crear la categoría: ${error.message}`
+      );
+      setSavingCat(false);
+      return;
+    }
+
+    setNewCatName("");
+    setNewCatParent("");
+    setCategorySuccess("Categoría creada correctamente.");
     setSavingCat(false);
     fetchCategories();
+  }
+
+  async function addComponentsTemplate() {
+    setSavingCat(true);
+    setCategoryError("");
+    setCategorySuccess("");
+
+    try {
+      const working = [...categories];
+      let createdCount = 0;
+
+      const rootResult = await ensureCategoryNode(working, "Componentes", null);
+      if (rootResult.created) createdCount += 1;
+      const rootId = rootResult.node.id;
+
+      for (const branch of COMPONENTS_TEMPLATE) {
+        const branchResult = await ensureCategoryNode(working, branch.name, rootId);
+        if (branchResult.created) createdCount += 1;
+        const branchId = branchResult.node.id;
+
+        for (const childName of branch.children) {
+          const leafResult = await ensureCategoryNode(working, childName, branchId);
+          if (leafResult.created) createdCount += 1;
+        }
+      }
+
+      await fetchCategories();
+      setCategorySuccess(
+        createdCount > 0
+          ? `Plantilla Componentes aplicada (${createdCount} categorias nuevas).`
+          : "La plantilla Componentes ya estaba cargada."
+      );
+    } catch (error) {
+      setCategoryError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSavingCat(false);
+    }
   }
 
   async function deleteCategory(id: number) {
     if (!confirm("¿Eliminar esta categoría?")) return;
     await supabase.from("categories").delete().eq("id", id);
     fetchCategories();
+  }
+
+  function collectDescendantIds(categoryId: number): Set<number> {
+    const out = new Set<number>();
+    const stack = [categoryId];
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      const children = categoryChildrenByParent.get(current) ?? [];
+      for (const child of children) {
+        if (!out.has(child.id)) {
+          out.add(child.id);
+          stack.push(child.id);
+        }
+      }
+    }
+    return out;
+  }
+
+  function canDropCategory(dragId: number, targetParentId: number | null): boolean {
+    if (dragId === targetParentId) return false;
+    if (targetParentId === null) return true;
+    const descendants = collectDescendantIds(dragId);
+    return !descendants.has(targetParentId);
+  }
+
+  async function moveCategory(dragId: number, targetParentId: number | null) {
+    if (!canDropCategory(dragId, targetParentId)) {
+      setCategoryError("Movimiento no valido: no podes mover una categoria dentro de si misma.");
+      setCategorySuccess("");
+      return;
+    }
+
+    const current = categories.find((category) => category.id === dragId);
+    if (!current) return;
+    if ((current.parent_id ?? null) === targetParentId) return;
+
+    setMovingCategoryId(dragId);
+    setCategoryError("");
+    setCategorySuccess("");
+
+    const { error } = await supabase
+      .from("categories")
+      .update({ parent_id: targetParentId })
+      .eq("id", dragId);
+
+    setMovingCategoryId(null);
+    setDropParentPreview(null);
+    setDragCategoryId(null);
+
+    if (error) {
+      setCategoryError(`No se pudo mover la categoria: ${error.message}`);
+      return;
+    }
+
+    setCategorySuccess("Categoria movida correctamente.");
+    await fetchCategories();
+  }
+
+  function renderCategoryNode(node: CategoryItem, depth = 0): JSX.Element {
+    const children = categoryChildrenByParent.get(node.id) ?? [];
+    const hasChildren = children.length > 0;
+    const isCollapsed = collapsedCategoryIds.has(node.id);
+    const isDragging = dragCategoryId === node.id;
+    const isDropTarget = dropParentPreview === node.id && dragCategoryId !== null;
+    const canDropHere = dragCategoryId !== null && canDropCategory(dragCategoryId, node.id);
+    const isMoving = movingCategoryId === node.id;
+    return (
+      <div
+        key={node.id}
+        draggable
+        onDragStart={(event) => {
+          event.stopPropagation();
+          setDragCategoryId(node.id);
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", String(node.id));
+        }}
+        onDragEnd={(event) => {
+          event.stopPropagation();
+          setDragCategoryId(null);
+          setDropParentPreview(null);
+        }}
+        onDragOver={(event) => {
+          event.stopPropagation();
+          if (!canDropHere) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          setDropParentPreview(node.id);
+        }}
+        onDragLeave={(event) => {
+          event.stopPropagation();
+          if (dropParentPreview === node.id) {
+            setDropParentPreview(null);
+          }
+        }}
+        onDrop={(event) => {
+          event.stopPropagation();
+          event.preventDefault();
+          const incoming = Number(event.dataTransfer.getData("text/plain") || dragCategoryId);
+          if (!Number.isFinite(incoming) || !canDropCategory(incoming, node.id)) return;
+          void moveCategory(incoming, node.id);
+        }}
+        className={`border rounded-lg p-3 transition ${
+          isDropTarget
+            ? "border-[#2D9F6A] ring-1 ring-[#2D9F6A]/40"
+            : dk("bg-[#0d0d0d] border-[#1f1f1f]", "bg-[#f5f5f5] border-[#e5e5e5]")
+        } ${isDragging ? "opacity-50" : ""}`}
+        style={{ marginLeft: `${depth * 14}px` }}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            {hasChildren ? (
+              <button
+                type="button"
+                draggable={false}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggleCategoryCollapsed(node.id);
+                }}
+                className={`h-5 w-5 rounded border text-[11px] font-bold leading-none grid place-items-center transition ${
+                  dk(
+                    "border-[#2a2a2a] text-gray-300 hover:bg-[#1a1a1a]",
+                    "border-[#d4d4d4] text-[#525252] hover:bg-[#f0f0f0]"
+                  )
+                }`}
+                title={isCollapsed ? "Expandir subcategorias" : "Comprimir subcategorias"}
+              >
+                {isCollapsed ? "+" : "-"}
+              </button>
+            ) : (
+              <span className="h-5 w-5" />
+            )}
+            <span className={`text-sm font-semibold cursor-grab active:cursor-grabbing truncate ${dk("text-white", "text-[#171717]")}`}>
+            {depth > 0 ? `↳ ${node.name}` : node.name}
+            </span>
+          </div>
+          <button
+            onClick={() => deleteCategory(node.id)}
+            className="text-gray-500 hover:text-red-400 transition"
+            title="Eliminar categoria"
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
+        {isDropTarget && (
+          <p className={`mt-1 text-[11px] ${dk("text-[#9edfbf]", "text-[#1f7a53]")}`}>
+            Solta aca para convertirla en subcategoria de {node.name}.
+          </p>
+        )}
+        {isMoving && (
+          <p className={`mt-1 text-[11px] ${dk("text-blue-300", "text-blue-600")}`}>
+            Moviendo...
+          </p>
+        )}
+        {hasChildren && isCollapsed && (
+          <p className={`mt-1 text-[11px] ${dk("text-gray-500", "text-[#737373]")}`}>
+            {children.length} subcategoria{children.length !== 1 ? "s" : ""} comprimida{children.length !== 1 ? "s" : ""}.
+          </p>
+        )}
+        {hasChildren && !isCollapsed && (
+          <div className="mt-2 space-y-2">
+            {children.map((child) => renderCategoryNode(child, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
   }
 
   const pendingOrders = orders.filter((o) => o.status === "pending").length;
@@ -300,7 +813,7 @@ const Admin = () => {
     }));
   }
 
-  function updateEdit(id: string, field: keyof ClientProfile, value: any) {
+  function updateEdit<K extends keyof ClientProfile>(id: string, field: K, value: ClientProfile[K]) {
     setEditingClients((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
   }
 
@@ -338,13 +851,18 @@ const Admin = () => {
   async function toggleActive(product: Product) {
     const { error } = await supabase
       .from("products")
-      .update({ active: !(product as any).active })
+      .update({ active: !product.active })
       .eq("id", product.id);
     if (!error) fetchProducts();
   }
 
   // ── Órdenes ──
-  async function updateOrderStatus(orderId: string, status: "approved" | "rejected") {
+  async function updateOrderStatus(
+    orderId: string,
+    status: "approved" | "rejected",
+    opts?: { note?: string; approverLabel?: string; ruleReasons?: string[]; requiresException?: boolean }
+  ) {
+    const previous = orders.find((order) => String(order.id) === String(orderId));
     const { error } = await supabase
       .from("orders")
       .update({ status, updated_at: new Date().toISOString() })
@@ -352,7 +870,20 @@ const Admin = () => {
     if (!error) {
       setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status } : o));
       if (selectedOrder?.id === orderId) setSelectedOrder((o) => o ? { ...o, status } : o);
-      logActivity({ user_id: userId, action: "order_status_change", entity_type: "order", entity_id: orderId, metadata: { status } });
+      logActivity({
+        user_id: userId,
+        action: "order_status_change",
+        entity_type: "order",
+        entity_id: orderId,
+        metadata: {
+          previous_status: previous?.status,
+          status,
+          approver: opts?.approverLabel ?? session?.user.email ?? "admin",
+          note: opts?.note ?? null,
+          approval_reasons: opts?.ruleReasons ?? [],
+          requires_exception: opts?.requiresException ?? false,
+        },
+      });
     }
   }
 
@@ -395,14 +926,14 @@ const Admin = () => {
     logActivity({ user_id: userId, action: "order_status_change", entity_type: "order", entity_id: orderId, metadata: { status: newStatus } });
   }
 
-  const lowStockCount = products.filter((p) => p.stock <= 3 && (p as any).active !== false).length;
+  const lowStockCount = products.filter((p) => p.stock <= 3 && p.active !== false).length;
 
   // ── Sidebar groups ──────────────────────────────────────────────────────────
   type SidebarGroup = {
     id: string;
     label: string;
-    icon: any;
-    items: { id: Tab; label: string; icon: any; badge?: number; adminOnly?: boolean; manageProducts?: boolean; manageOrders?: boolean }[];
+    icon: LucideIcon;
+    items: { id: Tab; label: string; icon: LucideIcon; badge?: number; adminOnly?: boolean; manageProducts?: boolean; manageOrders?: boolean }[];
   };
 
   const sidebarGroups: SidebarGroup[] = [
@@ -417,6 +948,7 @@ const Admin = () => {
       items: [
         { id: "orders",      label: "Pedidos",      icon: ClipboardList,  badge: pendingOrders || undefined, manageOrders: true },
         { id: "kanban",      label: "Kanban",        icon: Layers,         manageOrders: true },
+        { id: "approvals",   label: "Aprobaciones",  icon: CheckCircle2,   manageOrders: true },
         { id: "quotes_admin",label: "Cotizaciones",  icon: MessageSquare,  adminOnly: true },
       ],
     },
@@ -424,6 +956,7 @@ const Admin = () => {
       id: "clientes", label: "Clientes", icon: Users,
       items: [
         { id: "clients", label: "Clientes", icon: Users,       badge: clients.length, adminOnly: true },
+        { id: "users_permissions", label: "Accesos", icon: UserPlus, adminOnly: true },
         { id: "credit",  label: "Crédito",  icon: CreditCard,  adminOnly: true },
       ],
     },
@@ -442,19 +975,21 @@ const Admin = () => {
         { id: "suppliers", label: "Proveedores", icon: Building2, adminOnly: true },
         { id: "brands",    label: "Marcas",      icon: Bookmark,  adminOnly: true },
         { id: "pricing",   label: "Precios",     icon: Tag,       adminOnly: true },
-        { id: "airsync",   label: "AIR Sync",    icon: Wifi,      adminOnly: true },
+        { id: "supplier_sync", label: "Sync proveedores", icon: Wifi, adminOnly: true },
       ],
     },
     {
       id: "finanzas", label: "Finanzas", icon: FileText,
       items: [
         { id: "invoices", label: "Facturas",  icon: FileText, adminOnly: true },
+        { id: "documents", label: "Documentos", icon: FileText, adminOnly: true },
         { id: "reports",  label: "Reportes",  icon: BarChart2, adminOnly: true, badge: lowStockCount || undefined },
       ],
     },
     {
       id: "sistema", label: "Sistema", icon: Activity,
       items: [
+        { id: "support",  label: "Postventa", icon: MessageSquare, adminOnly: true },
         { id: "activity", label: "Actividad", icon: Activity, adminOnly: true },
       ],
     },
@@ -482,8 +1017,7 @@ const Admin = () => {
 
   function toggleGroup(gid: string) {
     setCollapsedGroups((prev) => {
-      const next = new Set(prev);
-      next.has(gid) ? next.delete(gid) : next.add(gid);
+      const next = toggleSetValue(prev, gid);
       localStorage.setItem(SIDEBAR_GROUPS_KEY, JSON.stringify([...next]));
       return next;
     });
@@ -494,6 +1028,17 @@ const Admin = () => {
     if (item.manageProducts) return canManageProducts;
     if (item.manageOrders) return canManageOrders;
     return true;
+  }
+
+  async function handleExportAdminCatalogPdf() {
+    await exportCatalogPdf(products, formatPrice, currency);
+  }
+
+  async function handleExportRemitoPdf() {
+    if (!selectedOrder) return;
+    const client = clients.find((c) => c.id === selectedOrder.client_id);
+    const clientName = client ? (client.company_name || client.contact_name || client.id) : "";
+    await exportRemitoPdf(selectedOrder, clientName, formatPrice);
   }
 
   function SidebarContent({ mobile = false }: { mobile?: boolean }) {
@@ -602,15 +1147,44 @@ const Admin = () => {
         </span>
 
         <div className="ml-auto flex items-center gap-1.5">
+          <div className={`hidden sm:flex items-center rounded-lg border p-0.5 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-[#f8f8f8]")}`}>
+            {(["USD", "ARS"] as const).map((option) => {
+              const active = currency === option;
+              return (
+                <button
+                  key={option}
+                  onClick={() => setCurrency(option)}
+                  className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition ${
+                    active
+                      ? "bg-[#2D9F6A] text-white"
+                      : dk("text-[#737373] hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-white")
+                  }`}
+                  title={`Ver importes principales en ${option}`}
+                >
+                  {option}
+                </button>
+              );
+            })}
+          </div>
           <AdminSearch
             isDark={isDark}
             products={products}
             clients={clients}
             orders={orders}
+            invoices={invoiceSearchItems}
+            quotes={quoteSearchItems}
+            payments={paymentSearchItems}
             onNavigate={(tab) => setActiveTab(tab as Tab)}
           />
           <button
-            onClick={() => { fetchProducts(); fetchOrders(); fetchClients(); }}
+            onClick={() => {
+              fetchProducts();
+              fetchOrders();
+              fetchClients();
+              fetchInvoiceSearchItems();
+              fetchQuoteSearchItems();
+              fetchPaymentSearchItems();
+            }}
             className={`flex items-center gap-1.5 text-xs transition px-2.5 py-1.5 rounded-lg ${dk("text-[#737373] hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
           >
             <RefreshCw size={12} /> <span className="hidden sm:inline">Actualizar</span>
@@ -862,26 +1436,93 @@ const Admin = () => {
             {/* Categorías */}
             <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
               <h2 className={`text-sm font-bold mb-4 ${dk("text-white", "text-[#171717]")}`}>Categorías y Subcategorías</h2>
-              <div className="flex gap-2 mb-4">
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <button
+                  type="button"
+                  onClick={collapseRootCategories}
+                  disabled={rootCategoryWithChildrenIds.length === 0}
+                  className={`text-xs font-semibold px-3 py-2 rounded-lg border transition disabled:opacity-40 ${
+                    dk("bg-[#111] border-[#2a2a2a] text-gray-300 hover:bg-[#1b1b1b]", "bg-white border-[#d4d4d4] text-[#171717] hover:bg-[#f5f5f5]")
+                  }`}
+                >
+                  Comprimir padres
+                </button>
+                <button
+                  type="button"
+                  onClick={expandRootCategories}
+                  disabled={rootCategoryWithChildrenIds.length === 0}
+                  className={`text-xs font-semibold px-3 py-2 rounded-lg border transition disabled:opacity-40 ${
+                    dk("bg-[#111] border-[#2a2a2a] text-gray-300 hover:bg-[#1b1b1b]", "bg-white border-[#d4d4d4] text-[#171717] hover:bg-[#f5f5f5]")
+                  }`}
+                >
+                  Expandir padres
+                </button>
+                <span className={`text-xs ${dk("text-gray-500", "text-[#737373]")}`}>
+                  {collapsedRootCount}/{rootCategoryWithChildrenIds.length} padres comprimidos
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2 mb-4">
                 <input
-                  value={newCatName} onChange={(e) => setNewCatName(e.target.value)}
+                  value={newCatName} onChange={(e) => { setNewCatName(e.target.value); if (categoryError) setCategoryError(""); if (categorySuccess) setCategorySuccess(""); }}
                   placeholder="Nombre de categoría"
-                  className={`flex-1 border rounded-lg px-3 py-2 text-sm outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040] placeholder:text-[#404040]", "bg-[#f9f9f9] border-[#d4d4d4] text-[#171717] focus:border-[#2D9F6A] placeholder:text-gray-400")}`}
+                  className={`flex-1 min-w-[220px] border rounded-lg px-3 py-2 text-sm outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040] placeholder:text-[#404040]", "bg-[#f9f9f9] border-[#d4d4d4] text-[#171717] focus:border-[#2D9F6A] placeholder:text-gray-400")}`}
                 />
-                <select value={newCatParent} onChange={(e) => setNewCatParent(e.target.value)}
-                  className={`border rounded-lg px-3 py-2 text-sm outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040]", "bg-[#f9f9f9] border-[#d4d4d4] text-[#171717] focus:border-[#2D9F6A]")}`}>
+                <select value={newCatParent} onChange={(e) => { setNewCatParent(e.target.value); if (categoryError) setCategoryError(""); if (categorySuccess) setCategorySuccess(""); }}
+                  className={`min-w-[240px] border rounded-lg px-3 py-2 text-sm outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040]", "bg-[#f9f9f9] border-[#d4d4d4] text-[#171717] focus:border-[#2D9F6A]")}`}>
                   <option value="">Categoría raíz</option>
-                  {categories.filter((c) => c.parent_id === null).map((c) => (
-                    <option key={c.id} value={c.id}>Sub de: {c.name}</option>
+                  {categoryParentOptions.map((c) => (
+                    <option key={c.id} value={c.id}>{c.label}</option>
                   ))}
                 </select>
                 <button onClick={addCategory} disabled={savingCat || !newCatName.trim()}
                   className="bg-[#2D9F6A] hover:bg-[#25835A] text-white text-sm font-bold px-4 rounded-lg transition disabled:opacity-40">
                   + Agregar
                 </button>
+                <button
+                  onClick={addComponentsTemplate}
+                  disabled={savingCat}
+                  className={`text-sm font-semibold px-4 py-2 rounded-lg border transition disabled:opacity-40 ${
+                    dk("bg-[#111] border-[#2a2a2a] text-gray-300 hover:bg-[#1b1b1b]", "bg-white border-[#d4d4d4] text-[#171717] hover:bg-[#f5f5f5]")
+                  }`}
+                >
+                  Cargar plantilla Componentes
+                </button>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {categories.filter((c) => c.parent_id === null).map((parent) => (
+              {categoryError && (
+                <p className="mb-4 text-sm text-red-400">{categoryError}</p>
+              )}
+              {categorySuccess && (
+                <p className="mb-4 text-sm text-green-500">{categorySuccess}</p>
+              )}
+              <div
+                onDragOver={(event) => {
+                  if (dragCategoryId === null) return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  setDropParentPreview("root");
+                }}
+                onDragLeave={() => {
+                  if (dropParentPreview === "root") {
+                    setDropParentPreview(null);
+                  }
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const incoming = Number(event.dataTransfer.getData("text/plain") || dragCategoryId);
+                  if (!Number.isFinite(incoming) || !canDropCategory(incoming, null)) return;
+                  void moveCategory(incoming, null);
+                }}
+                className={`mb-3 border rounded-lg px-3 py-2 text-xs transition ${
+                  dropParentPreview === "root"
+                    ? "border-[#2D9F6A] bg-[#2D9F6A]/10 text-[#2D9F6A]"
+                    : dk("border-[#262626] text-gray-500", "border-[#d4d4d4] text-[#737373]")
+                }`}
+              >
+                Solta aca para mover la categoria al nivel raiz.
+              </div>
+              <div className="space-y-2">
+                {rootCategoryNodes.map((node) => renderCategoryNode(node))}
+                {showLegacyCategoryBlock && categories.filter((c) => c.parent_id === null).map((parent) => (
                   <div key={parent.id} className={`${dk("bg-[#0d0d0d] border-[#1f1f1f]", "bg-[#f5f5f5] border-[#e5e5e5]")} border rounded-lg px-3 py-2 min-w-[140px]`}>
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <span className={`text-sm font-semibold ${dk("text-white", "text-[#171717]")}`}>{parent.name}</span>
@@ -908,13 +1549,13 @@ const Admin = () => {
                   <div className="flex items-center gap-2 mb-3">
                     <span className={`text-xs ${dk("text-gray-500", "text-[#737373]")}`}>Exportar catálogo:</span>
                     <button
-                      onClick={() => exportCatalogCSV(products as any)}
+                      onClick={() => exportCatalogCSV(products)}
                       className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition ${dk("text-[#737373] hover:text-white border-[#262626] hover:border-[#333] bg-[#111] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] border-[#e5e5e5] hover:border-[#d4d4d4] bg-white hover:bg-[#f5f5f5]")}`}
                     >
                       <Download size={11} /> CSV
                     </button>
                     <button
-                      onClick={() => exportCatalogPDF(products as any, formatPrice, currency)}
+                      onClick={() => { void handleExportAdminCatalogPdf(); }}
                       className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition ${dk("text-[#737373] hover:text-white border-[#262626] hover:border-[#333] bg-[#111] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] border-[#e5e5e5] hover:border-[#d4d4d4] bg-white hover:bg-[#f5f5f5]")}`}
                     >
                       <Download size={11} /> PDF
@@ -948,7 +1589,7 @@ const Admin = () => {
                 </button>
                 {orders.length > 0 && (
                   <button
-                    onClick={() => exportOrdersCSV(orders as any)}
+                    onClick={() => exportOrdersCSV(orders)}
                     title="Exportar pedidos a CSV"
                     className={`flex items-center gap-1.5 text-xs shrink-0 px-3 py-2 rounded-lg border transition ${dk("text-[#737373] hover:text-white border-[#262626] hover:border-[#333] bg-[#111] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] border-[#e5e5e5] hover:border-[#d4d4d4] bg-white hover:bg-[#f5f5f5]")}`}
                   >
@@ -1088,9 +1729,7 @@ const Admin = () => {
                     </div>
                     <button
                       onClick={() => {
-                        const client = clients.find((c) => c.id === selectedOrder.client_id);
-                        const clientName = client ? (client.company_name || client.contact_name || client.id) : "";
-                        exportRemitoPDF(selectedOrder as any, clientName, formatPrice);
+                        void handleExportRemitoPdf();
                       }}
                       className="flex items-center gap-1 text-[10px] text-[#2D9F6A] hover:underline font-medium"
                     >
@@ -1355,6 +1994,26 @@ const Admin = () => {
         )}
 
         {/* ── PROVEEDORES ── */}
+        {activeTab === "users_permissions" && (
+          <UsersPermissionsTab
+            isDark={isDark}
+            clients={clients}
+            onRefresh={fetchClients}
+          />
+        )}
+
+        {activeTab === "approvals" && (
+          <ApprovalsTab
+            isDark={isDark}
+            orders={orders}
+            clients={clients}
+            approverLabel={session?.user.email ?? "Admin"}
+            onApproveOrder={(orderId, payload) => updateOrderStatus(orderId, "approved", payload)}
+            onRejectOrder={(orderId, payload) => updateOrderStatus(orderId, "rejected", payload)}
+            onOpenTab={(tab) => setActiveTab(tab as Tab)}
+          />
+        )}
+
         {activeTab === "suppliers" && (
           <SuppliersTab isDark={isDark} />
         )}
@@ -1377,6 +2036,15 @@ const Admin = () => {
         {/* ── FACTURAS ── */}
         {activeTab === "invoices" && (
           <InvoicesTab isDark={isDark} />
+        )}
+
+        {activeTab === "documents" && (
+          <DocumentsTab
+            isDark={isDark}
+            orders={orders}
+            clients={clients}
+            onOpenTab={(tab) => setActiveTab(tab as Tab)}
+          />
         )}
 
         {/* ── CRÉDITO ── */}
@@ -1405,7 +2073,7 @@ const Admin = () => {
             {/* Export ventas CSV */}
             <div className="flex justify-end">
               <button
-                onClick={() => exportReportsCSV(orders as any, clients)}
+                onClick={() => exportReportsCSV(orders, clients)}
                 className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border transition ${dk("border-[#2a2a2a] text-gray-400 hover:text-white hover:bg-[#1c1c1c]","border-[#e5e5e5] text-[#737373] hover:bg-[#f5f5f5]")}`}
               >
                 <Download size={12} /> Exportar ventas CSV
@@ -1413,7 +2081,9 @@ const Admin = () => {
             </div>
             <ReportsTab
               products={products}
-              orders={orders as any}
+              orders={orders}
+              clients={clients}
+              invoices={invoiceSearchItems}
               formatPrice={formatPrice}
               isDark={isDark}
             />
@@ -1425,9 +2095,16 @@ const Admin = () => {
           <ActivityLogTab isDark={isDark} />
         )}
 
-        {/* ── AIR SYNC ── */}
-        {activeTab === "airsync" && (
-          <AirSyncTab isDark={isDark} userId={userId} onSyncDone={fetchProducts} />
+        {activeTab === "support" && (
+          <SupportTab
+            isDark={isDark}
+            clients={clients}
+          />
+        )}
+
+        {/* ── SYNC PROVEEDORES ── */}
+        {activeTab === "supplier_sync" && (
+          <SupplierApisSyncTab isDark={isDark} userId={userId} onSyncDone={fetchProducts} />
         )}
 
       </ErrorBoundary>

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
-import { supabase, UserProfile } from "@/lib/supabase";
+import { isSupabaseConfigured, supabase, UserProfile } from "@/lib/supabase";
 
 interface AuthContextType {
   session: Session | null;
@@ -36,6 +36,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   async function fetchProfile(userId: string) {
+    if (!isSupabaseConfigured) {
+      setLoading(false);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -44,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
       if (!error && data) setProfile(data as UserProfile);
     } catch {
-      // silencioso — perfil no encontrado
+      // silencioso - perfil no encontrado
     }
     setLoading(false);
   }
@@ -62,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      // TOKEN_REFRESHED fires on every tab focus — ignore it to avoid
+      // TOKEN_REFRESHED fires on every tab focus - ignore it to avoid
       // resetting loading state and re-fetching the profile unnecessarily.
       if (event === "TOKEN_REFRESHED") return;
 
@@ -80,6 +85,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
+    if (!isSupabaseConfigured) {
+      return {
+        error: "Supabase no esta configurado en local. Copia .env.example a .env y completa VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.",
+      };
+    }
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error: error.message };
     return { error: null };
@@ -116,3 +127,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export const useAuth = () => useContext(AuthContext);
+

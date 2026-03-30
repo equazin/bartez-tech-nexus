@@ -164,9 +164,13 @@ export async function generateQuotePDF(opts: QuotePDFOptions) {
   sf(14, "bold"); sc(DARK);
   doc.text("COTIZACIÓN COMERCIAL", PAGE_W / 2, y, { align: "center" });
   y += 6;
-  sf(8, "italic"); sc(MUTED);
-  doc.text("Propuesta tecnológica personalizada", PAGE_W / 2, y, { align: "center" });
-  y += 8;
+  if (!whiteLabel) {
+    sf(8, "italic"); sc(MUTED);
+    doc.text("Propuesta tecnológica personalizada", PAGE_W / 2, y, { align: "center" });
+    y += 8;
+  } else {
+    y += 3;
+  }
 
   hl(y, M, PAGE_W - M, BORDER, 0.3);
   y += 7;

@@ -25,6 +25,9 @@ interface SupplierSource {
   supplier_id: string;
   supplier_name: string;
   cost_price: number;
+  source_cost_price?: number | null;
+  source_currency?: "USD" | "ARS" | null;
+  source_exchange_rate?: number | null;
   stock_available: number;
   stock_reserved: number;
   price_multiplier: number;
@@ -38,6 +41,27 @@ interface SupplierOption {
   id: string;
   name: string;
 }
+
+interface ProductBaseRow {
+  id: number;
+  name: string;
+  sku: string;
+}
+
+interface ProductStockSummaryRow {
+  product_id: number;
+  total_available: number | null;
+  total_reserved: number | null;
+  net_available: number | null;
+  best_cost: number | null;
+  supplier_count: number | null;
+}
+
+interface ProductSupplierQueryRow extends Omit<SupplierSource, "supplier_name"> {
+  suppliers?: { name: string } | null;
+}
+
+type EditableSupplierField = "cost_price" | "stock_available" | "price_multiplier" | "lead_time_days";
 
 const EMPTY_FORM = {
   supplier_id: "",
@@ -79,17 +103,18 @@ export function StockTab({ isDark = true }: Props) {
 
     if (!data) { setLoading(false); return; }
 
-    const productIds = data.map((p: any) => p.id);
+    const productRows = data as ProductBaseRow[];
+    const productIds = productRows.map((p) => p.id);
     const { data: sumData } = await supabase
       .from("product_stock_summary")
       .select("*")
       .in("product_id", productIds);
 
-    const sumMap: Record<number, any> = {};
-    (sumData ?? []).forEach((s: any) => { sumMap[s.product_id] = s; });
+    const sumMap: Record<number, ProductStockSummaryRow> = {};
+    (sumData as ProductStockSummaryRow[] | null ?? []).forEach((s) => { sumMap[s.product_id] = s; });
 
     setProducts(
-      data.map((p: any) => ({
+      productRows.map((p) => ({
         ...p,
         total_available: sumMap[p.id]?.total_available ?? null,
         total_reserved:  sumMap[p.id]?.total_reserved  ?? null,
@@ -121,7 +146,7 @@ export function StockTab({ isDark = true }: Props) {
       .order("cost_price", { ascending: true });
     setSources((prev) => ({
       ...prev,
-      [productId]: (data ?? []).map((r: any) => ({
+      [productId]: ((data as ProductSupplierQueryRow[] | null) ?? []).map((r) => ({
         ...r,
         supplier_name: r.suppliers?.name ?? "—",
       })),
@@ -138,7 +163,7 @@ export function StockTab({ isDark = true }: Props) {
       .order("cost_price", { ascending: true });
     setSources((prev) => ({
       ...prev,
-      [productId]: (data ?? []).map((r: any) => ({
+      [productId]: ((data as ProductSupplierQueryRow[] | null) ?? []).map((r) => ({
         ...r,
         supplier_name: r.suppliers?.name ?? "—",
       })),
@@ -276,7 +301,7 @@ export function StockTab({ isDark = true }: Props) {
                     ) : (
                       <div className="space-y-2">
                         {/* Table header */}
-                        <div className="grid grid-cols-[1fr_80px_80px_80px_70px_70px_90px] gap-2 text-[10px] font-bold uppercase tracking-wider text-gray-500 pb-1">
+                        <div className="grid grid-cols-[1fr_110px_80px_80px_70px_70px_90px] gap-2 text-[10px] font-bold uppercase tracking-wider text-gray-500 pb-1">
                           <span>Proveedor</span>
                           <span>Costo</span>
                           <span>Stock</span>
@@ -292,18 +317,18 @@ export function StockTab({ isDark = true }: Props) {
                               // Edit mode
                               <div className="space-y-2">
                                 <div className="grid grid-cols-2 gap-2">
-                                  {[
+                                  {([
                                     { label: "Costo", key: "cost_price", type: "number" },
                                     { label: "Stock disponible", key: "stock_available", type: "number" },
                                     { label: "Multiplicador", key: "price_multiplier", type: "number" },
                                     { label: "Plazo (días)", key: "lead_time_days", type: "number" },
-                                  ].map(({ label, key, type }) => (
+                                  ] as const satisfies ReadonlyArray<{ label: string; key: EditableSupplierField; type: string }>).map(({ label, key, type }) => (
                                     <div key={key}>
                                       <label className={`text-[10px] mb-0.5 block ${dk("text-gray-500", "text-[#737373]")}`}>{label}</label>
                                       <input
                                         type={type}
-                                        value={(editForm as any)[key] ?? ""}
-                                        onChange={(e) => setEditForm((p) => ({ ...p, [key]: e.target.value }))}
+                                        value={editForm[key] ?? ""}
+                                        onChange={(e) => setEditForm((p) => ({ ...p, [key]: Number(e.target.value) }))}
                                         className={`w-full border rounded px-2 py-1 text-xs outline-none ${dk("bg-[#0d0d0d] border-[#2a2a2a] text-white", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717]")}`}
                                       />
                                     </div>
@@ -332,15 +357,20 @@ export function StockTab({ isDark = true }: Props) {
                               </div>
                             ) : (
                               // View mode
-                              <div className="grid grid-cols-[1fr_80px_80px_80px_70px_70px_90px] gap-2 items-center">
+                              <div className="grid grid-cols-[1fr_110px_80px_80px_70px_70px_90px] gap-2 items-center">
                                 <div className="flex items-center gap-1.5 min-w-0">
                                   {src.is_preferred && <Star size={11} className="text-[#2D9F6A] shrink-0" />}
                                   <span className={`text-xs truncate ${dk("text-gray-300", "text-[#525252]")}`}>{src.supplier_name}</span>
                                   {!src.active && <span className="text-[10px] text-red-400 shrink-0">(inactivo)</span>}
                                 </div>
-                                <span className={`text-xs font-mono ${dk("text-gray-300", "text-[#525252]")}`}>
-                                  ${src.cost_price.toLocaleString("es-AR")}
-                                </span>
+                                <div className={`text-xs font-mono ${dk("text-gray-300", "text-[#525252]")}`}>
+                                  <p>${src.cost_price.toLocaleString("es-AR")} USD</p>
+                                  {src.source_cost_price != null && (
+                                    <p className={`text-[10px] ${dk("text-gray-500", "text-[#737373]")}`}>
+                                      Fuente: {src.source_currency ?? "USD"} {src.source_cost_price.toLocaleString("es-AR")}
+                                    </p>
+                                  )}
+                                </div>
                                 <span className={`text-xs font-mono ${dk("text-gray-300", "text-[#525252]")}`}>{src.stock_available}</span>
                                 <span className={`text-xs font-mono ${dk("text-gray-300", "text-[#525252]")}`}>{src.stock_reserved}</span>
                                 <span className={`text-xs font-mono ${dk("text-gray-400", "text-[#737373]")}`}>×{src.price_multiplier}</span>
@@ -393,18 +423,18 @@ export function StockTab({ isDark = true }: Props) {
                               ))}
                             </select>
                           </div>
-                          {[
+                          {([
                             { label: "Costo", key: "cost_price" },
                             { label: "Stock disponible", key: "stock_available" },
                             { label: "Multiplicador", key: "price_multiplier" },
                             { label: "Plazo (días)", key: "lead_time_days" },
-                          ].map(({ label, key }) => (
+                          ] as const satisfies ReadonlyArray<{ label: string; key: keyof typeof EMPTY_FORM }>).map(({ label, key }) => (
                             <div key={key}>
                               <label className={`text-[10px] mb-0.5 block ${dk("text-gray-500", "text-[#737373]")}`}>{label}</label>
                               <input
                                 type="number"
-                                value={(addForm as any)[key]}
-                                onChange={(e) => setAddForm((p) => ({ ...p, [key]: e.target.value }))}
+                                value={addForm[key]}
+                                onChange={(e) => setAddForm((p) => ({ ...p, [key]: Number(e.target.value) }))}
                                 className={`w-full border rounded px-2 py-1 text-xs outline-none ${dk("bg-[#0d0d0d] border-[#2a2a2a] text-white", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717]")}`}
                               />
                             </div>

@@ -2,16 +2,20 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const isPlaceholderUrl = !supabaseUrl || supabaseUrl.includes("tu-proyecto.supabase.co");
+const isPlaceholderKey = !supabaseAnonKey || supabaseAnonKey === "tu-anon-key-aqui";
 
-if (!supabaseUrl || !supabaseAnonKey) {
+export const isSupabaseConfigured = !isPlaceholderUrl && !isPlaceholderKey;
+
+if (!isSupabaseConfigured) {
   console.warn(
-    "[Bartez] Supabase no configurado. Definí VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en .env"
+    "[Bartez] Supabase no configurado. Defini VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en .env"
   );
 }
 
 export const supabase = createClient(
-  supabaseUrl || "https://placeholder.supabase.co",
-  supabaseAnonKey || "placeholder"
+  isSupabaseConfigured ? supabaseUrl : "https://placeholder.supabase.co",
+  isSupabaseConfigured ? supabaseAnonKey : "placeholder"
 );
 
 export type UserRole = "client" | "cliente" | "admin" | "vendedor";
@@ -19,8 +23,8 @@ export type ClientType = "mayorista" | "reseller" | "empresa";
 
 export const CLIENT_TYPE_MARGINS: Record<ClientType, number> = {
   mayorista: 10,
-  reseller:  20,
-  empresa:   15,
+  reseller: 20,
+  empresa: 15,
 };
 
 export interface UserProfile {
@@ -30,8 +34,8 @@ export interface UserProfile {
   default_margin: number;
   client_type: ClientType;
   role: UserRole;
-  /** Límite de crédito en USD (0 = sin límite) */
   credit_limit?: number;
-  /** Cuenta activa — false = acceso bloqueado al portal */
+  credit_used?: number;
+  payment_terms?: number;
   active?: boolean;
 }

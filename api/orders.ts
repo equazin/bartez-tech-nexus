@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { fail, methodNotAllowed, ok, parsePagination } from "./_shared/http";
 import { ensureWriteRole } from "./_shared/roles";
+import { createOrderSchema } from "./_shared/schemas";
 import { getSupabaseClient } from "./_shared/supabaseServer";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -34,24 +35,25 @@ async function listOrders(req: VercelRequest, res: VercelResponse) {
 }
 
 async function createOrder(req: VercelRequest, res: VercelResponse) {
-  if (!ensureWriteRole(req, res)) return;
-
   try {
-    const body = req.body ?? {};
-    if (!body.client_id || !Array.isArray(body.products) || body.total == null) {
-      return fail(res, "Missing required fields: client_id, products[], total");
+    const supabase = getSupabaseClient(req);
+    if (!(await ensureWriteRole(req, res, supabase))) return;
+
+    const parsed = createOrderSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return fail(res, "Invalid order payload", 400, parsed.error.flatten());
     }
 
+    const body = parsed.data;
     const payload = {
-      client_id: String(body.client_id),
+      client_id: body.client_id,
       products: body.products,
-      total: Number(body.total),
-      status: String(body.status ?? "pending"),
-      order_number: body.order_number ? String(body.order_number) : null,
-      numero_remito: body.numero_remito ? String(body.numero_remito) : null,
+      total: body.total,
+      status: body.status ?? "pending",
+      order_number: body.order_number ?? null,
+      numero_remito: body.numero_remito ?? null,
     };
 
-    const supabase = getSupabaseClient(req);
     const { data, error } = await supabase
       .from("orders")
       .insert(payload)
