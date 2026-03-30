@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Search, Tag, ToggleLeft, ToggleRight, Pencil, Trash2, Eye, AlertTriangle } from "lucide-react";
+import { Search, Tag, ToggleLeft, ToggleRight, Pencil, Trash2, AlertTriangle } from "lucide-react";
 import { Product, displayName } from "@/models/products";
 import ProductEditModal from "@/components/admin/ProductEditModal";
 import { PosSubcategory, PosProductEntry, posStorage } from "./types";
@@ -15,10 +15,35 @@ interface Props {
   isDark?: boolean;
 }
 
-function isInPosCategory(p: Product): boolean {
-  const n = String(p.category ?? "")
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+function normalizeName(v: string | null | undefined) {
+  return String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+function isPosRootCategory(name: string): boolean {
+  const n = normalizeName(name);
   return n.includes("punto de venta") || /\bpos\b/.test(n);
+}
+
+/** Builds the set of all category names that belong to the POS tree (root + all descendants). */
+function buildPosCategoryNames(categories: { id: number; name: string; parent_id: number | null }[]): Set<string> {
+  const posRootIds = new Set(
+    categories.filter((c) => isPosRootCategory(c.name)).map((c) => c.id)
+  );
+  // BFS to collect all descendant IDs
+  const posIds = new Set(posRootIds);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const c of categories) {
+      if (!posIds.has(c.id) && c.parent_id !== null && posIds.has(c.parent_id)) {
+        posIds.add(c.id);
+        changed = true;
+      }
+    }
+  }
+  return new Set(
+    categories.filter((c) => posIds.has(c.id)).map((c) => normalizeName(c.name))
+  );
 }
 
 export function PosProductsTab({ products, categories, brands, onRefreshProducts, isDark }: Props) {
@@ -26,6 +51,9 @@ export function PosProductsTab({ products, categories, brands, onRefreshProducts
 
   const [posEntries, setPosEntries] = useState<PosProductEntry[]>(() => posStorage.loadProducts());
   const subcats = useMemo(() => posStorage.loadSubcategories(), []);
+
+  /** All category names in the POS tree (including subcategories from DB) */
+  const posCategoryNames = useMemo(() => buildPosCategoryNames(categories), [categories]);
 
   const [filterSubcat, setFilterSubcat] = useState("all");
   const [filterStock,  setFilterStock]  = useState("all");
@@ -64,7 +92,7 @@ export function PosProductsTab({ products, categories, brands, onRefreshProducts
   const needle = search.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
   const visibleProducts = useMemo(() => {
-    let list = showAll ? products : products.filter((p) => posIds.has(p.id) || isInPosCategory(p));
+    let list = showAll ? products : products.filter((p) => posIds.has(p.id) || posCategoryNames.has(normalizeName(p.category)));
     if (search) {
       list = list.filter((p) =>
         displayName(p).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(needle) ||
@@ -80,7 +108,7 @@ export function PosProductsTab({ products, categories, brands, onRefreshProducts
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products, posIds, posEntries, search, filterSubcat, filterStock, showAll]);
 
-  const posCount = products.filter((p) => posIds.has(p.id) || isInPosCategory(p)).length;
+  const posCount = products.filter((p) => posIds.has(p.id) || posCategoryNames.has(normalizeName(p.category))).length;
 
   const selectCls = `border rounded-lg px-2 py-1.5 text-xs outline-none ${dk(
     "bg-[#0d0d0d] border-[#262626] text-[#737373]",
@@ -145,7 +173,7 @@ export function PosProductsTab({ products, categories, brands, onRefreshProducts
           )}
 
           {visibleProducts.map((p) => {
-            const isPOS    = posIds.has(p.id) || isInPosCategory(p);
+            const isPOS    = posIds.has(p.id) || posCategoryNames.has(normalizeName(p.category));
             const stock    = p.stock ?? 0;
             const lowStock = stock <= 3;
             const name     = displayName(p);
@@ -212,7 +240,7 @@ export function PosProductsTab({ products, categories, brands, onRefreshProducts
                   >
                     <Pencil size={13} />
                   </button>
-                  {isPOS && !isInPosCategory(p) && (
+                  {isPOS && !posCategoryNames.has(normalizeName(p.category)) && (
                     <button
                       onClick={() => removeFromPos(p.id)}
                       className="text-gray-500 hover:text-red-400 transition p-1"
@@ -221,7 +249,7 @@ export function PosProductsTab({ products, categories, brands, onRefreshProducts
                       <Trash2 size={13} />
                     </button>
                   )}
-                  {isInPosCategory(p) && (
+                  {posCategoryNames.has(normalizeName(p.category)) && (
                     <Tag size={13} className="text-[#2D9F6A]" title="Categoría POS" />
                   )}
                 </div>
