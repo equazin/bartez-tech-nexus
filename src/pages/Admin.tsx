@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { CLIENT_TYPE_MARGINS, ClientType } from "@/lib/supabase";
 import { Product } from "@/models/products";
@@ -29,7 +29,6 @@ import { BrandsTab } from "@/components/admin/BrandsTab";
 import { PricingRulesTab } from "@/components/admin/PricingRulesTab";
 import { ReportsTab } from "@/components/admin/ReportsTab";
 import { ActivityLogTab } from "@/components/admin/ActivityLogTab";
-import { PriceStockImport } from "@/components/admin/PriceStockImport";
 import { SupplierApisSyncTab } from "@/components/admin/SupplierApisSyncTab";
 import { StockTab } from "@/components/admin/StockTab";
 import { InvoicesTab } from "@/components/admin/InvoicesTab";
@@ -83,6 +82,8 @@ function slugifyCategoryName(value: string) {
 }
 
 type CategoryItem = { id: number; name: string; parent_id: number | null };
+const POS_CATEGORY_NAME = "Punto de Venta";
+const POS_CATEGORY_SLUG = "pos";
 
 const COMPONENTS_TEMPLATE: Array<{ name: string; children: string[] }> = [
   { name: "Placa de Video", children: ["AMD", "NVIDIA", "Intel ARC"] },
@@ -370,6 +371,12 @@ const Admin = () => {
   }
 
   async function fetchCategories() {
+    await supabase
+      .from("categories")
+      .upsert(
+        { name: POS_CATEGORY_NAME, slug: POS_CATEGORY_SLUG, active: true, parent_id: null },
+        { onConflict: "slug", ignoreDuplicates: false }
+      );
     const { data } = await supabase.from("categories").select("*").order("parent_id", { ascending: true }).order("name");
     if (data) setCategories(data as CategoryItem[]);
   }
@@ -819,21 +826,41 @@ const Admin = () => {
   // ── Crear cliente ──
   async function handleCreateClient() {
     setCreateError("");
-    if (!newClient.email || !newClient.password) {
+    const email = newClient.email.trim().toLowerCase();
+    const password = newClient.password;
+    const phone = newClient.phone.trim();
+    if (!email || !password) {
       setCreateError("Email y contraseña son obligatorios.");
       return;
     }
-    if (!newClient.phone.trim()) {
+    if (!phone) {
       setCreateError("El celular es obligatorio.");
       return;
     }
     setCreatingClient(true);
     const { data, error } = await supabase.auth.signUp({
-      email: newClient.email,
-      password: newClient.password,
+      email,
+      password,
+      options: {
+        emailRedirectTo: window.location.origin,
+        data: {
+          company_name: newClient.company_name,
+          contact_name: newClient.contact_name,
+          client_type: newClient.client_type,
+          default_margin: newClient.default_margin,
+          role: newClient.role,
+          phone,
+          email,
+        },
+      },
     });
     if (error || !data.user) {
-      setCreateError(error?.message || "Error al crear el usuario.");
+      const rawMsg = error?.message || "Error al crear el usuario.";
+      if (rawMsg.toLowerCase().includes("database error saving new user")) {
+        setCreateError("No se pudo crear el usuario por una validacion en Supabase (Auth/trigger de profiles).");
+      } else {
+        setCreateError(rawMsg);
+      }
       setCreatingClient(false);
       return;
     }
@@ -843,8 +870,8 @@ const Admin = () => {
       client_type: newClient.client_type,
       default_margin: newClient.default_margin,
       role: newClient.role,
-      phone: newClient.phone.trim() || null,
-      email: newClient.email,
+      phone: phone || null,
+      email,
     }).eq("id", data.user.id);
 
     setCreatingClient(false);
@@ -1401,37 +1428,7 @@ const Admin = () => {
                 <h2 className={`text-sm font-bold mb-4 ${dk("text-white", "text-[#171717]")}`}>Agregar producto manual</h2>
                 <ProductForm isDark={isDark} brands={brands} onAdd={(p) => setProducts((prev) => [p, ...prev])} />
               </div>
-              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Importar CSV</h2>
-                  <button onClick={downloadSampleCSV}
-                    className="text-xs text-gray-400 hover:text-[#2D9F6A] transition flex items-center gap-1">
-                    ↓ Descargar CSV de ejemplo
-                  </button>
-                </div>
-                <ProductImport isDark={isDark} onImport={(r) => { setImportResult(r); fetchProducts(); }} />
-                {importResult && (
-                  <div className="mt-3 text-sm">
-                    <span className="text-green-400 font-semibold">Importados: {importResult.imported}</span>
-                    {importResult.errors.length > 0 && (
-                      <ul className="text-red-400 mt-1 space-y-0.5 text-xs">
-                        {importResult.errors.map((e, i) => <li key={i}>• {e}</li>)}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </div>
 
-              {/* Importar precios / stock por SKU */}
-              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
-                <h2 className={`text-sm font-bold mb-4 ${dk("text-white", "text-[#171717]")}`}>Actualizar precios / stock por SKU</h2>
-                <PriceStockImport
-                  products={products}
-                  isDark={isDark}
-                  onDone={fetchProducts}
-                  userId={userId}
-                />
-              </div>
               </div>
 
             <div className="space-y-6">
@@ -1490,6 +1487,27 @@ const Admin = () => {
             </div>
 
             {/* Categorías */}
+            <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Importar CSV</h2>
+                <button onClick={downloadSampleCSV}
+                  className="text-xs text-gray-400 hover:text-[#2D9F6A] transition flex items-center gap-1">
+                  Descargar CSV de ejemplo
+                </button>
+              </div>
+              <ProductImport isDark={isDark} onImport={(r) => { setImportResult(r); fetchProducts(); }} />
+              {importResult && (
+                <div className="mt-3 text-sm">
+                  <span className="text-green-400 font-semibold">Importados: {importResult.imported}</span>
+                  {importResult.errors.length > 0 && (
+                    <ul className="text-red-400 mt-1 space-y-0.5 text-xs">
+                      {importResult.errors.map((e, i) => <li key={i}>- {e}</li>)}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5 xl:col-span-2`}>
               <h2 className={`text-sm font-bold mb-4 ${dk("text-white", "text-[#171717]")}`}>Categorías y Subcategorías</h2>
               <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -2190,3 +2208,4 @@ const Admin = () => {
 };
 
 export default Admin;
+

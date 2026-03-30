@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useProducts } from "@/hooks/useProducts";
 import { useBrands } from "@/hooks/useBrands";
@@ -183,10 +183,77 @@ function SkeletonCard() {
   );
 }
 
+type ViewMode = "grid" | "list" | "table";
+type CatalogContext = "default" | "oportunidades" | "pos";
+type ViewModeByContext = Record<CatalogContext, ViewMode>;
+type ThemeMode = "dark" | "light";
+
+const VIEW_MODE_BY_CONTEXT_KEY = "b2b_view_mode_by_context";
+const THEME_KEY = "theme";
+const DEFAULT_VIEW_MODE_BY_CONTEXT: ViewModeByContext = {
+  default: "list",
+  oportunidades: "grid",
+  pos: "grid",
+};
+
+function loadViewModeByContext(): ViewModeByContext {
+  try {
+    const raw = localStorage.getItem(VIEW_MODE_BY_CONTEXT_KEY);
+    if (!raw) return DEFAULT_VIEW_MODE_BY_CONTEXT;
+    const parsed = JSON.parse(raw) as Partial<ViewModeByContext>;
+    const valid = (v: unknown): v is ViewMode => v === "grid" || v === "list" || v === "table";
+    return {
+      default: valid(parsed.default) ? parsed.default : DEFAULT_VIEW_MODE_BY_CONTEXT.default,
+      oportunidades: valid(parsed.oportunidades) ? parsed.oportunidades : DEFAULT_VIEW_MODE_BY_CONTEXT.oportunidades,
+      pos: valid(parsed.pos) ? parsed.pos : DEFAULT_VIEW_MODE_BY_CONTEXT.pos,
+    };
+  } catch {
+    return DEFAULT_VIEW_MODE_BY_CONTEXT;
+  }
+}
+
+function normalizePortalText(value: unknown): string {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function hasWord(value: string, word: string): boolean {
+  return new RegExp(`\\b${word}\\b`, "i").test(value);
+}
+
+function getProductFeaturedPriority(product: Product): number {
+  const raw = product.specs?.featured_priority;
+  const n = Number(raw ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function getInitialTheme(): ThemeMode {
+  try {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === "dark" || saved === "light") return saved;
+  } catch {
+    // ignore localStorage read errors
+  }
+  if (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
+    return "dark";
+  }
+  return "light";
+}
+
+function isPosCategoryValue(value: unknown): boolean {
+  const categoryNorm = normalizePortalText(value);
+  if (categoryNorm.includes("punto de venta")) return true;
+  if (hasWord(categoryNorm, "pos")) return true;
+  return false;
+}
+
 export default function B2BPortal() {
   type PortalTab = "catalog" | "orders" | "quotes" | "invoices" | "cuenta";
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { profile, user, isAdmin, signOut } = useAuth();
   const { products, loading: productsLoading } = useProducts();
   const { brands } = useBrands();
@@ -209,7 +276,9 @@ export default function B2BPortal() {
   const [brandFilter, setBrandFilter] = useState("all"); // "all" or brand uuid
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
-  const [viewMode, setViewMode] = useState<"grid" | "list" | "table">("list");
+  const [catalogContext, setCatalogContext] = useState<CatalogContext>("default");
+  const [viewModeByContext, setViewModeByContext] = useState<ViewModeByContext>(() => loadViewModeByContext());
+  const [viewMode, setViewMode] = useState<ViewMode>(() => loadViewModeByContext().default);
   const [activeTab, setActiveTab] = useState<PortalTab>("catalog");
   const [myInvoices, setMyInvoices] = useState<Invoice[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
@@ -260,7 +329,7 @@ export default function B2BPortal() {
   }>>({});
 
   // ─── DB CATEGORIES (hierarchy) ────────────────────────────────────────
-  type DbCat = { id: number; name: string; parent_id: number | null };
+  type DbCat = { id: number; name: string; parent_id: number | null; slug?: string | null };
   const [dbCats, setDbCats] = useState<DbCat[]>([]);
   const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
 
@@ -270,19 +339,86 @@ export default function B2BPortal() {
     });
   }, []);
 
-  const THEME_KEY = "b2b_theme";
-  const [theme, setTheme] = useState<"dark" | "light">(() =>
-    localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark"
-  );
+  const posCategoryNames = useMemo(() => {
+    if (dbCats.length === 0) return new Set<string>();
+
+    const byId = new Map(dbCats.map((cat) => [cat.id, cat]));
+    const posRoots = dbCats.filter((cat) => {
+      const nameNorm = normalizePortalText(cat.name);
+      const slugNorm = normalizePortalText(cat.slug);
+      return slugNorm === "pos" || nameNorm.includes("punto de venta") || hasWord(nameNorm, "pos");
+    });
+
+    const out = new Set<string>();
+    for (const root of posRoots) {
+      const stack = [root.id];
+      while (stack.length > 0) {
+        const currentId = stack.pop()!;
+        const current = byId.get(currentId);
+        if (!current) continue;
+        out.add(normalizePortalText(current.name));
+        for (const child of dbCats) {
+          if (child.parent_id === currentId) stack.push(child.id);
+        }
+      }
+    }
+    return out;
+  }, [dbCats]);
+
+  const [theme, setTheme] = useState<ThemeMode>(() => getInitialTheme());
+  const [themeFlash, setThemeFlash] = useState(false);
+  const [themeSwitchReady, setThemeSwitchReady] = useState(false);
   const showLegacyPortalSections = window.location.hash === "#legacy-portal";
   const isDark = theme === "dark";
   const toggleTheme = () => {
-    const next = isDark ? "light" : "dark";
-    setTheme(next);
-    localStorage.setItem(THEME_KEY, next);
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+    setThemeFlash(true);
   };
   // dk(darkClass, lightClass) — inline theme token helper
   const dk = (d: string, l: string) => isDark ? d : l;
+
+  useEffect(() => {
+    localStorage.setItem(THEME_KEY, theme);
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
+
+  useEffect(() => {
+    if (!themeFlash) return;
+    const timer = window.setTimeout(() => setThemeFlash(false), 260);
+    return () => window.clearTimeout(timer);
+  }, [themeFlash]);
+
+  useEffect(() => {
+    const raf = window.requestAnimationFrame(() => setThemeSwitchReady(true));
+    return () => window.cancelAnimationFrame(raf);
+  }, []);
+
+  useEffect(() => {
+    setViewMode(viewModeByContext[catalogContext]);
+  }, [catalogContext, viewModeByContext]);
+
+  useEffect(() => {
+    localStorage.setItem(VIEW_MODE_BY_CONTEXT_KEY, JSON.stringify(viewModeByContext));
+  }, [viewModeByContext]);
+
+  useEffect(() => {
+    const categoryParam = searchParams.get("category");
+    if (isPosCategoryValue(categoryParam)) {
+      setCatalogContext("pos");
+      return;
+    }
+    const contextParam = normalizePortalText(searchParams.get("context"));
+    if (contextParam === "oportunidades") {
+      setCatalogContext("oportunidades");
+    } else if (contextParam === "default") {
+      setCatalogContext("default");
+    }
+  }, [searchParams]);
+
+  function handleViewModeChange(mode: ViewMode) {
+    setViewMode(mode);
+    setViewModeByContext((prev) => ({ ...prev, [catalogContext]: mode }));
+  }
 
   useEffect(() => {
     localStorage.setItem(cartKey, JSON.stringify(cart));
@@ -487,6 +623,104 @@ export default function B2BPortal() {
     }
     return map;
   }, [orders]);
+
+  const isPosProduct = useCallback((product: Product) => {
+    const categoryNorm = normalizePortalText(product.category);
+    if (!categoryNorm) return false;
+    if (posCategoryNames.size > 0) return posCategoryNames.has(categoryNorm);
+    return isPosCategoryValue(product.category);
+  }, [posCategoryNames]);
+
+  const displayProducts = useMemo(() => {
+    const urgencyScore = (product: Product) => {
+      const available = getAvailableStock(product);
+      const lowStockLimit = Math.max(product.stock_min ?? 0, 3);
+      if (available <= 0) return 3;
+      if (available <= lowStockLimit) return 2;
+      return 0;
+    };
+
+    const contextBase = catalogContext === "pos"
+      ? filteredProducts.filter((product) => isPosProduct(product))
+      : [...filteredProducts];
+
+    if (catalogContext === "oportunidades") {
+      return contextBase.sort((a, b) => {
+        const featuredPriorityDiff = getProductFeaturedPriority(b) - getProductFeaturedPriority(a);
+        if (featuredPriorityDiff !== 0) return featuredPriorityDiff;
+
+        const featuredDiff = Number(Boolean(b.featured)) - Number(Boolean(a.featured));
+        if (featuredDiff !== 0) return featuredDiff;
+
+        const marginDiff = (productMargins[b.id] ?? globalMargin) - (productMargins[a.id] ?? globalMargin);
+        if (marginDiff !== 0) return marginDiff;
+
+        const urgencyDiff = urgencyScore(b) - urgencyScore(a);
+        if (urgencyDiff !== 0) return urgencyDiff;
+
+        return a.name.localeCompare(b.name, "es");
+      });
+    }
+
+    if (catalogContext === "pos") {
+      const relevanceScore = (product: Product) => {
+        const bag = normalizePortalText([
+          product.category,
+          product.name,
+          product.description,
+          product.sku,
+          (product.tags ?? []).join(" "),
+        ].join(" "));
+
+        const categoryNorm = normalizePortalText(product.category);
+        let score = 0;
+        if (categoryNorm.includes("punto de venta")) score += 8;
+        if (hasWord(categoryNorm, "pos")) score += 6;
+
+        const weightedKeywords: Array<[string, number]> = [
+          ["terminal", 5],
+          ["monitor tactil", 5],
+          ["touch", 4],
+          ["barcode", 4],
+          ["scanner", 4],
+          ["lector", 4],
+          ["impresora termica", 5],
+          ["thermal", 4],
+          ["ticket", 3],
+          ["cajon", 3],
+          ["pos", 3],
+        ];
+
+        for (const [keyword, weight] of weightedKeywords) {
+          if (bag.includes(keyword)) score += weight;
+        }
+        return score;
+      };
+
+      const comboScore = (product: Product) => {
+        const bag = normalizePortalText([product.name, product.description, (product.tags ?? []).join(" ")].join(" "));
+        return /(kit|combo|bundle|pack)/.test(bag) ? 1 : 0;
+      };
+
+      return contextBase.sort((a, b) => {
+        const comboDiff = comboScore(b) - comboScore(a);
+        if (comboDiff !== 0) return comboDiff;
+
+        const relevanceDiff = relevanceScore(b) - relevanceScore(a);
+        if (relevanceDiff !== 0) return relevanceDiff;
+
+        const salesDiff = (purchaseHistory[b.id] ?? 0) - (purchaseHistory[a.id] ?? 0);
+        if (salesDiff !== 0) return salesDiff;
+
+        const featuredPriorityDiff = getProductFeaturedPriority(b) - getProductFeaturedPriority(a);
+        if (featuredPriorityDiff !== 0) return featuredPriorityDiff;
+
+        return a.name.localeCompare(b.name, "es");
+      });
+    }
+
+    return contextBase;
+  }, [catalogContext, filteredProducts, globalMargin, isPosProduct, productMargins, purchaseHistory]);
 
   // In-app notifications (order status, price, stock changes)
   useNotifications(profile?.id, orders, products);
@@ -769,7 +1003,7 @@ export default function B2BPortal() {
   }
 
   async function handleExportCatalogPDF() {
-    await exportCatalogPdf(filteredProducts, formatPrice, currency);
+    await exportCatalogPdf(displayProducts, formatPrice, currency);
   }
 
   // ─── PRODUCT MODAL ────────────────────────────────────────────────────
@@ -1048,15 +1282,15 @@ export default function B2BPortal() {
         <div className="flex items-center gap-1.5 ml-auto">
           {/* Vista + Moneda + Tema — agrupados */}
           <div className={`hidden md:flex items-center ${dk("bg-[#0d0d0d] border-[#1f1f1f]", "bg-[#f0f0f0] border-[#e5e5e5]")} border rounded-lg p-1 gap-0.5`}>
-            <button onClick={() => setViewMode("grid")} title="Grilla"
+            <button onClick={() => handleViewModeChange("grid")} title="Grilla"
               className={`p-1.5 rounded transition ${viewMode === "grid" ? dk("bg-[#262626] text-white", "bg-white text-[#171717] shadow-sm") : dk("text-[#525252] hover:text-[#a3a3a3]", "text-[#737373] hover:text-[#171717]")}`}>
               <LayoutGrid size={13} />
             </button>
-            <button onClick={() => setViewMode("list")} title="Lista"
+            <button onClick={() => handleViewModeChange("list")} title="Lista"
               className={`p-1.5 rounded transition ${viewMode === "list" ? dk("bg-[#262626] text-white", "bg-white text-[#171717] shadow-sm") : dk("text-[#525252] hover:text-[#a3a3a3]", "text-[#737373] hover:text-[#171717]")}`}>
               <List size={13} />
             </button>
-            <button onClick={() => setViewMode("table")} title="Lista de precios (alta densidad)"
+            <button onClick={() => handleViewModeChange("table")} title="Lista de precios (alta densidad)"
               className={`p-1.5 rounded transition ${viewMode === "table" ? dk("bg-[#262626] text-white", "bg-white text-[#171717] shadow-sm") : dk("text-[#525252] hover:text-[#a3a3a3]", "text-[#737373] hover:text-[#171717]")}`}>
               <Table2 size={13} />
             </button>
@@ -1067,19 +1301,64 @@ export default function B2BPortal() {
                 {c}
               </button>
             ))}
-            <div className={`w-px h-4 ${dk("bg-[#262626]", "bg-[#e5e5e5]")} mx-0.5`} />
-            <button onClick={toggleTheme}
-              className={`p-1.5 rounded transition ${dk("text-[#525252] hover:text-[#a3a3a3] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-white")}`}
-              title={isDark ? "Cambiar a tema claro" : "Cambiar a tema oscuro"}>
-              {isDark ? <Sun size={13} /> : <Moon size={13} />}
-            </button>
           </div>
+
+          <button
+            type="button"
+            onClick={toggleTheme}
+            role="switch"
+            aria-checked={isDark}
+            aria-label="Cambiar modo claro u oscuro"
+            title={isDark ? "Modo oscuro" : "Modo claro"}
+            className={`group relative h-7 w-[84px] shrink-0 overflow-hidden rounded-full border transition-all duration-300 ease-in-out hover:shadow-md active:scale-[0.97] ${
+              isDark ? "bg-neutral-800 border-neutral-700" : "bg-neutral-200 border-neutral-300"
+            } ${
+              themeFlash
+                ? isDark
+                  ? "shadow-[0_0_0_3px_rgba(45,159,106,0.22),0_6px_18px_rgba(16,185,129,0.2)]"
+                  : "shadow-[0_0_0_3px_rgba(59,130,246,0.2),0_6px_18px_rgba(59,130,246,0.18)]"
+                : ""
+            } ${themeSwitchReady ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-0.5 scale-95"}`}
+          >
+            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2">
+              <Moon
+                size={12}
+                className={`transition-all duration-300 ease-in-out ${
+                  isDark ? "text-white scale-100 opacity-100" : "text-neutral-500 scale-90 opacity-45"
+                }`}
+              />
+            </span>
+            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">
+              <Sun
+                size={12}
+                className={`transition-all duration-300 ease-in-out ${
+                  isDark ? "text-neutral-500 scale-90 opacity-45" : "text-amber-500 scale-100 opacity-100"
+                }`}
+              />
+            </span>
+            <span
+              className={`pointer-events-none absolute left-[1px] top-[1px] h-6 w-6 rounded-full bg-white shadow-md transition-[transform,box-shadow] duration-300 [transition-timing-function:cubic-bezier(0.22,1.28,0.36,1)] ${
+                isDark ? "translate-x-[2px]" : "translate-x-[54px]"
+              } ${
+                themeFlash ? "scale-[1.06] shadow-lg" : "scale-100"
+              } group-hover:shadow-lg`}
+            />
+            <span
+              className={`pointer-events-none absolute inset-0 rounded-full transition-opacity duration-300 ${
+                themeFlash
+                  ? isDark
+                    ? "opacity-100 bg-[radial-gradient(circle_at_25%_50%,rgba(34,197,94,0.18),transparent_55%)]"
+                    : "opacity-100 bg-[radial-gradient(circle_at_75%_50%,rgba(59,130,246,0.18),transparent_55%)]"
+                  : "opacity-0"
+              }`}
+            />
+          </button>
 
           {/* Exportar catálogo */}
           {activeTab === "catalog" && (
             <div className={`hidden md:flex items-center ${dk("bg-[#0d0d0d] border-[#1f1f1f]", "bg-[#f0f0f0] border-[#e5e5e5]")} border rounded-lg p-1 gap-0.5`}>
               <button
-                onClick={() => exportCatalogCSV(filteredProducts)}
+                onClick={() => exportCatalogCSV(displayProducts)}
                 title="Exportar CSV"
                 className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] transition ${dk("text-[#525252] hover:text-[#a3a3a3] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-white")}`}
               >
@@ -1436,11 +1715,49 @@ export default function B2BPortal() {
           {/* ── CATÁLOGO ── */}
           {activeTab === "catalog" && (
             <>
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                {([
+                  { id: "default", label: "Catalogo general", icon: Package },
+                  { id: "oportunidades", label: "🔥 Oportunidades", icon: Zap },
+                  { id: "pos", label: "🧾 Punto de Venta", icon: Truck },
+                ] as const).map(({ id, label, icon: Icon }) => {
+                  const isActive = catalogContext === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => setCatalogContext(id)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+                        isActive
+                          ? dk("bg-[#1a2a22] border-[#2D9F6A] text-white", "bg-[#e9f6ef] border-[#2D9F6A]/50 text-[#1a7a50]")
+                          : dk("bg-[#111] border-[#262626] text-[#a3a3a3] hover:text-white hover:border-[#333]", "bg-white border-[#e5e5e5] text-[#525252] hover:text-[#171717] hover:bg-[#f5f5f5]")
+                      }`}
+                    >
+                      <Icon size={12} />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className={`mb-3 inline-flex items-center gap-1 rounded-lg border p-1 md:hidden ${dk("bg-[#111] border-[#262626]", "bg-white border-[#e5e5e5]")}`}>
+                <button onClick={() => handleViewModeChange("list")}
+                  className={`px-2.5 py-1 text-[11px] font-semibold rounded transition ${viewMode === "list" ? dk("bg-[#262626] text-white", "bg-[#f0f0f0] text-[#171717]") : dk("text-[#737373]", "text-[#737373]")}`}>
+                  Lista
+                </button>
+                <button onClick={() => handleViewModeChange("grid")}
+                  className={`px-2.5 py-1 text-[11px] font-semibold rounded transition ${viewMode === "grid" ? dk("bg-[#262626] text-white", "bg-[#f0f0f0] text-[#171717]") : dk("text-[#737373]", "text-[#737373]")}`}>
+                  Grid
+                </button>
+                <button onClick={() => handleViewModeChange("table")}
+                  className={`px-2.5 py-1 text-[11px] font-semibold rounded transition ${viewMode === "table" ? dk("bg-[#262626] text-white", "bg-[#f0f0f0] text-[#171717]") : dk("text-[#737373]", "text-[#737373]")}`}>
+                  Tabla
+                </button>
+              </div>
               {/* Results info */}
-              {!productsLoading && filteredProducts.length > 0 && (
+              {!productsLoading && displayProducts.length > 0 && (
                 <div className="flex items-center justify-between mb-3">
                   <p className={`text-xs ${dk("text-gray-600", "text-[#737373]")}`}>
-                    {filteredProducts.length} producto{filteredProducts.length !== 1 ? "s" : ""}
+                    {displayProducts.length} producto{displayProducts.length !== 1 ? "s" : ""}
                     {search && <> para "<span className="text-gray-400">{search}</span>"</>}
                   </p>
                 </div>
@@ -1452,11 +1769,11 @@ export default function B2BPortal() {
                     {Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
                   </div>
                 ) : (
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  <div className="grid gap-4 grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
                     {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
                   </div>
                 )
-              ) : filteredProducts.length === 0 ? (
+              ) : displayProducts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-24 text-gray-600">
                   <Search size={36} className="mb-3 opacity-20" />
                   <p className="text-sm font-medium text-gray-500">No se encontraron productos</p>
@@ -1470,8 +1787,8 @@ export default function B2BPortal() {
               ) : viewMode === "grid" ? (
 
                 // ── GRID ──────────────────────────────────────────────
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {filteredProducts.map((product) => {
+                <div className="grid gap-4 grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+                  {displayProducts.map((product) => {
                     const margin = productMargins[product.id] ?? globalMargin;
                     const inCart = cart[product.id] || 0;
                     const finalPrice = getUnitPrice(product, Math.max(inCart, 1)) * (1 + margin / 100);
@@ -1497,6 +1814,8 @@ export default function B2BPortal() {
                           <div className="relative mb-3">
                             <div className={`h-32 w-full ${dk("bg-[#0a0a0a]", "bg-[#f9f9f9]")} rounded-lg flex items-center justify-center overflow-hidden`}>
                               <img src={product.image} alt={product.name}
+                                loading="lazy"
+                                decoding="async"
                                 className="max-h-28 max-w-full object-contain p-2" />
                             </div>
                             {inCart > 0 && (
@@ -1541,6 +1860,11 @@ export default function B2BPortal() {
                           </p>
                           <div className="flex items-center gap-2 mb-2 flex-wrap">
                             <StockBadge stock={available} lugStock={getLugStock(product)} />
+                            {isPosProduct(product) && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                <Truck size={9} /> POS
+                              </span>
+                            )}
                             {purchaseHistory[product.id] > 0 && (
                               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${dk("bg-[#1c1c1c] text-gray-500", "bg-[#f0f0f0] text-[#737373]")}`}>
                                 Compraste {purchaseHistory[product.id]}u
@@ -1590,7 +1914,7 @@ export default function B2BPortal() {
 
                 // ── LISTA ─────────────────────────────────────────────
                 <div className="flex flex-col gap-1.5">
-                  {filteredProducts.map((product) => {
+                  {displayProducts.map((product) => {
                     const margin = productMargins[product.id] ?? globalMargin;
                     const inCart = cart[product.id] || 0;
                     const finalPrice = getUnitPrice(product, Math.max(inCart, 1)) * (1 + margin / 100);
@@ -1620,6 +1944,8 @@ export default function B2BPortal() {
                           {/* Thumbnail */}
                           <div className={`h-14 w-14 shrink-0 ${dk("bg-[#0a0a0a] border-[#1a1a1a] group-hover:border-[#222]", "bg-[#f9f9f9] border-[#e5e5e5] group-hover:border-[#d4d4d4]")} rounded-xl flex items-center justify-center overflow-hidden border transition-colors`}>
                             <img src={product.image} alt={product.name}
+                              loading="lazy"
+                              decoding="async"
                               className="max-h-12 max-w-12 object-contain" />
                           </div>
 
@@ -1633,6 +1959,11 @@ export default function B2BPortal() {
                             </div>
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-[11px] text-gray-600">{product.category}</span>
+                              {isPosProduct(product) && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                  <Truck size={9} /> POS
+                                </span>
+                              )}
                               {product.brand_name && (
                                 <button
                                   onClick={(e) => {
@@ -1746,7 +2077,7 @@ export default function B2BPortal() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredProducts.map((product, idx) => {
+                      {displayProducts.map((product, idx) => {
                         const margin = productMargins[product.id] ?? globalMargin;
                         const inCart = cart[product.id] || 0;
                         const finalPrice = getUnitPrice(product, Math.max(inCart, 1)) * (1 + margin / 100);
@@ -1788,7 +2119,14 @@ export default function B2BPortal() {
                               </button>
                             </td>
                             <td className={`hidden sm:table-cell px-3 py-2 text-xs ${dk("text-gray-600", "text-[#737373]")}`}>
-                              {product.category}
+                              <div className="inline-flex items-center gap-1.5">
+                                <span>{product.category}</span>
+                                {isPosProduct(product) && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                    <Truck size={9} /> POS
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-3 py-2 text-center">
                               <StockBadge stock={available} lugStock={getLugStock(product)} />
@@ -2308,3 +2646,4 @@ export default function B2BPortal() {
     </div>
   );
 }
+

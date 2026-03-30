@@ -17,6 +17,8 @@ export interface Product {
   specs?: Record<string, string>;
   tags?: string[];
   iva_rate?: number;
+  special_price?: number | null;
+  offer_percent?: number | null;
   /** Minimum units per order (pedido mínimo por producto) */
   min_order_qty?: number;
   /** Units reserved by pending orders */

@@ -37,6 +37,7 @@ function loadDraft() {
   catch { return null; }
 }
 
+
 export default function ProductForm({ onAdd, isDark = true, brands = [] }: { onAdd: (product: Product) => void; isDark?: boolean; brands?: BrandOption[] }) {
   const dk = (d: string, l: string) => isDark ? d : l;
   const INPUT = `w-full ${dk("bg-[#141414] border-[#2a2a2a] text-white placeholder:text-gray-600", "bg-white border-[#d4d4d4] text-[#171717] placeholder:text-gray-400")} border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D9F6A] transition`;
@@ -50,6 +51,8 @@ export default function ProductForm({ onAdd, isDark = true, brands = [] }: { onA
   const [sku, setSku]                       = useState(saved?.sku ?? "");
   const [description, setDescription]      = useState(saved?.description ?? "");
   const [costPrice, setCostPrice]          = useState(saved?.costPrice ?? "");
+  const [specialPrice, setSpecialPrice]    = useState(saved?.specialPrice ?? "");
+  const [offerPercent, setOfferPercent]    = useState(saved?.offerPercent ?? "");
   const [ivaRate, setIvaRate]              = useState<"10.5" | "21">(saved?.ivaRate ?? "21");
   const [supplierId, setSupplierId]        = useState(saved?.supplierId ?? "");
   const [supplierMult, setSupplierMult]    = useState(saved?.supplierMult ?? "1");
@@ -85,6 +88,9 @@ export default function ProductForm({ onAdd, isDark = true, brands = [] }: { onA
   const adjustedCost = costPrice && supplierMult
     ? (Number(costPrice) * Number(supplierMult)).toFixed(2)
     : null;
+  const computedOfferPrice = costPrice && offerPercent !== ""
+    ? Number(costPrice) * (1 - Number(offerPercent) / 100)
+    : null;
   const stockLow = stock !== "" && stockMin !== "" && Number(stock) < Number(stockMin);
 
   /* ── load categories ──────────────────────────────────── */
@@ -96,14 +102,14 @@ export default function ProductForm({ onAdd, isDark = true, brands = [] }: { onA
 
   /* ── persist draft to localStorage on every change ───── */
   useEffect(() => {
-    const draft = { name, sku, description, costPrice, ivaRate, supplierId, supplierMult,
+    const draft = { name, sku, description, costPrice, specialPrice, offerPercent, ivaRate, supplierId, supplierMult,
       categoryId, subcategoryId, brandId, stock, stockMin, active, featured, specs, tags };
 
     // Only save if there's something meaningful
     if (Object.values(draft).some((v) => v !== "" && v !== "0" && v !== "1" && v !== true && !(Array.isArray(v) && v.length === 0))) {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     }
-  }, [name, sku, description, costPrice, ivaRate, supplierId, supplierMult,
+  }, [name, sku, description, costPrice, specialPrice, offerPercent, ivaRate, supplierId, supplierMult,
       categoryId, subcategoryId, brandId, stock, stockMin, active, featured, specs, tags]);
 
   /* ── sku uniqueness debounce ──────────────────────────── */
@@ -180,6 +186,40 @@ export default function ProductForm({ onAdd, isDark = true, brands = [] }: { onA
     setAddingCat(false);
   }
 
+  function handleSpecialPriceChange(value: string) {
+    setSpecialPrice(value);
+    const base = Number(costPrice);
+    const special = Number(value);
+    if (!value || isNaN(base) || base <= 0 || isNaN(special) || special < 0) {
+      setOfferPercent("");
+      return;
+    }
+    const pct = ((base - special) / base) * 100;
+    setOfferPercent(Math.max(0, Math.min(100, pct)).toFixed(2));
+  }
+
+  function handleOfferPercentChange(value: string) {
+    setOfferPercent(value);
+    const base = Number(costPrice);
+    const pct = Number(value);
+    if (!value || isNaN(base) || base <= 0 || isNaN(pct) || pct < 0) {
+      setSpecialPrice("");
+      return;
+    }
+    const normalized = Math.max(0, Math.min(100, pct));
+    const offerValue = base * (1 - normalized / 100);
+    setSpecialPrice(offerValue.toFixed(2));
+  }
+
+  function handleCostPriceChange(value: string) {
+    setCostPrice(value);
+    const base = Number(value);
+    const pct = Number(offerPercent);
+    if (!offerPercent || isNaN(base) || base <= 0 || isNaN(pct) || pct < 0) return;
+    const normalized = Math.max(0, Math.min(100, pct));
+    setSpecialPrice((base * (1 - normalized / 100)).toFixed(2));
+  }
+
   /* ── validation ───────────────────────────────────────── */
   function validate(): boolean {
     const e: Record<string, string> = {};
@@ -188,6 +228,14 @@ export default function ProductForm({ onAdd, isDark = true, brands = [] }: { onA
     if (errors.sku)                               e.sku  = errors.sku;
     const cp = Number(costPrice);
     if (!costPrice || isNaN(cp) || cp <= 0)       e.cost_price = "Precio debe ser > 0";
+    if (specialPrice) {
+      const sp = Number(specialPrice);
+      if (isNaN(sp) || sp <= 0) e.special_price = "Precio especial inválido";
+    }
+    if (offerPercent) {
+      const op = Number(offerPercent);
+      if (isNaN(op) || op < 0 || op > 100) e.offer_percent = "Oferta % debe estar entre 0 y 100";
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -207,6 +255,8 @@ export default function ProductForm({ onAdd, isDark = true, brands = [] }: { onA
     const selectedCat = categories.find((c) => c.id === Number(categoryId));
     const selectedSub = categories.find((c) => c.id === Number(subcategoryId));
     const categoryName = selectedSub?.name ?? selectedCat?.name ?? "General";
+    const normalizedSpecialPrice = specialPrice ? Number(specialPrice) : null;
+    const normalizedOfferPercent = offerPercent ? Number(offerPercent) : null;
 
     const specsObj = specs.reduce<Record<string, string>>((acc, s) => {
       if (s.key.trim()) acc[s.key.trim()] = s.value;
@@ -230,6 +280,8 @@ export default function ProductForm({ onAdd, isDark = true, brands = [] }: { onA
       specs:               specsObj,
       tags,
       iva_rate:            Number(ivaRate),
+      special_price:       normalizedSpecialPrice && normalizedSpecialPrice > 0 ? normalizedSpecialPrice : null,
+      offer_percent:       normalizedOfferPercent !== null && normalizedOfferPercent >= 0 ? normalizedOfferPercent : null,
       brand_id:            brandId || null,
       brand_name:          selectedBrand?.name ?? null,
     };
@@ -249,6 +301,7 @@ export default function ProductForm({ onAdd, isDark = true, brands = [] }: { onA
   function resetForm() {
     localStorage.removeItem(DRAFT_KEY);
     setName(""); setSku(""); setDescription(""); setCostPrice(""); setIvaRate("21");
+    setSpecialPrice(""); setOfferPercent("");
     setSupplierId(""); setSupplierMult("1"); setCategoryId(""); setSubcategoryId(""); setBrandId("");
     setStock(""); setStockMin("0"); setActive(true); setFeatured(false);
     setSpecs([]); setTags([]); setTagInput(""); setImageFile(null); setImagePreview("");
@@ -343,11 +396,11 @@ export default function ProductForm({ onAdd, isDark = true, brands = [] }: { onA
       {/* ── C. Costo y Proveedor ── */}
       <div className={SECTION}>
         <p className={SECTION_TITLE}><DollarSign size={12} /> Costo y proveedor</p>
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid md:grid-cols-3 xl:grid-cols-6 gap-3">
           <div>
             <label className={LABEL}>Costo base (ARS) *</label>
             <input type="number" min="0" step="0.01" value={costPrice}
-              onChange={(e) => setCostPrice(e.target.value)}
+              onChange={(e) => handleCostPriceChange(e.target.value)}
               placeholder="0.00"
               className={`${INPUT} ${errors.cost_price ? "border-red-500" : ""}`} />
             {errors.cost_price && <p className="text-red-400 text-xs mt-1">{errors.cost_price}</p>}
@@ -381,7 +434,28 @@ export default function ProductForm({ onAdd, isDark = true, brands = [] }: { onA
               placeholder="1.00"
               className={INPUT} />
           </div>
+          <div>
+            <label className={LABEL}>Precio especial / oferta (ARS)</label>
+            <input type="number" min="0" step="0.01" value={specialPrice}
+              onChange={(e) => handleSpecialPriceChange(e.target.value)}
+              placeholder="Opcional"
+              className={`${INPUT} ${errors.special_price ? "border-red-500" : ""}`} />
+            {errors.special_price && <p className="text-red-400 text-xs mt-1">{errors.special_price}</p>}
+          </div>
+          <div>
+            <label className={LABEL}>Oferta % (bajar precio)</label>
+            <input type="number" min="0" max="100" step="0.01" value={offerPercent}
+              onChange={(e) => handleOfferPercentChange(e.target.value)}
+              placeholder="Ej: 15"
+              className={`${INPUT} ${errors.offer_percent ? "border-red-500" : ""}`} />
+            {errors.offer_percent && <p className="text-red-400 text-xs mt-1">{errors.offer_percent}</p>}
+          </div>
         </div>
+        {computedOfferPrice !== null && !isNaN(computedOfferPrice) && (
+          <p className={`text-xs ${dk("text-emerald-300", "text-emerald-700")}`}>
+            Precio final con oferta: ${Math.max(0, computedOfferPrice).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
+        )}
         {/* Visual cost preview */}
         {adjustedCost && (
           <div className="flex items-center gap-3 bg-[#2D9F6A]/5 border border-[#2D9F6A]/20 rounded-lg px-3 py-2.5 text-xs">

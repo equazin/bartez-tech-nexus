@@ -21,6 +21,8 @@ type FormState = {
   sku: string;
   description: string;
   cost_price: string;
+  special_price: string;
+  offer_percent: string;
   iva_rate: string;
   stock: string;
   category: string;
@@ -33,6 +35,7 @@ type FormState = {
   brand_id: string;
 };
 
+
 export default function ProductEditModal({ product, categories, brands = [], onSave, onClose }: Props) {
   const [form, setForm] = useState<FormState>({
     name:               product.name,
@@ -40,6 +43,8 @@ export default function ProductEditModal({ product, categories, brands = [], onS
     sku:                product.sku || "",
     description:        product.description || "",
     cost_price:         String(product.cost_price),
+    special_price:      product.special_price != null ? String(product.special_price) : "",
+    offer_percent:      product.offer_percent != null ? String(product.offer_percent) : "",
     iva_rate:           String(product.iva_rate ?? 21),
     stock:              String(product.stock),
     category:           product.category || "",
@@ -71,6 +76,44 @@ export default function ProductEditModal({ product, categories, brands = [], onS
     setForm((p) => ({ ...p, [field]: value }));
   }
 
+  function handleSpecialPriceChange(value: string) {
+    setForm((p) => {
+      const base = Number(p.cost_price);
+      const special = Number(value);
+      if (!value || isNaN(base) || base <= 0 || isNaN(special) || special < 0) {
+        return { ...p, special_price: value, offer_percent: "" };
+      }
+      const pct = ((base - special) / base) * 100;
+      return { ...p, special_price: value, offer_percent: Math.max(0, Math.min(100, pct)).toFixed(2) };
+    });
+  }
+
+  function handleOfferPercentChange(value: string) {
+    setForm((p) => {
+      const base = Number(p.cost_price);
+      const pct = Number(value);
+      if (!value || isNaN(base) || base <= 0 || isNaN(pct) || pct < 0) {
+        return { ...p, offer_percent: value, special_price: "" };
+      }
+      const normalized = Math.max(0, Math.min(100, pct));
+      const offerValue = base * (1 - normalized / 100);
+      return { ...p, offer_percent: value, special_price: offerValue.toFixed(2) };
+    });
+  }
+
+  function handleCostPriceChange(value: string) {
+    setForm((p) => {
+      const base = Number(value);
+      const pct = Number(p.offer_percent);
+      if (!p.offer_percent || isNaN(base) || base <= 0 || isNaN(pct) || pct < 0) {
+        return { ...p, cost_price: value };
+      }
+      const normalized = Math.max(0, Math.min(100, pct));
+      const offerValue = base * (1 - normalized / 100);
+      return { ...p, cost_price: value, special_price: offerValue.toFixed(2) };
+    });
+  }
+
   async function handleImageFile(file: File) {
     if (!(await isValidImageMime(file))) return;
     setImageFile(file);
@@ -90,6 +133,17 @@ export default function ProductEditModal({ product, categories, brands = [], onS
     if (!form.name.trim()) { setError("El nombre es obligatorio."); return; }
     const cost_price = Number(form.cost_price);
     if (isNaN(cost_price) || cost_price <= 0) { setError("Precio inválido."); return; }
+    if (form.special_price) {
+      const specialPrice = Number(form.special_price);
+      if (isNaN(specialPrice) || specialPrice <= 0) { setError("Precio especial inválido."); return; }
+    }
+    if (form.offer_percent) {
+      const offerPercent = Number(form.offer_percent);
+      if (isNaN(offerPercent) || offerPercent < 0 || offerPercent > 100) {
+        setError("Oferta % debe estar entre 0 y 100.");
+        return;
+      }
+    }
 
     setSaving(true);
     let imageUrl = form.image;
@@ -110,6 +164,8 @@ export default function ProductEditModal({ product, categories, brands = [], onS
       sku:                form.sku.trim() || null,
       description:        form.description,
       cost_price,
+      special_price:      form.special_price ? Number(form.special_price) : null,
+      offer_percent:      form.offer_percent ? Number(form.offer_percent) : null,
       iva_rate:           Number(form.iva_rate) || 21,
       stock:              Number(form.stock) || 0,
       category:           form.category || "General",
@@ -227,7 +283,7 @@ export default function ProductEditModal({ product, categories, brands = [], onS
           <div className="grid grid-cols-4 gap-3">
             <div>
               <label className="text-xs text-gray-400 mb-1 block">Precio costo *</label>
-              <input type="number" min="0" value={form.cost_price} onChange={(e) => set("cost_price", e.target.value)}
+              <input type="number" min="0" value={form.cost_price} onChange={(e) => handleCostPriceChange(e.target.value)}
                 className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A]" />
             </div>
             <div>
@@ -261,6 +317,21 @@ export default function ProductEditModal({ product, categories, brands = [], onS
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">Precio especial / oferta (ARS)</label>
+              <input type="number" min="0" step="0.01" value={form.special_price} onChange={(e) => handleSpecialPriceChange(e.target.value)}
+                placeholder="Opcional"
+                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A]" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">Oferta % (bajar precio)</label>
+              <input type="number" min="0" max="100" step="0.01" value={form.offer_percent} onChange={(e) => handleOfferPercentChange(e.target.value)}
+                placeholder="Ej: 15"
+                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A]" />
             </div>
           </div>
 

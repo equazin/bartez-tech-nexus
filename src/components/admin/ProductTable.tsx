@@ -24,6 +24,7 @@ type SortField = "name" | "cost_price" | "stock" | "category";
 type SortDir   = "asc" | "desc";
 type Filter    = "all" | "active" | "inactive" | "low_stock" | "featured";
 type DuplicateGroupType = "sku" | "name" | "similar";
+const POS_FILTER_VALUE = "__pos__";
 
 interface DuplicateGroup {
   id: string;
@@ -52,6 +53,11 @@ function normalizeForMatch(value: string | null | undefined): string {
 
 function normalizeCompact(value: string | null | undefined): string {
   return normalizeForMatch(value).replace(/\s+/g, "");
+}
+
+function isPosCategoryName(value: string | null | undefined): boolean {
+  const normalized = normalizeForMatch(value);
+  return normalized.includes("punto de venta") || /\bpos\b/.test(normalized);
 }
 
 function getDisplayName(product: Product): string {
@@ -266,7 +272,7 @@ export default function ProductTable({
   // Build set of category names that match the selected filter:
   // if a root cat is selected, include its children too
   const matchingCatNames = useMemo(() => {
-    if (filterCat === "all") return null;
+    if (filterCat === "all" || filterCat === POS_FILTER_VALUE) return null;
     const sel = categories.find((c) => c.name === filterCat);
     if (!sel) return new Set([filterCat.toLowerCase()]);
     const names = new Set<string>([sel.name.toLowerCase()]);
@@ -276,12 +282,42 @@ export default function ProductTable({
     return names;
   }, [filterCat, categories]);
 
+  const posCategoryNames = useMemo(() => {
+    if (categories.length === 0) return new Set<string>();
+    const byId = new Map(categories.map((cat) => [cat.id, cat]));
+    const roots = categories.filter((cat) => isPosCategoryName(cat.name));
+    const out = new Set<string>();
+
+    for (const root of roots) {
+      const stack = [root.id];
+      while (stack.length > 0) {
+        const currentId = stack.pop()!;
+        const current = byId.get(currentId);
+        if (!current) continue;
+        out.add(normalizeForMatch(current.name));
+        for (const child of categories) {
+          if (child.parent_id === currentId) stack.push(child.id);
+        }
+      }
+    }
+    return out;
+  }, [categories]);
+
+  function isPosProductMatch(product: Product): boolean {
+    const categoryName = normalizeForMatch(product.category);
+    if (!categoryName) return false;
+    if (posCategoryNames.size > 0) return posCategoryNames.has(categoryName);
+    return isPosCategoryName(product.category);
+  }
+
   // ── Filtering & sorting ──────────────────────────────────────
   const filtered = useMemo(() => {
     const term = search.toLowerCase();
+    const posFilterEnabled = filterCat === POS_FILTER_VALUE;
     return products
       .filter((p) => {
         if (term && !p.name.toLowerCase().includes(term) && !p.sku?.toLowerCase().includes(term)) return false;
+        if (posFilterEnabled && !isPosProductMatch(p)) return false;
         if (matchingCatNames && !matchingCatNames.has((p.category ?? "").toLowerCase())) return false;
         if (filterBrand !== "all" && p.brand_id !== filterBrand) return false;
         const active = p.active !== false;
@@ -300,7 +336,7 @@ export default function ProductTable({
         if (va > vb) return sortDir === "asc" ? 1 : -1;
         return 0;
       });
-  }, [products, search, matchingCatNames, filterBrand, filterStatus, sortField, sortDir]);
+  }, [products, search, filterCat, matchingCatNames, filterBrand, filterStatus, sortField, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -464,6 +500,7 @@ export default function ProductTable({
         <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)}
           className={`border rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D9F6A]/50 ${dk("bg-[#232323] border-[#2a2a2a] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}>
           <option value="all">Todas las categorías</option>
+          <option value={POS_FILTER_VALUE}>Punto de Venta (POS)</option>
           {rootCats.map((root) => [
             <option key={root.id} value={root.name}>{root.name}</option>,
             ...categories
@@ -668,7 +705,16 @@ export default function ProductTable({
                     </td>
 
                     {/* Category */}
-                    <td className="px-3 py-3 text-xs text-gray-400">{p.category}</td>
+                    <td className="px-3 py-3 text-xs text-gray-400">
+                      <div className="inline-flex items-center gap-1.5">
+                        <span>{p.category}</span>
+                        {isPosProductMatch(p) && (
+                          <span className="inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-400">
+                            POS
+                          </span>
+                        )}
+                      </div>
+                    </td>
 
                     {/* Price — inline editable */}
                     <td className="px-3 py-3"
