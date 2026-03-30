@@ -39,3 +39,4 @@ export interface UserProfile {
   payment_terms?: number;
   active?: boolean;
 }
+

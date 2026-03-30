@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { CLIENT_TYPE_MARGINS, ClientType } from "@/lib/supabase";
 import { Product } from "@/models/products";
 import { OrderProduct } from "@/models/order";
-import ProductForm from "@/components/admin/ProductForm";
+import ProductForm from "@/components/admin/ProductForm";normalizePhoneForSupabase
 import ProductImport from "@/components/admin/ProductImport";
 import ProductTable from "@/components/admin/ProductTable";
 import { useAuth } from "@/context/AuthContext";
@@ -854,8 +854,8 @@ const Admin = () => {
       setCreateError("El celular es obligatorio.");
       return;
     }
-    if (!phone.startsWith("54") || phone.length < 12) {
-      setCreateError("Ingresá celular con formato internacional (ej: 5491122334455).");
+    if (!phone.match(/^549\d{10}$/)) {
+      SetCreateError("El celular debe tener formato válido: 549XXXXXXXXXX");
       return;
     }
     setCreatingClient(true);
@@ -2097,10 +2097,19 @@ const Admin = () => {
                         <label className={`text-xs mb-1 flex items-center gap-1 ${dk("text-gray-400", "text-[#737373]")}`}>
                           <Phone size={11} /> Celular * <span className="text-[#525252] font-normal">(con código de país, ej: 5491122334455)</span>
                         </label>
-                        <input type="tel" value={newClient.phone}
-                          onChange={(e) => setNewClient((p) => ({ ...p, phone: e.target.value }))}
-                          className={`w-full border rounded-lg px-3 py-2 text-sm font-mono outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#2D9F6A]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]")}`}
-                          placeholder="5491122334455" />
+                        <input
+  type="tel"
+  value={newClient.phone}
+  onChange={(e) => {
+    let value = e.target.value.replace(/\D/g, "");
+
+    if (!value.startsWith("549")) {
+      value = "549" + value;
+    }
+
+    setNewClient((p) => ({ ...p, phone: value }));
+  }}
+/>
                       </div>
                       <div>
                         <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Tipo</label>
