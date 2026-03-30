@@ -76,9 +76,10 @@ export function PosProductsTab({ products, categories, brands, onRefreshProducts
   }
 
   function setSubcat(productId: number, subcategoryId: string) {
-    const next = posEntries.map((e) =>
-      e.productId === productId ? { ...e, subcategoryId } : e
-    );
+    const exists = posEntries.some((e) => e.productId === productId);
+    const next = exists
+      ? posEntries.map((e) => e.productId === productId ? { ...e, subcategoryId } : e)
+      : [...posEntries, { productId, subcategoryId }];
     setPosEntries(next);
     posStorage.saveProducts(next);
   }
