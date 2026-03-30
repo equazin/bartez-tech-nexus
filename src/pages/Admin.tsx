@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { CLIENT_TYPE_MARGINS, ClientType } from "@/lib/supabase";
 import { Product } from "@/models/products";
@@ -13,9 +13,9 @@ import { OrderStatusBadge as StatusBadge } from "@/components/OrderStatusBadge";
 import { toggleSetValue } from "@/lib/toggleSet";
 import {
   CheckCircle2, XCircle, Clock, Trash2, RefreshCw, Save,
-  Users, Package, ClipboardList, LogOut, UserPlus, X,
+  Users, Package, ClipboardList, LogOut, UserPlus, X, Plus,
   DollarSign, Pencil, Check, LayoutDashboard, Sun, Moon, Phone,
-  Truck, Download, Building2, Tag, BarChart2, Activity, Wifi, Bookmark,
+  Truck, Download, Building2, Tag, BarChart2, Activity, Wifi, Bookmark, Flame,
   Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag, type LucideIcon,
 } from "lucide-react";
 import { exportOrdersCSV, exportCatalogCSV, exportReportsCSV } from "@/lib/exportCsv";
@@ -47,6 +47,8 @@ import { UsersPermissionsTab } from "@/components/admin/UsersPermissionsTab";
 import { ApprovalsTab } from "@/components/admin/ApprovalsTab";
 import { DocumentsTab } from "@/components/admin/DocumentsTab";
 import { SupportTab } from "@/components/admin/SupportTab";
+import { OpportunitiesTab } from "@/components/admin/OpportunitiesTab";
+import { PosManagementTab } from "@/components/admin/PosManagementTab";
 
 interface SupabaseOrder {
   id: string;
@@ -140,6 +142,15 @@ function detectApiProviderLabel(name: string | null | undefined): "AIR" | "ELIT"
   return null;
 }
 
+function normalizePhoneForSupabase(rawPhone: string): string {
+  const digits = rawPhone.replace(/\D+/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("549")) return digits;
+  if (digits.startsWith("54")) return `549${digits.slice(2)}`;
+  if (digits.length >= 10 && digits.length <= 11) return `549${digits}`;
+  return digits;
+}
+
 function LegacyStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; icon: LucideIcon; className: string }> = {
     pending:    { label: "En revisión", icon: Clock,        className: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" },
@@ -158,7 +169,7 @@ function LegacyStatusBadge({ status }: { status: string }) {
   );
 }
 
-type Tab = "dashboard" | "products" | "orders" | "kanban" | "clients" | "users_permissions" | "approvals" | "documents" | "support" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "supplier_sync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders";
+type Tab = "dashboard" | "products" | "imports" | "categories" | "opportunities" | "pos" | "seller_mode" | "orders" | "kanban" | "clients" | "users_permissions" | "approvals" | "documents" | "support" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "supplier_sync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders";
 
 const Admin = () => {
   const { signOut, session, isAdmin, canManageProducts, canManageOrders } = useAuth();
@@ -276,6 +287,12 @@ const Admin = () => {
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [loadingClients, setLoadingClients] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+  const [productFilterCategory, setProductFilterCategory] = useState("all");
+  const [productFilterBrand, setProductFilterBrand] = useState("all");
+  const [productFilterStatus, setProductFilterStatus] = useState("all");
+  const [productFilterSupplier, setProductFilterSupplier] = useState("all");
+  const [productFilterFeatured, setProductFilterFeatured] = useState("all");
+  const productFormRef = useRef<HTMLDivElement | null>(null);
 
   // Realtime orders for kanban
   const { orders: rtOrders, updateStatus: rtUpdateStatus } = useOrdersRealtime();
@@ -823,18 +840,22 @@ const Admin = () => {
 
   const pendingOrders = orders.filter((o) => o.status === "pending").length;
 
-  // ── Crear cliente ──
+  // -- Crear cliente --
   async function handleCreateClient() {
     setCreateError("");
     const email = newClient.email.trim().toLowerCase();
     const password = newClient.password;
-    const phone = newClient.phone.trim();
+    const phone = normalizePhoneForSupabase(newClient.phone.trim());
     if (!email || !password) {
       setCreateError("Email y contraseña son obligatorios.");
       return;
     }
     if (!phone) {
       setCreateError("El celular es obligatorio.");
+      return;
+    }
+    if (!phone.startsWith("54") || phone.length < 12) {
+      setCreateError("Ingresá celular con formato internacional (ej: 5491122334455).");
       return;
     }
     setCreatingClient(true);
@@ -857,7 +878,7 @@ const Admin = () => {
     if (error || !data.user) {
       const rawMsg = error?.message || "Error al crear el usuario.";
       if (rawMsg.toLowerCase().includes("database error saving new user")) {
-        setCreateError("No se pudo crear el usuario por una validacion en Supabase (Auth/trigger de profiles).");
+        setCreateError("No se pudo crear el usuario por validación de Supabase. Revisá celular (formato 549...) y datos obligatorios.");
       } else {
         setCreateError(rawMsg);
       }
@@ -880,7 +901,7 @@ const Admin = () => {
     fetchClients();
   }
 
-  // ── Clientes ──
+  // -- Clientes --
   function startEdit(client: ClientProfile) {
     setEditingClients((prev) => ({
       ...prev,
@@ -916,7 +937,7 @@ const Admin = () => {
     setClients((prev) => prev.map((c) => (c.id === id ? { ...c, ...changes } : c)));
   }
 
-  // ── Productos ──
+  // -- Productos --
   async function deleteProduct(id: number) {
     if (!confirm("¿Eliminar este producto?")) return;
     const { error } = await supabase.from("products").delete().eq("id", id);
@@ -931,7 +952,7 @@ const Admin = () => {
     if (!error) fetchProducts();
   }
 
-  // ── Órdenes ──
+  // -- Órdenes --
   async function updateOrderStatus(
     orderId: string,
     status: "approved" | "rejected",
@@ -1003,7 +1024,7 @@ const Admin = () => {
 
   const lowStockCount = products.filter((p) => p.stock <= 3 && p.active !== false).length;
 
-  // ── Sidebar groups ──────────────────────────────────────────────────────────
+  // -- Sidebar groups ----------------------------------------------------------
   type SidebarGroup = {
     id: string;
     label: string;
@@ -1013,59 +1034,59 @@ const Admin = () => {
 
   const sidebarGroups: SidebarGroup[] = [
     {
-      id: "vision", label: "Visión", icon: LayoutDashboard,
+      id: "top", label: "", icon: LayoutDashboard,
       items: [
         { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
       ],
     },
     {
-      id: "ventas", label: "Ventas", icon: ClipboardList,
+      id: "catalogo", label: "Catálogo", icon: Package,
       items: [
-        { id: "orders",      label: "Pedidos",      icon: ClipboardList,  badge: pendingOrders || undefined, manageOrders: true },
-        { id: "kanban",      label: "Kanban",        icon: Layers,         manageOrders: true },
-        { id: "approvals",   label: "Aprobaciones",  icon: CheckCircle2,   manageOrders: true },
-        { id: "quotes_admin",label: "Cotizaciones",  icon: MessageSquare,  adminOnly: true },
+        { id: "products",      label: "Productos",     icon: Package,    badge: products.length, manageProducts: true },
+        { id: "imports",       label: "Importaciones", icon: Download,   manageProducts: true },
+        { id: "categories",    label: "Categorías",    icon: Tag,        manageProducts: true },
+        { id: "opportunities", label: "Oportunidades", icon: Flame,      manageProducts: true },
+        { id: "pos",           label: "POS",           icon: Truck,      manageProducts: true },
+        { id: "seller_mode",   label: "Modo Vendedor", icon: DollarSign, manageProducts: true },
+      ],
+    },
+    {
+      id: "pedidos", label: "Pedidos", icon: ClipboardList,
+      items: [
+        { id: "orders",       label: "Pedidos",      icon: ClipboardList, badge: pendingOrders || undefined, manageOrders: true },
+        { id: "kanban",       label: "Kanban",       icon: Layers,        manageOrders: true },
+        { id: "approvals",    label: "Aprobaciones", icon: CheckCircle2,  manageOrders: true },
+        { id: "quotes_admin", label: "Cotizaciones", icon: MessageSquare, adminOnly: true },
       ],
     },
     {
       id: "clientes", label: "Clientes", icon: Users,
       items: [
-        { id: "clients", label: "Clientes", icon: Users,       badge: clients.length, adminOnly: true },
-        { id: "users_permissions", label: "Accesos", icon: UserPlus, adminOnly: true },
-        { id: "credit",  label: "Crédito",  icon: CreditCard,  adminOnly: true },
-      ],
-    },
-    {
-      id: "inventario", label: "Inventario", icon: Package,
-      items: [
-        { id: "products",        label: "Productos",       icon: Package,    badge: products.length, manageProducts: true },
-        { id: "stock",           label: "Stock",           icon: Layers,     adminOnly: true },
-        { id: "movements",       label: "Movimientos",     icon: History,    adminOnly: true },
-        { id: "purchase_orders", label: "Órdenes Compra",  icon: ShoppingBag, adminOnly: true },
-      ],
-    },
-    {
-      id: "proveedores", label: "Proveedores", icon: Building2,
-      items: [
-        { id: "suppliers", label: "Proveedores", icon: Building2, adminOnly: true },
-        { id: "brands",    label: "Marcas",      icon: Bookmark,  adminOnly: true },
-        { id: "pricing",   label: "Precios",     icon: Tag,       adminOnly: true },
-        { id: "supplier_sync", label: "Sync proveedores", icon: Wifi, adminOnly: true },
+        { id: "clients",           label: "Clientes", icon: Users,      badge: clients.length, adminOnly: true },
+        { id: "users_permissions", label: "Accesos",  icon: UserPlus,   adminOnly: true },
+        { id: "credit",            label: "Crédito",  icon: CreditCard, adminOnly: true },
       ],
     },
     {
       id: "finanzas", label: "Finanzas", icon: FileText,
       items: [
-        { id: "invoices", label: "Facturas",  icon: FileText, adminOnly: true },
-        { id: "documents", label: "Documentos", icon: FileText, adminOnly: true },
-        { id: "reports",  label: "Reportes",  icon: BarChart2, adminOnly: true, badge: lowStockCount || undefined },
+        { id: "invoices",  label: "Facturas",   icon: FileText,  adminOnly: true },
+        { id: "documents", label: "Documentos", icon: FileText,  adminOnly: true },
+        { id: "reports",   label: "Reportes",   icon: BarChart2, adminOnly: true, badge: lowStockCount || undefined },
       ],
     },
     {
       id: "sistema", label: "Sistema", icon: Activity,
       items: [
-        { id: "support",  label: "Postventa", icon: MessageSquare, adminOnly: true },
-        { id: "activity", label: "Actividad", icon: Activity, adminOnly: true },
+        { id: "suppliers",       label: "Proveedores",    icon: Building2,    adminOnly: true },
+        { id: "brands",          label: "Marcas",         icon: Bookmark,     adminOnly: true },
+        { id: "pricing",         label: "Precios",        icon: Tag,          adminOnly: true },
+        { id: "supplier_sync",   label: "Sync",           icon: Wifi,         adminOnly: true },
+        { id: "stock",           label: "Stock",          icon: Layers,       adminOnly: true },
+        { id: "movements",       label: "Movimientos",    icon: History,      adminOnly: true },
+        { id: "purchase_orders", label: "Órdenes Compra", icon: ShoppingBag,  adminOnly: true },
+        { id: "support",         label: "Postventa",      icon: MessageSquare, adminOnly: true },
+        { id: "activity",        label: "Actividad",      icon: Activity,     adminOnly: true },
       ],
     },
   ];
@@ -1128,8 +1149,8 @@ const Admin = () => {
 
           return (
             <div key={group.id} className="px-2">
-              {/* Group header */}
-              {(!sidebarCollapsed || mobile) && (
+              {/* Group header — hidden for headerless groups (label === "") */}
+              {(!sidebarCollapsed || mobile) && group.label !== "" && (
                 <button
                   onClick={() => toggleGroup(group.id)}
                   className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition mb-0.5 ${dk("text-[#444] hover:text-[#666]","text-[#c4c4c4] hover:text-[#a3a3a3]")}`}
@@ -1185,7 +1206,7 @@ const Admin = () => {
                 </div>
               )}
 
-              {(!sidebarCollapsed || mobile) && (
+              {(!sidebarCollapsed || mobile) && group.label !== "" && (
                 <div className={`h-px mx-2 my-1 ${dk("bg-[#1f1f1f]","bg-[#f0f0f0]")}`} />
               )}
             </div>
@@ -1328,16 +1349,80 @@ const Admin = () => {
       <main className="flex-1 p-4 md:p-5 overflow-y-auto min-w-0">
       <ErrorBoundary section={activeTab}>
 
-        {/* ── DASHBOARD ── */}
+        {/* -- DASHBOARD -- */}
         {activeTab === "dashboard" && (
           <SalesDashboard orders={orders} clients={clients} isDark={isDark} onRefreshOrders={fetchOrders} />
         )}
 
-        {/* ── PRODUCTOS ── */}
+        {/* -- PRODUCTOS -- */}
         {activeTab === "products" && (
+          <div className="space-y-4 w-full max-w-none">
+            {/* Header: stats + actions */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-4 flex-wrap">
+                <span className={`text-xs ${dk("text-gray-400", "text-[#737373]")}`}>
+                  📦 <strong className={dk("text-white", "text-[#171717]")}>{products.length}</strong> productos
+                </span>
+                {lowStockCount > 0 && (
+                  <span className="text-xs font-semibold text-amber-400">
+                    ⚠️ {lowStockCount} bajo stock
+                  </span>
+                )}
+                <span className={`text-xs ${dk("text-gray-400", "text-[#737373]")}`}>
+                  🔥 <strong className={dk("text-white", "text-[#171717]")}>{products.filter((p) => p.featured).length}</strong> destacados
+                </span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => setActiveTab("imports")}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#2D9F6A] hover:bg-[#25835A] text-white font-semibold transition"
+                >
+                  <Plus size={12} /> Agregar / Importar
+                </button>
+                {products.length > 0 && (
+                  <>
+                    <button
+                      onClick={() => exportCatalogCSV(products)}
+                      className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition ${dk("text-[#737373] hover:text-white border-[#262626] hover:border-[#333] bg-[#111] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] border-[#e5e5e5] hover:border-[#d4d4d4] bg-white hover:bg-[#f5f5f5]")}`}
+                    >
+                      <Download size={11} /> CSV
+                    </button>
+                    <button
+                      onClick={() => { void handleExportAdminCatalogPdf(); }}
+                      className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition ${dk("text-[#737373] hover:text-white border-[#262626] hover:border-[#333] bg-[#111] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] border-[#e5e5e5] hover:border-[#d4d4d4] bg-white hover:bg-[#f5f5f5]")}`}
+                    >
+                      <Download size={11} /> PDF
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Product table */}
+            {loadingProducts ? (
+              <div className="space-y-2">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className={`h-10 ${dk("bg-[#111]", "bg-[#e8e8e8]")} rounded-lg animate-pulse`} />
+                ))}
+              </div>
+            ) : (
+              <ProductTable
+                isDark={isDark}
+                products={products}
+                categories={categories}
+                brands={brands}
+                apiSourcesByProductId={productApiSources}
+                onRefresh={fetchProducts}
+              />
+            )}
+          </div>
+        )}
+
+        {/* -- IMPORTACIONES -- */}
+        {activeTab === "imports" && (
           <div className="space-y-6 w-full max-w-none">
 
-            {/* ── Cotización del dólar ── */}
+            {/* Cotización del dólar */}
             <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-5 py-4 flex flex-wrap items-center gap-4`}>
               <div className="flex items-center gap-2 shrink-0">
                 <div className="h-8 w-8 rounded-lg bg-[#2D9F6A]/10 border border-[#2D9F6A]/20 flex items-center justify-center">
@@ -1423,34 +1508,45 @@ const Admin = () => {
             </div>
 
             <div className="grid xl:grid-cols-2 gap-6 items-start">
-              <div className="space-y-6">
+              {/* Agregar producto manual */}
               <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
                 <h2 className={`text-sm font-bold mb-4 ${dk("text-white", "text-[#171717]")}`}>Agregar producto manual</h2>
                 <ProductForm isDark={isDark} brands={brands} onAdd={(p) => setProducts((prev) => [p, ...prev])} />
               </div>
 
+              {/* Importar CSV */}
+              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Importar CSV</h2>
+                  <button onClick={downloadSampleCSV}
+                    className="text-xs text-gray-400 hover:text-[#2D9F6A] transition flex items-center gap-1">
+                    Descargar CSV de ejemplo
+                  </button>
+                </div>
+                <ProductImport isDark={isDark} onImport={(r) => { setImportResult(r); fetchProducts(); }} />
+                {importResult && (
+                  <div className="mt-3 text-sm">
+                    <span className="text-green-400 font-semibold">Importados: {importResult.imported}</span>
+                    {importResult.errors.length > 0 && (
+                      <ul className="text-red-400 mt-1 space-y-0.5 text-xs">
+                        {importResult.errors.map((e, i) => <li key={i}>- {e}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                )}
               </div>
-
-            <div className="space-y-6">
-
-            {/* Importar precios de proveedores (product_suppliers) */}
-            <div>
-              <SupplierPriceImport isDark={isDark} />
             </div>
 
-            {/* Eliminar productos masivamente por CSV */}
-            <div>
-              <BulkDeleteProducts isDark={isDark} onDone={fetchProducts} />
-            </div>
-
-            {/* Eliminar sin stock */}
-            {(() => {
-              const zeroCount = products.filter((p) => (p.stock ?? 0) === 0).length;
-              return (
-                <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5 space-y-3`}>
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
+            {/* Herramientas de mantenimiento */}
+            <div className="grid xl:grid-cols-3 gap-6">
+              <div><SupplierPriceImport isDark={isDark} /></div>
+              <div><BulkDeleteProducts isDark={isDark} onDone={fetchProducts} /></div>
+              {(() => {
+                const zeroCount = products.filter((p) => (p.stock ?? 0) === 0).length;
+                return (
+                  <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5 space-y-3`}>
                     <div>
-                      <h3 className={`font-bold text-sm ${dk("text-white", "text-[#171717]")}`}>Eliminar productos sin stock</h3>
+                      <h3 className={`font-bold text-sm ${dk("text-white", "text-[#171717]")}`}>Eliminar sin stock</h3>
                       <p className="text-xs text-gray-500 mt-0.5">
                         {zeroCount === 0
                           ? "No hay productos con stock 0."
@@ -1458,57 +1554,38 @@ const Admin = () => {
                         }
                       </p>
                     </div>
+                    {zeroCount > 0 && (
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs text-red-400">
+                          <input
+                            type="checkbox"
+                            checked={confirmZeroStock}
+                            onChange={(e) => setConfirmZeroStock(e.target.checked)}
+                            className="accent-red-500"
+                          />
+                          Confirmo eliminar {zeroCount} producto{zeroCount !== 1 ? "s" : ""} permanentemente.
+                        </label>
+                        <button
+                          onClick={deleteZeroStockProducts}
+                          disabled={!confirmZeroStock || deletingZeroStock}
+                          className="flex items-center gap-1.5 text-xs bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg transition"
+                        >
+                          <Trash2 size={12} />
+                          {deletingZeroStock ? "Eliminando…" : `Eliminar ${zeroCount} sin stock`}
+                        </button>
+                      </div>
+                    )}
                   </div>
-
-                  {zeroCount > 0 && (
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 cursor-pointer text-xs text-red-400">
-                        <input
-                          type="checkbox"
-                          checked={confirmZeroStock}
-                          onChange={(e) => setConfirmZeroStock(e.target.checked)}
-                          className="accent-red-500"
-                        />
-                        Confirmo que quiero eliminar {zeroCount} producto{zeroCount !== 1 ? "s" : ""} sin stock de forma permanente.
-                      </label>
-                      <button
-                        onClick={deleteZeroStockProducts}
-                        disabled={!confirmZeroStock || deletingZeroStock}
-                        className="flex items-center gap-1.5 text-xs bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg transition"
-                      >
-                        <Trash2 size={12} />
-                        {deletingZeroStock ? "Eliminando…" : `Eliminar ${zeroCount} sin stock`}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+                );
+              })()}
             </div>
+          </div>
+        )}
 
-            {/* Categorías */}
+        {/* -- CATEGORÍAS -- */}
+        {activeTab === "categories" && (
+          <div className="space-y-6 w-full max-w-none">
             <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Importar CSV</h2>
-                <button onClick={downloadSampleCSV}
-                  className="text-xs text-gray-400 hover:text-[#2D9F6A] transition flex items-center gap-1">
-                  Descargar CSV de ejemplo
-                </button>
-              </div>
-              <ProductImport isDark={isDark} onImport={(r) => { setImportResult(r); fetchProducts(); }} />
-              {importResult && (
-                <div className="mt-3 text-sm">
-                  <span className="text-green-400 font-semibold">Importados: {importResult.imported}</span>
-                  {importResult.errors.length > 0 && (
-                    <ul className="text-red-400 mt-1 space-y-0.5 text-xs">
-                      {importResult.errors.map((e, i) => <li key={i}>- {e}</li>)}
-                    </ul>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5 xl:col-span-2`}>
               <h2 className={`text-sm font-bold mb-4 ${dk("text-white", "text-[#171717]")}`}>Categorías y Subcategorías</h2>
               <div className="flex flex-wrap items-center gap-2 mb-4">
                 <button
@@ -1612,45 +1689,47 @@ const Admin = () => {
                 ))}
               </div>
             </div>
-
-            {loadingProducts ? (
-              <div className="space-y-2 xl:col-span-2">
-                {Array.from({ length: 6 }).map((_, i) => <div key={i} className={`h-10 ${dk("bg-[#111]", "bg-[#e8e8e8]")} rounded-lg animate-pulse`} />)}
-              </div>
-            ) : (
-              <div className="w-full min-w-0 xl:col-span-2">
-                {products.length > 0 && (
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className={`text-xs ${dk("text-gray-500", "text-[#737373]")}`}>Exportar catálogo:</span>
-                    <button
-                      onClick={() => exportCatalogCSV(products)}
-                      className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition ${dk("text-[#737373] hover:text-white border-[#262626] hover:border-[#333] bg-[#111] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] border-[#e5e5e5] hover:border-[#d4d4d4] bg-white hover:bg-[#f5f5f5]")}`}
-                    >
-                      <Download size={11} /> CSV
-                    </button>
-                    <button
-                      onClick={() => { void handleExportAdminCatalogPdf(); }}
-                      className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition ${dk("text-[#737373] hover:text-white border-[#262626] hover:border-[#333] bg-[#111] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] border-[#e5e5e5] hover:border-[#d4d4d4] bg-white hover:bg-[#f5f5f5]")}`}
-                    >
-                      <Download size={11} /> PDF
-                    </button>
-                  </div>
-                )}
-                <ProductTable
-                  isDark={isDark}
-                  products={products}
-                  categories={categories}
-                  brands={brands}
-                  apiSourcesByProductId={productApiSources}
-                  onRefresh={fetchProducts}
-                />
-              </div>
-            )}
-          </div>
           </div>
         )}
 
-        {/* ── PEDIDOS ── */}
+        {activeTab === "opportunities" && (
+          <OpportunitiesTab
+            products={products}
+            categories={categories}
+            brands={brands}
+            onRefreshProducts={fetchProducts}
+            isDark={isDark}
+            canEdit={canManageProducts}
+          />
+        )}
+
+        {activeTab === "pos" && (
+          <PosManagementTab
+            products={products}
+            categories={categories}
+            brands={brands}
+            onRefreshProducts={fetchProducts}
+            isDark={isDark}
+            canEdit={canManageProducts}
+          />
+        )}
+
+        {/* -- MODO VENDEDOR -- */}
+        {activeTab === "seller_mode" && (
+          <div className="space-y-6">
+            <div className={`flex items-center gap-3 rounded-2xl px-5 py-4 border ${dk("bg-zinc-800/60 border-zinc-700/50", "bg-white border-zinc-200")}`}>
+              <DollarSign size={20} className={dk("text-emerald-400", "text-emerald-600")} />
+              <div>
+                <h2 className={`font-semibold text-sm ${dk("text-white", "text-zinc-900")}`}>Modo Vendedor</h2>
+                <p className={`text-xs mt-0.5 ${dk("text-zinc-400", "text-zinc-500")}`}>
+                  Creación rápida de cotizaciones y pedidos — próximamente.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* -- PEDIDOS -- */}
         {activeTab === "orders" && (
           <div className="grid lg:grid-cols-2 gap-5 max-w-5xl">
             <div className="space-y-3">
@@ -1899,7 +1978,7 @@ const Admin = () => {
                   );
                 })()}
 
-                {/* ── Despacho — available when approved ── */}
+                {/* -- Despacho — available when approved -- */}
                 {selectedOrder.status === "approved" && (
                   <div className={`mt-4 pt-4 border-t ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")} space-y-2`}>
                     <p className={`text-xs font-semibold ${dk("text-gray-400", "text-[#737373]")} uppercase tracking-wide`}>Despacho</p>
@@ -1927,7 +2006,7 @@ const Admin = () => {
           </div>
         )}
 
-        {/* ── KANBAN ── */}
+        {/* -- KANBAN -- */}
         {activeTab === "kanban" && (() => {
           const clientMap: Record<string, string> = {};
           clients.forEach((c) => { clientMap[c.id] = c.company_name || c.contact_name; });
@@ -1955,7 +2034,7 @@ const Admin = () => {
           );
         })()}
 
-        {/* ── CLIENTES ── */}
+        {/* -- CLIENTES -- */}
         {activeTab === "clients" && (
           <>
           <ClientCRM
@@ -2075,7 +2154,7 @@ const Admin = () => {
           </>
         )}
 
-        {/* ── PROVEEDORES ── */}
+        {/* -- PROVEEDORES -- */}
         {activeTab === "users_permissions" && (
           <UsersPermissionsTab
             isDark={isDark}
@@ -2100,22 +2179,22 @@ const Admin = () => {
           <SuppliersTab isDark={isDark} />
         )}
 
-        {/* ── MARCAS ── */}
+        {/* -- MARCAS -- */}
         {activeTab === "brands" && (
           <BrandsTab isDark={isDark} />
         )}
 
-        {/* ── STOCK ── */}
+        {/* -- STOCK -- */}
         {activeTab === "stock" && (
           <StockTab isDark={isDark} />
         )}
 
-        {/* ── MOVIMIENTOS ── */}
+        {/* -- MOVIMIENTOS -- */}
         {activeTab === "movements" && (
           <StockMovementsTab isDark={isDark} />
         )}
 
-        {/* ── FACTURAS ── */}
+        {/* -- FACTURAS -- */}
         {activeTab === "invoices" && (
           <InvoicesTab isDark={isDark} />
         )}
@@ -2129,27 +2208,27 @@ const Admin = () => {
           />
         )}
 
-        {/* ── CRÉDITO ── */}
+        {/* -- CRÉDITO -- */}
         {activeTab === "credit" && (
           <CreditTab isDark={isDark} />
         )}
 
-        {/* ── COTIZACIONES ADMIN ── */}
+        {/* -- COTIZACIONES ADMIN -- */}
         {activeTab === "quotes_admin" && (
           <QuotesAdminTab isDark={isDark} />
         )}
 
-        {/* ── ÓRDENES DE COMPRA ── */}
+        {/* -- ÓRDENES DE COMPRA -- */}
         {activeTab === "purchase_orders" && (
           <PurchaseOrdersTab isDark={isDark} />
         )}
 
-        {/* ── MOTOR DE PRECIOS ── */}
+        {/* -- MOTOR DE PRECIOS -- */}
         {activeTab === "pricing" && (
           <PricingRulesTab isDark={isDark} categories={categoryNames} />
         )}
 
-        {/* ── REPORTES ── */}
+        {/* -- REPORTES -- */}
         {activeTab === "reports" && (
           <div className="space-y-4 max-w-5xl">
             {/* Export ventas CSV */}
@@ -2172,7 +2251,7 @@ const Admin = () => {
           </div>
         )}
 
-        {/* ── ACTIVIDAD ── */}
+        {/* -- ACTIVIDAD -- */}
         {activeTab === "activity" && (
           <ActivityLogTab isDark={isDark} />
         )}
@@ -2184,7 +2263,7 @@ const Admin = () => {
           />
         )}
 
-        {/* ── SYNC PROVEEDORES ── */}
+        {/* -- SYNC PROVEEDORES -- */}
         {activeTab === "supplier_sync" && (
           <SupplierApisSyncTab isDark={isDark} userId={userId} onSyncDone={fetchProducts} />
         )}
@@ -2193,7 +2272,7 @@ const Admin = () => {
       </main>
       </div>{/* end body flex */}
 
-      {/* ── Create order modal ── */}
+      {/* -- Create order modal -- */}
       {showCreateOrder && (
         <CreateOrderModal
           clients={clients}
@@ -2208,4 +2287,12 @@ const Admin = () => {
 };
 
 export default Admin;
+
+
+
+
+
+
+
+
 
