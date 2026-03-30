@@ -855,7 +855,7 @@ const Admin = () => {
       return;
     }
     if (!phone.match(/^549\d{10}$/)) {
-      SetCreateError("El celular debe tener formato válido: 549XXXXXXXXXX");
+      setCreateError("El celular debe tener formato válido: 549XXXXXXXXXX");
       return;
     }
     setCreatingClient(true);
@@ -2094,23 +2094,24 @@ const Admin = () => {
                           placeholder="Juan Pérez" />
                       </div>
                       <div className="col-span-2">
-                        <label className={`text-xs mb-1 flex items-center gap-1 ${dk("text-gray-400", "text-[#737373]")}`}>
-                          <Phone size={11} /> Celular * <span className="text-[#525252] font-normal">(con código de país, ej: 5491122334455)</span>
-                        </label>
-                        <input
-  type="tel"
-  value={newClient.phone}
-  onChange={(e) => {
-    let value = e.target.value.replace(/\D/g, "");
+  <label className={`text-xs mb-1 flex items-center gap-1 ${dk("text-gray-400", "text-[#737373]")}`}>
+    <Phone size={11} /> Celular * <span className="text-[#525252] font-normal">(con código de país, ej: 5491122334455)</span>
+  </label>
 
-    if (!value.startsWith("549")) {
-      value = "549" + value;
-    }
+  <input
+    type="tel"
+    value={newClient.phone}
+    onChange={(e) => {
+      const value = e.target.value.replace(/\D/g, "");
+      setNewClient((p) => ({
+        ...p,
+        phone: value,
+      }));
+    }}
+    className="w-full"
+  />
+</div>
 
-    setNewClient((p) => ({ ...p, phone: value }));
-  }}
-/>
-                      </div>
                       <div>
                         <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Tipo</label>
                         <select value={newClient.client_type}
