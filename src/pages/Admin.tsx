@@ -840,30 +840,38 @@ const Admin = () => {
 
   const pendingOrders = orders.filter((o) => o.status === "pending").length;
 
-  // -- Crear cliente --
-  async function handleCreateClient() {
+// -- Crear cliente --
+async function handleCreateClient() {
+  try {
     setCreateError("");
+
     const email = newClient.email.trim().toLowerCase();
     const password = newClient.password;
     const phone = normalizePhoneForSupabase(newClient.phone.trim());
+
+    // 🔹 Validaciones
     if (!email || !password) {
       setCreateError("Email y contraseña son obligatorios.");
       return;
     }
+
     if (!phone) {
       setCreateError("El celular es obligatorio.");
       return;
     }
+
     if (!phone.match(/^549\d{10}$/)) {
       setCreateError("El celular debe tener formato válido: 549XXXXXXXXXX");
       return;
     }
+
     setCreatingClient(true);
+
+    // 🔥 SIGNUP CORRECTO (SIN redirect)
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: window.location.origin,
         data: {
           company_name: newClient.company_name,
           contact_name: newClient.contact_name,
@@ -875,32 +883,65 @@ const Admin = () => {
         },
       },
     });
-    if (error || !data.user) {
+
+    if (error || !data?.user) {
+      console.error("Supabase error:", error);
+
       const rawMsg = error?.message || "Error al crear el usuario.";
-      if (rawMsg.toLowerCase().includes("database error saving new user")) {
-        setCreateError("No se pudo crear el usuario por validación de Supabase. Revisá celular (formato 549...) y datos obligatorios.");
+
+      if (rawMsg.toLowerCase().includes("database error")) {
+        setCreateError(
+          "No se pudo crear el usuario. Revisá celular y datos obligatorios."
+        );
+      } else if (rawMsg.toLowerCase().includes("already registered")) {
+        setCreateError("El email ya está registrado.");
       } else {
         setCreateError(rawMsg);
       }
-      setCreatingClient(false);
+
       return;
     }
-    await supabase.from("profiles").update({
-      company_name: newClient.company_name,
-      contact_name: newClient.contact_name,
-      client_type: newClient.client_type,
-      default_margin: newClient.default_margin,
-      role: newClient.role,
-      phone: phone || null,
-      email,
-    }).eq("id", data.user.id);
 
-    setCreatingClient(false);
+    // 🔹 Actualizar perfil
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({
+        company_name: newClient.company_name,
+        contact_name: newClient.contact_name,
+        client_type: newClient.client_type,
+        default_margin: newClient.default_margin,
+        role: newClient.role,
+        phone: phone || null,
+        email,
+      })
+      .eq("id", data.user.id);
+
+    if (profileError) {
+      console.error("Profile error:", profileError);
+    }
+
+    // 🔹 Reset UI
     setShowNewClient(false);
-    setNewClient({ email: "", password: "", phone: "", company_name: "", contact_name: "", client_type: "reseller", default_margin: 20, role: "client" });
-    fetchClients();
-  }
+    setNewClient({
+      email: "",
+      password: "",
+      phone: "",
+      company_name: "",
+      contact_name: "",
+      client_type: "reseller",
+      default_margin: 20,
+      role: "client",
+    });
 
+    fetchClients();
+
+  } catch (err: any) {
+    console.error("Error inesperado:", err);
+    setCreateError("Error inesperado al crear el cliente.");
+  } finally {
+    setCreatingClient(false);
+  }
+}
   // -- Clientes --
   function startEdit(client: ClientProfile) {
     setEditingClients((prev) => ({
