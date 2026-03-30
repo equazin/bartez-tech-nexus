@@ -645,7 +645,32 @@ export default function B2BPortal() {
       : [...filteredProducts];
 
     if (catalogContext === "oportunidades") {
-      return contextBase.sort((a, b) => {
+      // Load active, non-expired opportunities from admin localStorage
+      const now = new Date();
+      let opportunityIds: Set<number> | null = null;
+      try {
+        const raw = localStorage.getItem("admin_opportunities_v1");
+        if (raw) {
+          const items = JSON.parse(raw) as Array<{ product_id: number; active?: boolean; expires_at?: string }>;
+          if (Array.isArray(items) && items.length > 0) {
+            opportunityIds = new Set(
+              items
+                .filter((item) =>
+                  item.active !== false &&
+                  (!item.expires_at || new Date(item.expires_at) > now)
+                )
+                .map((item) => Number(item.product_id))
+            );
+          }
+        }
+      } catch { /* ignore */ }
+
+      // Filter: only products explicitly in opportunities list, or featured products as fallback
+      const opBase = opportunityIds && opportunityIds.size > 0
+        ? contextBase.filter((p) => opportunityIds!.has(p.id))
+        : contextBase.filter((p) => p.featured || getProductFeaturedPriority(p) > 0);
+
+      return opBase.sort((a, b) => {
         const featuredPriorityDiff = getProductFeaturedPriority(b) - getProductFeaturedPriority(a);
         if (featuredPriorityDiff !== 0) return featuredPriorityDiff;
 
