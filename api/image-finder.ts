@@ -65,6 +65,33 @@ function getSupabase(request: Request) {
 const queryCache = new Map<string, { expiresAt: number; data: SearchResultLike[] }>();
 const CACHE_TTL_MS = 1000 * 60 * 30;
 
+// PASO 1: Normalización de Query
+function buildQuery(product: ProductInput): string {
+  // limpiar nombre, remover caracteres innecesarios
+  let cleanName = product.name
+    .replace(/[^\w\s\u00C0-\u017F-]/g, "") // Mantener letras, números, espacios y guiones
+    .replace(/\b(OEM|BULK|RETAIL|BOX|REFURBISHED|OUTLET|GARANTIA|SIN CAJA|OPEN BOX|NUEVO|USADO)\b/gi, "") // PASO 3: Anti-noise
+    .replace(/\s+/g, " ")
+    .trim();
+    
+  const parts = [cleanName];
+  if (product.brand && !cleanName.toLowerCase().includes(product.brand.toLowerCase())) {
+    parts.push(product.brand);
+  }
+  parts.push("product");
+  return parts.join(" ").trim();
+}
+
+// PASO 2: Verificación de link (HEAD ping)
+async function verifyUrl(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(3000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** Word-overlap score between a product name and a result title. */
 function nameScore(productName: string, title: string): number {
   const words = productName
@@ -87,7 +114,7 @@ function brandScore(brand: string | null | undefined, title: string): number {
 function qualityScore(url: string, title: string): number {
   const t = title.toLowerCase();
   const u = url.toLowerCase();
-  const badTokens = ["logo", "icon", "thumbnail", "thumb", "placeholder", "banner"];
+  const badTokens = ["logo", "icon", "thumbnail", "thumb", "placeholder", "banner", "render"];
   if (badTokens.some((k) => t.includes(k) || u.includes(k))) return 0;
   return 1;
 }
@@ -104,27 +131,25 @@ function resolutionScore(w: number, h: number): number {
   if (min >= 800) return 0.9;
   if (min >= 500) return 0.75;
   if (min >= 300) return 0.35;
-  return 0;
+  return 0; // if resolutions are missing or < 300
 }
 
+// PASO 7: Sistema de Scoring
 function calcScore(product: ProductInput, title: string, w: number, h: number, url: string): number {
-  const ns = nameScore(product.name, title);
-  const bs = brandScore(product.brand, title);
-  const qs = qualityScore(url, title);
-  const rs = resolutionScore(w, h);
-  const cs = cleanBackgroundScore(title);
-  return Math.round((ns * 0.4 + bs * 0.2 + qs * 0.2 + rs * 0.1 + cs * 0.1) * 100) / 100;
+  const ns = nameScore(product.name, title);         // 40%
+  const bs = brandScore(product.brand, title);       // 20%
+  const rs = resolutionScore(w, h);                  // 15%
+  const cs = cleanBackgroundScore(title);            // 15%
+  const qs = qualityScore(url, title);               // 10%
+  
+  // if format is wrong, drop score severely
+  const ext = url.toLowerCase().split('.').pop()?.split('?')[0];
+  if (ext && !["jpg", "jpeg", "png", "webp"].includes(ext)) return 0;
+
+  return Math.round((ns * 0.40 + bs * 0.20 + rs * 0.15 + cs * 0.15 + qs * 0.10) * 100) / 100;
 }
 
-function buildQuery(product: ProductInput): string {
-  const parts = [product.name];
-  if (product.brand) parts.push(product.brand);
-  if (product.category) parts.push(product.category);
-  parts.push("product");
-  return parts.join(" ").trim();
-}
-
-// ─── ELIT image lookup ────────────────────────────────────────────────────────
+// ─── PASO 2: ELIT / AIR image lookup ─────────────────────────────────────────
 
 async function getElitImage(sku: string): Promise<string | null> {
   const userId = process.env.ELIT_API_USER_ID;
@@ -179,7 +204,41 @@ async function getAirImage(sku: string): Promise<string | null> {
   }
 }
 
-// ─── Bing Image Search ────────────────────────────────────────────────────────
+// ─── PASO 3: MercadoLibre Scraping ───────────────────────────────────────────
+
+async function searchMercadoLibre(query: string): Promise<SearchResultLike[]> {
+  try {
+    const url = `https://listado.mercadolibre.com.ar/${encodeURIComponent(query.replace(/\s+/g, '-'))}`;
+    const res = await fetch(url, { 
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+      signal: AbortSignal.timeout(6000)
+    });
+    if (!res.ok) return [];
+    const html = await res.text();
+    // Regular expression to match images like: https://http2.mlstatic.com/D_NQ_NP_918541-MLA72797746416_112023-V.webp
+    const regex = /https:\/\/http2\.mlstatic\.com\/D_[A-Za-z0-9_]+-MLA[0-9]+_[0-9]+-[A-Z]\.(?:jpg|webp)/g;
+    const matches = html.match(regex) || [];
+    const unique = Array.from(new Set(matches)).filter(img => !img.includes('MLA-') && !img.includes('D_Q_NP_')); // Filter thumbnails
+    
+    const results: SearchResultLike[] = [];
+    for (const img of unique.slice(0, 10)) {
+       // Attempt to replace standard suffix (I, V, etc.) with 'O' for Original size
+       const highResUrl = img.replace(/-(I|V|W|E|C|F)\.(jpg|webp)$/, '-O.$2');
+       results.push({
+         url: highResUrl,
+         title: query, // ML scraping doesn't give us the specific title easily by regex without DOM parsing
+         width: 800,   // Assumed high-res size if using -O
+         height: 800,
+         source: "mercadolibre_scraping",
+       });
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
+
+// ─── PASO 5: Bing Image Search API ───────────────────────────────────────────
 
 interface BingImageResult {
   contentUrl: string;
@@ -192,7 +251,6 @@ interface BingImageResult {
 async function searchBing(query: string, count = 5): Promise<BingImageResult[]> {
   const key = process.env.BING_SEARCH_API_KEY;
   if (!key) return [];
-
   try {
     const url = `https://api.bing.microsoft.com/v7.0/images/search?q=${encodeURIComponent(query)}&count=${count}&safeSearch=Strict&imageType=Photo`;
     const res = await fetch(url, {
@@ -206,6 +264,8 @@ async function searchBing(query: string, count = 5): Promise<BingImageResult[]> 
     return [];
   }
 }
+
+// ─── PASO 4: Google Scraping Liviano (via SerpAPI fallback) ──────────────────
 
 interface SerpApiImageResult {
   original?: string;
@@ -268,6 +328,7 @@ function normalizeImageUrl(input: string): string {
   }
 }
 
+// PASO 6: Unificación de resultados
 function dedupeCandidates(candidates: ImageCandidate[]): ImageCandidate[] {
   const seen = new Set<string>();
   const out: ImageCandidate[] = [];
@@ -280,6 +341,24 @@ function dedupeCandidates(candidates: ImageCandidate[]): ImageCandidate[] {
   return out;
 }
 
+// ─── ALMACENAMIENTO PROPIO (CDN) ──────────────────────────────────────────────
+async function uploadToStorage(url: string, productId: number, supabase: any, envStr: string): Promise<string | null> {
+  if (url.includes(`${envStr}/storage`)) return url; // Already in Supabase
+  try {
+     const res = await fetch(url, { signal: AbortSignal.timeout(5000), headers: { "User-Agent": "Mozilla/5.0" } });
+     if (!res.ok) return null;
+     const contentType = res.headers.get("content-type") || "image/jpeg";
+     const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
+     const buf = await res.arrayBuffer();
+     const path = `auto_${productId}_${Date.now()}.${ext}`;
+     const { error } = await supabase.storage.from("products").upload(path, buf, { contentType, upsert: true });
+     if (error) return null;
+     return `${envStr}/storage/v1/object/public/products/${path}`;
+  } catch {
+     return null;
+  }
+}
+
 // ─── main handler ─────────────────────────────────────────────────────────────
 
 export default async function handler(request: Request): Promise<Response> {
@@ -288,89 +367,149 @@ export default async function handler(request: Request): Promise<Response> {
   }
   if (request.method !== "POST") return json({ ok: false, error: "Use POST" }, 405);
 
-  let body: { products?: ProductInput[]; dryRun?: boolean };
+  let body: { action?: string; productId?: number; url?: string; products?: ProductInput[]; dryRun?: boolean };
   try {
     body = await request.json() as typeof body;
   } catch {
     return json({ ok: false, error: "Invalid JSON" }, 400);
   }
 
-  const products = body.products ?? [];
-  if (products.length === 0) return json({ ok: true, results: [] });
-
   let supabase;
+  const envUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
   try {
     supabase = getSupabase(request);
   } catch (error) {
     return json({ ok: false, error: (error as Error).message }, 500);
   }
+
+  // Rutina especial: Subir al Storage manualmente a pedido del frontend (approveSuggestion)
+  if (body.action === "upload_and_assign" && body.productId && body.url) {
+    const finalUrl = await uploadToStorage(body.url, body.productId, supabase, envUrl) || body.url;
+    await supabase.from("products").update({ image: finalUrl }).eq("id", body.productId);
+    return json({ ok: true, url: finalUrl });
+  }
+
+  const products = body.products ?? [];
+  if (products.length === 0) return json({ ok: true, results: [] });
   const results: ProcessResult[] = [];
 
   for (const product of products) {
     const query = buildQuery(product);
     const bucket: ImageCandidate[] = [];
+    
+    // PASO 2: Proveedores ELIT/AIR tienen prioridad absoluta
+    let providerImg = null;
+    let providerSource = null;
+    
+    if (product.supplier_name?.toLowerCase().includes("elit") && product.sku) {
+      providerImg = await getElitImage(product.sku);
+      if (providerImg) providerSource = "elit";
+    }
+    if (!providerImg && product.supplier_name?.toLowerCase().includes("air") && product.sku) {
+      providerImg = await getAirImage(product.sku);
+      if (providerImg) providerSource = "air";
+    }
+    
+    if (providerImg && providerSource) {
+      const isValid = await verifyUrl(providerImg);
+      if (isValid) {
+        if (!body.dryRun) {
+          const cdnUrl = await uploadToStorage(providerImg, product.id, supabase, envUrl) || providerImg;
+          await supabase.from("products").update({ image: cdnUrl }).eq("id", product.id);
+          await supabase.from("image_processing_log").insert({
+            product_id: product.id,
+            query,
+            source: providerSource,
+            image_url: cdnUrl,
+            score: 1.0,
+            action: "auto_assigned",
+          });
+          await supabase.from("image_suggestions").delete().eq("product_id", product.id).eq("status", "pending");
+        }
+        results.push({ productId: product.id, action: "auto_assigned", candidate: { url: providerImg, score: 1.0, source: providerSource }, query });
+        continue;
+      }
+    }
 
-    // 1) Google Images (SerpAPI) + Bing — in parallel
-    const [serpResults, bingResults] = await Promise.all([
+    // PASO 3, 4, 5: Búsqueda Multi-Fuente Paralela
+    let [mlResults, serpResults, bingResults, ddgResults, amzResults] = await Promise.all([
+      searchMercadoLibre(query),
       searchSerpApi(query, "google_images", 8),
       searchBing(query, 8),
+      searchSerpApi(query, "duckduckgo_images", 8),
+      searchSerpApi(query, "amazon", 5),
     ]);
 
-    for (const r of serpResults) {
-      if (Math.min(r.width || 0, r.height || 0) < 400) continue;
-      const s = calcScore(product, r.title, r.width || 0, r.height || 0, r.url);
-      bucket.push({ url: r.url, title: r.title, source: "google_images", score: s, width: r.width, height: r.height });
+    // Resiliencia Anti-Bot para ML
+    if (mlResults.length === 0) {
+      const mlFallback = await searchSerpApi(query, "mercadolibre", 8);
+      if (mlFallback.length > 0) mlResults = mlFallback;
     }
 
-    for (const r of bingResults) {
-      if (!["jpeg", "jpg", "png"].includes((r.encodingFormat ?? "").toLowerCase())) continue;
-      if (Math.min(r.width, r.height) < 400) continue;
-      const s = calcScore(product, r.name, r.width, r.height, r.contentUrl);
-      bucket.push({ url: r.contentUrl, score: s, source: "bing", width: r.width, height: r.height, title: r.name });
+    // Llenar balde
+    for (const r of mlResults) {
+      const s = calcScore(product, r.title, r.width, r.height, r.url);
+      bucket.push({ url: r.url, title: r.title, source: r.source, score: s, width: r.width, height: r.height });
     }
 
-    const ranked = dedupeCandidates(bucket).sort((a, b) => b.score - a.score).slice(0, 10);
+    for (const res of [serpResults, ddgResults, amzResults, bingResults]) {
+      for (const r of res) {
+        const title = (r as any).name || r.title || "";
+        const url = (r as any).contentUrl || r.url || "";
+        if (!url) continue;
+        if (r.width && r.height && Math.min(r.width, r.height) < 300) continue;
+        const s = calcScore(product, title, r.width || 0, r.height || 0, url);
+        bucket.push({ url, title, source: r.source || "search", score: s, width: r.width, height: r.height });
+      }
+    }
+
+    // Unificación y Ordenamiento
+    let ranked = dedupeCandidates(bucket).sort((a, b) => b.score - a.score).slice(0, 10);
+    
+    // Verificar top candidate si es muy probable
+    if (ranked.length > 0 && ranked[0].score >= 0.85) {
+      const isValid = await verifyUrl(ranked[0].url);
+      if (!isValid) ranked.shift();
+    }
+    
     const best = ranked[0] ?? null;
 
-    // 4) Classify
-    if (!best || best.score < 0.6) {
+    if (!best || best.score < 0.60) {
       if (!body.dryRun) {
         await supabase.from("image_processing_log").insert({
-          product_id: product.id,
-          query,
-          source: best?.source ?? null,
-          image_url: best?.url ?? null,
-          score: best?.score ?? null,
-          action: "discarded",
+          product_id: product.id, query, source: best?.source ?? null,
+          image_url: best?.url ?? null, score: best?.score ?? null, action: "discarded",
         });
       }
       results.push({ productId: product.id, action: "discarded", query, candidates: ranked });
       continue;
     }
 
-    // All valid candidates (>= 0.60 score) go to suggestions for manual review
-    if (!body.dryRun) {
-      await supabase.from("image_suggestions").delete().eq("product_id", product.id).eq("status", "pending");
-      const topSuggestions = ranked.slice(0, 5).map((cand) => ({
-        product_id: product.id,
-        image_url: cand.url,
-        score: cand.score,
-        source: cand.source,
-        status: "pending",
-      }));
-      if (topSuggestions.length > 0) {
-        await supabase.from("image_suggestions").insert(topSuggestions);
+    if (best.score >= 0.85) {
+      if (!body.dryRun) {
+        const cdnUrl = await uploadToStorage(best.url, product.id, supabase, envUrl) || best.url;
+        await supabase.from("products").update({ image: cdnUrl }).eq("id", product.id);
+        await supabase.from("image_processing_log").insert({
+          product_id: product.id, query, source: best.source,
+          image_url: cdnUrl, score: best.score, action: "auto_assigned",
+        });
+        await supabase.from("image_suggestions").delete().eq("product_id", product.id).eq("status", "pending");
       }
-      await supabase.from("image_processing_log").insert({
-        product_id: product.id,
-        query,
-        source: best.source,
-        image_url: best.url,
-        score: best.score,
-        action: "suggested",
-      });
+      results.push({ productId: product.id, action: "auto_assigned", candidate: best, query });
+    } else {
+      if (!body.dryRun) {
+        await supabase.from("image_suggestions").delete().eq("product_id", product.id).eq("status", "pending");
+        const topSuggestions = ranked.slice(0, 5).map((cand) => ({
+          product_id: product.id, image_url: cand.url, score: cand.score, source: cand.source, status: "pending",
+        }));
+        if (topSuggestions.length > 0) await supabase.from("image_suggestions").insert(topSuggestions);
+        await supabase.from("image_processing_log").insert({
+          product_id: product.id, query, source: best.source,
+          image_url: best.url, score: best.score, action: "suggested",
+        });
+      }
+      results.push({ productId: product.id, action: "suggested", candidate: best, candidates: ranked.slice(0, 5), query });
     }
-    results.push({ productId: product.id, action: "suggested", candidate: best, candidates: ranked.slice(0, 5), query });
   }
 
   const summary = {

@@ -1914,15 +1914,37 @@ async function handleCreateClient() {
                         key={`product-${head.product_id}`}
                         className={`rounded-lg p-3 border ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-[#fafafa]")}`}
                       >
-                        <div className="mb-2 min-w-0">
-                          <p className={`text-xs font-semibold truncate ${dk("text-white", "text-[#171717]")}`}>
-                            #{head.product_id} · {head.product_name}
-                          </p>
-                          {head.product_sku && (
-                            <p className={`text-[11px] ${dk("text-gray-500", "text-[#737373]")}`}>
-                              SKU: {head.product_sku}
+                        <div className="mb-2 min-w-0 flex justify-between items-start">
+                          <div>
+                            <p className={`text-xs font-semibold truncate ${dk("text-white", "text-[#171717]")}`}>
+                              #{head.product_id} · {head.product_name}
                             </p>
-                          )}
+                            {head.product_sku && (
+                              <p className={`text-[11px] ${dk("text-gray-500", "text-[#737373]")}`}>
+                                SKU: {head.product_sku}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            disabled={imageRunning}
+                            onClick={() => {
+                              const p = products.find(prod => String(prod.id) === String(head.product_id));
+                              if (p) {
+                                void (async () => {
+                                  setImageRunning(true);
+                                  try {
+                                    await processProducts([p], () => {});
+                                    await refreshImageSuggestions();
+                                  } finally {
+                                    setImageRunning(false);
+                                  }
+                                })();
+                              }
+                            }}
+                            className="text-[10px] px-2 py-1 rounded border border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 font-semibold transition disabled:opacity-50"
+                          >
+                            Reintentar búsqueda
+                          </button>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                           {group.slice(0, 5).map((s) => (

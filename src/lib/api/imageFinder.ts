@@ -24,7 +24,7 @@ export interface ProcessProgress {
   summary: ProcessSummary;
 }
 
-const BATCH_SIZE = 1;
+const BATCH_SIZE = 5;
 
 function resolveApiBaseUrl(): string {
   const configured = (import.meta.env.VITE_API_BASE_URL || "").trim();
@@ -157,11 +157,31 @@ export async function fetchAutoAssignedLog(limit = 50): Promise<Array<{
 
 /** Approve a suggestion: update product image + mark suggestion approved. */
 export async function approveSuggestion(suggestion: ImageSuggestion): Promise<void> {
-  const { error: e1 } = await supabase
-    .from("products")
-    .update({ image: suggestion.image_url })
-    .eq("id", suggestion.product_id);
-  if (e1) throw e1;
+  const base = resolveApiBaseUrl();
+  const url = `${base}/api/image-finder`;
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+
+  // Enviar a Edge Function para descarga y upload al CDN
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(anonKey ? { "x-supabase-apikey": anonKey } : {}),
+    },
+    body: JSON.stringify({
+      action: "upload_and_assign",
+      productId: suggestion.product_id,
+      url: suggestion.image_url,
+    }),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Upload error: ${res.status}${detail ? ` - ${detail}` : ""}`);
+  }
+  
+  const data = await res.json() as { ok: boolean; url: string; error?: string };
+  if (!data.ok) throw new Error(data.error ?? "No se pudo subir la imagen al CDN");
 
   const { error: e2 } = await supabase
     .from("image_suggestions")
@@ -178,7 +198,7 @@ export async function approveSuggestion(suggestion: ImageSuggestion): Promise<vo
   await supabase.from("image_processing_log").insert({
     product_id: suggestion.product_id,
     source: suggestion.source,
-    image_url: suggestion.image_url,
+    image_url: data.url, // URL final real del CDN
     score: suggestion.score,
     action: "approved",
   });

@@ -67,10 +67,25 @@ export function useInvidSync(userId?: string) {
     }
   }, [running, userId, loadSnapshot]);
 
+  const runSelectedCatalogSync = useCallback(
+    async (articles: import("@/lib/api/invidApi").InvidArticle[], options?: { forceCreateExternalIds?: string[] }) => {
+      const { syncSelectedInvidProducts } = await import("@/lib/api/invidSync");
+      setRunning(true);
+      try {
+        await syncSelectedInvidProducts(articles, options, userId);
+      } finally {
+        setRunning(false);
+        void loadSnapshot();
+      }
+    },
+    [userId, loadSnapshot]
+  );
+
   return {
     progress,
     lastSync,
     running,
     runCatalogSync,
+    runSelectedCatalogSync,
   };
 }

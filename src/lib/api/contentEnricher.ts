@@ -18,6 +18,21 @@ export interface ContentProcessProgress {
 
 const BATCH_SIZE = 10;
 
+function resolveApiBaseUrl(): string {
+  const configured = (import.meta.env.VITE_API_BASE_URL || "").trim();
+  if (!configured) return "";
+  try {
+    const parsed = new URL(configured);
+    const isLocalTarget = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+    const isBrowser = typeof window !== "undefined";
+    const isLocalOrigin = isBrowser && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+    if (isLocalTarget && !isLocalOrigin) return "";
+    return configured.replace(/\/$/, "");
+  } catch {
+    return configured.replace(/\/$/, "");
+  }
+}
+
 export async function fetchProductsForContent(mode: ContentMode): Promise<Product[]> {
   let query = supabase
     .from("products")
@@ -48,8 +63,8 @@ async function processBatch(products: Product[], mode: ContentMode, signal?: Abo
     description_full: p.description_full ?? null,
     specs: p.specs ?? null,
   }));
-  const base = import.meta.env.VITE_API_BASE_URL || "";
-  const url = `${base.replace(/\/$/, "")}/api/content-enricher`;
+  const base = resolveApiBaseUrl();
+  const url = `${base}/api/content-enricher`;
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
   const res = await fetch(url, {
     method: "POST",
