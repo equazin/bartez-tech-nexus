@@ -594,7 +594,8 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
   }
 
   function mapInvidPreviewItem(product: InvidArticle): PreviewItem<InvidArticle> {
-    const stockAvailable = product.STOCK_STATUS === "Disponible" && product.ID ? 10 : 0;
+    const status = String(product.STOCK_STATUS ?? "").toUpperCase();
+    const stockAvailable = status === "STOCK OK" ? 10 : status === "BAJO STOCK" ? 3 : 0;
     const price = Number(product.PRICE ?? 0);
     const currency = String(product.CURRENCY ?? "ARS").toUpperCase() === "USD" ? "USD" : "ARS";
     return {

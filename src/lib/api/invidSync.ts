@@ -33,7 +33,8 @@ const INITIAL: SyncProgress = {
 const INVID_SUPPLIER_NAME = "INVID";
 
 function buildInvidCatalogRecord(article: InvidArticle): SupplierCatalogRecord {
-  const stockAvailable = article.STOCK_STATUS === "Disponible" && article.ID ? 10 : 0; // The API doesn't seem to give exact stock number except status
+  const status = String(article.STOCK_STATUS ?? "").toUpperCase();
+  const stockAvailable = status === "STOCK OK" ? 10 : status === "BAJO STOCK" ? 3 : 0;
   const supplierSku = String(article.ID ?? "").trim();
   const partNumber = String(article.PART_NUMBER ?? "").trim() || null;
   const brand = String(article.BRAND ?? "").trim() || null;
@@ -163,4 +164,22 @@ export async function syncInvidCatalog(
       });
     }
   }
+}
+
+export async function syncSelectedInvidProducts(
+  articles: InvidArticle[],
+  options: { forceCreateExternalIds?: string[] } = {},
+  userId?: string
+): Promise<void> {
+  const records = articles.map((article) => {
+    const rec = buildInvidCatalogRecord(article);
+    if (options.forceCreateExternalIds?.includes(rec.supplierExternalId)) {
+      rec.forceCreate = true;
+    }
+    return rec;
+  });
+
+  await syncSupplierCatalogRecords(records, userId, {
+    existingProductsMode: "full",
+  });
 }
