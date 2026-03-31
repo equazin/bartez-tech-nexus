@@ -238,12 +238,16 @@ async function searchSerpApi(query: string): Promise<ImageResult[]> {
 async function searchMercadoLibre(query: string): Promise<ImageResult[]> {
   try {
     const url = `https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(query)}&limit=5`;
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "application/json"
-      }
-    });
+    const mlToken = process.env.MERCADOLIBRE_ACCESS_TOKEN?.trim();
+    const headers: Record<string, string> = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "Accept": "application/json"
+    };
+    if (mlToken) {
+      headers["Authorization"] = `Bearer ${mlToken}`;
+    }
+
+    const res = await fetch(url, { headers });
     if (!res.ok) return [];
     const data = await res.json() as {
       results?: Array<{
