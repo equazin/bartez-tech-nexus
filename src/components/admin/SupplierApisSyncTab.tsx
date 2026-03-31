@@ -886,6 +886,7 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
         setPreviewCursor(cursor + 1);
         setPreviewHasMore(batch.length === AIR_PAGE_SIZE);
         setPreviewTotal(null);
+      } else if (supplier === "elit") {
         const page = await fetchElitProductsPagePayload(cursor, ELIT_PAGE_SIZE, buildElitSearchQuery());
         const batch = page.products;
         const mapped = batch.map(mapElitPreviewItem);
