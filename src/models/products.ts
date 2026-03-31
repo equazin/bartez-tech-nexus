@@ -2,6 +2,8 @@ export interface Product {
   id: number;
   name: string;
   description: string;
+  description_short?: string;
+  description_full?: string;
   image: string;
   cost_price: number;
   category: string;
@@ -35,6 +37,8 @@ export interface Product {
   brand_name?: string;
   /** Optional product weight for shipping estimates */
   weight_kg?: number;
+  /** Flag set when auto-content cannot classify confidently */
+  content_review_required?: boolean;
 }
 
 /** Returns the display name: custom override → original → name */

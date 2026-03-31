@@ -49,21 +49,27 @@ async function processBatch(
   const payload = products.map((p) => ({
     id: p.id,
     name: p.name,
-    brand: p.brand ?? null,
+    brand: p.brand_name ?? null,
     category: p.category ?? null,
     sku: p.sku ?? null,
     supplier_name: p.supplier_name ?? null,
     supplier_sku: p.sku ?? null,
   }));
 
-  const res = await fetch("/api/image-finder", {
+  const base = import.meta.env.VITE_API_BASE_URL || "";
+  const url = `${base.replace(/\/$/, "")}/api/image-finder`;
+
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ products: payload }),
     signal,
   });
 
-  if (!res.ok) throw new Error(`image-finder error: ${res.status}`);
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`image-finder error: ${res.status}${detail ? ` - ${detail}` : ""}`);
+  }
   const data = await res.json() as { ok: boolean; summary: ProcessSummary };
   return data.summary;
 }

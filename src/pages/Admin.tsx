@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { CLIENT_TYPE_MARGINS, ClientType } from "@/lib/supabase";
 import { Product } from "@/models/products";
@@ -16,7 +16,7 @@ import {
   Users, Package, ClipboardList, LogOut, UserPlus, X, Plus,
   DollarSign, Pencil, Check, LayoutDashboard, Sun, Moon, Phone,
   Truck, Download, Building2, Tag, BarChart2, Activity, Wifi, Bookmark, Flame,
-  Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag, type LucideIcon,
+  Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag, Image, type LucideIcon,
 } from "lucide-react";
 import { exportOrdersCSV, exportCatalogCSV, exportReportsCSV } from "@/lib/exportCsv";
 import { exportCatalogPdf, exportRemitoPdf } from "@/lib/exportPdf";
@@ -49,6 +49,22 @@ import { DocumentsTab } from "@/components/admin/DocumentsTab";
 import { SupportTab } from "@/components/admin/SupportTab";
 import { OpportunitiesTab } from "@/components/admin/OpportunitiesTab";
 import { PosManagementTab } from "@/components/admin/PosManagementTab";
+import {
+  approveSuggestion,
+  fetchAutoAssignedLog,
+  fetchPendingSuggestions,
+  fetchProductsWithoutImages,
+  processProducts,
+  rejectSuggestion,
+  type ImageSuggestion,
+  type ProcessProgress,
+} from "@/lib/api/imageFinder";
+import {
+  fetchProductsForContent,
+  processProductContent,
+  type ContentMode,
+  type ContentProcessProgress,
+} from "@/lib/api/contentEnricher";
 
 interface SupabaseOrder {
   id: string;
@@ -169,7 +185,12 @@ function LegacyStatusBadge({ status }: { status: string }) {
   );
 }
 
-type Tab = "dashboard" | "products" | "imports" | "categories" | "opportunities" | "pos" | "seller_mode" | "orders" | "kanban" | "clients" | "users_permissions" | "approvals" | "documents" | "support" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "supplier_sync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders";
+type Tab = "dashboard" | "products" | "imports" | "categories" | "opportunities" | "pos" | "seller_mode" | "orders" | "kanban" | "clients" | "users_permissions" | "approvals" | "documents" | "support" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "supplier_sync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders" | "images";
+
+type PendingImageSuggestion = ImageSuggestion & {
+  product_name: string;
+  product_sku?: string;
+};
 
 const Admin = () => {
   const { signOut, session, isAdmin, canManageProducts, canManageOrders } = useAuth();
@@ -303,6 +324,28 @@ const Admin = () => {
   const [ordersPage,        setOrdersPage]        = useState(1);
   const ORDERS_PER_PAGE = 25;
 
+  // Imagenes automáticas
+  const [imageProgress, setImageProgress] = useState<ProcessProgress | null>(null);
+  const [imageRunning, setImageRunning] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [pendingSuggestions, setPendingSuggestions] = useState<PendingImageSuggestion[]>([]);
+  const [autoAssignedLog, setAutoAssignedLog] = useState<Array<{
+    id: string;
+    product_id: number;
+    image_url: string;
+    score: number;
+    source: string;
+    created_at: string;
+    product_name: string;
+  }>>([]);
+  const [imageScoreMin, setImageScoreMin] = useState(0.6);
+  const [imageSourceFilter, setImageSourceFilter] = useState<"all" | "elit" | "bing">("all");
+  const [imageSuggestionSearch, setImageSuggestionSearch] = useState("");
+  const [contentMode, setContentMode] = useState<ContentMode>("both");
+  const [contentRunning, setContentRunning] = useState(false);
+  const [contentProgress, setContentProgress] = useState<ContentProcessProgress | null>(null);
+  const [contentError, setContentError] = useState<string | null>(null);
+
   async function deleteZeroStockProducts() {
     setDeletingZeroStock(true);
     await supabase.from("products").delete().eq("stock", 0);
@@ -331,6 +374,19 @@ const Admin = () => {
     else setProducts([]);
     await fetchProductApiSources();
     setLoadingProducts(false);
+  }
+
+  async function refreshImageSuggestions() {
+    try {
+      const [suggestions, log] = await Promise.all([
+        fetchPendingSuggestions(),
+        fetchAutoAssignedLog(50),
+      ]);
+      setPendingSuggestions(suggestions);
+      setAutoAssignedLog(log);
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   async function fetchProductApiSources() {
@@ -368,6 +424,67 @@ const Admin = () => {
       next[productId] = Array.from(providers).sort();
     }
     setProductApiSources(next);
+  }
+
+  async function handleRunImageCompletion(opts: { onlyMissing: boolean }) {
+    if (imageRunning) return;
+    setImageRunning(true);
+    setImageError(null);
+    setImageProgress(null);
+    try {
+      const baseProducts = opts.onlyMissing ? await fetchProductsWithoutImages() : products;
+      if (baseProducts.length === 0) {
+        setImageProgress({
+          done: 0,
+          total: 0,
+          summary: { total: 0, auto_assigned: 0, suggested: 0, discarded: 0 },
+        });
+        return;
+      }
+      const controller = new AbortController();
+      const summary = await processProducts(
+        baseProducts,
+        (p) => setImageProgress(p),
+        controller.signal
+      );
+      setImageProgress({ done: baseProducts.length, total: baseProducts.length, summary });
+      await Promise.all([fetchProducts(), refreshImageSuggestions()]);
+    } catch (error) {
+      setImageError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setImageRunning(false);
+    }
+  }
+
+  async function handleRunContentCompletion() {
+    if (contentRunning) return;
+    setContentRunning(true);
+    setContentError(null);
+    setContentProgress(null);
+    try {
+      const candidates = await fetchProductsForContent(contentMode);
+      if (candidates.length === 0) {
+        setContentProgress({
+          done: 0,
+          total: 0,
+          summary: { total: 0, generated: 0, review_required: 0, skipped: 0 },
+        });
+        return;
+      }
+      const controller = new AbortController();
+      const summary = await processProductContent(
+        candidates,
+        contentMode,
+        (p) => setContentProgress(p),
+        controller.signal
+      );
+      setContentProgress({ done: candidates.length, total: candidates.length, summary });
+      await fetchProducts();
+    } catch (error) {
+      setContentError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setContentRunning(false);
+    }
   }
 
   async function fetchOrders() {
@@ -1064,6 +1181,18 @@ async function handleCreateClient() {
   }
 
   const lowStockCount = products.filter((p) => p.stock <= 3 && p.active !== false).length;
+  const filteredPendingSuggestions = pendingSuggestions.filter((s) => {
+    if ((s.score ?? 0) < imageScoreMin) return false;
+    if (imageSourceFilter !== "all" && String(s.source).toLowerCase() !== imageSourceFilter) return false;
+    if (!imageSuggestionSearch.trim()) return true;
+    const q = imageSuggestionSearch.toLowerCase();
+    return `${s.product_name} ${s.product_sku ?? ""} ${s.product_id}`.toLowerCase().includes(q);
+  });
+
+  useEffect(() => {
+    if (activeTab !== "images") return;
+    void refreshImageSuggestions();
+  }, [activeTab]);
 
   // -- Sidebar groups ----------------------------------------------------------
   type SidebarGroup = {
@@ -1123,6 +1252,7 @@ async function handleCreateClient() {
         { id: "brands",          label: "Marcas",         icon: Bookmark,     adminOnly: true },
         { id: "pricing",         label: "Precios",        icon: Tag,          adminOnly: true },
         { id: "supplier_sync",   label: "Sync",           icon: Wifi,         adminOnly: true },
+        { id: "images",          label: "Imágenes",       icon: Image,        adminOnly: true },
         { id: "stock",           label: "Stock",          icon: Layers,       adminOnly: true },
         { id: "movements",       label: "Movimientos",    icon: History,      adminOnly: true },
         { id: "purchase_orders", label: "Órdenes Compra", icon: ShoppingBag,  adminOnly: true },
@@ -1548,6 +1678,50 @@ async function handleCreateClient() {
               </div>
             </div>
 
+            <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5 space-y-4`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Contenido automático</h2>
+                  <p className={`text-xs mt-0.5 ${dk("text-gray-500", "text-[#737373]")}`}>
+                    Genera descripción resumida, descripción completa y especificaciones técnicas según nombre, marca y SKU.
+                  </p>
+                </div>
+                <button
+                  onClick={() => { void handleRunContentCompletion(); }}
+                  disabled={contentRunning}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#2D9F6A] hover:bg-[#25835A] text-white font-semibold transition disabled:opacity-50"
+                >
+                  <CheckCircle2 size={12} />
+                  {contentRunning ? "Procesando..." : "Completar descripciones automáticamente"}
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`text-xs ${dk("text-gray-400", "text-[#525252]")}`}>Modo:</span>
+                <select
+                  value={contentMode}
+                  onChange={(e) => setContentMode(e.target.value as ContentMode)}
+                  className={`border rounded-lg px-2.5 py-1.5 text-xs outline-none ${dk("bg-[#141414] border-[#2a2a2a] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}
+                >
+                  <option value="both">Ambos (descripciones + specs)</option>
+                  <option value="only_descriptions">Solo sin descripción</option>
+                  <option value="only_specs">Solo sin specs</option>
+                </select>
+              </div>
+              {contentProgress && (
+                <div className={`rounded-lg px-4 py-3 text-xs flex flex-wrap items-center gap-3 ${dk("bg-[#0b0b0b] border border-[#1f1f1f] text-gray-200", "bg-[#f9fafb] border border-[#e5e7eb] text-[#374151]")}`}>
+                  <span className="font-semibold">Progreso:</span>
+                  <span>{contentProgress.done} / {contentProgress.total}</span>
+                  <span>Generados: <strong className="text-emerald-400">{contentProgress.summary.generated}</strong></span>
+                  <span>Revisión: <strong className="text-amber-400">{contentProgress.summary.review_required}</strong></span>
+                </div>
+              )}
+              {contentError && (
+                <div className={`rounded-lg px-4 py-3 text-xs ${dk("bg-red-500/10 text-red-400 border border-red-500/30", "bg-red-50 text-red-700 border border-red-200")}`}>
+                  {contentError}
+                </div>
+              )}
+            </div>
+
             <div className="grid xl:grid-cols-2 gap-6 items-start">
               {/* Agregar producto manual */}
               <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
@@ -1619,6 +1793,206 @@ async function handleCreateClient() {
                   </div>
                 );
               })()}
+            </div>
+          </div>
+        )}
+
+        {/* -- IMÁGENES AUTOMÁTICAS -- */}
+        {activeTab === "images" && (
+          <div className="space-y-6 w-full max-w-none">
+            <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5 space-y-4`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Imágenes automáticas</h2>
+                  <p className={`text-xs mt-0.5 ${dk("text-gray-500", "text-[#737373]")}`}>
+                    Completa imágenes de productos usando proveedores + Bing de forma segura. Alta confianza se auto-asigna; el resto queda pendiente para revisión.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => { void handleRunImageCompletion({ onlyMissing: true }); }}
+                    disabled={imageRunning}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#2D9F6A] hover:bg-[#25835A] text-white font-semibold transition disabled:opacity-50"
+                  >
+                    <Image size={12} /> Completar solo sin imagen
+                  </button>
+                  <button
+                    onClick={() => { void handleRunImageCompletion({ onlyMissing: false }); }}
+                    disabled={imageRunning}
+                    className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition ${dk("text-[#737373] hover:text-white border-[#262626] hover:border-[#333] bg-[#111] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] border-[#e5e5e5] hover:border-[#d4d4d4] bg-white hover:bg-[#f5f5f5]")} disabled:opacity-50`}
+                  >
+                    <RefreshCw size={12} className={imageRunning ? "animate-spin" : ""} /> Reprocesar catálogo
+                  </button>
+                  <button
+                    onClick={() => { void refreshImageSuggestions(); }}
+                    className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition ${dk("text-[#737373] hover:text-white border-[#262626] hover:border-[#333] bg-[#111] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] border-[#e5e5e5] hover:border-[#d4d4d4] bg-white hover:bg-[#f5f5f5]")}`}
+                  >
+                    <RefreshCw size={12} /> Actualizar panel
+                  </button>
+                </div>
+              </div>
+
+              {imageProgress && (
+                <div className={`rounded-lg px-4 py-3 text-xs flex flex-wrap items-center gap-3 ${dk("bg-[#0b0b0b] border border-[#1f1f1f] text-gray-200", "bg-[#f9fafb] border border-[#e5e7eb] text-[#374151]")}`}>
+                  <span className="font-semibold">Progreso:</span>
+                  <span>
+                    {imageProgress.done} / {imageProgress.total} productos procesados
+                  </span>
+                  <span className="mx-1.5 h-3 w-px bg-gray-600/40" />
+                  <span>Auto-asignadas: <strong className="text-emerald-400">{imageProgress.summary.auto_assigned}</strong></span>
+                  <span>Sugeridas: <strong className="text-sky-400">{imageProgress.summary.suggested}</strong></span>
+                  <span>Descartadas: <strong className="text-amber-400">{imageProgress.summary.discarded}</strong></span>
+                </div>
+              )}
+
+              {imageError && (
+                <div className={`rounded-lg px-4 py-3 text-xs ${dk("bg-red-500/10 text-red-400 border border-red-500/30", "bg-red-50 text-red-700 border border-red-200")}`}>
+                  {imageError}
+                </div>
+              )}
+            </div>
+
+            <div className="grid xl:grid-cols-2 gap-6 items-start">
+              {/* Pendientes por revisar */}
+              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Sugerencias pendientes</h3>
+                  <span className={`text-[11px] ${dk("text-gray-500", "text-[#737373]")}`}>
+                    {filteredPendingSuggestions.length} visibles / {pendingSuggestions.length} pendientes
+                  </span>
+                </div>
+                <div className="mb-3 grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <input
+                    value={imageSuggestionSearch}
+                    onChange={(e) => setImageSuggestionSearch(e.target.value)}
+                    placeholder="Buscar por nombre / SKU"
+                    className={`border rounded-lg px-2.5 py-1.5 text-xs outline-none ${dk("bg-[#141414] border-[#2a2a2a] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}
+                  />
+                  <select
+                    value={imageSourceFilter}
+                    onChange={(e) => setImageSourceFilter(e.target.value as "all" | "elit" | "bing")}
+                    className={`border rounded-lg px-2.5 py-1.5 text-xs outline-none ${dk("bg-[#141414] border-[#2a2a2a] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}
+                  >
+                    <option value="all">Todas las fuentes</option>
+                    <option value="elit">ELIT</option>
+                    <option value="bing">Bing</option>
+                  </select>
+                  <select
+                    value={String(imageScoreMin)}
+                    onChange={(e) => setImageScoreMin(Number(e.target.value))}
+                    className={`border rounded-lg px-2.5 py-1.5 text-xs outline-none ${dk("bg-[#141414] border-[#2a2a2a] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}
+                  >
+                    <option value="0.6">Score mínimo 0.60</option>
+                    <option value="0.7">Score mínimo 0.70</option>
+                    <option value="0.8">Score mínimo 0.80</option>
+                    <option value="0.85">Score mínimo 0.85</option>
+                  </select>
+                </div>
+                {filteredPendingSuggestions.length === 0 ? (
+                  <p className={`text-xs ${dk("text-gray-500", "text-[#737373]")}`}>
+                    No hay sugerencias pendientes. Ejecutá "Completar solo sin imagen" para generar nuevas.
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-[420px] overflow-auto pr-1">
+                    {filteredPendingSuggestions.map((s) => (
+                      <div
+                        key={s.id}
+                        className={`flex items-center gap-3 rounded-lg p-3 border ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-[#fafafa]")}`}
+                      >
+                        <div className="h-14 w-14 rounded-md overflow-hidden border border-[#2a2a2a] bg-[#111] flex-shrink-0">
+                          <img
+                            src={s.image_url}
+                            alt={s.product_name ?? ""}
+                            className="h-full w-full object-contain bg-white"
+                            loading="lazy"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-semibold truncate ${dk("text-white", "text-[#171717]")}`}>
+                            #{s.product_id} · {("product_name" in s && s.product_name) ? s.product_name : ""}
+                          </p>
+                          <p className={`text-[11px] mt-0.5 ${dk("text-gray-500", "text-[#737373]")}`}>
+                            Fuente: {s.source} · Score: {(s.score ?? 0).toFixed(2)}
+                          </p>
+                          {("product_sku" in s && s.product_sku) && (
+                            <p className={`text-[11px] ${dk("text-gray-500", "text-[#737373]")}`}>
+                              SKU: {s.product_sku}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <button
+                            onClick={() => {
+                              void (async () => {
+                                await approveSuggestion(s);
+                                await Promise.all([fetchProducts(), refreshImageSuggestions()]);
+                              })();
+                            }}
+                            className="text-[11px] px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                          >
+                            Aprobar
+                          </button>
+                          <button
+                            onClick={() => {
+                              void (async () => {
+                                await rejectSuggestion(s.id, s.product_id);
+                                await refreshImageSuggestions();
+                              })();
+                            }}
+                            className="text-[11px] px-2 py-1 rounded-lg bg-[#1f2933] hover:bg-[#111827] text-red-400 font-semibold"
+                          >
+                            Rechazar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Auto-asignadas recientes */}
+              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Últimas auto-asignadas</h3>
+                  <span className={`text-[11px] ${dk("text-gray-500", "text-[#737373]")}`}>
+                    {autoAssignedLog.length} registros
+                  </span>
+                </div>
+                {autoAssignedLog.length === 0 ? (
+                  <p className={`text-xs ${dk("text-gray-500", "text-[#737373]")}`}>
+                    Todavía no hay auto-asignaciones registradas.
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-[420px] overflow-auto pr-1">
+                    {autoAssignedLog.map((row) => (
+                      <div
+                        key={row.id}
+                        className={`flex items-center gap-3 rounded-lg p-3 border ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-[#fafafa]")}`}
+                      >
+                        <div className="h-12 w-12 rounded-md overflow-hidden border border-[#2a2a2a] bg-[#111] flex-shrink-0">
+                          <img
+                            src={row.image_url}
+                            alt={row.product_name}
+                            className="h-full w-full object-contain bg-white"
+                            loading="lazy"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-semibold truncate ${dk("text-white", "text-[#171717]")}`}>
+                            #{row.product_id} · {row.product_name}
+                          </p>
+                          <p className={`text-[11px] mt-0.5 ${dk("text-gray-500", "text-[#737373]")}`}>
+                            Fuente: {row.source} · Score: {(row.score ?? 0).toFixed(2)}
+                          </p>
+                          <p className={`text-[11px] ${dk("text-gray-500", "text-[#737373]")}`}>
+                            {new Date(row.created_at).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

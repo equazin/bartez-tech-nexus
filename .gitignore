@@ -27,3 +27,5 @@ dist-ssr
 .claude/settings.json
 .mcp.json
 .aider*
+.vercel
+.env*.local
