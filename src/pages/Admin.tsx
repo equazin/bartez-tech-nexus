@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { CLIENT_TYPE_MARGINS, ClientType } from "@/lib/supabase";
 import { Product } from "@/models/products";
 import { OrderProduct } from "@/models/order";
-import ProductForm from "@/components/admin/ProductForm";normalizePhoneForSupabase
+import ProductForm from "@/components/admin/ProductForm";
 import ProductImport from "@/components/admin/ProductImport";
 import ProductTable from "@/components/admin/ProductTable";
 import { useAuth } from "@/context/AuthContext";
@@ -49,6 +49,7 @@ import { DocumentsTab } from "@/components/admin/DocumentsTab";
 import { SupportTab } from "@/components/admin/SupportTab";
 import { OpportunitiesTab } from "@/components/admin/OpportunitiesTab";
 import { PosManagementTab } from "@/components/admin/PosManagementTab";
+import { ImageManagerTab } from "@/components/admin/ImageManagerTab";
 import {
   fetchProductsForContent,
   processProductContent,
@@ -175,7 +176,7 @@ function LegacyStatusBadge({ status }: { status: string }) {
   );
 }
 
-type Tab = "dashboard" | "products" | "imports" | "categories" | "opportunities" | "pos" | "seller_mode" | "orders" | "kanban" | "clients" | "users_permissions" | "approvals" | "documents" | "support" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "supplier_sync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders";
+type Tab = "dashboard" | "products" | "imports" | "categories" | "opportunities" | "pos" | "seller_mode" | "orders" | "kanban" | "clients" | "users_permissions" | "approvals" | "documents" | "support" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "supplier_sync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders" | "images";
 
 
 
@@ -1137,6 +1138,7 @@ async function handleCreateClient() {
         { id: "products",      label: "Productos",     icon: Package,    badge: products.length, manageProducts: true },
         { id: "imports",       label: "Importaciones", icon: Download,   manageProducts: true },
         { id: "categories",    label: "Categorías",    icon: Tag,        manageProducts: true },
+        { id: "images",        label: "Imágenes",      icon: Image,      manageProducts: true },
         { id: "opportunities", label: "Oportunidades", icon: Flame,      manageProducts: true },
         { id: "pos",           label: "POS",           icon: Truck,      manageProducts: true },
         { id: "seller_mode",   label: "Modo Vendedor", icon: DollarSign, manageProducts: true },
@@ -1509,6 +1511,15 @@ async function handleCreateClient() {
               />
             )}
           </div>
+        )}
+
+        {/* -- IMÁGENES -- */}
+        {activeTab === "images" && (
+          <ImageManagerTab
+            isDark={isDark}
+            products={products}
+            onRefreshProducts={fetchProducts}
+          />
         )}
 
         {/* -- IMPORTACIONES -- */}
