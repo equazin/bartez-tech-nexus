@@ -46,9 +46,15 @@ export async function fetchProductsWithoutImages(): Promise<Product[]> {
   const { data, error } = await supabase
     .from("products")
     .select("*")
-    .or("image.is.null,image.eq.''")
+    .or("image.is.null,image.eq.'',image.eq.'null',image.eq.'undefined',image.eq.' '")
     .order("name");
-  if (error) throw new Error(error.message ?? "Error al cargar productos");
+  
+  if (error) {
+    console.error("Error al buscar productos sin imagen:", error);
+    throw new Error(error.message ?? "Error al cargar productos");
+  }
+  
+  console.log(`[image-finder] Encontrados ${data?.length || 0} productos para procesar.`);
   return (data ?? []) as Product[];
 }
 
