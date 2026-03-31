@@ -15,6 +15,7 @@ import { useElitSync } from "@/hooks/useElitSync";
 import { useInvidSync } from "@/hooks/useInvidSync";
 import { fetchAirProductsPage, type AirProduct } from "@/lib/api/airApi";
 import { fetchElitProductsPagePayload, type ElitProduct, type ElitProductsQuery } from "@/lib/api/elitApi";
+import { fetchInvidArticlesPage, type InvidArticle } from "@/lib/api/invidApi";
 import { supabase } from "@/lib/supabase";
 
 interface Props {
@@ -23,7 +24,7 @@ interface Props {
   onSyncDone?: () => void;
 }
 
-type PreviewSupplier = "air" | "elit";
+type PreviewSupplier = "air" | "elit" | "invid";
 type ElitSearchField = "nombre" | "marca" | "codigo_producto";
 
 interface PreviewItem<T> {
@@ -402,7 +403,7 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
   const elit = useElitSync(userId);
   const invid = useInvidSync(userId);
   const [previewSupplier, setPreviewSupplier] = useState<PreviewSupplier | null>(null);
-  const [previewItems, setPreviewItems] = useState<Array<PreviewItem<AirProduct | ElitProduct>>>([]);
+  const [previewItems, setPreviewItems] = useState<Array<PreviewItem<AirProduct | ElitProduct | InvidArticle>>>([]);
   const [previewSelected, setPreviewSelected] = useState<Set<string>>(new Set());
   const [previewForceCreate, setPreviewForceCreate] = useState<Set<string>>(new Set());
   const [previewCursor, setPreviewCursor] = useState(0);
@@ -592,6 +593,23 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
     };
   }
 
+  function mapInvidPreviewItem(product: InvidArticle): PreviewItem<InvidArticle> {
+    const stockAvailable = product.STOCK_STATUS === "Disponible" && product.ID ? 10 : 0;
+    const price = Number(product.PRICE ?? 0);
+    const currency = String(product.CURRENCY ?? "ARS").toUpperCase() === "USD" ? "USD" : "ARS";
+    return {
+      key: String(product.ID),
+      sku: String(product.ID),
+      name: String(product.TITLE ?? "Producto INVID"),
+      brand: String(product.BRAND ?? "INVID"),
+      imageUrl: product.IMAGE_URL,
+      cost: price,
+      currency,
+      stock: stockAvailable,
+      raw: product,
+    };
+  }
+
   function buildElitSearchQuery(): ElitProductsQuery {
     const value = previewQuery.trim();
     if (!value) {
@@ -609,7 +627,7 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
     return { nombre: value };
   }
 
-  function getPreviewStrongKeys(item: PreviewItem<AirProduct | ElitProduct>): string[] {
+  function getPreviewStrongKeys(item: PreviewItem<AirProduct | ElitProduct | InvidArticle>): string[] {
     const raw = (item.raw && typeof item.raw === "object") ? (item.raw as Record<string, unknown>) : {};
     const keys = [
       item.sku,
@@ -629,7 +647,7 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
     return [...new Set(keys.map(normalizeToken).filter(Boolean))];
   }
 
-  function getPreviewModelKeys(item: PreviewItem<AirProduct | ElitProduct>): string[] {
+  function getPreviewModelKeys(item: PreviewItem<AirProduct | ElitProduct | InvidArticle>): string[] {
     const raw = (item.raw && typeof item.raw === "object") ? (item.raw as Record<string, unknown>) : {};
     const out = new Set<string>();
     const candidates = [
@@ -652,7 +670,7 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
     return Array.from(out);
   }
 
-  function findSystemProduct(item: PreviewItem<AirProduct | ElitProduct>): SystemProductMatch | null {
+  function findSystemProduct(item: PreviewItem<AirProduct | ElitProduct | InvidArticle>): SystemProductMatch | null {
     const cacheKey = `${previewSupplier ?? "none"}:${item.key}:${normalizeToken(item.sku)}:${normalizeToken(item.name)}:${normalizeToken(item.brand)}`;
     if (previewMatchCacheRef.current.has(cacheKey)) {
       return previewMatchCacheRef.current.get(cacheKey) ?? null;
@@ -834,7 +852,7 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
     return null;
   }
 
-  function getPreviewUsdBaseCost(item: PreviewItem<AirProduct | ElitProduct>): number | null {
+  function getPreviewUsdBaseCost(item: PreviewItem<AirProduct | ElitProduct | InvidArticle>): number | null {
     if (item.currency === "USD") {
       return Number(item.cost);
     }
@@ -868,7 +886,6 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
         setPreviewCursor(cursor + 1);
         setPreviewHasMore(batch.length === AIR_PAGE_SIZE);
         setPreviewTotal(null);
-      } else {
         const page = await fetchElitProductsPagePayload(cursor, ELIT_PAGE_SIZE, buildElitSearchQuery());
         const batch = page.products;
         const mapped = batch.map(mapElitPreviewItem);
@@ -880,6 +897,14 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
         setPreviewCursor(cursor + mapped.length);
         setPreviewTotal(total);
         setPreviewHasMore(total ? nextCount < total : batch.length === ELIT_PAGE_SIZE);
+      } else if (supplier === "invid") {
+        const page = await fetchInvidArticlesPage(cursor);
+        const batch = page?.data ?? [];
+        const mapped = batch.map(mapInvidPreviewItem);
+        setPreviewItems((prev) => (append ? [...prev, ...mapped] : mapped));
+        setPreviewCursor(cursor + 100);
+        setPreviewHasMore(!!page?.next_page_url);
+        setPreviewTotal(null);
       }
     } catch (error) {
       setPreviewError(error instanceof Error ? error.message : String(error));
@@ -968,9 +993,12 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
       if (previewSupplier === "air") {
         const selectedProducts = selectedItems.map((item) => item.raw as AirProduct);
         await air.runSelectedCatalogSync(selectedProducts, { forceCreateExternalIds });
-      } else {
+      } else if (previewSupplier === "elit") {
         const selectedProducts = selectedItems.map((item) => item.raw as ElitProduct);
         await elit.runSelectedCatalogSync(selectedProducts, { forceCreateExternalIds });
+      } else if (previewSupplier === "invid") {
+        const selectedProducts = selectedItems.map((item) => item.raw as InvidArticle);
+        await invid.runSelectedCatalogSync(selectedProducts, { forceCreateExternalIds });
       }
       onSyncDone?.();
       setPreviewSupplier(null);
@@ -1036,13 +1064,13 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
           running={invid.running}
           onFullSync={handleInvidCatalog}
           onDeltaSync={async () => alert("La API de INVID no soporta sync incremental directo todavía.")}
-          onPreview={async () => alert("Preview de INVID en desarrollo.")}
+          onPreview={() => openPreview("invid")}
           fullLabel="Sync catalogo INVID"
           fullHelp="Descarga y consolida todos los artículos de INVID."
           deltaLabel="Sync rápido (ND)"
           deltaHelp="No disponible."
-          previewLabel="Preview (ND)"
-          previewHelp="No disponible."
+          previewLabel="Preview y seleccion"
+          previewHelp="Muestra vista previa filtrable offline."
           isDark={isDark}
         />
       </div>
@@ -1062,7 +1090,7 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
             <div className={`px-5 py-4 border-b flex items-center justify-between ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")}`}>
               <div>
                 <h3 className={`font-bold text-sm ${dk("text-white", "text-[#171717]")}`}>
-                  Preview catalogo {previewSupplier === "air" ? "AIR" : "ELIT"}
+                  Preview catalogo {previewSupplier === "invid" ? "INVID" : previewSupplier === "air" ? "AIR" : "ELIT"}
                 </h3>
                 <p className={`text-xs ${dk("text-gray-500", "text-[#737373]")}`}>
                   Selecciona los productos que queres sincronizar antes de tocar el catalogo.
