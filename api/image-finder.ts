@@ -154,7 +154,7 @@ function scoreImage(
   let productType = 0.5;
   if (candidate.source === "supplier") productType = 1;
   if (candidate.source === "mercadolibre") productType = 0.9;
-  if (candidate.source === "bing" || candidate.source === "serpapi") productType = 0.6;
+  if (candidate.source === "bing" || candidate.source === "serpapi" || candidate.source === "serper") productType = 0.6;
 
   return Number(
     (nameMatch * 0.4 + brandMatch * 0.2 + resolution * 0.15 + cleanBg * 0.15 + productType * 0.1).toFixed(4)
@@ -229,6 +229,48 @@ async function searchBing(query: string): Promise<ImageResult[]> {
         width: img.width,
         height: img.height,
         title: img.name || "",
+      }));
+  } catch {
+    return [];
+  }
+}
+
+async function searchSerper(query: string): Promise<ImageResult[]> {
+  const apiKey = process.env.SERPER_API_KEY?.trim() || "3aa3347944e5b83bf9e1095a881eb3ef91e715ae";
+  if (!apiKey) return [];
+
+  try {
+    const res = await fetch("https://google.serper.dev/images", {
+      method: "POST",
+      headers: {
+        "X-API-KEY": apiKey,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ q: query })
+    });
+    
+    if (!res.ok) return [];
+    
+    const data = await res.json() as {
+      images?: Array<{
+        title?: string;
+        imageUrl?: string;
+        imageWidth?: number;
+        imageHeight?: number;
+        source?: string;
+      }>;
+    };
+
+    return (data.images ?? [])
+      .filter((img) => img.imageUrl && !isBlocked(img.imageUrl))
+      .slice(0, 5)
+      .map((img) => ({
+        url: img.imageUrl,
+        source: "serper",
+        score: 0,
+        width: img.imageWidth,
+        height: img.imageHeight,
+        title: img.title || "",
       }));
   } catch {
     return [];
@@ -440,6 +482,12 @@ export default async function handler(request: Request): Promise<Response> {
     try {
       const supplierImages = await getSupplierImages(supabase, product.id);
       allCandidates.push(...supplierImages);
+    } catch { /* ignore */ }
+
+    // Source 2: Serper.dev (Google Images)
+    try {
+      const serperImages = await searchSerper(query);
+      allCandidates.push(...serperImages);
     } catch { /* ignore */ }
 
     // Source 2: MercadoLibre API (free, public)
