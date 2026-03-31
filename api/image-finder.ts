@@ -72,25 +72,31 @@ const queryCache = new Map<string, { expiresAt: number; data: SearchResultLike[]
 const CACHE_TTL_MS = 1000 * 60 * 30;
 
 function buildQuery(product: ProductInput): string {
+  // Solo removemos símbolos molestos, permitimos guiones y puntos que suelen ser parte de modelos (ej: G502.X)
   let cleanName = product.name
-    .replace(/[^\w\s\u00C0-\u017F-]/g, "")
+    .replace(/[^\w\s\u00C0-\u017F.-]/g, "")
     .replace(/\b(OEM|BULK|RETAIL|BOX|REFURBISHED|OUTLET|GARANTIA|SIN CAJA|OPEN BOX|NUEVO|USADO)\b/gi, "")
     .replace(/\s+/g, " ")
     .trim();
     
   const parts = [cleanName];
+  
+  // Agregar SKU a la búsqueda es CLAVE para productos B2B exactos
+  if (product.sku && product.sku.length > 3 && !cleanName.toLowerCase().includes(product.sku.toLowerCase())) {
+    parts.push(product.sku);
+  }
+
   const brand = product.brand_name || product.brand;
   if (brand && !cleanName.toLowerCase().includes(brand.toLowerCase())) {
     parts.push(brand);
   }
-  parts.push("product");
   return parts.join(" ").trim();
 }
 
 async function verifyUrl(url: string): Promise<boolean> {
   try {
     const res = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(3000) });
-    return res.ok;
+    return res.status >= 200 && res.status < 400; 
   } catch {
     return false;
   }
@@ -177,15 +183,16 @@ async function searchMercadoLibre(query: string): Promise<SearchResultLike[]> {
   try {
     const url = `https://listado.mercadolibre.com.ar/${encodeURIComponent(query.replace(/\s+/g, '-'))}`;
     const res = await fetch(url, { 
-      headers: { "User-Agent": "Mozilla/5.0" },
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)" },
       signal: AbortSignal.timeout(6000)
     });
     if (!res.ok) return [];
     const html = await res.text();
-    const regex = /https:\/\/http2\.mlstatic\.com\/D_[A-Za-z0-9_]+-MLA[0-9]+_[0-9]+-[A-Z]\.(?:jpg|webp)/g;
+    // Regex avanzado para capturar todas las variantes de imágenes de ML (D_NQ_NP etc)
+    const regex = /https:\/\/http2\.mlstatic\.com\/D_[A-Za-z0-9_-]+\.(?:jpg|webp)/g;
     const matches = Array.from(new Set(html.match(regex) || []));
     
-    return matches.slice(0, 8).map(img => ({
+    return matches.slice(0, 10).map(img => ({
       url: img.replace(/-(I|V|W|E|C|F)\.(jpg|webp)$/, '-O.$2'),
       title: query,
       width: 800,
