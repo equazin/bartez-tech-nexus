@@ -977,14 +977,15 @@ async function handleCreateClient() {
       return;
     }
 
-    if (!phone.match(/^549\d{10}$/)) {
-      setCreateError("El celular debe tener formato válido: 549XXXXXXXXXX");
+    // Acepta 10-13 dígitos (código de área + número, con o sin prefijo 549)
+    if (phone.replace(/\D/g, "").length < 10) {
+      setCreateError("El celular debe incluir código de área y número (ej: 3411234567).");
       return;
     }
 
     setCreatingClient(true);
 
-    // 🔥 SIGNUP CORRECTO (SIN redirect)
+    // 🔥 SIGNUP (sin phone en options.data para evitar error del trigger)
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -995,7 +996,6 @@ async function handleCreateClient() {
           client_type: newClient.client_type,
           default_margin: newClient.default_margin,
           role: newClient.role,
-          phone,
           email,
         },
       },
@@ -2530,23 +2530,20 @@ async function handleCreateClient() {
                           placeholder="Juan Pérez" />
                       </div>
                       <div className="col-span-2">
-  <label className={`text-xs mb-1 flex items-center gap-1 ${dk("text-gray-400", "text-[#737373]")}`}>
-    <Phone size={11} /> Celular * <span className="text-[#525252] font-normal">(con código de país, ej: 5491122334455)</span>
-  </label>
-
-  <input
-    type="tel"
-    value={newClient.phone}
-    onChange={(e) => {
-      const value = e.target.value.replace(/\D/g, "");
-      setNewClient((p) => ({
-        ...p,
-        phone: value,
-      }));
-    }}
-    className="w-full"
-  />
-</div>
+                        <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>
+                          Celular * <span className="font-normal opacity-60">(cód. de área + número, ej: 3411234567 · 1145678901)</span>
+                        </label>
+                        <input
+                          type="tel"
+                          value={newClient.phone}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, "");
+                            setNewClient((p) => ({ ...p, phone: value }));
+                          }}
+                          placeholder="3411234567"
+                          className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4]")}`}
+                        />
+                      </div>
 
                       <div>
                         <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Tipo</label>
