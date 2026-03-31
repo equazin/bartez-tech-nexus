@@ -90,13 +90,15 @@ const NOISE_WORDS = new Set([
   "tipo", "version",
 ]);
 
-function buildQuery(product: ProductInput): string {
+function buildQuery(product: ProductInput, strict = false): string {
   const tokens = tokenize(product.name).filter((t) => !NOISE_WORDS.has(t));
   const brandNorm = product.brand ? normalize(product.brand) : "";
   if (brandNorm && !tokens.includes(brandNorm)) {
     tokens.unshift(brandNorm);
   }
-  return tokens.slice(0, 8).concat("product").join(" ");
+  const base = tokens.slice(0, 8);
+  if (strict) return base.join(" ");
+  return base.concat("product").join(" ");
 }
 
 // ---------------------------------------------------------------------------
@@ -236,7 +238,12 @@ async function searchSerpApi(query: string): Promise<ImageResult[]> {
 async function searchMercadoLibre(query: string): Promise<ImageResult[]> {
   try {
     const url = `https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(query)}&limit=5`;
-    const res = await fetch(url);
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json"
+      }
+    });
     if (!res.ok) return [];
     const data = await res.json() as {
       results?: Array<{
@@ -388,6 +395,7 @@ export default async function handler(request: Request): Promise<Response> {
     }
 
     const query = buildQuery(product);
+    const strictQuery = buildQuery(product, true);
     const allCandidates: ImageResult[] = [];
 
     // Source 1: Supplier images (highest priority)
@@ -398,7 +406,7 @@ export default async function handler(request: Request): Promise<Response> {
 
     // Source 2: MercadoLibre API (free, public)
     try {
-      const mlImages = await searchMercadoLibre(query);
+      const mlImages = await searchMercadoLibre(strictQuery);
       allCandidates.push(...mlImages);
     } catch { /* ignore */ }
 
