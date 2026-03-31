@@ -195,7 +195,10 @@ async function searchBing(query: string, count = 5): Promise<BingImageResult[]> 
 
   try {
     const url = `https://api.bing.microsoft.com/v7.0/images/search?q=${encodeURIComponent(query)}&count=${count}&safeSearch=Strict&imageType=Photo`;
-    const res = await fetch(url, { headers: { "Ocp-Apim-Subscription-Key": key } });
+    const res = await fetch(url, {
+      headers: { "Ocp-Apim-Subscription-Key": key },
+      signal: AbortSignal.timeout(8000),
+    });
     if (!res.ok) return [];
     const data = await res.json() as { value?: BingImageResult[] };
     return data.value ?? [];
@@ -235,7 +238,7 @@ async function searchSerpApi(
       url.searchParams.set("safe", "active");
     }
 
-    const res = await fetch(url.toString());
+    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) });
     if (!res.ok) return [];
     const data = await res.json() as { images_results?: SerpApiImageResult[]; inline_images?: SerpApiImageResult[] };
     const rows = (data.images_results ?? data.inline_images ?? [])

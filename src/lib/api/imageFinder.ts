@@ -24,7 +24,7 @@ export interface ProcessProgress {
   summary: ProcessSummary;
 }
 
-const BATCH_SIZE = 3;
+const BATCH_SIZE = 1;
 
 function resolveApiBaseUrl(): string {
   const configured = (import.meta.env.VITE_API_BASE_URL || "").trim();
