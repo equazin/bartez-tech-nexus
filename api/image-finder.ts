@@ -454,12 +454,13 @@ export default async function handler(request: Request): Promise<Response> {
 
     for (const res of [serpResults, ddgResults, amzResults, bingResults]) {
       for (const r of res) {
-        const title = (r as any).name || r.title || "";
-        const url = (r as any).contentUrl || r.url || "";
+        const item = r as any;
+        const title = item.name || item.title || "";
+        const url = item.contentUrl || item.thumbnailUrl || item.url || "";
         if (!url) continue;
-        if (r.width && r.height && Math.min(r.width, r.height) < 300) continue;
-        const s = calcScore(product, title, r.width || 0, r.height || 0, url);
-        bucket.push({ url, title, source: r.source || "search", score: s, width: r.width, height: r.height });
+        if (item.width && item.height && Math.min(item.width, item.height) < 300) continue;
+        const s = calcScore(product, title, item.width || 0, item.height || 0, url);
+        bucket.push({ url, title, source: item.source || "search", score: s, width: item.width, height: item.height });
       }
     }
 

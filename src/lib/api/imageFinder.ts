@@ -24,7 +24,7 @@ export interface ProcessProgress {
   summary: ProcessSummary;
 }
 
-const BATCH_SIZE = 5;
+const BATCH_SIZE = 2; // Reducido para evitar timeouts en Edge con paralelo expandido
 
 function resolveApiBaseUrl(): string {
   const configured = (import.meta.env.VITE_API_BASE_URL || "").trim();
@@ -47,7 +47,6 @@ export async function fetchProductsWithoutImages(): Promise<Product[]> {
     .from("products")
     .select("*")
     .or("image.is.null,image.eq.''")
-    .eq("active", true)
     .order("name");
   if (error) throw new Error(error.message ?? "Error al cargar productos");
   return (data ?? []) as Product[];

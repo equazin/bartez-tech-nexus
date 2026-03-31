@@ -439,6 +439,7 @@ const Admin = () => {
           total: 0,
           summary: { total: 0, auto_assigned: 0, suggested: 0, discarded: 0 },
         });
+        setImageError("No se encontraron productos que necesiten imágenes.");
         return;
       }
       const controller = new AbortController();
