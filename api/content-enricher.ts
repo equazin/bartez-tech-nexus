@@ -26,9 +26,17 @@ function json(data: unknown, status = 200) {
   });
 }
 
-function getSupabase() {
+function getSupabase(request: Request) {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    request.headers.get("x-supabase-apikey") ||
+    "";
+  if (!url || !key) {
+    throw new Error("Missing Supabase URL/API key for content-enricher");
+  }
   return createClient(url, key);
 }
 
@@ -154,7 +162,12 @@ export default async function handler(request: Request): Promise<Response> {
   const mode: Mode = body.mode ?? "both";
   if (products.length === 0) return json({ ok: true, results: [], summary: { total: 0, generated: 0, review_required: 0, skipped: 0 } });
 
-  const supabase = getSupabase();
+  let supabase;
+  try {
+    supabase = getSupabase(request);
+  } catch (error) {
+    return json({ ok: false, error: (error as Error).message }, 500);
+  }
   const results: ContentResult[] = [];
 
   for (const product of products) {

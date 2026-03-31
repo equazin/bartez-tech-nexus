@@ -50,9 +50,13 @@ async function processBatch(products: Product[], mode: ContentMode, signal?: Abo
   }));
   const base = import.meta.env.VITE_API_BASE_URL || "";
   const url = `${base.replace(/\/$/, "")}/api/content-enricher`;
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(anonKey ? { "x-supabase-apikey": anonKey } : {}),
+    },
     body: JSON.stringify({ products: payload, mode }),
     signal,
   });

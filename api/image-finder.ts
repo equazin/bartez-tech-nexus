@@ -38,9 +38,17 @@ function json(data: unknown, status = 200) {
   });
 }
 
-function getSupabase() {
+function getSupabase(request: Request) {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    request.headers.get("x-supabase-apikey") ||
+    "";
+  if (!url || !key) {
+    throw new Error("Missing Supabase URL/API key for image-finder");
+  }
   return createClient(url, key);
 }
 
@@ -154,7 +162,12 @@ export default async function handler(request: Request): Promise<Response> {
   const products = body.products ?? [];
   if (products.length === 0) return json({ ok: true, results: [] });
 
-  const supabase = getSupabase();
+  let supabase;
+  try {
+    supabase = getSupabase(request);
+  } catch (error) {
+    return json({ ok: false, error: (error as Error).message }, 500);
+  }
   const results: ProcessResult[] = [];
 
   for (const product of products) {
