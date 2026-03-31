@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
+export const config = { runtime: "edge", maxDuration: 60 };
+
 type Mode = "only_descriptions" | "only_specs" | "both";
 
 interface ContentProductInput {
