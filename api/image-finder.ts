@@ -165,6 +165,40 @@ function scoreImage(
 // Image sources
 // ---------------------------------------------------------------------------
 
+let cachedMlToken = "";
+let mlTokenExpiresAt = 0;
+
+async function getMercadoLibreToken(): Promise<string> {
+  if (cachedMlToken && Date.now() < mlTokenExpiresAt) {
+    return cachedMlToken;
+  }
+  
+  const appId = process.env.MERCADOLIBRE_APP_ID || "7715567298781097";
+  const clientSecret = process.env.MERCADOLIBRE_CLIENT_SECRET || "JzmAXvIQQKz68aYn2tVumR5M5INFEdVk";
+  
+  if (!appId || !clientSecret) return "";
+
+  try {
+    const res = await fetch("https://api.mercadolibre.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+      body: `grant_type=client_credentials&client_id=${appId}&client_secret=${clientSecret}`
+    });
+    
+    if (!res.ok) return "";
+    
+    const data = await res.json() as { access_token?: string; expires_in?: number };
+    if (data.access_token && data.expires_in) {
+      cachedMlToken = data.access_token;
+      mlTokenExpiresAt = Date.now() + (data.expires_in - 300) * 1000; // 5 min safety buffer
+      return cachedMlToken;
+    }
+    return "";
+  } catch {
+    return "";
+  }
+}
+
 async function searchBing(query: string): Promise<ImageResult[]> {
   const apiKey = process.env.BING_SEARCH_API_KEY?.trim();
   if (!apiKey) return [];
@@ -238,7 +272,7 @@ async function searchSerpApi(query: string): Promise<ImageResult[]> {
 async function searchMercadoLibre(query: string): Promise<ImageResult[]> {
   try {
     const url = `https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(query)}&limit=5`;
-    const mlToken = process.env.MERCADOLIBRE_ACCESS_TOKEN?.trim();
+    const mlToken = await getMercadoLibreToken();
     const headers: Record<string, string> = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       "Accept": "application/json"
