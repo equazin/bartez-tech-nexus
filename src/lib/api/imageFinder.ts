@@ -45,15 +45,12 @@ function resolveApiBaseUrl(): string {
 export async function fetchProductsWithoutImages(): Promise<Product[]> {
   const { data, error } = await supabase
     .from("products")
-    .select("*, suppliers(name)")
+    .select("*")
     .or("image.is.null,image.eq.''")
     .eq("active", true)
     .order("name");
   if (error) throw new Error(error.message ?? "Error al cargar productos");
-  return (data ?? []).map((row) => ({
-    ...row,
-    supplier_name: (row.suppliers as { name?: string } | null)?.name ?? undefined,
-  }));
+  return (data ?? []) as Product[];
 }
 
 /** Send a batch of products to the image-finder API and return the summary. */

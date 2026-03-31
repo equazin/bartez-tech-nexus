@@ -18,6 +18,7 @@ interface ImageCandidate {
   url: string;
   score: number;
   source: string;
+  title?: string;
   width?: number;
   height?: number;
 }
@@ -26,7 +27,16 @@ interface ProcessResult {
   productId: number;
   action: "auto_assigned" | "suggested" | "discarded" | "skipped";
   candidate?: ImageCandidate;
+  candidates?: ImageCandidate[];
   query: string;
+}
+
+interface SearchResultLike {
+  url: string;
+  title: string;
+  width: number;
+  height: number;
+  source: string;
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -52,6 +62,9 @@ function getSupabase(request: Request) {
   return createClient(url, key);
 }
 
+const queryCache = new Map<string, { expiresAt: number; data: SearchResultLike[] }>();
+const CACHE_TTL_MS = 1000 * 60 * 30;
+
 /** Word-overlap score between a product name and a result title. */
 function nameScore(productName: string, title: string): number {
   const words = productName
@@ -71,26 +84,44 @@ function brandScore(brand: string | null | undefined, title: string): number {
   return title.toLowerCase().includes(brand.toLowerCase()) ? 1.0 : 0;
 }
 
+function qualityScore(url: string, title: string): number {
+  const t = title.toLowerCase();
+  const u = url.toLowerCase();
+  const badTokens = ["logo", "icon", "thumbnail", "thumb", "placeholder", "banner"];
+  if (badTokens.some((k) => t.includes(k) || u.includes(k))) return 0;
+  return 1;
+}
+
+function cleanBackgroundScore(title: string): number {
+  const t = title.toLowerCase();
+  if (t.includes("white background") || t.includes("isolated") || t.includes("product shot")) return 1;
+  return 0.6;
+}
+
 function resolutionScore(w: number, h: number): number {
   const min = Math.min(w, h);
-  if (min >= 800) return 1.0;
-  if (min >= 500) return 0.7;
-  if (min >= 300) return 0.3;
+  if (min >= 1200) return 1.0;
+  if (min >= 800) return 0.9;
+  if (min >= 500) return 0.75;
+  if (min >= 300) return 0.35;
   return 0;
 }
 
-function calcScore(product: ProductInput, title: string, w: number, h: number): number {
+function calcScore(product: ProductInput, title: string, w: number, h: number, url: string): number {
   const ns = nameScore(product.name, title);
   const bs = brandScore(product.brand, title);
+  const qs = qualityScore(url, title);
   const rs = resolutionScore(w, h);
-  return Math.round((ns * 0.5 + bs * 0.2 + 0.2 + rs * 0.1) * 100) / 100;
+  const cs = cleanBackgroundScore(title);
+  return Math.round((ns * 0.4 + bs * 0.2 + qs * 0.2 + rs * 0.1 + cs * 0.1) * 100) / 100;
 }
 
 function buildQuery(product: ProductInput): string {
   const parts = [product.name];
   if (product.brand) parts.push(product.brand);
   if (product.category) parts.push(product.category);
-  return parts.join(" ");
+  parts.push("product");
+  return parts.join(" ").trim();
 }
 
 // ─── ELIT image lookup ────────────────────────────────────────────────────────
@@ -119,6 +150,35 @@ async function getElitImage(sku: string): Promise<string | null> {
   return null;
 }
 
+async function getAirImage(sku: string): Promise<string | null> {
+  const token =
+    process.env.AIR_API_TOKEN?.trim() ||
+    process.env.AIR_TOKEN?.trim() ||
+    process.env.VITE_AIR_TOKEN?.trim() ||
+    "";
+  if (!token || !sku) return null;
+  try {
+    const q = new URLSearchParams({ q: "articulos", cod: sku }).toString();
+    const res = await fetch(`https://api.air-intra.com/v2/?${q}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as Record<string, unknown>;
+    const items = (data.items ?? data.resultado ?? data.articulos ?? []) as Array<Record<string, unknown>>;
+    const first = items[0];
+    if (!first) return null;
+    const image =
+      (typeof first.imagen === "string" && first.imagen) ||
+      (typeof first.imagen_url === "string" && first.imagen_url) ||
+      (typeof first.image === "string" && first.image) ||
+      "";
+    return image || null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Bing Image Search ────────────────────────────────────────────────────────
 
 interface BingImageResult {
@@ -144,11 +204,84 @@ async function searchBing(query: string, count = 5): Promise<BingImageResult[]> 
   }
 }
 
+interface SerpApiImageResult {
+  original?: string;
+  title?: string;
+  original_width?: number;
+  original_height?: number;
+  source?: string;
+}
+
+async function searchSerpApi(
+  query: string,
+  engine: "google_images" | "duckduckgo_images" | "amazon" | "mercadolibre",
+  num = 5
+): Promise<SearchResultLike[]> {
+  const key = process.env.SERPAPI_API_KEY;
+  if (!key) return [];
+
+  const cacheKey = `${engine}:${query}:${num}`;
+  const cached = queryCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.data;
+
+  try {
+    const url = new URL("https://serpapi.com/search.json");
+    url.searchParams.set("engine", engine);
+    url.searchParams.set("api_key", key);
+    url.searchParams.set("q", query);
+    url.searchParams.set("num", String(num));
+    if (engine === "google_images") {
+      url.searchParams.set("tbm", "isch");
+      url.searchParams.set("safe", "active");
+    }
+
+    const res = await fetch(url.toString());
+    if (!res.ok) return [];
+    const data = await res.json() as { images_results?: SerpApiImageResult[]; inline_images?: SerpApiImageResult[] };
+    const rows = (data.images_results ?? data.inline_images ?? [])
+      .map((r) => ({
+        url: String(r.original ?? ""),
+        title: String(r.title ?? ""),
+        width: Number(r.original_width ?? 0),
+        height: Number(r.original_height ?? 0),
+        source: engine,
+      }))
+      .filter((r) => Boolean(r.url));
+
+    queryCache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, data: rows });
+    return rows;
+  } catch {
+    return [];
+  }
+}
+
+function normalizeImageUrl(input: string): string {
+  try {
+    const u = new URL(input);
+    u.hash = "";
+    return u.toString();
+  } catch {
+    return input.trim();
+  }
+}
+
+function dedupeCandidates(candidates: ImageCandidate[]): ImageCandidate[] {
+  const seen = new Set<string>();
+  const out: ImageCandidate[] = [];
+  for (const c of candidates) {
+    const key = normalizeImageUrl(c.url);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...c, url: key });
+  }
+  return out;
+}
+
 // ─── main handler ─────────────────────────────────────────────────────────────
 
 export default async function handler(request: Request): Promise<Response> {
   if (request.method === "OPTIONS") {
-    return new Response(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization" } });
+    return new Response(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization, x-supabase-apikey" } });
   }
   if (request.method !== "POST") return json({ ok: false, error: "Use POST" }, 405);
 
@@ -172,32 +305,45 @@ export default async function handler(request: Request): Promise<Response> {
 
   for (const product of products) {
     const query = buildQuery(product);
-    let best: ImageCandidate | null = null;
+    const bucket: ImageCandidate[] = [];
 
-    // 1. ELIT source (if applicable)
-    if (product.supplier_name?.toUpperCase().includes("ELIT") && product.supplier_sku) {
-      const elitImg = await getElitImage(product.supplier_sku);
-      if (elitImg) {
-        best = { url: elitImg, score: 1.0, source: "elit", width: 800, height: 800 };
+    // 1) Web search via SerpAPI (Google Images, DuckDuckGo, marketplaces)
+    const serpSources: Array<"google_images" | "duckduckgo_images" | "mercadolibre" | "amazon"> = [
+      "google_images",
+      "duckduckgo_images",
+      "mercadolibre",
+      "amazon",
+    ];
+    for (const source of serpSources) {
+      const found = await searchSerpApi(query, source, 6);
+      for (const r of found) {
+        if (Math.min(r.width || 0, r.height || 0) < 500) continue;
+        const s = calcScore(product, r.title, r.width || 0, r.height || 0, r.url);
+        bucket.push({
+          url: r.url,
+          title: r.title,
+          source: source,
+          score: s,
+          width: r.width,
+          height: r.height,
+        });
       }
     }
 
-    // 2. Bing Image Search fallback
-    if (!best || best.score < 0.85) {
-      const bingResults = await searchBing(query, 5);
-      for (const r of bingResults) {
-        if (!["jpeg", "jpg", "png"].includes((r.encodingFormat ?? "").toLowerCase())) continue;
-        if (Math.min(r.width, r.height) < 300) continue;
-        const s = calcScore(product, r.name, r.width, r.height);
-        if (!best || s > best.score) {
-          best = { url: r.contentUrl, score: s, source: "bing", width: r.width, height: r.height };
-        }
-      }
+    // 2) Bing as fallback
+    const bingResults = await searchBing(query, 8);
+    for (const r of bingResults) {
+      if (!["jpeg", "jpg", "png"].includes((r.encodingFormat ?? "").toLowerCase())) continue;
+      if (Math.min(r.width, r.height) < 500) continue;
+      const s = calcScore(product, r.name, r.width, r.height, r.contentUrl);
+      bucket.push({ url: r.contentUrl, score: s, source: "bing", width: r.width, height: r.height, title: r.name });
     }
 
-    // 3. Classify
+    const ranked = dedupeCandidates(bucket).sort((a, b) => b.score - a.score).slice(0, 10);
+    const best = ranked[0] ?? null;
+
+    // 4) Classify
     if (!best || best.score < 0.6) {
-      // Discard
       if (!body.dryRun) {
         await supabase.from("image_processing_log").insert({
           product_id: product.id,
@@ -208,12 +354,11 @@ export default async function handler(request: Request): Promise<Response> {
           action: "discarded",
         });
       }
-      results.push({ productId: product.id, action: "discarded", query });
+      results.push({ productId: product.id, action: "discarded", query, candidates: ranked });
       continue;
     }
 
     if (best.score >= 0.85) {
-      // Auto-assign
       if (!body.dryRun) {
         await supabase.from("products").update({ image: best.url }).eq("id", product.id);
         await supabase.from("image_processing_log").insert({
@@ -225,19 +370,20 @@ export default async function handler(request: Request): Promise<Response> {
           action: "auto_assigned",
         });
       }
-      results.push({ productId: product.id, action: "auto_assigned", candidate: best, query });
+      results.push({ productId: product.id, action: "auto_assigned", candidate: best, candidates: ranked.slice(0, 5), query });
     } else {
-      // Suggest (0.60–0.85)
       if (!body.dryRun) {
-        // Upsert: replace any existing pending suggestion for this product
         await supabase.from("image_suggestions").delete().eq("product_id", product.id).eq("status", "pending");
-        await supabase.from("image_suggestions").insert({
+        const topSuggestions = ranked.slice(0, 5).map((cand) => ({
           product_id: product.id,
-          image_url: best.url,
-          score: best.score,
-          source: best.source,
+          image_url: cand.url,
+          score: cand.score,
+          source: cand.source,
           status: "pending",
-        });
+        }));
+        if (topSuggestions.length > 0) {
+          await supabase.from("image_suggestions").insert(topSuggestions);
+        }
         await supabase.from("image_processing_log").insert({
           product_id: product.id,
           query,
@@ -247,7 +393,7 @@ export default async function handler(request: Request): Promise<Response> {
           action: "suggested",
         });
       }
-      results.push({ productId: product.id, action: "suggested", candidate: best, query });
+      results.push({ productId: product.id, action: "suggested", candidate: best, candidates: ranked.slice(0, 5), query });
     }
   }
 
