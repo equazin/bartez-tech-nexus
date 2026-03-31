@@ -348,43 +348,29 @@ export default async function handler(request: Request): Promise<Response> {
       continue;
     }
 
-    if (best.score >= 0.85) {
-      if (!body.dryRun) {
-        await supabase.from("products").update({ image: best.url }).eq("id", product.id);
-        await supabase.from("image_processing_log").insert({
-          product_id: product.id,
-          query,
-          source: best.source,
-          image_url: best.url,
-          score: best.score,
-          action: "auto_assigned",
-        });
+    // All valid candidates (>= 0.60 score) go to suggestions for manual review
+    if (!body.dryRun) {
+      await supabase.from("image_suggestions").delete().eq("product_id", product.id).eq("status", "pending");
+      const topSuggestions = ranked.slice(0, 5).map((cand) => ({
+        product_id: product.id,
+        image_url: cand.url,
+        score: cand.score,
+        source: cand.source,
+        status: "pending",
+      }));
+      if (topSuggestions.length > 0) {
+        await supabase.from("image_suggestions").insert(topSuggestions);
       }
-      results.push({ productId: product.id, action: "auto_assigned", candidate: best, candidates: ranked.slice(0, 5), query });
-    } else {
-      if (!body.dryRun) {
-        await supabase.from("image_suggestions").delete().eq("product_id", product.id).eq("status", "pending");
-        const topSuggestions = ranked.slice(0, 5).map((cand) => ({
-          product_id: product.id,
-          image_url: cand.url,
-          score: cand.score,
-          source: cand.source,
-          status: "pending",
-        }));
-        if (topSuggestions.length > 0) {
-          await supabase.from("image_suggestions").insert(topSuggestions);
-        }
-        await supabase.from("image_processing_log").insert({
-          product_id: product.id,
-          query,
-          source: best.source,
-          image_url: best.url,
-          score: best.score,
-          action: "suggested",
-        });
-      }
-      results.push({ productId: product.id, action: "suggested", candidate: best, candidates: ranked.slice(0, 5), query });
+      await supabase.from("image_processing_log").insert({
+        product_id: product.id,
+        query,
+        source: best.source,
+        image_url: best.url,
+        score: best.score,
+        action: "suggested",
+      });
     }
+    results.push({ productId: product.id, action: "suggested", candidate: best, candidates: ranked.slice(0, 5), query });
   }
 
   const summary = {

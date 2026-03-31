@@ -1813,7 +1813,7 @@ async function handleCreateClient() {
                 <div>
                   <h2 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Imágenes automáticas</h2>
                   <p className={`text-xs mt-0.5 ${dk("text-gray-500", "text-[#737373]")}`}>
-                    Busca imágenes en Google Images y Bing para cada producto sin imagen. Alta confianza (≥ 85%) se auto-asigna; el resto queda pendiente para revisión manual.
+                    Busca imágenes en Google Images y Bing para cada producto sin imagen. Todos los resultados se guardan como sugerencias pendientes para revisión manual.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
