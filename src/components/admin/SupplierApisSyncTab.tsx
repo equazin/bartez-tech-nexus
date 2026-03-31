@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAirSync } from "@/hooks/useAirSync";
 import { useElitSync } from "@/hooks/useElitSync";
+import { useInvidSync } from "@/hooks/useInvidSync";
 import { fetchAirProductsPage, type AirProduct } from "@/lib/api/airApi";
 import { fetchElitProductsPagePayload, type ElitProduct, type ElitProductsQuery } from "@/lib/api/elitApi";
 import { supabase } from "@/lib/supabase";
@@ -399,6 +400,7 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
   const dk = (dark: string, light: string) => (isDark ? dark : light);
   const air = useAirSync(userId);
   const elit = useElitSync(userId);
+  const invid = useInvidSync(userId);
   const [previewSupplier, setPreviewSupplier] = useState<PreviewSupplier | null>(null);
   const [previewItems, setPreviewItems] = useState<Array<PreviewItem<AirProduct | ElitProduct>>>([]);
   const [previewSelected, setPreviewSelected] = useState<Set<string>>(new Set());
@@ -417,7 +419,7 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
   const previewRequestLockRef = useRef(false);
   const previewMatchCacheRef = useRef(new Map<string, SystemProductMatch | null>());
 
-  const isAnySyncRunning = air.running || elit.running || previewSyncing;
+  const isAnySyncRunning = air.running || elit.running || invid.running || previewSyncing;
 
   const systemIndexes = useMemo(() => {
     const byStrongKey = new Map<string, SystemCatalogProduct>();
@@ -481,6 +483,11 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
 
   async function handleElitDelta() {
     await elit.runDeltaSync();
+    onSyncDone?.();
+  }
+
+  async function handleInvidCatalog() {
+    await invid.runCatalogSync();
     onSyncDone?.();
   }
 
@@ -1018,6 +1025,24 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
           deltaHelp="Trae cambios recientes con sincronizacion incremental."
           previewLabel="Preview y seleccion"
           previewHelp="Muestra una vista previa para elegir que traer."
+          isDark={isDark}
+        />
+        <SupplierCard
+          name="INVID"
+          detail="API INVID Computers"
+          color="green"
+          progress={invid.progress}
+          lastSync={invid.lastSync}
+          running={invid.running}
+          onFullSync={handleInvidCatalog}
+          onDeltaSync={async () => alert("La API de INVID no soporta sync incremental directo todavía.")}
+          onPreview={async () => alert("Preview de INVID en desarrollo.")}
+          fullLabel="Sync catalogo INVID"
+          fullHelp="Descarga y consolida todos los artículos de INVID."
+          deltaLabel="Sync rápido (ND)"
+          deltaHelp="No disponible."
+          previewLabel="Preview (ND)"
+          previewHelp="No disponible."
           isDark={isDark}
         />
       </div>
