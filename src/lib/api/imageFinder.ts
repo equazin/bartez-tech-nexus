@@ -26,15 +26,30 @@ export interface ProcessProgress {
 
 const BATCH_SIZE = 10;
 
+function resolveApiBaseUrl(): string {
+  const configured = (import.meta.env.VITE_API_BASE_URL || "").trim();
+  if (!configured) return "";
+  try {
+    const parsed = new URL(configured);
+    const isLocalTarget = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+    const isBrowser = typeof window !== "undefined";
+    const isLocalOrigin = isBrowser && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+    if (isLocalTarget && !isLocalOrigin) return "";
+    return configured.replace(/\/$/, "");
+  } catch {
+    return configured.replace(/\/$/, "");
+  }
+}
+
 /** Fetch products that have no image (null or empty string). */
 export async function fetchProductsWithoutImages(): Promise<Product[]> {
   const { data, error } = await supabase
     .from("products")
     .select("*, suppliers(name)")
-    .or("image.is.null,image.eq.")
+    .or("image.is.null,image.eq.''")
     .eq("active", true)
     .order("name");
-  if (error) throw error;
+  if (error) throw new Error(error.message ?? "Error al cargar productos");
   return (data ?? []).map((row) => ({
     ...row,
     supplier_name: (row.suppliers as { name?: string } | null)?.name ?? undefined,
@@ -56,8 +71,8 @@ async function processBatch(
     supplier_sku: p.sku ?? null,
   }));
 
-  const base = import.meta.env.VITE_API_BASE_URL || "";
-  const url = `${base.replace(/\/$/, "")}/api/image-finder`;
+  const base = resolveApiBaseUrl();
+  const url = `${base}/api/image-finder`;
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
   const res = await fetch(url, {
@@ -156,6 +171,12 @@ export async function approveSuggestion(suggestion: ImageSuggestion): Promise<vo
     .update({ status: "approved", updated_at: new Date().toISOString() })
     .eq("id", suggestion.id);
   if (e2) throw e2;
+
+  await supabase
+    .from("image_suggestions")
+    .update({ status: "rejected", updated_at: new Date().toISOString() })
+    .eq("product_id", suggestion.product_id)
+    .eq("status", "pending");
 
   await supabase.from("image_processing_log").insert({
     product_id: suggestion.product_id,
