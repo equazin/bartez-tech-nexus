@@ -307,34 +307,21 @@ export default async function handler(request: Request): Promise<Response> {
     const query = buildQuery(product);
     const bucket: ImageCandidate[] = [];
 
-    // 1) Web search via SerpAPI (Google Images, DuckDuckGo, marketplaces)
-    const serpSources: Array<"google_images" | "duckduckgo_images" | "mercadolibre" | "amazon"> = [
-      "google_images",
-      "duckduckgo_images",
-      "mercadolibre",
-      "amazon",
-    ];
-    for (const source of serpSources) {
-      const found = await searchSerpApi(query, source, 6);
-      for (const r of found) {
-        if (Math.min(r.width || 0, r.height || 0) < 500) continue;
-        const s = calcScore(product, r.title, r.width || 0, r.height || 0, r.url);
-        bucket.push({
-          url: r.url,
-          title: r.title,
-          source: source,
-          score: s,
-          width: r.width,
-          height: r.height,
-        });
-      }
+    // 1) Google Images (SerpAPI) + Bing — in parallel
+    const [serpResults, bingResults] = await Promise.all([
+      searchSerpApi(query, "google_images", 8),
+      searchBing(query, 8),
+    ]);
+
+    for (const r of serpResults) {
+      if (Math.min(r.width || 0, r.height || 0) < 400) continue;
+      const s = calcScore(product, r.title, r.width || 0, r.height || 0, r.url);
+      bucket.push({ url: r.url, title: r.title, source: "google_images", score: s, width: r.width, height: r.height });
     }
 
-    // 2) Bing as fallback
-    const bingResults = await searchBing(query, 8);
     for (const r of bingResults) {
       if (!["jpeg", "jpg", "png"].includes((r.encodingFormat ?? "").toLowerCase())) continue;
-      if (Math.min(r.width, r.height) < 500) continue;
+      if (Math.min(r.width, r.height) < 400) continue;
       const s = calcScore(product, r.name, r.width, r.height, r.contentUrl);
       bucket.push({ url: r.contentUrl, score: s, source: "bing", width: r.width, height: r.height, title: r.name });
     }

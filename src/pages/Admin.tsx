@@ -339,7 +339,7 @@ const Admin = () => {
     product_name: string;
   }>>([]);
   const [imageScoreMin, setImageScoreMin] = useState(0.6);
-  const [imageSourceFilter, setImageSourceFilter] = useState<"all" | "elit" | "bing">("all");
+  const [imageSourceFilter, setImageSourceFilter] = useState<"all" | "elit" | "air" | "bing" | "google_images" | "duckduckgo_images" | "mercadolibre" | "amazon">("all");
   const [imageSuggestionSearch, setImageSuggestionSearch] = useState("");
   const [contentMode, setContentMode] = useState<ContentMode>("both");
   const [contentRunning, setContentRunning] = useState(false);
@@ -1188,6 +1188,14 @@ async function handleCreateClient() {
     const q = imageSuggestionSearch.toLowerCase();
     return `${s.product_name} ${s.product_sku ?? ""} ${s.product_id}`.toLowerCase().includes(q);
   });
+  const groupedPendingSuggestions = Object.values(
+    filteredPendingSuggestions.reduce<Record<string, PendingImageSuggestion[]>>((acc, s) => {
+      const key = String(s.product_id);
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(s);
+      return acc;
+    }, {})
+  ).map((group) => group.sort((a, b) => (b.score ?? 0) - (a.score ?? 0)));
 
   useEffect(() => {
     if (activeTab !== "images") return;
@@ -1805,7 +1813,7 @@ async function handleCreateClient() {
                 <div>
                   <h2 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Imágenes automáticas</h2>
                   <p className={`text-xs mt-0.5 ${dk("text-gray-500", "text-[#737373]")}`}>
-                    Completa imágenes de productos usando proveedores + Bing de forma segura. Alta confianza se auto-asigna; el resto queda pendiente para revisión.
+                    Busca imágenes en Google Images y Bing para cada producto sin imagen. Alta confianza (≥ 85%) se auto-asigna; el resto queda pendiente para revisión manual.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -1814,7 +1822,7 @@ async function handleCreateClient() {
                     disabled={imageRunning}
                     className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#2D9F6A] hover:bg-[#25835A] text-white font-semibold transition disabled:opacity-50"
                   >
-                    <Image size={12} /> Completar solo sin imagen
+                    <Image size={12} /> Buscar imágenes (multi-fuente)
                   </button>
                   <button
                     onClick={() => { void handleRunImageCompletion({ onlyMissing: false }); }}
@@ -1870,12 +1878,17 @@ async function handleCreateClient() {
                   />
                   <select
                     value={imageSourceFilter}
-                    onChange={(e) => setImageSourceFilter(e.target.value as "all" | "elit" | "bing")}
+                    onChange={(e) => setImageSourceFilter(e.target.value as "all" | "elit" | "air" | "bing" | "google_images" | "duckduckgo_images" | "mercadolibre" | "amazon")}
                     className={`border rounded-lg px-2.5 py-1.5 text-xs outline-none ${dk("bg-[#141414] border-[#2a2a2a] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}
                   >
                     <option value="all">Todas las fuentes</option>
                     <option value="elit">ELIT</option>
+                    <option value="air">AIR</option>
+                    <option value="google_images">Google Images</option>
+                    <option value="duckduckgo_images">DuckDuckGo</option>
                     <option value="bing">Bing</option>
+                    <option value="mercadolibre">MercadoLibre</option>
+                    <option value="amazon">Amazon</option>
                   </select>
                   <select
                     value={String(imageScoreMin)}
@@ -1890,62 +1903,70 @@ async function handleCreateClient() {
                 </div>
                 {filteredPendingSuggestions.length === 0 ? (
                   <p className={`text-xs ${dk("text-gray-500", "text-[#737373]")}`}>
-                    No hay sugerencias pendientes. Ejecutá "Completar solo sin imagen" para generar nuevas.
+                    No hay sugerencias pendientes. Ejecutá "Buscar imágenes (multi-fuente)" para generar nuevas.
                   </p>
                 ) : (
                   <div className="space-y-3 max-h-[420px] overflow-auto pr-1">
-                    {filteredPendingSuggestions.map((s) => (
+                    {groupedPendingSuggestions.map((group) => {
+                      const head = group[0];
+                      return (
                       <div
-                        key={s.id}
-                        className={`flex items-center gap-3 rounded-lg p-3 border ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-[#fafafa]")}`}
+                        key={`product-${head.product_id}`}
+                        className={`rounded-lg p-3 border ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-[#fafafa]")}`}
                       >
-                        <div className="h-14 w-14 rounded-md overflow-hidden border border-[#2a2a2a] bg-[#111] flex-shrink-0">
-                          <img
-                            src={s.image_url}
-                            alt={s.product_name ?? ""}
-                            className="h-full w-full object-contain bg-white"
-                            loading="lazy"
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
+                        <div className="mb-2 min-w-0">
                           <p className={`text-xs font-semibold truncate ${dk("text-white", "text-[#171717]")}`}>
-                            #{s.product_id} · {("product_name" in s && s.product_name) ? s.product_name : ""}
+                            #{head.product_id} · {head.product_name}
                           </p>
-                          <p className={`text-[11px] mt-0.5 ${dk("text-gray-500", "text-[#737373]")}`}>
-                            Fuente: {s.source} · Score: {(s.score ?? 0).toFixed(2)}
-                          </p>
-                          {("product_sku" in s && s.product_sku) && (
+                          {head.product_sku && (
                             <p className={`text-[11px] ${dk("text-gray-500", "text-[#737373]")}`}>
-                              SKU: {s.product_sku}
+                              SKU: {head.product_sku}
                             </p>
                           )}
                         </div>
-                        <div className="flex flex-col gap-1">
-                          <button
-                            onClick={() => {
-                              void (async () => {
-                                await approveSuggestion(s);
-                                await Promise.all([fetchProducts(), refreshImageSuggestions()]);
-                              })();
-                            }}
-                            className="text-[11px] px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
-                          >
-                            Aprobar
-                          </button>
-                          <button
-                            onClick={() => {
-                              void (async () => {
-                                await rejectSuggestion(s.id, s.product_id);
-                                await refreshImageSuggestions();
-                              })();
-                            }}
-                            className="text-[11px] px-2 py-1 rounded-lg bg-[#1f2933] hover:bg-[#111827] text-red-400 font-semibold"
-                          >
-                            Rechazar
-                          </button>
+                        <div className="grid grid-cols-3 gap-2">
+                          {group.slice(0, 5).map((s) => (
+                            <div key={s.id} className={`rounded-lg border p-2 ${dk("border-[#2a2a2a]", "border-[#e5e5e5]")}`}>
+                              <div className="h-20 rounded-md overflow-hidden border border-[#2a2a2a] bg-[#111] mb-1">
+                                <img
+                                  src={s.image_url}
+                                  alt={s.product_name ?? ""}
+                                  className="h-full w-full object-contain bg-white"
+                                  loading="lazy"
+                                />
+                              </div>
+                              <p className={`text-[10px] ${dk("text-gray-500", "text-[#737373]")}`}>
+                                {s.source} · {(s.score ?? 0).toFixed(2)}
+                              </p>
+                              <div className="mt-1 flex gap-1">
+                                <button
+                                  onClick={() => {
+                                    void (async () => {
+                                      await approveSuggestion(s);
+                                      await Promise.all([fetchProducts(), refreshImageSuggestions()]);
+                                    })();
+                                  }}
+                                  className="text-[10px] px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                                >
+                                  Seleccionar
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    void (async () => {
+                                      await rejectSuggestion(s.id, s.product_id);
+                                      await refreshImageSuggestions();
+                                    })();
+                                  }}
+                                  className="text-[10px] px-2 py-1 rounded bg-[#1f2933] hover:bg-[#111827] text-red-400 font-semibold"
+                                >
+                                  Rechazar
+                                </button>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    ))}
+                    );})}
                   </div>
                 )}
               </div>
