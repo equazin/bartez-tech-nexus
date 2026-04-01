@@ -977,8 +977,8 @@ async function handleCreateClient() {
           company_name: newClient.company_name,
           contact_name: newClient.contact_name,
           client_type: newClient.client_type,
-          default_margin: newClient.default_margin,
-          role: newClient.role,
+          default_margin: Number(newClient.default_margin) || 20,
+          role:           newClient.role || "client",
           phone: phone, // Agregado para evitar error 500 del trigger
           email: email,
         },
