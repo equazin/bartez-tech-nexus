@@ -968,31 +968,36 @@ async function handleCreateClient() {
 
     setCreatingClient(true);
 
+    const signUpData = {
+      company_name: newClient.company_name?.trim() || "",
+      contact_name: newClient.contact_name?.trim() || "",
+      client_type: newClient.client_type,
+      default_margin: Number(newClient.default_margin) || 20,
+      role:           newClient.role || "client",
+      phone:          phone || "",
+      email:          email,
+    };
+
+    console.log("Intentando registro en Supabase Auth con metadatos:", signUpData);
+
     // 🔥 SIGNUP (Incluimos el phone para que el trigger handle_new_user lo procese correctamente)
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: {
-          company_name: newClient.company_name,
-          contact_name: newClient.contact_name,
-          client_type: newClient.client_type,
-          default_margin: Number(newClient.default_margin) || 20,
-          role:           newClient.role || "client",
-          phone: phone, // Agregado para evitar error 500 del trigger
-          email: email,
-        },
+        data: signUpData,
       },
     });
 
     if (error || !data?.user) {
-      console.error("Supabase error:", error);
+      console.error("Supabase Error detallado:", error);
+      console.error("Metadatos que causaron el error:", signUpData);
 
       const rawMsg = error?.message || "Error al crear el usuario.";
 
       if (rawMsg.toLowerCase().includes("database error")) {
         setCreateError(
-          "No se pudo crear el usuario. Revisá celular y datos obligatorios."
+          "Error de base de datos en Supabase. Revisá que el celular o el email no estén repetidos."
         );
       } else if (rawMsg.toLowerCase().includes("already registered")) {
         setCreateError("El email ya está registrado.");
