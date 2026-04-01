@@ -476,14 +476,6 @@ export default function ProductTable({
     setBulkOpen(false);
   }
 
-  async function bulkSetCurrency(cost_currency: "USD" | "ARS") {
-    if (selected.size === 0) return;
-    await supabase.from("products").update({ cost_currency }).in("id", Array.from(selected));
-    setSelected(new Set());
-    onRefresh();
-    setBulkOpen(false);
-  }
-
   const colHeader = (label: string, field: SortField) => (
     <th className="px-3 py-3 text-left cursor-pointer select-none group" onClick={() => toggleSort(field)}>
       <div className="flex items-center gap-1 text-[11px] font-semibold text-gray-500 uppercase tracking-wider group-hover:text-gray-300 transition">
@@ -602,20 +594,6 @@ export default function ProductTable({
                         Eliminar
                       </button>
                     </div>
-                  </div>
-                </div>
-                <div className={`border-t my-1 ${dk("border-[#2a2a2a]", "border-[#e5e5e5]")}`} />
-                <div className="px-3 py-2 space-y-2">
-                  <label className="block text-[11px] text-gray-500 mb-1">Moneda masiva</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button onClick={() => bulkSetCurrency("USD")} 
-                      className={`px-2.5 py-1.5 text-xs rounded-lg border font-semibold transition ${dk("bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20", "bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100")}`}>
-                      Todo a USD
-                    </button>
-                    <button onClick={() => bulkSetCurrency("ARS")} 
-                      className={`px-2.5 py-1.5 text-xs rounded-lg border font-semibold transition ${dk("bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20", "bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100")}`}>
-                      Todo a ARS
-                    </button>
                   </div>
                 </div>
                 <div className={`border-t my-1 ${dk("border-[#2a2a2a]", "border-[#e5e5e5]")}`} />
@@ -748,20 +726,11 @@ export default function ProductTable({
                           onKeyDown={(e) => { if (e.key === "Enter") commitInline(); if (e.key === "Escape") setInlineCell(null); }}
                           className={`w-24 border border-[#2D9F6A] rounded px-2 py-0.5 text-sm outline-none ${dk("bg-[#181818] text-white", "bg-white text-[#171717]")}`} />
                       ) : (
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-1.5">
-                            <span className={`font-medium cursor-pointer hover:text-[#2D9F6A] transition ${dk("text-white", "text-[#171717]")}`} title="Doble click para editar">
-                              ${p.cost_price?.toLocaleString()}
-                            </span>
-                            <span className={`text-[9px] font-bold px-1 py-0.5 rounded ${
-                              p.cost_currency === "ARS" 
-                                ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20" 
-                                : "bg-blue-500/10 text-blue-500 border border-blue-500/20"
-                            }`}>
-                              {p.cost_currency ?? "USD"}
-                            </span>
-                          </div>
-                          <span className={`w-fit mt-1 text-[9px] font-semibold px-1 py-0.5 rounded border ${
+                        <div>
+                          <span className={`font-medium cursor-pointer hover:text-[#2D9F6A] transition ${dk("text-white", "text-[#171717]")}`} title="Doble click para editar">
+                            ${p.cost_price?.toLocaleString()}
+                          </span>
+                          <span className={`ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
                             p.iva_rate === 10.5
                               ? "text-blue-400 bg-blue-400/10 border-blue-400/20"
                               : "text-[#2D9F6A] bg-[#2D9F6A]/10 border-[#2D9F6A]/20"

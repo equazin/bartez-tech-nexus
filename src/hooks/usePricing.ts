@@ -40,15 +40,9 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
 
   const computePrice = useCallback(
     (product: Product, quantity: number): PriceResult => {
-      // 1. Determine base cost (normalize to USD if it's ARS)
-      let cost_base = getUnitPrice(product, quantity);
-      let effective_cost_base = getEffectiveCostPrice(product, quantity);
-
-      // If the product cost is in ARS, convert to USD base for internal calculations
-      if (product.cost_currency === "ARS" && exchangeRate.rate > 0) {
-        cost_base = cost_base / exchangeRate.rate;
-        effective_cost_base = effective_cost_base / exchangeRate.rate;
-      }
+      // 1. Determine base cost
+      const cost_base = getUnitPrice(product, quantity);
+      const effective_cost_base = getEffectiveCostPrice(product, quantity);
 
       // 2. Resolve margin
       const { margin, isVolumePricing } = resolveMarginWithContext(
@@ -81,7 +75,7 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
         isVolumePricing,
       };
     },
-    [rules, globalMargin, profile?.id]
+    [rules, globalMargin, profile?.id, exchangeRate.rate]
   );
 
   /**

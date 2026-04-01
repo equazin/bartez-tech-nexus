@@ -6,8 +6,6 @@ export interface Product {
   description_full?: string;
   image: string;
   cost_price?: number;
-  /** Currency of the cost_price: 'USD' (default) or 'ARS' */
-  cost_currency?: "USD" | "ARS";
   category: string;
   stock: number;
   sku?: string;
