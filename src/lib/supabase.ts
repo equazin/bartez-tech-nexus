@@ -38,5 +38,7 @@ export interface UserProfile {
   credit_used?: number;
   payment_terms?: number;
   active?: boolean;
+  parent_id?: string;
+  b2b_role?: "manager" | "buyer" | "admin";
+  approval_threshold?: number;
 }
-

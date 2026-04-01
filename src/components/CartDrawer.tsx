@@ -2,8 +2,9 @@ import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter, DrawerClose,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import { FileDown, Loader2, ShoppingCart, Minus, Plus, X, BookmarkPlus, TrendingUp } from "lucide-react";
+import { FileDown, Loader2, ShoppingCart, Minus, Plus, X, BookmarkPlus, TrendingUp, Sparkles } from "lucide-react";
 import type { Product } from "@/models/products";
+import { getNextTier } from "@/lib/pricing";
 import { generateQuotePdfOnDemand } from "@/lib/quotePdfClient";
 import { UserProfile } from "@/lib/supabase";
 import { useCurrency } from "@/context/CurrencyContext";
@@ -18,6 +19,13 @@ interface CartDrawerItem {
   ivaRate: number;
   ivaAmount: number;
   totalWithIVA: number;
+}
+
+interface AppliedCoupon {
+  id: string;
+  code: string;
+  discount_type: 'fixed' | 'percentage';
+  discount_value: number;
 }
 
 interface CartDrawerProps {
@@ -35,11 +43,21 @@ interface CartDrawerProps {
   onConfirmOrder?: () => void;
   onSaveQuote?: () => void;
   confirming?: boolean;
+  // Marketing / Coupons (Phase 5.4)
+  couponCode: string;
+  onCouponCodeChange: (code: string) => void;
+  onApplyCoupon: (code: string) => void;
+  onRemoveCoupon: () => void;
+  appliedCoupon?: AppliedCoupon | null;
+  couponError?: string;
+  validatingCoupon?: boolean;
+  discountAmount?: number;
 }
 
 export function CartDrawer({
   open, onClose, cartItems, cartSubtotal, cartIVATotal, cartTotal, profile,
   onAddToCart, onRemoveFromCart, onConfirmOrder, onSaveQuote, confirming,
+  couponCode, onCouponCodeChange, onApplyCoupon, onRemoveCoupon, appliedCoupon, couponError, validatingCoupon, discountAmount = 0
 }: CartDrawerProps) {
   const { formatPrice, formatUSD, formatARS, currency, exchangeRate, convertPrice } = useCurrency();
 
@@ -129,6 +147,34 @@ export function CartDrawer({
                   </div>
                 </div>
 
+                {/* Savings Progress (Phase 4.2) */}
+                {(() => {
+                  const nextTier = getNextTier(item.product, item.quantity);
+                  if (!nextTier) return null;
+                  
+                  const diff = nextTier.min - item.quantity;
+                  const progress = Math.min(100, (item.quantity / nextTier.min) * 100);
+                  
+                  return (
+                    <div className="mt-3 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-2">
+                      <div className="flex justify-between items-center mb-1.5">
+                        <span className="text-[10px] font-bold text-amber-500 flex items-center gap-1 uppercase tracking-wider">
+                          <Sparkles size={10} /> ¡Ahorrá más!
+                        </span>
+                        <span className="text-[10px] text-gray-500 font-medium">
+                          Agregá <span className="text-white">{diff}</span> más para bajar a <span className="text-[#2D9F6A] font-bold">{formatPrice(nextTier.price)}</span>
+                        </span>
+                      </div>
+                      <div className="h-1 bg-[#1a1a1a] rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-amber-500 transition-all duration-500 rounded-full"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Qty + subtotal */}
                 <div className="flex items-center justify-between mt-2.5">
                   <div className="flex items-center gap-1">
@@ -159,6 +205,53 @@ export function CartDrawer({
         {/* Footer */}
         {cartItems.length > 0 && (
           <DrawerFooter className="border-t border-[#1a1a1a] px-4 py-4 bg-[#070707] space-y-2.5 shrink-0">
+            
+            {/* Marketing / Coupons (Phase 5.4) */}
+            <div className="space-y-2 mb-2">
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    placeholder="Código de cupón"
+                    value={couponCode}
+                    onChange={(e) => onCouponCodeChange(e.target.value.toUpperCase())}
+                    className={`w-full bg-[#111] border ${couponError ? 'border-red-500/50' : 'border-[#1f1f1f]'} rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-[#2D9F6A]/50 transition-all`}
+                  />
+                  {validatingCoupon && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Loader2 size={12} className="animate-spin text-gray-500" />
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => onApplyCoupon(couponCode)}
+                  disabled={!couponCode || validatingCoupon || !!appliedCoupon}
+                  className="bg-[#1a1a1a] border border-[#262626] hover:border-[#333] text-white px-3 py-2 rounded-xl text-[11px] font-bold transition-all disabled:opacity-50"
+                >
+                  Aplicar
+                </button>
+              </div>
+              
+              {couponError && (
+                <p className="text-[10px] text-red-400 font-medium ml-1">{couponError}</p>
+              )}
+
+              {appliedCoupon && (
+                <div className="flex items-center justify-between bg-[#2D9F6A]/10 border border-[#2D9F6A]/20 rounded-xl px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={12} className="text-[#2D9F6A]" />
+                    <span className="text-[11px] font-bold text-white tracking-wide">{appliedCoupon.code}</span>
+                    <span className="text-[10px] text-[#2D9F6A] font-medium">
+                      ({appliedCoupon.discount_type === 'percentage' ? `-${appliedCoupon.discount_value}%` : `-${formatPrice(appliedCoupon.discount_value)}`})
+                    </span>
+                  </div>
+                  <button onClick={onRemoveCoupon} className="text-gray-500 hover:text-white transition-colors">
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Total breakdown */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
@@ -169,6 +262,12 @@ export function CartDrawer({
                 <span className="text-xs text-gray-600">IVA</span>
                 <span className="text-xs font-semibold text-gray-400 tabular-nums">+ {formatPrice(cartIVATotal)}</span>
               </div>
+              {discountAmount > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-[#2D9F6A] font-medium">Descuento</span>
+                  <span className="text-xs font-bold text-[#2D9F6A] tabular-nums">- {formatPrice(discountAmount)}</span>
+                </div>
+              )}
               {totalProfit > 0 && (
                 <div className="flex justify-between items-center py-1.5 border-t border-[#1a1a1a] mt-1">
                   <span className="flex items-center gap-1 text-xs text-[#2D9F6A]">

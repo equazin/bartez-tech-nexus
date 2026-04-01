@@ -8,6 +8,10 @@ import {
   Package, Users, Trash2, Receipt, CreditCard,
   type LucideIcon,
 } from "lucide-react";
+import { 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  BarChart, Bar, Cell, PieChart, Pie, Legend
+} from "recharts";
 import { supabase } from "@/lib/supabase";
 import { formatMoneyInPreferredCurrency, getEffectiveInvoiceAmounts } from "@/lib/money";
 import {
@@ -686,6 +690,97 @@ interface InvoiceKpis {
   overdueAmount: number;
 }
 
+// ── Analytics Charts ──────────────────────────────────────────────────────────
+function AnalyticsCharts({ isDark, stats }: { isDark: boolean; stats: any }) {
+  const dk = (d: string, l: string) => isDark ? d : l;
+  const { formatPrice } = useCurrency();
+
+  const chartColors = ["#2D9F6A", "#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6", "#06b6d4"];
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      {/* 1. Monthly Revenue Area Chart */}
+      <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-6 flex flex-col gap-4 min-h-[350px]`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Evolución de Ventas</h3>
+            <p className="text-xs text-[#737373] mt-0.5">Revenue mensual y crecimiento</p>
+          </div>
+          {stats?.monthly?.length > 0 && (
+             <div className="text-right">
+                <span className={`text-xs font-bold ${stats.monthly[0].growth_pct >= 0 ? "text-green-400" : "text-red-400"}`}>
+                  {stats.monthly[0].growth_pct >= 0 ? "+" : ""}{stats.monthly[0].growth_pct.toFixed(1)}% MoM
+                </span>
+             </div>
+          )}
+        </div>
+        <div className="flex-1 w-full h-[250px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={[...stats.monthly].reverse()}>
+              <defs>
+                <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#2D9F6A" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#2D9F6A" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? "#1f1f1f" : "#f0f0f0"} />
+              <XAxis 
+                dataKey="month" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fontSize: 10, fill: "#737373" }}
+                tickFormatter={(str) => new Date(str).toLocaleDateString("es-AR", { month: "short" })}
+              />
+              <YAxis 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fontSize: 10, fill: "#737373" }}
+                tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`}
+              />
+              <Tooltip 
+                contentStyle={{ backgroundColor: isDark ? "#121212" : "#fff", border: "1px solid #2a2a2a", borderRadius: "10px", fontSize: "12px" }}
+                labelFormatter={(label) => new Date(label).toLocaleDateString("es-AR", { month: "long", year: "numeric" })}
+                formatter={(val: number) => [formatPrice(val), "Revenue"]}
+              />
+              <Area type="monotone" dataKey="revenue" stroke="#2D9F6A" fillOpacity={1} fill="url(#colorRev)" strokeWidth={2} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* 2. Category Pie Chart */}
+      <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-6 flex flex-col gap-4 min-h-[350px]`}>
+        <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Ventas por Categoría</h3>
+        <div className="flex-1 w-full h-[250px] relative">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={stats.categories}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={90}
+                paddingAngle={5}
+                dataKey="revenue"
+                nameKey="category"
+              >
+                {stats.categories.map((_: any, index: number) => (
+                  <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
+                ))}
+              </Pie>
+              <Tooltip 
+                 contentStyle={{ backgroundColor: isDark ? "#121212" : "#fff", border: "1px solid #2a2a2a", borderRadius: "10px", fontSize: "12px" }}
+                 formatter={(val: number) => formatPrice(val)}
+              />
+              <Legend verticalAlign="bottom" align="center" iconType="circle" wrapperStyle={{ fontSize: "11px", paddingTop: "20px" }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Props) {
   const dk = (d: string, l: string) => isDark ? d : l;
@@ -712,6 +807,11 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
   const [paymentRows, setPaymentRows] = useState<CommercialPayment[]>([]);
   const [profileRows, setProfileRows] = useState<CommercialProfile[]>([]);
   const [productRows, setProductRows] = useState<CommercialProduct[]>([]);
+  const [analyticsData, setAnalyticsData] = useState<{ monthly: any[]; categories: any[]; products: any[] }>({
+    monthly: [],
+    categories: [],
+    products: []
+  });
 
   useEffect(() => {
     Promise.all([
@@ -735,7 +835,15 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
         .eq("tipo", "pago")
         .order("fecha", { ascending: false })
         .limit(200),
-    ]).then(([invoiceResult, profileResult, productResult, paymentResult]) => {
+      supabase.from("analytics_monthly_sales").select("*"),
+      supabase.from("analytics_category_stats").select("*"),
+      supabase.from("analytics_top_products").select("*"),
+    ]).then(([invoiceResult, profileResult, productResult, paymentResult, monthlyRes, catRes, prodRes]) => {
+      setAnalyticsData({
+        monthly: monthlyRes.data ?? [],
+        categories: catRes.data ?? [],
+        products: prodRes.data ?? []
+      });
       const invoices = (invoiceResult.data ?? []) as Array<{
         id: string;
         client_id: string;
@@ -917,7 +1025,10 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders }: Pro
           trend={conversionRate >= 50 ? "up" : "flat"} isDark={isDark} />
       </div>
 
-      {/* ── Secondary metrics ── */}
+      {/* -- Charts -- */}
+      <AnalyticsCharts isDark={isDark} stats={analyticsData} />
+
+      {/* -- Activity & Secondary -- */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-4 py-3`}>
           <p className="text-[10px] font-bold uppercase tracking-widest text-[#525252] mb-1">Ticket promedio</p>

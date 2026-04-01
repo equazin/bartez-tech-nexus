@@ -1,6 +1,7 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, useCallback, type ReactNode } from "react";
 import { AlertTriangle, Clock, Download, RefreshCw } from "lucide-react";
 import Papa from "papaparse";
+import { supabase } from "@/lib/supabase";
 import { useReports } from "@/hooks/useReports";
 import { useCurrency } from "@/context/CurrencyContext";
 import type { Product } from "@/models/products";
@@ -108,14 +109,43 @@ export function ReportsTab({
     void refresh();
   }, [refresh]);
 
+  const [stats, setStats] = useState<{ monthly: any[], categories: any[], products: any[], clients: any[] }>({
+    monthly: [],
+    categories: [],
+    products: [],
+    clients: []
+  });
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  const fetchStats = useCallback(async () => {
+    setLoadingStats(true);
+    const [monthly, cat, prod, cli] = await Promise.all([
+      supabase.from("analytics_monthly_sales").select("*"),
+      supabase.from("analytics_category_stats").select("*"),
+      supabase.from("analytics_top_products").select("*"),
+      supabase.from("analytics_client_stats").select("*"),
+    ]);
+    setStats({
+      monthly: monthly.data ?? [],
+      categories: cat.data ?? [],
+      products: prod.data ?? [],
+      clients: cli.data ?? []
+    });
+    setLoadingStats(false);
+  }, []);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
   const clientMap = clients.reduce<Record<string, string>>((acc, client) => {
     acc[client.id] = client.company_name || client.contact_name || client.id;
     return acc;
   }, {});
 
-  const salesByClient = buildClientSalesReport(orders, clientMap).slice(0, 10);
-  const salesByProduct = buildProductSalesReport(orders, products).slice(0, 10);
-  const marginByCategory = buildCategoryMarginReport(orders, products).slice(0, 8);
+  const salesByClient = stats.clients;
+  const salesByProduct = stats.products;
+  const marginByCategory = stats.categories;
   const debtAging = buildDebtAgingReport(invoices, currency, exchangeRate.rate);
   const reorderForecast = buildReorderForecast(orders, products);
 

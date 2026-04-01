@@ -21,6 +21,7 @@ type FormState = {
   sku: string;
   description: string;
   cost_price: string;
+  cost_currency: "USD" | "ARS";
   special_price: string;
   offer_percent: string;
   iva_rate: string;
@@ -43,6 +44,7 @@ export default function ProductEditModal({ product, categories, brands = [], onS
     sku:                product.sku || "",
     description:        product.description || "",
     cost_price:         String(product.cost_price),
+    cost_currency:      product.cost_currency || "USD",
     special_price:      product.special_price != null ? String(product.special_price) : "",
     offer_percent:      product.offer_percent != null ? String(product.offer_percent) : "",
     iva_rate:           String(product.iva_rate ?? 21),
@@ -114,6 +116,10 @@ export default function ProductEditModal({ product, categories, brands = [], onS
     });
   }
 
+  function handleCostCurrencyChange(c: "USD" | "ARS") {
+    set("cost_currency", c);
+  }
+
   async function handleImageFile(file: File) {
     if (!(await isValidImageMime(file))) return;
     setImageFile(file);
@@ -164,6 +170,7 @@ export default function ProductEditModal({ product, categories, brands = [], onS
       sku:                form.sku.trim() || null,
       description:        form.description,
       cost_price,
+      cost_currency:      form.cost_currency,
       special_price:      form.special_price ? Number(form.special_price) : null,
       offer_percent:      form.offer_percent ? Number(form.offer_percent) : null,
       iva_rate:           Number(form.iva_rate) || 21,
@@ -282,9 +289,32 @@ export default function ProductEditModal({ product, categories, brands = [], onS
           {/* Price + IVA + Stock + Category */}
           <div className="grid grid-cols-4 gap-3">
             <div>
-              <label className="text-xs text-gray-400 mb-1 block">Precio costo *</label>
-              <input type="number" min="0" value={form.cost_price} onChange={(e) => handleCostPriceChange(e.target.value)}
-                className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A]" />
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-gray-400 block">Precio costo *</label>
+                <div className="flex gap-1">
+                  {(["USD", "ARS"] as const).map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => handleCostCurrencyChange(c)}
+                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition ${
+                        form.cost_currency === c
+                          ? "bg-[#2D9F6A] text-white"
+                          : "bg-[#2a2a2a] text-gray-500 hover:text-gray-300"
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-mono">
+                  {form.cost_currency === "USD" ? "U$D" : "$"}
+                </span>
+                <input type="number" min="0" value={form.cost_price} onChange={(e) => handleCostPriceChange(e.target.value)}
+                  className="w-full bg-[#232323] border border-[#333] rounded-lg pl-8 pr-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A]" />
+              </div>
             </div>
             <div>
               <label className="text-xs text-gray-400 mb-1 block">IVA</label>

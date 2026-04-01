@@ -53,6 +53,12 @@ export interface Invoice {
   paid_at?: string;
   notes?: string;
   pdf_url?: string;
+  cae?: string;
+  cae_due_date?: string;
+  point_of_sale?: string;
+  invoice_type?: string;
+  afip_qr?: string;
+  erp_sync_status?: "pending" | "synced" | "error";
   created_at: string;
 }
 

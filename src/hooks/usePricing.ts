@@ -4,6 +4,7 @@ import { resolveMarginWithContext } from "@/lib/pricingEngine";
 import { getUnitPrice, getEffectiveCostPrice } from "@/lib/pricing";
 import type { Product } from "@/models/products";
 import type { UserProfile } from "@/lib/supabase";
+import { useCurrency } from "@/context/CurrencyContext";
 
 export interface PriceResult {
   /** Costo base del proveedor (sin multiplicador) — para mostrar al admin */
@@ -34,10 +35,22 @@ export interface PriceResult {
  */
 export function usePricing(profile: UserProfile | null, baseMarginOverride?: number) {
   const { rules } = usePricingRules();
+  const { exchangeRate } = useCurrency();
   const globalMargin = baseMarginOverride ?? profile?.default_margin ?? 20;
 
   const computePrice = useCallback(
     (product: Product, quantity: number): PriceResult => {
+      // 1. Determine base cost (normalize to USD if it's ARS)
+      let cost_base = getUnitPrice(product, quantity);
+      let effective_cost_base = getEffectiveCostPrice(product, quantity);
+
+      // If the product cost is in ARS, convert to USD base for internal calculations
+      if (product.cost_currency === "ARS" && exchangeRate.rate > 0) {
+        cost_base = cost_base / exchangeRate.rate;
+        effective_cost_base = effective_cost_base / exchangeRate.rate;
+      }
+
+      // 2. Resolve margin
       const { margin, isVolumePricing } = resolveMarginWithContext(
         product,
         rules,
@@ -45,16 +58,20 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
         profile?.id,
         quantity
       );
-      const cost         = getUnitPrice(product, quantity);
-      const effectiveCost = getEffectiveCostPrice(product, quantity);
-      const unitPrice    = effectiveCost * (1 + margin / 100);
+
+      // 3. Compute final unit price
+      // If cost_price is missing (Client Portal View), use pre-calculated unit_price
+      const unitPrice = (cost_base !== undefined && cost_base !== null)
+        ? effective_cost_base * (1 + margin / 100)
+        : (product.unit_price ?? 0);
+
       const totalPrice = unitPrice * quantity;
       const ivaRate    = product.iva_rate ?? 21;
       const ivaAmount  = totalPrice * (ivaRate / 100);
 
       return {
-        cost,
-        effectiveCost,
+        cost: cost_base ?? 0,
+        effectiveCost: effective_cost_base ?? 0,
         margin,
         unitPrice,
         totalPrice,

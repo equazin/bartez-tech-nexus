@@ -9,10 +9,25 @@ export function getUnitPrice(product: Product, quantity: number): number {
   if (!product.price_tiers || product.price_tiers.length === 0) {
     return product.cost_price;
   }
-  const tier = product.price_tiers.find(
-    (t) => quantity >= t.min && (t.max === null || quantity <= t.max)
-  );
+  // Sort tiers by min quantity descending to find the highest applicable tier
+  const sortedTiers = [...product.price_tiers].sort((a, b) => b.min - a.min);
+  const tier = sortedTiers.find((t) => quantity >= t.min);
+  
   return tier ? tier.price : product.cost_price;
+}
+
+/**
+ * Returns the next available price tier for a given quantity.
+ * Used for "Buy X more to save Y" UI feedback.
+ */
+export function getNextTier(product: Product, currentQuantity: number) {
+  if (!product.price_tiers || product.price_tiers.length === 0) return null;
+  
+  const nextTiers = product.price_tiers
+    .filter((t) => t.min > currentQuantity)
+    .sort((a, b) => a.min - b.min);
+    
+  return nextTiers.length > 0 ? nextTiers[0] : null;
 }
 
 /**

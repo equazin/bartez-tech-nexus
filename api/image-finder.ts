@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
-export const config = { runtime: "edge", maxDuration: 60 };
+export const config = { maxDuration: 60 };
 
 // ---------------------------------------------------------------------------
 // Types
@@ -63,7 +63,8 @@ function getSupabase(request: Request) {
   if (!url || !key) {
     throw new Error("Missing Supabase URL/API key for image-finder");
   }
-  return createClient(url, key);
+  // Use any to bypass strict internal non-exported schema types for this dynamic serverless function
+  return createClient<any>(url, key);
 }
 
 function normalize(value: string): string {
@@ -71,7 +72,7 @@ function normalize(value: string): string {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/[^\w\s-]/gi, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -113,7 +114,7 @@ const CLEAN_BG_DOMAINS = new Set([
 
 const BLOCKED_URL_PATTERNS = [
   /favicon/i, /logo/i, /banner/i, /sprite/i,
-  /icon[\-_]/i, /placeholder/i, /no[\-_]?image/i,
+  /icon[-_]/i, /placeholder/i, /no[-_]?image/i,
   /\/thumb\//i,
 ];
 
@@ -141,7 +142,7 @@ function scoreImage(
     : 0.3;
 
   const brandNorm = product.brand ? normalize(product.brand) : "";
-  let brandMatch = brandNorm ? (candTokens.has(brandNorm) ? 1 : candText.includes(brandNorm) ? 0.7 : 0) : 0.5;
+  const brandMatch = brandNorm ? (candTokens.has(brandNorm) ? 1 : candText.includes(brandNorm) ? 0.7 : 0) : 0.5;
 
   const minDim = Math.min(candidate.width || 0, candidate.height || 0);
   const resolution = minDim >= 1000 ? 1 : minDim >= 500 ? (minDim - 500) / 500 : minDim > 0 ? 0 : 0.5;
@@ -175,6 +176,11 @@ async function getMercadoLibreToken(): Promise<string> {
   
   const appId = process.env.MERCADOLIBRE_APP_ID || "7715567298781097";
   const clientSecret = process.env.MERCADOLIBRE_CLIENT_SECRET || "JzmAXvIQQKz68aYn2tVumR5M5INFEdVk";
+
+  if (!appId || !clientSecret) {
+    console.warn("[mercadolibre] Missing AppID or ClientSecret");
+    return "";
+  }
   
   if (!appId || !clientSecret) return "";
 
@@ -237,6 +243,10 @@ async function searchBing(query: string): Promise<ImageResult[]> {
 
 async function searchSerper(query: string): Promise<ImageResult[]> {
   const apiKey = process.env.SERPER_API_KEY?.trim() || "3aa3347944e5b83bf9e1095a881eb3ef91e715ae";
+  if (!apiKey) {
+    console.warn("[serper] Missing API Key");
+    return [];
+  }
   if (!apiKey) return [];
 
   try {
@@ -354,7 +364,7 @@ async function searchMercadoLibre(query: string): Promise<ImageResult[]> {
 }
 
 async function getSupplierImages(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   productId: number
 ): Promise<ImageResult[]> {
   // Check product_suppliers for supplier images stored during sync
@@ -388,7 +398,9 @@ async function getSupplierImages(
     .single();
 
   const images: ImageResult[] = [];
-  const specs = (product?.specs ?? {}) as Record<string, unknown>;
+  if (!product) return [];
+  
+  const specs = (product.specs ?? {}) as Record<string, unknown>;
   
   // Check if there's a supplier_image or elit_image in specs
   const supplierImage = specs.supplier_image || specs.elit_image || specs.invid_image;
@@ -454,7 +466,7 @@ export default async function handler(request: Request): Promise<Response> {
     });
   }
 
-  let supabase: ReturnType<typeof createClient>;
+  let supabase: any;
   try {
     supabase = getSupabase(request);
   } catch (error) {
@@ -541,15 +553,15 @@ export default async function handler(request: Request): Promise<Response> {
 
     const top3 = unique.slice(0, 3);
 
-    // Save suggestions in DB
+    // Save suggestions in DB (upsert to avoid duplicates)
     for (const img of top3) {
-      await supabase.from("image_suggestions").insert({
+      await supabase.from("image_suggestions").upsert({
         product_id: product.id,
         image_url: img.url,
         score: img.score,
         source: img.source,
         status: "pending",
-      });
+      }, { onConflict: "product_id,image_url" });
     }
 
     // Auto-assign if threshold met and enabled

@@ -5,7 +5,9 @@ export interface Product {
   description_short?: string;
   description_full?: string;
   image: string;
-  cost_price: number;
+  cost_price?: number;
+  /** Currency of the cost_price: 'USD' (default) or 'ARS' */
+  cost_currency?: "USD" | "ARS";
   category: string;
   stock: number;
   sku?: string;
@@ -27,6 +29,8 @@ export interface Product {
   stock_reserved?: number;
   /** Price tiers for volume pricing */
   price_tiers?: Array<{ min: number; max: number | null; price: number }>;
+  /** Calculated price for client portal from view (pre-margin) */
+  unit_price?: number;
   /** Original name from supplier API — never overwritten on re-sync */
   name_original?: string;
   /** Admin override for display name; takes priority over name_original */

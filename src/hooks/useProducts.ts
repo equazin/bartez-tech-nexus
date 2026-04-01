@@ -10,55 +10,140 @@ function normalizeCategoryParam(value: string | null | undefined): string {
     .toLowerCase();
 }
 
-export function useProducts(category?: string | null) {
+export interface UseProductsOptions {
+  category?: string | string[] | null;
+  brand?: string | null;
+  search?: string | null;
+  minPrice?: number;
+  maxPrice?: number;
+  pageSize?: number;
+  isAdmin?: boolean;
+  isFeatured?: boolean;
+  sortBy?: "name" | "featured"; // Nueva opción (Phase 5.4)
+}
+
+export function useProducts(options: UseProductsOptions = {}) {
+  const {
+    category = "all",
+    brand = "all",
+    search = "",
+    minPrice,
+    maxPrice,
+    pageSize = 80,
+    isAdmin = false,
+    isFeatured = false,
+    sortBy = "name",
+  } = options;
+
   const [products, setProducts] = useState<Product[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
 
-  const fetchProducts = useCallback(async (requestedCategory?: string | null) => {
+  const fetchProducts = useCallback(async (isNextPage = false) => {
     setLoading(true);
+    
     try {
-      const PAGE = 1000;
-      const all: Product[] = [];
-      let from = 0;
-      const rawCategory = String(requestedCategory ?? category ?? "").trim();
-      const categoryFilter = normalizeCategoryParam(rawCategory);
-      while (true) {
-        let query = supabase
-          .from("products")
-          .select("*")
-          .eq("active", true);
+      const currentLength = isNextPage ? products.length : 0;
+      const currentPage = Math.floor(currentLength / pageSize);
+      
+      const tableName = isAdmin ? "products" : "portal_products";
+      let query = supabase
+        .from(tableName)
+        .select("*", { count: "exact" })
+        .eq("active", true);
 
-        if (categoryFilter) {
-          if (categoryFilter === "pos" || categoryFilter === "punto de venta" || categoryFilter === "punto-de-venta") {
-            query = query.or("category.ilike.%punto de venta%,category.ilike.%pos%");
-          } else {
-            query = query.eq("category", rawCategory);
-          }
+      // 1. Text Search (FTS)
+      if (search && search.trim().length > 0) {
+        query = query.textSearch("fts", search.trim(), {
+          config: "spanish",
+          type: "websearch"
+        });
+      }
+
+      // 2. Category Filter
+      if (category && category !== "all") {
+        if (Array.isArray(category)) {
+          query = query.in("category", category);
+        } else {
+          query = query.eq("category", category);
         }
-
-        const { data, error } = await query
-          .order("category")
-          .order("name")
-          .range(from, from + PAGE - 1);
-        if (error || !data || data.length === 0) break;
-        all.push(...(data as Product[]));
-        if (data.length < PAGE) break;
-        from += PAGE;
       }
-      if (all.length > 0) {
-        setProducts(all);
+
+      // 3. Brand Filter
+      if (brand && brand !== "all") {
+        query = query.eq("brand_id", brand);
+      }
+
+      // 3.5. Featured Filter
+      if (isFeatured) {
+        query = query.eq("featured", true);
+      }
+
+      // 4. Price range
+      if (minPrice != null && minPrice > 0) query = query.gte("cost_price", minPrice);
+      if (maxPrice != null && maxPrice > 0) query = query.lte("cost_price", maxPrice);
+
+      // 5. Pagination
+      const from = currentPage * pageSize;
+      const to = from + pageSize - 1;
+
+      let queryOrdered = query;
+      
+      if (sortBy === "featured") {
+        queryOrdered = queryOrdered
+          .order("featured", { ascending: false })
+          .order("name", { ascending: true });
       } else {
-        setProducts(mockProducts);
+        queryOrdered = queryOrdered.order("name", { ascending: true });
       }
-    } catch {
-      setProducts(mockProducts);
+
+      const { data, error: fetchError, count } = await queryOrdered.range(from, to);
+
+      if (fetchError) throw fetchError;
+
+      const newProducts = (data as Product[]) || [];
+      
+      setProducts(prev => {
+        if (!isNextPage) return newProducts;
+        const existingIds = new Set(prev.map(p => p.id));
+        const uniqueNew = newProducts.filter(p => !existingIds.has(p.id));
+        return [...prev, ...uniqueNew];
+      });
+      
+      if (count !== null) setTotalCount(count);
+      // Si recibimos menos de lo pedido, no hay más
+      setHasMore(newProducts.length === pageSize);
+      setError(null);
+    } catch (err: any) {
+      console.error("Error fetching products:", err);
+      setError(err.message);
+      if (!isNextPage) setProducts(mockProducts);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [category]);
+  }, [category, brand, search, minPrice, maxPrice, pageSize, isAdmin, products.length]);
 
+  // Initial load or filter change
   useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
+    fetchProducts(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category, brand, search, minPrice, maxPrice, isAdmin]);
 
-  return { products, loading, refetch: fetchProducts };
+  const loadMore = useCallback(() => {
+    if (!loading && hasMore) {
+      fetchProducts(true);
+    }
+  }, [loading, hasMore, fetchProducts]);
+
+  return { 
+    products, 
+    totalCount, 
+    loading, 
+    hasMore, 
+    error,
+    loadMore, 
+    refetch: () => fetchProducts(false) 
+  };
 }

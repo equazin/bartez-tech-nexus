@@ -7,6 +7,7 @@ import {
   markOneNotificationRead,
   type AppNotification,
 } from "@/lib/api/clientDetail";
+import { toast } from "sonner";
 
 // ── Icon per notification type ─────────────────────────────────────────────────
 
@@ -66,7 +67,18 @@ export function NotificationBell({ isDark = true }: Props) {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications" },
         (payload) => {
-          setNotifs((prev) => [payload.new as AppNotification, ...prev].slice(0, 50));
+          const newNotif = payload.new as AppNotification;
+          setNotifs((prev) => [newNotif, ...prev].slice(0, 50));
+          
+          // Proactive toast
+          toast.info(newNotif.title, {
+            description: newNotif.body,
+            icon: <Bell size={14} />,
+            action: {
+              label: "Ver",
+              onClick: () => setOpen(true)
+            }
+          });
         }
       )
       .subscribe();

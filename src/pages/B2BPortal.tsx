@@ -17,9 +17,10 @@ import {
   ClipboardList, CheckCircle2, XCircle, Clock, X, Plus, Minus,
   ShieldCheck, Check, AlertTriangle, AlertCircle, SlidersHorizontal,
   Star, Sun, Moon, ChevronDown, ChevronRight, FileText,
-  Table2, Zap, Truck, ChevronUp, Download, Upload, Users, type LucideIcon,
+  Table2, Zap, Truck, ChevronUp, Download, Upload, Users, MessageSquare, Loader2, type LucideIcon,
 } from "lucide-react";
-import { getUnitPrice, getAvailableStock } from "@/lib/pricing";
+import { getAvailableStock } from "@/lib/pricing";
+import { usePricing } from "@/hooks/usePricing";
 import { exportCatalogCSV } from "@/lib/exportCsv";
 import { exportCatalogPdf } from "@/lib/exportPdf";
 import { getSavedCarts, saveCart, deleteSavedCart, type SavedCart } from "@/lib/savedCarts";
@@ -38,7 +39,18 @@ import type { Product } from "@/models/products";
 import { getFavoriteProducts, toggleFavoriteProduct } from "@/lib/favoriteProducts";
 import { OrdersPanel } from "@/components/b2b/OrdersPanel";
 import { InvoicesPanel } from "@/components/b2b/InvoicesPanel";
+import { ApprovalsPanel } from "@/components/b2b/ApprovalsPanel";
+import { SmartSuggestions } from "@/components/b2b/SmartSuggestions";
+import { PortalHeader } from "@/components/b2b/PortalHeader";
+import { PortalSidebar } from "@/components/b2b/PortalSidebar";
 import { AccountCenter } from "@/components/b2b/AccountCenter";
+import { SupportCenter } from "@/components/b2b/SupportCenter";
+import { ProductItem } from "@/components/b2b/ProductItem";
+import { ProductTable } from "@/components/b2b/ProductTable";
+import { StockBadge } from "@/components/b2b/StockBadge";
+import { getLugStock } from "@/lib/stockUtils";
+import { useCartSync } from "@/hooks/useCartSync";
+import { CartDrawer } from "@/components/CartDrawer";
 
 type CartItem = {
   product: Product;
@@ -51,11 +63,6 @@ type CartItem = {
   ivaAmount: number;       // IVA total del ítem
   totalWithIVA: number;    // con IVA
 };
-
-/** Extrae el stock de Lugano desde specs del producto */
-function getLugStock(p: { specs?: Record<string, string> }): number {
-  return p.specs?.lug_stock ? Number(p.specs.lug_stock) : 0;
-}
 
 const HIDDEN_SPEC_PREFIXES = [
   "elit_",
@@ -109,33 +116,6 @@ function formatSpecValue(value: unknown): string {
   return String(value);
 }
 
-// ── Stock badge with pill background ──────────────────────────────────────
-function StockBadge({ stock, lugStock = 0 }: { stock: number; lugStock?: number }) {
-  if (stock === 0 && lugStock > 0)
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 shrink-0">
-        <Clock size={9} /> 2-3 días
-      </span>
-    );
-  if (stock === 0)
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 shrink-0">
-        <AlertCircle size={9} /> Sin stock
-      </span>
-    );
-  if (stock <= 3)
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
-        <AlertTriangle size={9} /> Últimas {stock}u
-      </span>
-    );
-  return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/15 shrink-0">
-      <Check size={9} /> En stock
-    </span>
-  );
-}
-
 // ── Order status badge ─────────────────────────────────────────────────────
 function LegacyStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; className: string; icon: LucideIcon }> = {
@@ -184,7 +164,7 @@ function SkeletonCard() {
 }
 
 type ViewMode = "grid" | "list" | "table";
-type CatalogContext = "default" | "oportunidades" | "pos";
+type CatalogContext = "default" | "featured" | "pos";
 type ViewModeByContext = Record<CatalogContext, ViewMode>;
 type ThemeMode = "dark" | "light";
 
@@ -192,7 +172,7 @@ const VIEW_MODE_BY_CONTEXT_KEY = "b2b_view_mode_by_context";
 const THEME_KEY = "theme";
 const DEFAULT_VIEW_MODE_BY_CONTEXT: ViewModeByContext = {
   default: "list",
-  oportunidades: "grid",
+  featured: "grid",
   pos: "grid",
 };
 
@@ -204,7 +184,7 @@ function loadViewModeByContext(): ViewModeByContext {
     const valid = (v: unknown): v is ViewMode => v === "grid" || v === "list" || v === "table";
     return {
       default: valid(parsed.default) ? parsed.default : DEFAULT_VIEW_MODE_BY_CONTEXT.default,
-      oportunidades: valid(parsed.oportunidades) ? parsed.oportunidades : DEFAULT_VIEW_MODE_BY_CONTEXT.oportunidades,
+      featured: valid(parsed.featured) ? parsed.featured : DEFAULT_VIEW_MODE_BY_CONTEXT.featured,
       pos: valid(parsed.pos) ? parsed.pos : DEFAULT_VIEW_MODE_BY_CONTEXT.pos,
     };
   } catch {
@@ -250,14 +230,122 @@ function isPosCategoryValue(value: unknown): boolean {
 }
 
 export default function B2BPortal() {
-  type PortalTab = "catalog" | "orders" | "quotes" | "invoices" | "cuenta";
+  type PortalTab = "catalog" | "orders" | "quotes" | "invoices" | "cuenta" | "approvals" | "support";
 
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { profile, user, isAdmin, signOut } = useAuth();
-  const { products, loading: productsLoading } = useProducts();
+  const { computePrice } = usePricing(profile);
+
+  const [catalogContext, setCatalogContext] = useState<CatalogContext>("default");
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [brandFilter, setBrandFilter] = useState("all");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+
+  // ─── DB CATEGORIES (hierarchy) ────────────────────────────────────────
+  type DbCat = { id: number; name: string; parent_id: number | null; slug?: string | null };
+  const [dbCats, setDbCats] = useState<DbCat[]>([]);
+  const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
+  const [serverCategoryCounts, setServerCategoryCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    supabase.from("categories").select("*").order("name").then(({ data }) => {
+      if (data) setDbCats(data as DbCat[]);
+    });
+
+    // ── Pre-cargar conteos reales de categorías (Phase 5.4) ──
+    supabase.from("products").select("category").eq("active", true).then(({ data }) => {
+      if (data && Array.isArray(data)) {
+        const counts: Record<string, number> = {};
+        data.forEach((p: any) => {
+          if (p.category) counts[p.category] = (counts[p.category] || 0) + 1;
+        });
+        setServerCategoryCounts(counts);
+      }
+    });
+  }, []);
+
+  // ── Build category tree from DB (Independiente de productos cargados) ──
+  const categoryTree = useMemo(() => {
+    const byId = new Map(dbCats.map((cat) => [cat.id, cat]));
+    const byName = new Map(dbCats.map((cat) => [cat.name, cat]));
+    const rootNodes = dbCats
+      .filter((cat) => cat.parent_id === null)
+      .sort((a, b) => a.name.localeCompare(b.name, "es"));
+
+    const childrenByRoot = new Map<string, Set<string>>();
+    rootNodes.forEach((root) => childrenByRoot.set(root.name, new Set()));
+
+    const standalone = new Set<string>();
+
+    Object.keys(serverCategoryCounts).forEach((categoryName) => {
+      const dbMatch = byName.get(categoryName);
+      if (!dbMatch) {
+        standalone.add(categoryName);
+        return;
+      }
+      
+      let current: DbCat | undefined = dbMatch;
+      let guard = 0;
+      while (current && current.parent_id !== null && guard < 20) {
+        current = byId.get(current.parent_id);
+        guard += 1;
+      }
+      const rootName = current?.name ?? null;
+
+      if (!rootName) {
+        standalone.add(categoryName);
+        return;
+      }
+
+      if (dbMatch.name !== rootName) {
+        childrenByRoot.get(rootName)?.add(dbMatch.name);
+      }
+    });
+
+    const parents = rootNodes
+      .map((root) => {
+        const children = Array.from(childrenByRoot.get(root.name) ?? []).sort((a, b) => a.localeCompare(b, "es"));
+        const parentHasProducts = serverCategoryCounts[root.name] > 0;
+        if (!parentHasProducts && children.length === 0) return null;
+        return { name: root.name, children };
+      })
+      .filter((item): item is { name: string; children: string[] } => item !== null);
+
+    return { parents, leaves: Array.from(standalone).sort((a, b) => a.localeCompare(b, "es")) };
+  }, [dbCats, serverCategoryCounts]);
+
+  const parentChildrenMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    categoryTree.parents.forEach(({ name, children }) => {
+      map[name] = [name, ...children];
+    });
+    return map;
+  }, [categoryTree]);
+
+  const { 
+    products,
+    totalCount,
+    loading: productsLoading,
+    hasMore,
+    loadMore,
+    error: productsError 
+  } = useProducts({
+    category: categoryFilter !== "all" ? (parentChildrenMap[categoryFilter] || categoryFilter) : "all",
+    brand: brandFilter,
+    search,
+    minPrice: minPrice ? Number(minPrice) : undefined,
+    maxPrice: maxPrice ? Number(maxPrice) : undefined,
+    pageSize: 80,
+    isAdmin: !!isAdmin,
+    isFeatured: catalogContext === "featured",
+    sortBy: catalogContext === "featured" ? "featured" : "name"
+  });
   const { brands } = useBrands();
-  const { orders, addOrder, updateOrder } = useOrders();
+  const { orders, addOrder, updateOrder, fetchOrders, fetchManagedOrders } = useOrders();
+  const [managedOrders, setManagedOrders] = useState<PortalOrder[]>([]);
   const { quotes, addQuote, updateStatus: updateQuoteStatus, deleteQuote } = useQuotes(profile?.id || "guest");
   const { currency, setCurrency, formatPrice, formatUSD, formatARS, exchangeRate } = useCurrency();
 
@@ -271,15 +359,19 @@ export default function B2BPortal() {
   });
   const [productMargins, setProductMargins] = useState<Record<number, number>>({});
   const [globalMargin, setGlobalMargin] = useState(defaultMargin);
-  const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [brandFilter, setBrandFilter] = useState("all"); // "all" or brand uuid
-  const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
-  const [catalogContext, setCatalogContext] = useState<CatalogContext>("default");
   const [viewModeByContext, setViewModeByContext] = useState<ViewModeByContext>(() => loadViewModeByContext());
   const [viewMode, setViewMode] = useState<ViewMode>(() => loadViewModeByContext().default);
   const [activeTab, setActiveTab] = useState<PortalTab>("catalog");
+  
+  // Marketing / Coupons (Phase 5.4)
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
+  const [couponError, setCouponError] = useState("");
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
+
+  // const [isCartOpen, setIsCartOpen] = useState(false); // Eliminado para redirigir a /cart
+  const [loadingInitial, setLoadingInitial] = useState(true);
+
   const [myInvoices, setMyInvoices] = useState<Invoice[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
 
@@ -295,9 +387,17 @@ export default function B2BPortal() {
     }
   }, []);
 
+  const refreshApprovals = useCallback(async () => {
+    const data = await fetchManagedOrders();
+    setManagedOrders(data);
+  }, [fetchManagedOrders]);
+
   useEffect(() => {
     if (activeTab === "invoices" || activeTab === "cuenta") loadMyInvoices();
-  }, [activeTab, loadMyInvoices]);
+    if (activeTab === "approvals") {
+      refreshApprovals();
+    }
+  }, [activeTab, loadMyInvoices, refreshApprovals]);
 
   // Quick Order
   const [quickSku, setQuickSku] = useState("");
@@ -328,14 +428,21 @@ export default function B2BPortal() {
     error: string;
   }>>({});
 
-  // ─── DB CATEGORIES (hierarchy) ────────────────────────────────────────
-  type DbCat = { id: number; name: string; parent_id: number | null; slug?: string | null };
-  const [dbCats, setDbCats] = useState<DbCat[]>([]);
-  const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
-
   useEffect(() => {
     supabase.from("categories").select("*").order("name").then(({ data }) => {
       if (data) setDbCats(data as DbCat[]);
+    });
+
+    // ── Pre-cargar conteos reales de categorías (Phase 5.4) ──
+    // En lugar de RPC (que puede fallar localmente), hacemos una consulta ligera de solo categorías
+    supabase.from("products").select("category").eq("active", true).then(({ data }) => {
+      if (data && Array.isArray(data)) {
+        const counts: Record<string, number> = {};
+        data.forEach((p: any) => {
+          if (p.category) counts[p.category] = (counts[p.category] || 0) + 1;
+        });
+        setServerCategoryCounts(counts);
+      }
     });
   }, []);
 
@@ -408,8 +515,8 @@ export default function B2BPortal() {
       return;
     }
     const contextParam = normalizePortalText(searchParams.get("context"));
-    if (contextParam === "oportunidades") {
-      setCatalogContext("oportunidades");
+    if (contextParam === "featured" || contextParam === "oportunidades") {
+      setCatalogContext("featured");
     } else if (contextParam === "default") {
       setCatalogContext("default");
     }
@@ -423,6 +530,9 @@ export default function B2BPortal() {
   useEffect(() => {
     localStorage.setItem(cartKey, JSON.stringify(cart));
   }, [cart, cartKey]);
+
+  // Sync cart with Supabase
+  useCartSync(cart, setCart);
 
   useEffect(() => {
     if (profile?.default_margin) setGlobalMargin(profile.default_margin);
@@ -444,86 +554,30 @@ export default function B2BPortal() {
     };
   }, []);
 
-  // ── Build category tree from DB ─────────────────────────────────────────
-  // parentTree: [{parent, children: string[]}] for parents with products
-  // leafOnly: category names that have no parent in DB (standalone)
-  const categoryTree = useMemo(() => {
-    const byId = new Map(dbCats.map((cat) => [cat.id, cat]));
-    const byName = new Map(dbCats.map((cat) => [cat.name, cat]));
-    const rootNodes = dbCats
-      .filter((cat) => cat.parent_id === null)
-      .sort((a, b) => a.name.localeCompare(b.name, "es"));
-
-    const childrenByRoot = new Map<string, Set<string>>();
-    const hasOwnProductsAtRoot = new Set<string>();
-    rootNodes.forEach((root) => childrenByRoot.set(root.name, new Set()));
-
-    const standalone = new Set<string>();
-    const resolveRootName = (cat: DbCat): string | null => {
-      let current: DbCat | undefined = cat;
-      let guard = 0;
-      while (current && current.parent_id !== null && guard < 20) {
-        current = byId.get(current.parent_id);
-        guard += 1;
-      }
-      return current?.name ?? null;
-    };
-
-    products.forEach((product) => {
-      const categoryName = product.category?.trim();
-      if (!categoryName) return;
-
-      const dbMatch = byName.get(categoryName);
-      if (!dbMatch) {
-        standalone.add(categoryName);
-        return;
-      }
-
-      const rootName = resolveRootName(dbMatch);
-      if (!rootName) {
-        standalone.add(categoryName);
-        return;
-      }
-
-      if (dbMatch.name === rootName) {
-        hasOwnProductsAtRoot.add(rootName);
-      } else {
-        childrenByRoot.get(rootName)?.add(dbMatch.name);
-      }
-    });
-
-    const parents = rootNodes
-      .map((root) => {
-        const children = Array.from(childrenByRoot.get(root.name) ?? []).sort((a, b) => a.localeCompare(b, "es"));
-        if (!hasOwnProductsAtRoot.has(root.name) && children.length === 0) return null;
-        return { name: root.name, children };
-      })
-      .filter((item): item is { name: string; children: string[] } => item !== null);
-
-    const leaves = Array.from(standalone).sort((a, b) => a.localeCompare(b, "es"));
-    return { parents, leaves };
-  }, [dbCats, products]);
-
   // ── Count per category ───────────────────────────────────────────────────
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: products.length };
-    products.forEach((p) => { counts[p.category] = (counts[p.category] || 0) + 1; });
-    // Parent count = hijos + productos directos en la categoria padre
-    categoryTree.parents.forEach(({ name, children }) => {
-      const childrenTotal = children.reduce((sum, child) => sum + (counts[child] || 0), 0);
-      counts[name] = (counts[name] || 0) + childrenTotal;
-    });
+    const counts: Record<string, number> = { all: totalCount };
+    
+    // Si tenemos conteos del servidor, los usamos directamente
+    if (Object.keys(serverCategoryCounts).length > 0) {
+      Object.entries(serverCategoryCounts).forEach(([cat, count]) => {
+        counts[cat] = count;
+      });
+      
+      // Sumar hijos a padres en el sidebar
+      categoryTree.parents.forEach(({ name, children }) => {
+        const childrenTotal = children.reduce((sum, child) => sum + (serverCategoryCounts[child] || 0), 0);
+        counts[name] = (serverCategoryCounts[name] || 0) + childrenTotal;
+      });
+    } else {
+      // Fallback a los productos cargados actualmente si falla lo anterior
+      products.forEach((p) => { counts[p.category] = (counts[p.category] || 0) + 1; });
+    }
+    
     return counts;
-  }, [products, categoryTree]);
+  }, [totalCount, serverCategoryCounts, categoryTree, products]);
 
   // ── Children lookup for filtering ───────────────────────────────────────
-  const parentChildrenMap = useMemo(() => {
-    const map: Record<string, string[]> = {};
-    categoryTree.parents.forEach(({ name, children }) => {
-      map[name] = [name, ...children];
-    });
-    return map;
-  }, [categoryTree]);
 
   // ── Brand counts (from full product list, not filtered) ──────────────────
   const brandCounts = useMemo(() => {
@@ -543,26 +597,7 @@ export default function B2BPortal() {
 
   const hasActiveFilters = categoryFilter !== "all" || brandFilter !== "all" || minPrice !== "" || maxPrice !== "";
 
-  const filteredProducts = useMemo(() => {
-    const term = search.toLowerCase();
-    return products.filter((p) => {
-      const min = Number(minPrice);
-      const max = Number(maxPrice);
-      if (term && !p.name.toLowerCase().includes(term) && !p.sku?.toLowerCase().includes(term)) return false;
-      if (categoryFilter !== "all") {
-        const children = parentChildrenMap[categoryFilter];
-        if (children?.length) {
-          if (!children.includes(p.category)) return false;
-        } else {
-          if (p.category !== categoryFilter) return false;
-        }
-      }
-      if (brandFilter !== "all" && p.brand_id !== brandFilter) return false;
-      if (!isNaN(min) && min > 0 && p.cost_price < min) return false;
-      if (!isNaN(max) && max > 0 && p.cost_price > max) return false;
-      return true;
-    });
-  }, [products, search, categoryFilter, brandFilter, minPrice, maxPrice, parentChildrenMap]);
+  const filteredProducts = products;
 
   const favoriteProducts = useMemo(
     () => products.filter((product) => favoriteProductIds.includes(product.id)),
@@ -572,23 +607,36 @@ export default function B2BPortal() {
   const cartItems: CartItem[] = useMemo(() => {
     return Object.entries(cart)
       .map(([id, qty]) => {
-        const product = products.find((p) => p.id === Number(id));
+        const product = (products as Product[]).find((p) => p.id === Number(id));
         if (!product) return null;
-        const margin = productMargins[Number(id)] ?? globalMargin;
-        // Precio base según volumen (price tiers)
-        const cost = getUnitPrice(product, qty);
-        const unitPrice = cost * (1 + margin / 100);
-        const totalPrice = unitPrice * qty;
-        const ivaRate = product.iva_rate ?? 21;
-        const ivaAmount = totalPrice * (ivaRate / 100);
-        return { product, quantity: qty, cost, margin, unitPrice, totalPrice, ivaRate, ivaAmount, totalWithIVA: totalPrice + ivaAmount };
+        
+        const price = computePrice(product, qty);
+        
+        return { 
+          product, 
+          quantity: qty, 
+          cost: price.cost, 
+          margin: price.margin, 
+          unitPrice: price.unitPrice, 
+          totalPrice: price.totalPrice, 
+          ivaRate: price.ivaRate, 
+          ivaAmount: price.ivaAmount, 
+          totalWithIVA: price.totalWithIVA 
+        };
       })
       .filter((i): i is CartItem => i !== null);
-  }, [cart, products, productMargins, globalMargin]);
+  }, [cart, products, computePrice]);
 
   const cartSubtotal = useMemo(() => cartItems.reduce((s, i) => s + i.totalPrice, 0), [cartItems]);
   const cartIVATotal = useMemo(() => cartItems.reduce((s, i) => s + i.ivaAmount, 0), [cartItems]);
-  const cartTotal = useMemo(() => cartSubtotal + cartIVATotal, [cartSubtotal, cartIVATotal]);
+  
+  const discountAmount = useMemo(() => {
+    if (!appliedCoupon) return 0;
+    if (appliedCoupon.discount_type === 'fixed') return appliedCoupon.discount_value;
+    return (cartSubtotal * appliedCoupon.discount_value) / 100;
+  }, [appliedCoupon, cartSubtotal]);
+
+  const cartTotal = useMemo(() => Math.max(0, cartSubtotal + cartIVATotal - discountAmount), [cartSubtotal, cartIVATotal, discountAmount]);
   const cartCount = useMemo(() => Object.values(cart).reduce((s, q) => s + q, 0), [cart]);
 
   // Credit used = total of all pending/approved/preparing orders
@@ -608,6 +656,23 @@ export default function B2BPortal() {
     }
     return map;
   }, [orders]);
+
+  const handleSmartAddToCart = (productId: number) => {
+    const p = products.find((prod) => prod.id === productId);
+    if (p) handleAddToCart(p);
+  };
+
+  const handleRemoveCoupon = useCallback(() => {
+    setAppliedCoupon(null);
+    setCouponError("");
+  }, []);
+
+  const handleSaveCart = useCallback(async () => {
+    if (cartItems.length === 0) return;
+    const name = `Carrito ${new Date().toLocaleDateString("es-AR")} ${new Date().toLocaleTimeString("es-AR")}`;
+    saveCart(profile?.id || "guest", name, cart, productMargins);
+    setSavedCarts(getSavedCarts(profile?.id || "guest"));
+  }, [cart, cartItems.length, profile?.id, productMargins]);
 
   const latestPurchaseUnitPrice = useMemo(() => {
     const map: Record<number, number> = {};
@@ -641,47 +706,18 @@ export default function B2BPortal() {
     };
 
     const contextBase = catalogContext === "pos"
-      ? filteredProducts.filter((product) => isPosProduct(product))
-      : [...filteredProducts];
+      ? products.filter((product) => isPosProduct(product))
+      : [...products];
 
-    if (catalogContext === "oportunidades") {
-      // Load active, non-expired opportunities from admin localStorage
-      const now = new Date();
-      let opportunityIds: Set<number> | null = null;
-      try {
-        const raw = localStorage.getItem("admin_opportunities_v1");
-        if (raw) {
-          const items = JSON.parse(raw) as Array<{ product_id: number; active?: boolean; expires_at?: string }>;
-          if (Array.isArray(items) && items.length > 0) {
-            opportunityIds = new Set(
-              items
-                .filter((item) =>
-                  item.active !== false &&
-                  (!item.expires_at || new Date(item.expires_at) > now)
-                )
-                .map((item) => Number(item.product_id))
-            );
-          }
-        }
-      } catch { /* ignore */ }
-
-      // Filter: only products explicitly in opportunities list, or featured products as fallback
-      const opBase = opportunityIds && opportunityIds.size > 0
-        ? contextBase.filter((p) => opportunityIds!.has(p.id))
-        : contextBase.filter((p) => p.featured || getProductFeaturedPriority(p) > 0);
+    if (catalogContext === "featured") {
+      const opBase = products.filter((p) => p.featured || getProductFeaturedPriority(p) > 0);
 
       return opBase.sort((a, b) => {
         const featuredPriorityDiff = getProductFeaturedPriority(b) - getProductFeaturedPriority(a);
         if (featuredPriorityDiff !== 0) return featuredPriorityDiff;
 
-        const featuredDiff = Number(Boolean(b.featured)) - Number(Boolean(a.featured));
-        if (featuredDiff !== 0) return featuredDiff;
-
         const marginDiff = (productMargins[b.id] ?? globalMargin) - (productMargins[a.id] ?? globalMargin);
         if (marginDiff !== 0) return marginDiff;
-
-        const urgencyDiff = urgencyScore(b) - urgencyScore(a);
-        if (urgencyDiff !== 0) return urgencyDiff;
 
         return a.name.localeCompare(b.name, "es");
       });
@@ -841,6 +877,57 @@ export default function B2BPortal() {
   const onMarginChange = (productId: number, margin: number) =>
     setProductMargins((prev) => ({ ...prev, [productId]: margin }));
 
+  async function handleApplyCoupon(code: string) {
+    if (!code.trim()) return;
+    setValidatingCoupon(true);
+    setCouponError("");
+    try {
+      const { data, error } = await supabase
+        .from("coupons")
+        .select("*")
+        .eq("code", code.trim().toUpperCase())
+        .eq("is_active", true)
+        .single();
+
+      if (error || !data) {
+        setCouponError("Cupón no válido o expirado.");
+        setAppliedCoupon(null);
+        return;
+      }
+
+      // Validar fecha
+      if (data.expires_at && new Date(data.expires_at) < new Date()) {
+        setCouponError("El cupón ha expirado.");
+        return;
+      }
+
+      // Validar monto mínimo
+      if (cartSubtotal < (data.min_purchase || 0)) {
+        setCouponError(`Mínimo de compra para este cupón: USD ${data.min_purchase}`);
+        return;
+      }
+
+      // Validar límite de usos
+      if (data.max_uses && data.used_count >= data.max_uses) {
+        setCouponError("Se ha alcanzado el límite de usos para este cupón.");
+        return;
+      }
+
+      // Validar exclusividad de cliente
+      if (data.client_id && data.client_id !== profile?.id) {
+        setCouponError("Este cupón no es válido para tu cuenta.");
+        return;
+      }
+
+      setAppliedCoupon(data);
+      setCouponError("");
+    } catch (err) {
+      setCouponError("Error al validar el cupón.");
+    } finally {
+      setValidatingCoupon(false);
+    }
+  }
+
   const handleConfirmOrder = async () => {
     if (!cartItems.length) return;
     setCreditError("");
@@ -888,6 +975,7 @@ export default function B2BPortal() {
       products: orderProducts,
       total: Number(cartTotal.toFixed(2)),
       status: "pending",
+      coupon_code: appliedCoupon?.code,
       created_at: new Date().toISOString(),
     });
     if (!error) {
@@ -907,6 +995,8 @@ export default function B2BPortal() {
     if (!error) {
       setOrderSuccess(true);
       setCart({});
+      setAppliedCoupon(null);
+      setCouponCode("");
       setActiveTab("orders");
       setTimeout(() => setOrderSuccess(false), 5000);
     }
@@ -1036,10 +1126,11 @@ export default function B2BPortal() {
     const p = selectedProduct;
     const margin = productMargins[p.id] ?? globalMargin;
     const inCart = cart[p.id] || 0;
-    const finalPrice = getUnitPrice(p, Math.max(inCart, 1)) * (1 + margin / 100);  // sin IVA, precio según volumen
-    const ivaRate = p.iva_rate ?? 21;
-    const ivaAmt = finalPrice * (ivaRate / 100);
-    const finalWithIVA = finalPrice + ivaAmt;
+    const priceInfo = computePrice(p, Math.max(inCart, 1));
+    const finalPrice = priceInfo.unitPrice;
+    const ivaRate = priceInfo.ivaRate;
+    const ivaAmt = priceInfo.ivaAmount;
+    const finalWithIVA = priceInfo.totalWithIVA;
     const availableStock = getAvailableStock(p);
     const outOfStock = availableStock === 0;
     const publicSpecs = p.specs
@@ -1252,192 +1343,42 @@ export default function B2BPortal() {
     <div className={`flex min-h-screen ${dk("bg-[#0a0a0a]", "bg-[#f5f5f5]")} flex-col`}>
 
       {/* TOPBAR */}
-      <header className={`flex items-center gap-3 px-4 md:px-6 py-2.5 ${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-white border-[#e5e5e5]")} border-b flex-wrap`}>
-        <div className="flex items-center gap-2.5 shrink-0">
-          <img src="/icon.png" alt="Bartez" className="h-8 w-8 object-contain" />
-          <div>
-            <span className={`font-bold ${dk("text-white", "text-[#171717]")} text-sm leading-none`}>Portal B2B</span>
-            <span className="block text-[11px] text-[#737373] leading-none mt-0.5 font-medium">{clientName}</span>
-          </div>
-        </div>
-
-        {/* Search */}
-        <div className="flex-1 min-w-[160px] max-w-sm relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Buscar productos, SKU..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className={`w-full ${dk("bg-[#0d0d0d] border-[#222] text-white focus:border-[#404040] focus:ring-white/5 placeholder:text-[#525252]", "bg-white border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4] focus:ring-black/5 placeholder:text-[#a3a3a3]")} border text-sm rounded-xl pl-9 pr-8 py-2 outline-none focus:ring-1 transition`}
-          />
-          {search && (
-            <button onClick={() => setSearch("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-300 transition p-0.5">
-              <X size={12} />
-            </button>
-          )}
-        </div>
-
-        {/* Quick Order — SKU + qty */}
-        <div className="hidden md:flex flex-col gap-0.5 shrink-0">
-          <div className="flex items-center gap-1">
-            <div className="relative">
-              <Zap size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#2D9F6A] pointer-events-none" />
-              <input
-                type="text"
-                placeholder="SKU [qty]"
-                value={quickSku}
-                onChange={(e) => setQuickSku(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleQuickOrder(); }}
-                className={`w-32 ${dk("bg-[#0d0d0d] border-[#222] text-white focus:border-[#2D9F6A]/50 placeholder:text-[#404040]", "bg-white border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]/50 placeholder:text-[#c4c4c4]")} border text-xs rounded-lg pl-7 pr-2 py-2 outline-none focus:ring-1 focus:ring-[#2D9F6A]/20 transition font-mono`}
-              />
-            </div>
-            <button
-              onClick={handleQuickOrder}
-              title="Agregar al carrito (Enter)"
-              className="h-8 w-8 bg-[#2D9F6A] hover:bg-[#25835A] text-white rounded-lg flex items-center justify-center transition active:scale-95 shrink-0"
-            >
-              <Plus size={13} />
-            </button>
-          </div>
-          {quickError && <p className="text-[10px] text-red-400 px-0.5">{quickError}</p>}
-        </div>
-
-        <div className="flex items-center gap-1.5 ml-auto">
-          {/* Vista + Moneda + Tema — agrupados */}
-          <div className={`hidden md:flex items-center ${dk("bg-[#0d0d0d] border-[#1f1f1f]", "bg-[#f0f0f0] border-[#e5e5e5]")} border rounded-lg p-1 gap-0.5`}>
-            <button onClick={() => handleViewModeChange("grid")} title="Grilla"
-              className={`p-1.5 rounded transition ${viewMode === "grid" ? dk("bg-[#262626] text-white", "bg-white text-[#171717] shadow-sm") : dk("text-[#525252] hover:text-[#a3a3a3]", "text-[#737373] hover:text-[#171717]")}`}>
-              <LayoutGrid size={13} />
-            </button>
-            <button onClick={() => handleViewModeChange("list")} title="Lista"
-              className={`p-1.5 rounded transition ${viewMode === "list" ? dk("bg-[#262626] text-white", "bg-white text-[#171717] shadow-sm") : dk("text-[#525252] hover:text-[#a3a3a3]", "text-[#737373] hover:text-[#171717]")}`}>
-              <List size={13} />
-            </button>
-            <button onClick={() => handleViewModeChange("table")} title="Lista de precios (alta densidad)"
-              className={`p-1.5 rounded transition ${viewMode === "table" ? dk("bg-[#262626] text-white", "bg-white text-[#171717] shadow-sm") : dk("text-[#525252] hover:text-[#a3a3a3]", "text-[#737373] hover:text-[#171717]")}`}>
-              <Table2 size={13} />
-            </button>
-            <div className={`w-px h-4 ${dk("bg-[#262626]", "bg-[#e5e5e5]")} mx-0.5`} />
-            {(["USD", "ARS"] as const).map((c) => (
-              <button key={c} onClick={() => setCurrency(c)}
-                className={`px-2 py-1 rounded text-[11px] font-bold transition ${currency === c ? dk("bg-[#262626] text-white", "bg-white text-[#171717] shadow-sm") : dk("text-[#525252] hover:text-[#a3a3a3]", "text-[#737373] hover:text-[#171717]")}`}>
-                {c}
-              </button>
-            ))}
-          </div>
-
-          <button
-            type="button"
-            onClick={toggleTheme}
-            role="switch"
-            aria-checked={isDark}
-            aria-label="Cambiar modo claro u oscuro"
-            title={isDark ? "Modo oscuro" : "Modo claro"}
-            className={`group relative h-7 w-[84px] shrink-0 overflow-hidden rounded-full border transition-all duration-300 ease-in-out hover:shadow-md active:scale-[0.97] ${
-              isDark ? "bg-neutral-800 border-neutral-700" : "bg-neutral-200 border-neutral-300"
-            } ${
-              themeFlash
-                ? isDark
-                  ? "shadow-[0_0_0_3px_rgba(45,159,106,0.22),0_6px_18px_rgba(16,185,129,0.2)]"
-                  : "shadow-[0_0_0_3px_rgba(59,130,246,0.2),0_6px_18px_rgba(59,130,246,0.18)]"
-                : ""
-            } ${themeSwitchReady ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-0.5 scale-95"}`}
-          >
-            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2">
-              <Moon
-                size={12}
-                className={`transition-all duration-300 ease-in-out ${
-                  isDark ? "text-white scale-100 opacity-100" : "text-neutral-500 scale-90 opacity-45"
-                }`}
-              />
-            </span>
-            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">
-              <Sun
-                size={12}
-                className={`transition-all duration-300 ease-in-out ${
-                  isDark ? "text-neutral-500 scale-90 opacity-45" : "text-amber-500 scale-100 opacity-100"
-                }`}
-              />
-            </span>
-            <span
-              className={`pointer-events-none absolute left-[1px] top-[1px] h-6 w-6 rounded-full bg-white shadow-md transition-[transform,box-shadow] duration-300 [transition-timing-function:cubic-bezier(0.22,1.28,0.36,1)] ${
-                isDark ? "translate-x-[2px]" : "translate-x-[54px]"
-              } ${
-                themeFlash ? "scale-[1.06] shadow-lg" : "scale-100"
-              } group-hover:shadow-lg`}
-            />
-            <span
-              className={`pointer-events-none absolute inset-0 rounded-full transition-opacity duration-300 ${
-                themeFlash
-                  ? isDark
-                    ? "opacity-100 bg-[radial-gradient(circle_at_25%_50%,rgba(34,197,94,0.18),transparent_55%)]"
-                    : "opacity-100 bg-[radial-gradient(circle_at_75%_50%,rgba(59,130,246,0.18),transparent_55%)]"
-                  : "opacity-0"
-              }`}
-            />
-          </button>
-
-          {/* Exportar catálogo */}
-          {activeTab === "catalog" && (
-            <div className={`hidden md:flex items-center ${dk("bg-[#0d0d0d] border-[#1f1f1f]", "bg-[#f0f0f0] border-[#e5e5e5]")} border rounded-lg p-1 gap-0.5`}>
-              <button
-                onClick={() => exportCatalogCSV(displayProducts)}
-                title="Exportar CSV"
-                className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] transition ${dk("text-[#525252] hover:text-[#a3a3a3] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-white")}`}
-              >
-                <Download size={11} /> CSV
-              </button>
-              <button
-                onClick={() => { void handleExportCatalogPDF(); }}
-                title="Exportar PDF"
-                className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] transition ${dk("text-[#525252] hover:text-[#a3a3a3] hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-white")}`}
-              >
-                <Download size={11} /> PDF
-              </button>
-            </div>
-          )}
-
-          {/* Carrito */}
-          <button
-            onClick={() => navigate("/cart")}
-            className="relative flex items-center gap-2 bg-[#2D9F6A] hover:bg-[#25835A] active:scale-95 text-white rounded-xl px-3 py-2 text-sm font-semibold transition-all"
-          >
-            <ShoppingCart size={15} />
-            <span className="hidden md:inline">Carrito</span>
-            {cartCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white text-[#2D9F6A] text-[10px] font-black flex items-center justify-center shadow">
-                {cartCount > 99 ? "99+" : cartCount}
-              </span>
-            )}
-          </button>
-
-          {/* Admin */}
-          {isAdmin && (
-            <Link to="/admin"
-              className="flex items-center gap-1.5 text-xs text-[#2D9F6A] hover:text-white transition px-2.5 py-2 rounded-lg hover:bg-[#1e1e1e]">
-              <ShieldCheck size={14} />
-              <span className="hidden md:inline">Admin</span>
-            </Link>
-          )}
-
-          {/* Logout */}
-          <button onClick={handleLogout}
-            className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-300 transition px-2 py-2 rounded-lg hover:bg-[#1e1e1e]">
-            <LogOut size={14} />
-          </button>
-        </div>
-      </header>
+      <PortalHeader
+        clientName={clientName}
+        search={search}
+        setSearch={setSearch}
+        quickSku={quickSku}
+        setQuickSku={setQuickSku}
+        quickError={quickError}
+        handleQuickOrder={handleQuickOrder}
+        viewMode={viewMode}
+        handleViewModeChange={handleViewModeChange}
+        currency={currency}
+        setCurrency={setCurrency}
+        isDark={isDark}
+        toggleTheme={toggleTheme}
+        themeFlash={themeFlash}
+        themeSwitchReady={themeSwitchReady}
+        activeTab={activeTab}
+        displayProducts={displayProducts}
+        exportCatalogCSV={exportCatalogCSV}
+        handleExportCatalogPDF={handleExportCatalogPDF}
+        cartItemsCount={Object.values(cart).reduce((a, b) => a + b, 0)}
+        onOpenCart={() => navigate("/cart")}
+        exchangeRate={exchangeRate}
+      />
 
       {/* TABS */}
-      <div className={`flex border-b ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")} px-4 md:px-6`}>
+      <div className={`flex border-b ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")} px-4 md:px-6 overflow-x-auto whitespace-nowrap scrollbar-none`}>
         {[
           { id: "catalog",  label: "Catálogo", icon: Package },
           { id: "orders",   label: `Mis Pedidos${orders.length ? ` (${orders.length})` : ""}`, icon: ClipboardList },
           { id: "quotes",   label: `Cotizaciones${quotes.length ? ` (${quotes.length})` : ""}`, icon: FileText },
           { id: "invoices", label: `Facturas${myInvoices.length ? ` (${myInvoices.length})` : ""}`, icon: FileText },
           { id: "cuenta",   label: "Mi Cuenta", icon: Users },
+          ...(profile?.b2b_role === "manager" || isAdmin ? [
+            { id: "approvals", label: `Aprobaciones${managedOrders.filter(o => o.status === "pending_approval").length ? ` (${managedOrders.filter(o => o.status === "pending_approval").length})` : ""}`, icon: ShieldCheck }
+          ] : []),
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -1480,7 +1421,6 @@ export default function B2BPortal() {
             Margen: <span className="font-semibold text-[#2D9F6A]">{defaultMargin}%</span>
           </span>
           {profile.credit_limit != null && profile.credit_limit > 0 && (() => {
-            // credit_limit is stored in ARS — do NOT pass through formatPrice (which converts USD→ARS)
             const fmtArsRaw = (n: number) => `$${Math.round(n).toLocaleString("es-AR")}`;
             const creditAvail = Math.max(0, profile.credit_limit! - creditUsed);
             const pct = Math.min(100, (creditUsed / profile.credit_limit!) * 100);
@@ -1521,221 +1461,44 @@ export default function B2BPortal() {
 
         {/* SIDEBAR */}
         {activeTab === "catalog" && (
-          <aside className={`hidden md:flex flex-col w-64 xl:w-72 ${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-white border-[#e5e5e5]")} border-r p-3 gap-4 shrink-0 min-h-0 overflow-y-auto overflow-x-hidden`}>
-
-            {/* Clear filters */}
-            {hasActiveFilters && (
-              <button
-                onClick={clearFilters}
-                className={`flex items-center gap-1.5 text-xs ${dk("text-[#a3a3a3] hover:text-white border-[#262626] hover:border-[#333] hover:bg-[#1c1c1c]", "text-[#525252] hover:text-[#171717] border-[#e5e5e5] hover:border-[#d4d4d4] hover:bg-[#f5f5f5]")} border bg-transparent rounded-lg px-3 py-1.5 transition font-medium`}
-              >
-                <SlidersHorizontal size={11} /> Limpiar filtros
-              </button>
-            )}
-
-            {/* Categorías */}
-            <div>
-              <h3 className={`text-[10px] font-bold uppercase tracking-widest ${dk("text-[#525252]", "text-[#a3a3a3]")} mb-2 px-1`}>Categoría</h3>
-              <div className="flex flex-col gap-0.5 max-h-[54vh] overflow-y-auto overflow-x-hidden overscroll-contain pr-1">
-
-                {/* "Todas" */}
-                {(() => {
-                  const isActive = categoryFilter === "all";
-                  return (
-                    <button
-                      onClick={() => setCategoryFilter("all")}
-                      className={`flex items-center justify-between text-left text-sm px-2.5 py-1.5 rounded-lg transition group border-l-2 ${
-                        isActive
-                          ? `${dk("bg-[#171717] text-white", "bg-[#f0faf5] text-[#1a7a50]")} font-medium border-[#2D9F6A]`
-                          : `${dk("text-[#737373] hover:text-[#e5e5e5] hover:bg-[#171717]", "text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")} border-transparent`
-                      }`}
-                    >
-                      <span>Todas</span>
-                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1 shrink-0 ${
-                        isActive ? dk("bg-[#262626] text-white", "bg-[#2D9F6A]/20 text-[#1a7a50]")
-                          : dk("bg-[#1a1a1a] text-[#525252] group-hover:bg-[#222]", "bg-[#f0f0f0] text-[#737373] group-hover:bg-[#e8e8e8]")
-                      }`}>{categoryCounts["all"]}</span>
-                    </button>
-                  );
-                })()}
-
-                {/* Parent categories with children */}
-                {categoryTree.parents.map(({ name: parent, children }) => {
-                  const isParentActive  = categoryFilter === parent;
-                  const canExpand       = children.length > 0;
-                  const isExpanded      = canExpand && expandedParents.has(parent);
-                  const parentCount     = categoryCounts[parent] || 0;
-
-                  return (
-                    <div key={parent}>
-                      {/* Parent row */}
-                      <div className="flex items-center gap-0">
-                        {/* Expand/collapse chevron */}
-                        {canExpand ? (
-                          <button
-                            onClick={() => setExpandedParents((prev) => toggleSetValue(prev, parent))}
-                            className={`p-1 rounded transition shrink-0 ${dk("text-[#525252] hover:text-[#a3a3a3]", "text-[#a3a3a3] hover:text-[#525252]")}`}
-                          >
-                            {isExpanded
-                              ? <ChevronDown size={11} />
-                              : <ChevronRight size={11} />}
-                          </button>
-                        ) : (
-                          <span className="w-[18px] shrink-0" />
-                        )}
-                        {/* Parent label (also clickable as filter) */}
-                        <button
-                          onClick={() => setCategoryFilter(parent)}
-                          className={`flex-1 flex items-center justify-between text-left text-sm px-1.5 py-1.5 rounded-lg transition group border-l-2 ${
-                            isParentActive
-                              ? `${dk("bg-[#171717] text-white", "bg-[#f0faf5] text-[#1a7a50]")} font-medium border-[#2D9F6A]`
-                              : `${dk("text-[#737373] hover:text-[#e5e5e5] hover:bg-[#171717]", "text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")} border-transparent`
-                          }`}
-                        >
-                          <span className="min-w-0 pr-1 leading-tight break-words text-left font-medium" title={parent}>{parent}</span>
-                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1 shrink-0 ${
-                            isParentActive ? dk("bg-[#262626] text-white", "bg-[#2D9F6A]/20 text-[#1a7a50]")
-                              : dk("bg-[#1a1a1a] text-[#525252] group-hover:bg-[#222]", "bg-[#f0f0f0] text-[#737373] group-hover:bg-[#e8e8e8]")
-                          }`}>{parentCount}</span>
-                        </button>
-                      </div>
-
-                      {/* Subcategories (indented) */}
-                      {isExpanded && (
-                        <div className="ml-5 flex flex-col gap-0.5 mt-0.5 mb-1">
-                          {children.map((child) => {
-                            const isActive = categoryFilter === child;
-                            const count    = categoryCounts[child] || 0;
-                            return (
-                              <button
-                                key={child}
-                                onClick={() => {
-                                  setCategoryFilter(child);
-                                  setExpandedParents((prev) => {
-                                    if (prev.has(parent)) return prev;
-                                    const next = new Set(prev);
-                                    next.add(parent);
-                                    return next;
-                                  });
-                                }}
-                                className={`flex items-center justify-between text-left text-xs px-2.5 py-1.5 rounded-lg transition group border-l-2 ${
-                                  isActive
-                                    ? `${dk("bg-[#171717] text-white", "bg-[#f0faf5] text-[#1a7a50]")} font-medium border-[#2D9F6A]`
-                                    : `${dk("text-[#525252] hover:text-[#e5e5e5] hover:bg-[#171717]", "text-[#a3a3a3] hover:text-[#171717] hover:bg-[#f5f5f5]")} border-transparent`
-                                }`}
-                              >
-                                <span className="min-w-0 pr-1 leading-tight break-words text-left" title={child}>{child}</span>
-                                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1 shrink-0 ${
-                                  isActive ? dk("bg-[#262626] text-white", "bg-[#2D9F6A]/20 text-[#1a7a50]")
-                                    : dk("bg-[#1a1a1a] text-[#525252] group-hover:bg-[#222]", "bg-[#f0f0f0] text-[#737373] group-hover:bg-[#e8e8e8]")
-                                }`}>{count}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {/* Standalone leaf categories (not under any parent) */}
-                {categoryTree.leaves.map((c) => {
-                  const isActive = categoryFilter === c;
-                  return (
-                    <button
-                      key={c}
-                      onClick={() => setCategoryFilter(c)}
-                      className={`flex items-center justify-between text-left text-sm px-2.5 py-1.5 rounded-lg transition group border-l-2 ${
-                        isActive
-                          ? `${dk("bg-[#171717] text-white", "bg-[#f0faf5] text-[#1a7a50]")} font-medium border-[#2D9F6A]`
-                          : `${dk("text-[#737373] hover:text-[#e5e5e5] hover:bg-[#171717]", "text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")} border-transparent`
-                      }`}
-                    >
-                      <span className="min-w-0 pr-1 leading-tight break-words text-left" title={c}>{c}</span>
-                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1 shrink-0 ${
-                        isActive ? dk("bg-[#262626] text-white", "bg-[#2D9F6A]/20 text-[#1a7a50]")
-                          : dk("bg-[#1a1a1a] text-[#525252] group-hover:bg-[#222]", "bg-[#f0f0f0] text-[#737373] group-hover:bg-[#e8e8e8]")
-                      }`}>{categoryCounts[c] || 0}</span>
-                    </button>
-                  );
-                })}
-
-              </div>
-            </div>
-
-            {/* Marcas */}
-            {activeBrandsWithProducts.length > 0 && (
-              <div>
-                <h3 className={`text-[10px] font-bold uppercase tracking-widest ${dk("text-[#525252]", "text-[#a3a3a3]")} mb-2 px-1`}>Marca</h3>
-                <div className="flex flex-col gap-0.5">
-                  {/* "Todas" */}
-                  {(() => {
-                    const isActive = brandFilter === "all";
-                    return (
-                      <button
-                        onClick={() => setBrandFilter("all")}
-                        className={`flex items-center justify-between text-left text-sm px-2.5 py-1.5 rounded-lg transition group border-l-2 ${
-                          isActive
-                            ? `${dk("bg-[#171717] text-white", "bg-[#f0faf5] text-[#1a7a50]")} font-medium border-[#2D9F6A]`
-                            : `${dk("text-[#737373] hover:text-[#e5e5e5] hover:bg-[#171717]", "text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")} border-transparent`
-                        }`}
-                      >
-                        <span>Todas</span>
-                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1 shrink-0 ${
-                          isActive ? dk("bg-[#262626] text-white", "bg-[#2D9F6A]/20 text-[#1a7a50]")
-                            : dk("bg-[#1a1a1a] text-[#525252] group-hover:bg-[#222]", "bg-[#f0f0f0] text-[#737373] group-hover:bg-[#e8e8e8]")
-                        }`}>{products.length}</span>
-                      </button>
-                    );
-                  })()}
-                  {activeBrandsWithProducts.map((brand) => {
-                    const isActive = brandFilter === brand.id;
-                    const count = brandCounts[brand.id] ?? 0;
-                    return (
-                      <button
-                        key={brand.id}
-                        onClick={() => setBrandFilter(brand.id)}
-                        className={`flex items-center justify-between text-left text-sm px-2.5 py-1.5 rounded-lg transition group border-l-2 ${
-                          isActive
-                            ? `${dk("bg-[#171717] text-white", "bg-[#f0faf5] text-[#1a7a50]")} font-medium border-[#2D9F6A]`
-                            : `${dk("text-[#737373] hover:text-[#e5e5e5] hover:bg-[#171717]", "text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")} border-transparent`
-                        }`}
-                      >
-                        <span className="min-w-0 pr-1 leading-tight break-words text-left" title={brand.name}>{brand.name}</span>
-                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1 shrink-0 ${
-                          isActive ? dk("bg-[#262626] text-white", "bg-[#2D9F6A]/20 text-[#1a7a50]")
-                            : dk("bg-[#1a1a1a] text-[#525252] group-hover:bg-[#222]", "bg-[#f0f0f0] text-[#737373] group-hover:bg-[#e8e8e8]")
-                        }`}>{count}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Precio */}
-            <div>
-              <h3 className={`text-[10px] font-bold uppercase tracking-widest ${dk("text-[#525252]", "text-[#a3a3a3]")} mb-2 px-1`}>Precio</h3>
-              <div className="flex flex-col gap-1.5">
-                <div className="relative">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#737373] text-xs">$</span>
-                  <input type="number" placeholder="Mínimo" value={minPrice}
-                    onChange={(e) => setMinPrice(e.target.value)}
-                    className={`w-full ${dk("bg-[#0d0d0d] border-[#222] text-white focus:border-[#404040] placeholder:text-[#404040]", "bg-white border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4] placeholder:text-[#c4c4c4]")} border text-xs rounded-lg pl-6 pr-2 py-1.5 outline-none transition`} />
-                </div>
-                <div className="relative">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#737373] text-xs">$</span>
-                  <input type="number" placeholder="Máximo" value={maxPrice}
-                    onChange={(e) => setMaxPrice(e.target.value)}
-                    className={`w-full ${dk("bg-[#0d0d0d] border-[#222] text-white focus:border-[#404040] placeholder:text-[#404040]", "bg-white border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4] placeholder:text-[#c4c4c4]")} border text-xs rounded-lg pl-6 pr-2 py-1.5 outline-none transition`} />
-                </div>
-              </div>
-            </div>
-          </aside>
+          <PortalSidebar
+            isDark={isDark}
+            hasActiveFilters={hasActiveFilters}
+            clearFilters={clearFilters}
+            categoryFilter={categoryFilter}
+            setCategoryFilter={setCategoryFilter}
+            categoryCounts={categoryCounts}
+            categoryTree={categoryTree}
+            expandedParents={expandedParents}
+            setExpandedParents={setExpandedParents}
+            toggleSetValue={toggleSetValue}
+            activeBrandsWithProducts={activeBrandsWithProducts}
+            brandFilter={brandFilter}
+            setBrandFilter={setBrandFilter}
+            brandCounts={brandCounts}
+            minPrice={minPrice}
+            setMinPrice={setMinPrice}
+            maxPrice={maxPrice}
+            setMaxPrice={setMaxPrice}
+            totalProductsCount={totalCount || products.length}
+          />
         )}
 
         {/* CONTENIDO PRINCIPAL */}
         <main className={`flex-1 p-4 md:p-5 overflow-y-auto`}>
+
+          {/* ── APROBACIONES (Phase 4.1) ── */}
+          {activeTab === "approvals" && (
+            <ApprovalsPanel 
+              isDark={isDark}
+              formatPrice={formatPrice}
+              formatUSD={formatUSD}
+              formatARS={formatARS}
+              currency={currency}
+              orders={managedOrders}
+              onRefresh={refreshApprovals}
+            />
+          )}
 
           {/* ── CATÁLOGO ── */}
           {activeTab === "catalog" && (
@@ -1743,7 +1506,7 @@ export default function B2BPortal() {
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 {([
                   { id: "default", label: "Catalogo general", icon: Package },
-                  { id: "oportunidades", label: "🔥 Oportunidades", icon: Zap },
+                  { id: "featured", label: "⭐ Destacados", icon: Star },
                   { id: "pos", label: "🧾 Punto de Venta", icon: Truck },
                 ] as const).map(({ id, label, icon: Icon }) => {
                   const isActive = catalogContext === id;
@@ -1764,6 +1527,13 @@ export default function B2BPortal() {
                 })}
               </div>
 
+              {/* ── SUGERENCIAS IA (Phase 4.3) ── */}
+              <SmartSuggestions 
+                isDark={isDark} 
+                onAddToCart={handleSmartAddToCart}
+                formatPrice={formatPrice}
+              />
+
               <div className={`mb-3 inline-flex items-center gap-1 rounded-lg border p-1 md:hidden ${dk("bg-[#111] border-[#262626]", "bg-white border-[#e5e5e5]")}`}>
                 <button onClick={() => handleViewModeChange("list")}
                   className={`px-2.5 py-1 text-[11px] font-semibold rounded transition ${viewMode === "list" ? dk("bg-[#262626] text-white", "bg-[#f0f0f0] text-[#171717]") : dk("text-[#737373]", "text-[#737373]")}`}>
@@ -1778,11 +1548,14 @@ export default function B2BPortal() {
                   Tabla
                 </button>
               </div>
-              {/* Results info */}
+
+              {/* Header & Search */}
               {!productsLoading && displayProducts.length > 0 && (
                 <div className="flex items-center justify-between mb-3">
                   <p className={`text-xs ${dk("text-gray-600", "text-[#737373]")}`}>
-                    {displayProducts.length} producto{displayProducts.length !== 1 ? "s" : ""}
+                    <span className="font-bold">{displayProducts.length}</span>
+                    {totalCount > 0 && <span> de <span className="font-bold">{totalCount}</span></span>}
+                    {` producto${displayProducts.length !== 1 ? "s" : ""}`}
                     {search && <> para "<span className="text-gray-400">{search}</span>"</>}
                   </p>
                 </div>
@@ -1809,393 +1582,102 @@ export default function B2BPortal() {
                     </button>
                   )}
                 </div>
-              ) : viewMode === "grid" ? (
-
-                // ── GRID ──────────────────────────────────────────────
-                <div className="grid gap-4 grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+              ) : viewMode === "grid" || viewMode === "list" ? (
+                <div className={viewMode === "grid" ? "grid gap-4 grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4" : "flex flex-col gap-1.5"}>
                   {displayProducts.map((product) => {
-                    const margin = productMargins[product.id] ?? globalMargin;
-                    const inCart = cart[product.id] || 0;
-                    const finalPrice = getUnitPrice(product, Math.max(inCart, 1)) * (1 + margin / 100);
-                    const available = getAvailableStock(product);
-                    const outOfStock = available === 0;
-                    const wasAdded = addedIds.has(product.id);
-                    const isFavorite = favoriteProductIds.includes(product.id);
-                    const lastUnit = latestPurchaseUnitPrice[product.id];
-                    const deltaPct = lastUnit
-                      ? ((finalPrice - lastUnit) / lastUnit) * 100
-                      : 0;
-
+                    const price = computePrice(product, Math.max(cart[product.id] || 0, 1));
                     return (
-                      <div
+                      <ProductItem
                         key={product.id}
-                        className={`${dk("bg-[#111]", "bg-white")} border rounded-xl p-4 flex flex-col transition-all duration-200 ${
-                          outOfStock
-                            ? dk("border-[#1a1a1a]", "border-[#e5e5e5]") + " opacity-40"
-                            : dk("border-[#1f1f1f] hover:border-[#2a2a2a] hover:bg-[#141414] hover:shadow-black/30", "border-[#e5e5e5] hover:border-[#d4d4d4] hover:bg-[#fafafa] hover:shadow-black/5") + " hover:-translate-y-px hover:shadow-lg"
-                        }`}
-                      >
-                        <div className="cursor-pointer" onClick={() => setSelectedProduct(product)}>
-                          <div className="relative mb-3">
-                            <div className={`h-32 w-full ${dk("bg-[#0a0a0a]", "bg-[#f9f9f9]")} rounded-lg flex items-center justify-center overflow-hidden`}>
-                              <img src={product.image} alt={product.name}
-                                loading="lazy"
-                                decoding="async"
-                                className="max-h-28 max-w-full object-contain p-2" />
-                            </div>
-                            {inCart > 0 && (
-                              <span className="absolute top-2 right-2 h-5 w-5 rounded-full bg-[#2D9F6A] text-white text-[10px] font-black flex items-center justify-center shadow">
-                                {inCart}
-                              </span>
-                            )}
-                            {product.featured && (
-                              <span className="absolute top-2 left-2 inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">
-                                <Star size={8} fill="currentColor" />
-                              </span>
-                            )}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleToggleFavorite(product.id);
-                              }}
-                              className={`absolute bottom-2 right-2 h-7 w-7 rounded-full border flex items-center justify-center transition ${
-                                isFavorite
-                                  ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
-                                  : dk("bg-[#111]/80 text-gray-500 border-[#222] hover:text-yellow-400", "bg-white/80 text-gray-400 border-gray-200 hover:text-yellow-500")
-                              }`}
-                            >
-                              <Star size={11} fill={isFavorite ? "currentColor" : "none"} />
-                            </button>
-                            {/* Compare toggle */}
-                            <button
-                              onClick={(e) => { e.stopPropagation(); toggleCompare(product.id); }}
-                              className={`absolute bottom-2 left-2 text-[9px] font-bold px-1.5 py-0.5 rounded border transition ${
-                                compareList.includes(product.id)
-                                  ? "bg-blue-600 text-white border-blue-500"
-                                  : dk("bg-[#111]/80 text-gray-500 border-[#222] hover:text-white", "bg-white/80 text-gray-400 border-gray-200 hover:text-gray-700")
-                              }`}
-                            >
-                              {compareList.includes(product.id) ? "✓ Comp." : "Comparar"}
-                            </button>
-                          </div>
-                          <h3 className={`font-bold text-sm ${dk("text-white", "text-[#171717]")} leading-tight line-clamp-2 mb-1`}>{product.name}</h3>
-                          <p className={`text-[11px] ${dk("text-gray-600", "text-[#737373]")} mb-1.5`}>
-                            {product.category}
-                            {product.sku && <span className="font-mono ml-1 text-gray-700">· {product.sku}</span>}
-                          </p>
-                          <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            <StockBadge stock={available} lugStock={getLugStock(product)} />
-                            {isPosProduct(product) && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                                <Truck size={9} /> POS
-                              </span>
-                            )}
-                            {purchaseHistory[product.id] > 0 && (
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${dk("bg-[#1c1c1c] text-gray-500", "bg-[#f0f0f0] text-[#737373]")}`}>
-                                Compraste {purchaseHistory[product.id]}u
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-lg text-[#2D9F6A] font-extrabold leading-tight tabular-nums">
-                            {formatPrice(finalPrice)}
-                          </div>
-                          <div className={`text-[10px] ${dk("text-[#525252]", "text-[#a3a3a3]")} mt-0.5`}>sin IVA · {product.iva_rate ?? 21}%</div>
-                          {lastUnit && deltaPct > 0 && (
-                            <div className="mt-1 text-[10px] font-semibold text-amber-500">
-                              ↑ Este producto aumentó {deltaPct.toFixed(1)}% desde tu última compra
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="mt-3 flex gap-1.5">
-                          {inCart > 0 ? (
-                            <>
-                              <button onClick={() => onRemoveFromCart(product)}
-                                className={`flex-1 ${dk("bg-[#1c1c1c] hover:bg-[#252525] text-white border-[#262626]", "bg-[#f5f5f5] hover:bg-[#ebebeb] text-[#171717] border-[#e5e5e5]")} active:scale-95 rounded-lg py-1.5 text-sm font-bold transition-all border`}>−</button>
-                              <span className={`flex items-center justify-center px-3 ${dk("text-white", "text-[#171717]")} font-bold text-sm`}>{inCart}</span>
-                              <button onClick={() => handleAddToCart(product)}
-                                className="flex-1 bg-[#2D9F6A] hover:bg-[#25835A] active:scale-95 text-white rounded-lg py-1.5 text-sm font-bold transition-all">+</button>
-                            </>
-                          ) : (
-                            <button
-                              disabled={outOfStock}
-                              onClick={() => handleAddToCart(product)}
-                              className={`w-full font-bold text-sm h-8 rounded-lg transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none ${
-                                wasAdded
-                                  ? "bg-green-600 hover:bg-green-600 text-white"
-                                  : "bg-[#2D9F6A] hover:bg-[#25835A] text-white"
-                              }`}
-                            >
-                              {outOfStock ? "Sin stock" : wasAdded ? "✓ Añadido" : "Añadir"}
-                            </button>
-                          )}
-                        </div>
-                      </div>
+                        product={product}
+                        viewMode={viewMode}
+                        inCart={cart[product.id] || 0}
+                        isFavorite={favoriteProductIds.includes(product.id)}
+                        isCompared={compareList.includes(product.id)}
+                        finalPrice={price.unitPrice}
+                        formatPrice={formatPrice}
+                        onAddToCart={handleAddToCart}
+                        onRemoveFromCart={onRemoveFromCart}
+                        onToggleFavorite={handleToggleFavorite}
+                        onToggleCompare={toggleCompare}
+                        onSelect={setSelectedProduct}
+                        onFilterBrand={setBrandFilter}
+                        isPosProduct={isPosProduct}
+                        dk={dk}
+                        wasAdded={addedIds.has(product.id)}
+                        purchaseHistoryCount={purchaseHistory[product.id]}
+                        lastPurchaseUnitPriceDelta={
+                          latestPurchaseUnitPrice[product.id] 
+                            ? ((price.unitPrice - latestPurchaseUnitPrice[product.id]) / latestPurchaseUnitPrice[product.id]) * 100 
+                            : 0
+                        }
+                      />
                     );
                   })}
                 </div>
-
-              ) : viewMode === "list" ? (
-
-                // ── LISTA ─────────────────────────────────────────────
-                <div className="flex flex-col gap-1.5">
-                  {displayProducts.map((product) => {
-                    const margin = productMargins[product.id] ?? globalMargin;
-                    const inCart = cart[product.id] || 0;
-                    const finalPrice = getUnitPrice(product, Math.max(inCart, 1)) * (1 + margin / 100);
-                    const available = getAvailableStock(product);
-                    const outOfStock = available === 0;
-                    const wasAdded = addedIds.has(product.id);
-                    const isFavorite = favoriteProductIds.includes(product.id);
-                    const lastUnit = latestPurchaseUnitPrice[product.id];
-                    const deltaPct = lastUnit
-                      ? ((finalPrice - lastUnit) / lastUnit) * 100
-                      : 0;
-
-                    return (
-                      <div
-                        key={product.id}
-                        className={`group flex items-center gap-3 ${dk("bg-[#111]", "bg-white")} border rounded-xl px-3 py-2.5 transition-all duration-150 ${
-                          outOfStock
-                            ? dk("border-[#1a1a1a]", "border-[#e5e5e5]") + " opacity-40"
-                            : dk("border-[#1f1f1f] hover:border-[#252525] hover:bg-[#161616]", "border-[#e5e5e5] hover:border-[#d4d4d4] hover:bg-[#fafafa]")
-                        }`}
-                      >
-                        {/* Clickable area */}
-                        <div
-                          className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
-                          onClick={() => setSelectedProduct(product)}
-                        >
-                          {/* Thumbnail */}
-                          <div className={`h-14 w-14 shrink-0 ${dk("bg-[#0a0a0a] border-[#1a1a1a] group-hover:border-[#222]", "bg-[#f9f9f9] border-[#e5e5e5] group-hover:border-[#d4d4d4]")} rounded-xl flex items-center justify-center overflow-hidden border transition-colors`}>
-                            <img src={product.image} alt={product.name}
-                              loading="lazy"
-                              decoding="async"
-                              className="max-h-12 max-w-12 object-contain" />
-                          </div>
-
-                          {/* Info */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <p className={`text-sm font-bold ${dk("text-white", "text-[#171717]")} truncate leading-tight`}>{product.name}</p>
-                              {product.featured && (
-                                <Star size={11} className="text-yellow-500 shrink-0" fill="currentColor" />
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-[11px] text-gray-600">{product.category}</span>
-                              {isPosProduct(product) && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                                  <Truck size={9} /> POS
-                                </span>
-                              )}
-                              {product.brand_name && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (product.brand_id) setBrandFilter(product.brand_id);
-                                  }}
-                                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition"
-                                >
-                                  {product.brand_name}
-                                </button>
-                              )}
-                              {product.sku && (
-                                <span className={`text-[10px] font-mono ${dk("text-[#525252] bg-[#171717]", "text-[#737373] bg-[#f0f0f0]")} px-1.5 py-0.5 rounded`}>{product.sku}</span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Stock + history */}
-                          <div className="hidden sm:flex items-center gap-1.5 shrink-0 flex-wrap">
-                            <StockBadge stock={available} lugStock={getLugStock(product)} />
-                            {purchaseHistory[product.id] > 0 && (
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${dk("bg-[#1c1c1c] text-gray-500", "bg-[#f0f0f0] text-[#737373]")}`}>
-                                {purchaseHistory[product.id]}u prev.
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Price */}
-                          <div className="text-right shrink-0 hidden sm:block min-w-[100px]">
-                            <div className="text-base font-extrabold text-[#2D9F6A] tabular-nums leading-tight">
-                              {formatPrice(finalPrice)}
-                            </div>
-                            <div className={`text-[10px] ${dk("text-[#525252]", "text-[#a3a3a3]")} mt-0.5`}>sin IVA · {product.iva_rate ?? 21}%</div>
-                          {lastUnit && deltaPct > 0 && (
-                            <div className="text-[10px] font-semibold text-amber-500">
-                              ↑ +{deltaPct.toFixed(1)}% vs última compra
-                            </div>
-                          )}
-                          </div>
-                        </div>
-
-                        {/* Cart controls */}
-                        <div className="flex items-center gap-1 shrink-0">
-                          {/* Compare toggle */}
-                          <button
-                            onClick={() => toggleCompare(product.id)}
-                            title="Comparar"
-                            className={`hidden sm:flex h-8 w-8 items-center justify-center rounded-lg border text-[10px] font-bold transition ${
-                              compareList.includes(product.id)
-                                ? "bg-blue-600 text-white border-blue-500"
-                                : dk("bg-[#1c1c1c] text-gray-600 border-[#262626] hover:text-white", "bg-[#f5f5f5] text-gray-400 border-[#e5e5e5] hover:text-gray-700")
-                            }`}
-                          >
-                            ⇄
-                          </button>
-                          <button
-                            onClick={() => handleToggleFavorite(product.id)}
-                            title="Favorito"
-                            className={`hidden sm:flex h-8 w-8 items-center justify-center rounded-lg border transition ${
-                              isFavorite
-                                ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
-                                : dk("bg-[#1c1c1c] text-gray-600 border-[#262626] hover:text-yellow-400", "bg-[#f5f5f5] text-gray-400 border-[#e5e5e5] hover:text-yellow-500")
-                            }`}
-                          >
-                            <Star size={12} fill={isFavorite ? "currentColor" : "none"} />
-                          </button>
-                          {inCart > 0 ? (
-                            <>
-                              <button onClick={() => onRemoveFromCart(product)}
-                                className={`h-8 w-8 ${dk("bg-[#1c1c1c] hover:bg-[#252525] text-white border-[#262626]", "bg-[#f5f5f5] hover:bg-[#ebebeb] text-[#171717] border-[#e5e5e5]")} active:scale-95 rounded-lg text-sm font-bold transition-all flex items-center justify-center border`}>
-                                <Minus size={12} />
-                              </button>
-                              <span className={`w-7 text-center ${dk("text-white", "text-[#171717]")} font-bold text-sm tabular-nums`}>{inCart}</span>
-                              <button onClick={() => handleAddToCart(product)}
-                                className="h-8 w-8 bg-[#2D9F6A] hover:bg-[#25835A] active:scale-95 text-white rounded-lg text-sm font-bold transition-all flex items-center justify-center">
-                                <Plus size={12} />
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              disabled={outOfStock}
-                              onClick={() => handleAddToCart(product)}
-                              className={`text-xs h-8 px-3.5 rounded-lg font-bold transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none whitespace-nowrap ${
-                                wasAdded
-                                  ? "bg-green-600/90 text-white"
-                                  : "bg-[#2D9F6A] hover:bg-[#25835A] text-white"
-                              }`}
-                            >
-                              {outOfStock ? "Sin stock" : wasAdded ? "✓ Añadido" : "Añadir"}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
               ) : (
+                <ProductTable
+                  products={displayProducts}
+                  cart={cart}
+                  favoriteProductIds={favoriteProductIds}
+                  productMargins={productMargins}
+                  globalMargin={globalMargin}
+                  latestPurchaseUnitPrice={latestPurchaseUnitPrice}
+                  formatPrice={formatPrice}
+                  onAddToCart={handleAddToCart}
+                  onRemoveFromCart={onRemoveFromCart}
+                  onSelect={setSelectedProduct}
+                  isPosProduct={isPosProduct}
+                  dk={dk}
+                  addedIds={addedIds}
+                  getUnitPrice={(p, q) => computePrice(p, q).unitPrice}
+                />
+              )}
 
-                // ── TABLA DE PRECIOS (alta densidad) ─────────────────
-                <div className={`rounded-xl border overflow-hidden ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")}`}>
-                  <table className="w-full text-sm border-collapse">
-                    <thead>
-                      <tr className={`${dk("bg-[#0d0d0d] text-[#525252]", "bg-[#f5f5f5] text-[#a3a3a3]")} text-[11px] font-bold uppercase tracking-wide`}>
-                        <th className="text-left px-3 py-2.5">SKU</th>
-                        <th className="text-left px-3 py-2.5">Nombre</th>
-                        <th className="hidden sm:table-cell text-left px-3 py-2.5">Categoría</th>
-                        <th className="text-center px-3 py-2.5">Stock</th>
-                        <th className="text-right px-3 py-2.5">Precio s/IVA</th>
-                        <th className="text-right px-3 py-2.5 w-32">Acción</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {displayProducts.map((product, idx) => {
-                        const margin = productMargins[product.id] ?? globalMargin;
-                        const inCart = cart[product.id] || 0;
-                        const finalPrice = getUnitPrice(product, Math.max(inCart, 1)) * (1 + margin / 100);
-                        const available = getAvailableStock(product);
-                        const outOfStock = available === 0;
-                        const wasAdded = addedIds.has(product.id);
-                        const isFavorite = favoriteProductIds.includes(product.id);
-                        const hasTiers = product.price_tiers && product.price_tiers.length > 1;
-                        const lastUnit = latestPurchaseUnitPrice[product.id];
-                        const deltaPct = lastUnit
-                          ? ((finalPrice - lastUnit) / lastUnit) * 100
-                          : 0;
-                        return (
-                          <tr
-                            key={product.id}
-                            className={`border-t transition ${
-                              outOfStock ? "opacity-40 " : ""
-                            }${idx % 2 === 0
-                              ? dk("bg-[#111] border-[#1a1a1a]", "bg-white border-[#f0f0f0]")
-                              : dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-[#fafafa] border-[#f0f0f0]")
-                            } ${!outOfStock ? dk("hover:bg-[#161616]", "hover:bg-[#f5f5f5]") : ""}`}
-                          >
-                            <td className="px-3 py-2">
-                              <button className="text-left" onClick={() => setSelectedProduct(product)}>
-                                <span className={`text-[11px] font-mono ${dk("text-[#525252]", "text-[#737373]")}`}>
-                                  {product.sku ?? "—"}
-                                </span>
-                              </button>
-                            </td>
-                            <td className="px-3 py-2 max-w-[220px]">
-                              <button className="text-left w-full" onClick={() => setSelectedProduct(product)}>
-                                <span className={`text-sm font-medium ${dk("text-gray-200", "text-[#171717]")} line-clamp-1`}>
-                                  {product.name}
-                                  {isFavorite && <Star size={10} className="inline ml-1 text-yellow-500" fill="currentColor" />}
-                                </span>
-                                {hasTiers && (
-                                  <span className="text-[10px] text-[#2D9F6A] font-semibold">Precio por volumen</span>
-                                )}
-                              </button>
-                            </td>
-                            <td className={`hidden sm:table-cell px-3 py-2 text-xs ${dk("text-gray-600", "text-[#737373]")}`}>
-                              <div className="inline-flex items-center gap-1.5">
-                                <span>{product.category}</span>
-                                {isPosProduct(product) && (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                                    <Truck size={9} /> POS
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              <StockBadge stock={available} lugStock={getLugStock(product)} />
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums">
-                              <span className="text-sm font-bold text-[#2D9F6A]">{formatPrice(finalPrice)}</span>
-                              <span className={`block text-[10px] ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>+{product.iva_rate ?? 21}% IVA</span>
-                              {lastUnit && deltaPct > 0 && (
-                                <span className="block text-[10px] font-semibold text-amber-500">↑ +{deltaPct.toFixed(1)}%</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-2 text-right">
-                              {inCart > 0 ? (
-                                <div className="flex items-center justify-end gap-1">
-                                  <button onClick={() => onRemoveFromCart(product)}
-                                    className={`h-7 w-7 ${dk("bg-[#1c1c1c] hover:bg-[#252525] text-white border-[#262626]", "bg-[#f5f5f5] hover:bg-[#ebebeb] text-[#171717] border-[#e5e5e5]")} active:scale-95 rounded-md text-sm font-bold transition-all flex items-center justify-center border`}>
-                                    <Minus size={11} />
-                                  </button>
-                                  <span className={`w-5 text-center ${dk("text-white", "text-[#171717]")} font-bold text-xs tabular-nums`}>{inCart}</span>
-                                  <button onClick={() => handleAddToCart(product)}
-                                    className="h-7 w-7 bg-[#2D9F6A] hover:bg-[#25835A] active:scale-95 text-white rounded-md text-sm font-bold transition-all flex items-center justify-center">
-                                    <Plus size={11} />
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  disabled={outOfStock}
-                                  onClick={() => handleAddToCart(product)}
-                                  className={`text-xs h-7 px-3 rounded-md font-bold transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none ${
-                                    wasAdded ? "bg-green-600/90 text-white" : "bg-[#2D9F6A] hover:bg-[#25835A] text-white"
-                                  }`}
-                                >
-                                  {outOfStock ? "Sin stock" : wasAdded ? "✓" : "+ Añadir"}
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+              {/* ── LOAD MORE ── */}
+              {hasMore && !productsLoading && (
+                <div className="flex justify-center mt-8 mb-12">
+                  <button
+                    onClick={loadMore}
+                    className={`flex items-center gap-2 px-8 py-3 rounded-xl border font-bold transition-all active:scale-[0.98] ${
+                      dk(
+                        "bg-[#111] border-[#222] text-white hover:bg-[#181818] hover:border-[#333] shadow-lg shadow-black/20",
+                        "bg-white border-[#e5e5e5] text-[#171717] hover:bg-[#f9f9f9] hover:border-[#d4d4d4] shadow-sm"
+                      )
+                    }`}
+                  >
+                    Ver más productos
+                    <ChevronDown size={14} className="animate-bounce" />
+                  </button>
+                </div>
+              )}
+
+              {productsLoading && products.length > 0 && (
+                <div className="flex justify-center mt-6 mb-12">
+                   <div className="flex items-center gap-2 text-gray-500 text-xs font-medium">
+                      <Loader2 size={14} className="animate-spin text-[#2D9F6A]" />
+                      Cargando más...
+                   </div>
                 </div>
               )}
             </>
+          )}
+
+          {/* ── MIS PEDIDOS ── */}
+          {activeTab === "orders" && (
+            <OrdersPanel
+              isDark={isDark}
+              orders={orders}
+              invoices={myInvoices}
+              formatPrice={formatPrice}
+              formatUSD={formatUSD}
+              formatARS={formatARS}
+              currency={currency}
+              onRepeatOrder={handleRepeatOrder}
+              onGoToCatalog={() => setActiveTab("catalog")}
+              onGoToInvoices={() => setActiveTab("invoices")}
+              onUpdateOrderProofs={(id, pr) => updateOrder(id, { payment_proofs: pr })}
+            />
           )}
 
           {/* ── COTIZACIONES ── */}
@@ -2224,6 +1706,14 @@ export default function B2BPortal() {
               onGoToTab={setActiveTab}
               onLoadSavedCart={handleLoadSavedCart}
               onDeleteSavedCart={handleDeleteSavedCart}
+            />
+          )}
+
+          {/* ── SOPORTE & RMA ── */}
+          {activeTab === "support" && (
+            <SupportCenter 
+              isDark={isDark}
+              orders={orders}
             />
           )}
           {showLegacyPortalSections && activeTab === "cuenta" && profile && (() => {
@@ -2665,6 +2155,8 @@ export default function B2BPortal() {
           currency={currency}
         />
       )}
+
+      {/* El carrito ahora redirige a /cart */}
 
       {/* MODAL PRODUCTO */}
       {productModal}

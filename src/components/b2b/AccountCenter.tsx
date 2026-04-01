@@ -39,6 +39,8 @@ import {
   formatMoneyInPreferredCurrency,
   getEffectiveInvoiceAmounts,
 } from "@/lib/money";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 type AccountSection =
   | "resumen"
@@ -424,6 +426,34 @@ export function AccountCenter({
       setSaving(false);
       window.setTimeout(() => setSaveSuccess(""), 2500);
     }
+  }
+
+  async function handleDownloadStatementPDF() {
+    const doc = new jsPDF();
+    const title = `Estado de Cuenta - ${clientDetail?.company_name || profile.company_name}`;
+    
+    doc.setFontSize(18);
+    doc.text(title, 14, 22);
+    doc.setFontSize(10);
+    doc.text(`Fecha: ${new Date().toLocaleDateString("es-AR")}`, 14, 30);
+    doc.text(`Cliente: ${profile.contact_name}`, 14, 35);
+
+    const tableData = movements.map((m) => [
+      new Date(m.fecha).toLocaleDateString("es-AR"),
+      m.tipo.toUpperCase(),
+      m.descripcion || "-",
+      formatMoneyInPreferredCurrency(m.monto, "ARS", currency, exchangeRate.rate, 2)
+    ]);
+
+    autoTable(doc, {
+      startY: 45,
+      head: [["Fecha", "Tipo", "Descripción", "Monto"]],
+      body: tableData,
+      theme: "striped",
+      headStyles: { fillColor: [45, 159, 106] }
+    });
+
+    doc.save(`Estado_Cuenta_${profile.id.slice(0, 8)}.pdf`);
   }
 
   async function handleSendResetLink() {

@@ -251,7 +251,7 @@ export function PosProductsTab({ products, categories, brands, onRefreshProducts
                     </button>
                   )}
                   {posCategoryNames.has(normalizeName(p.category)) && (
-                    <Tag size={13} className="text-[#2D9F6A]" title="Categoría POS" />
+                    <span title="Categoría POS"><Tag size={13} className="text-[#2D9F6A]" /></span>
                   )}
                 </div>
               </div>

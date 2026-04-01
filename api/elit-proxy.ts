@@ -4,9 +4,7 @@ const ALLOWED_PATHS = new Set([
   "productos",
 ]);
 
-export const config = {
-  runtime: "edge",
-};
+
 
 export default async function handler(request: Request): Promise<Response> {
   if (request.method !== "POST") {

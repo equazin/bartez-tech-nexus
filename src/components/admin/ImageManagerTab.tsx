@@ -186,6 +186,9 @@ export function ImageManagerTab({ isDark = true, products: externalProducts, onR
       setProcessSummary(summary);
       await loadStats();
       await loadProducts();
+      if (selectedProductId) {
+        await loadSuggestions(selectedProductId);
+      }
       onRefreshProducts?.();
     } catch (err) {
       if ((err as Error).name !== "AbortError") {

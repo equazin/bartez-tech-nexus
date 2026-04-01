@@ -9,6 +9,7 @@ import { useCurrency } from "@/context/CurrencyContext";
 import { generateQuotePdfOnDemand } from "@/lib/quotePdfClient";
 import { getAvailableStock } from "@/lib/pricing";
 import { resolveMarginWithContext } from "@/lib/pricingEngine";
+import { usePricing } from "@/hooks/usePricing";
 import { estimateShipping, type ShippingEstimate } from "@/lib/shipping";
 import { getFavoriteProducts, toggleFavoriteProduct } from "@/lib/favoriteProducts";
 import { convertMoneyAmount, formatMoneyInPreferredCurrency } from "@/lib/money";
@@ -87,8 +88,9 @@ const ECHEQ_SURCHARGE_BY_TERM: Record<EcheqTermDays, number> = {
 
 export default function CartPage() {
   const navigate = useNavigate();
-  const { profile } = useAuth();
-  const { products, loading: productsLoading } = useProducts();
+  const { profile, isAdmin } = useAuth();
+  const { products, loading: productsLoading } = useProducts({ isAdmin });
+  const { computePrice } = usePricing(profile);
   const { addOrder, orders } = useOrders();
   const { addQuote } = useQuotes(profile?.id || "guest");
   const { rules: pricingRules } = usePricingRules();
@@ -167,35 +169,31 @@ export default function CartPage() {
       .map(([id, qty]) => {
         const product = products.find((p) => p.id === Number(id));
         if (!product) return null;
-        const cost       = product.cost_price;
-        const { margin, isVolumePricing } = resolveMarginWithContext(
-          product, pricingRules, globalMargin, profile?.id, qty
-        );
-        const unitPrice  = cost * (1 + margin / 100);
-        const totalPrice = unitPrice * qty;
-        const ivaRate    = product.iva_rate ?? 21;
-        const ivaAmount  = totalPrice * (ivaRate / 100);
+        
+        const price = computePrice(product, qty);
+        
         const availableStock = getAvailableStock(product);
         const minQty = product.min_order_qty ?? product.stock_min ?? 0;
+        
         return {
           product,
           quantity: qty,
-          cost,
-          margin,
-          isVolumePricing,
-          unitPrice,
-          totalPrice,
-          ivaRate,
-          ivaAmount,
-          totalWithIVA:    totalPrice + ivaAmount,
+          cost: price.cost,
+          margin: price.margin,
+          isVolumePricing: price.isVolumePricing,
+          unitPrice: price.unitPrice,
+          totalPrice: price.totalPrice,
+          ivaRate: price.ivaRate,
+          ivaAmount: price.ivaAmount,
+          totalWithIVA: price.totalWithIVA,
           availableStock,
-          hasStockError:   qty > availableStock && availableStock >= 0,
+          hasStockError: qty > availableStock && availableStock >= 0,
           hasStockWarning: qty <= availableStock && availableStock > 0 && availableStock <= 3,
-          hasMOQError:     minQty > 0 && qty < minQty,
+          hasMOQError: minQty > 0 && qty < minQty,
         };
       })
       .filter((i): i is CartItem => i !== null);
-  }, [cart, products, globalMargin, pricingRules, profile?.id]);
+  }, [cart, products, computePrice]);
 
   const cartSubtotal     = useMemo(() => cartItems.reduce((s, i) => s + i.totalPrice, 0), [cartItems]);
   const cartIVATotal     = useMemo(() => cartItems.reduce((s, i) => s + i.ivaAmount,  0), [cartItems]);

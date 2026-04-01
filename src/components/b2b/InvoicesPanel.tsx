@@ -276,6 +276,48 @@ export function InvoicesPanel({
                       </div>
                     </div>
 
+                    {/* Fiscal/AFIP Section (Phase 4.4) */}
+                    {(invoice.cae || invoice.invoice_type) && (
+                      <div className={`rounded-xl border px-5 py-4 ${dk("border-[#1f1f1f] bg-[#111] shadow-lg shadow-black/20", "border-[#e5e5e5] bg-[#f9f9f9]")}`}>
+                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                           <div className="space-y-4 flex-1">
+                             <div className="flex items-center gap-2 mb-2">
+                               <FileText size={16} className="text-[#2D9F6A]" />
+                               <p className={`text-xs font-bold uppercase tracking-widest ${dk("text-white", "text-[#171717]")}`}>Información Fiscal Oficial (AFIP)</p>
+                             </div>
+                             
+                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                               <div>
+                                 <p className="text-[10px] text-gray-500 uppercase font-semibold">Tipo Factura</p>
+                                 <p className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>{invoice.invoice_type || "A"}</p>
+                               </div>
+                               <div>
+                                 <p className="text-[10px] text-gray-500 uppercase font-semibold">Punto Venta</p>
+                                 <p className={`text-xs font-mono font-bold ${dk("text-white", "text-[#171717]")}`}>{invoice.point_of_sale || "0001"}</p>
+                               </div>
+                               <div>
+                                 <p className="text-[10px] text-gray-500 uppercase font-semibold">CAE</p>
+                                 <p className={`text-xs font-mono font-bold ${dk("text-[#2D9F6A]", "text-[#1a7a50]")}`}>{invoice.cae || "Pendiente"}</p>
+                               </div>
+                               <div>
+                                 <p className="text-[10px] text-gray-500 uppercase font-semibold">Vence CAE</p>
+                                 <p className={`text-xs font-bold ${dk("text-gray-300", "text-[#525252]")}`}>
+                                   {invoice.cae_due_date ? new Date(invoice.cae_due_date).toLocaleDateString("es-AR") : "—"}
+                                 </p>
+                               </div>
+                             </div>
+                           </div>
+
+                           {invoice.afip_qr && (
+                             <div className={`p-2 rounded-lg ${dk("bg-white", "bg-white border")}`}>
+                               <img src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(invoice.afip_qr)}`} alt="AFIP QR" className="w-20 h-20" />
+                               <p className="text-[8px] text-center text-gray-400 mt-1 uppercase font-bold">AFIP oficial</p>
+                             </div>
+                           )}
+                         </div>
+                      </div>
+                    )}
+
                     {(invoice.order_id || relatedOrder?.numero_remito) && (
                       <div className={`rounded-xl border px-4 py-3 ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
                         <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${dk("text-gray-400", "text-[#737373]")}`}>Documentos asociados</p>

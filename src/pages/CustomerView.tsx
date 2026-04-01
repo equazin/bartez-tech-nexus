@@ -164,7 +164,7 @@ function ResumenTab({
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-[#525252] mb-1">Última compra</p>
             <p className={`text-sm font-semibold ${dk("text-white","text-[#171717]")}`}>
-              {lastOrder.order_number ?? `#${lastOrder.id.slice(0,8)}`}
+              {lastOrder.order_number ?? `#${String(lastOrder.id).slice(0,8)}`}
               {" · "}
               <span className="text-[#2D9F6A]">{formatPrice(lastOrder.total)}</span>
             </p>
@@ -186,7 +186,7 @@ function ResumenTab({
           <div key={o.id} className="px-4 py-2.5 flex items-center justify-between">
             <div>
               <p className={`text-xs font-medium ${dk("text-[#d4d4d4]","text-[#171717]")}`}>
-                Pedido {o.order_number ?? `#${o.id.slice(0,8)}`}
+                Pedido {o.order_number ?? `#${String(o.id).slice(0,8)}`}
               </p>
               <p className="text-[10px] text-[#525252]">{fmtDate(o.created_at)}</p>
             </div>
@@ -235,7 +235,7 @@ function PedidosTab({ orders, isDark }: { orders: ClientOrder[]; isDark: boolean
         <div key={o.id} className={`grid grid-cols-[1fr_100px_90px_90px] gap-2 px-4 py-2.5 border-t items-center ${dk("border-[#1a1a1a] odd:bg-[#0d0d0d]","border-[#f0f0f0] odd:bg-[#fafafa]")}`}>
           <div>
             <p className={`text-xs font-medium ${dk("text-[#d4d4d4]","text-[#171717]")}`}>
-              {o.order_number ?? `#${o.id.slice(0,8)}`}
+              {o.order_number ?? `#${String(o.id).slice(0,8)}`}
             </p>
             <p className="text-[10px] text-[#525252]">
               {o.products?.length ?? 0} producto{o.products?.length !== 1 ? "s" : ""}

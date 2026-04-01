@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import { CLIENT_TYPE_MARGINS, ClientType } from "@/lib/supabase";
 import { Product } from "@/models/products";
@@ -16,26 +16,11 @@ import {
   Users, Package, ClipboardList, LogOut, UserPlus, X, Plus,
   DollarSign, Pencil, Check, LayoutDashboard, Sun, Moon, Phone,
   Truck, Download, Building2, Tag, BarChart2, Activity, Wifi, Bookmark, Flame,
-  Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag, Image, type LucideIcon,
+  Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag, Image, LifeBuoy, Ticket, type LucideIcon,
 } from "lucide-react";
 import { exportOrdersCSV, exportCatalogCSV, exportReportsCSV } from "@/lib/exportCsv";
 import { exportCatalogPdf, exportRemitoPdf } from "@/lib/exportPdf";
-import { SalesDashboard } from "@/components/admin/SalesDashboard";
-import { ClientCRM } from "@/components/admin/ClientCRM";
-import OrderKanban, { type KanbanStatus, type KanbanOrder } from "@/components/admin/OrderKanban";
 import { useOrdersRealtime } from "@/hooks/useOrdersRealtime";
-import { SuppliersTab } from "@/components/admin/SuppliersTab";
-import { BrandsTab } from "@/components/admin/BrandsTab";
-import { PricingRulesTab } from "@/components/admin/PricingRulesTab";
-import { ReportsTab } from "@/components/admin/ReportsTab";
-import { ActivityLogTab } from "@/components/admin/ActivityLogTab";
-import { SupplierApisSyncTab } from "@/components/admin/SupplierApisSyncTab";
-import { StockTab } from "@/components/admin/StockTab";
-import { InvoicesTab } from "@/components/admin/InvoicesTab";
-import { StockMovementsTab } from "@/components/admin/StockMovementsTab";
-import { CreditTab } from "@/components/admin/CreditTab";
-import { QuotesAdminTab } from "@/components/admin/QuotesAdminTab";
-import { PurchaseOrdersTab } from "@/components/admin/PurchaseOrdersTab";
 import { SupplierPriceImport } from "@/components/admin/SupplierPriceImport";
 import { BulkDeleteProducts } from "@/components/admin/BulkDeleteProducts";
 import { ErrorBoundary } from "@/components/admin/ErrorBoundary";
@@ -43,13 +28,32 @@ import { CreateOrderModal } from "@/components/admin/CreateOrderModal";
 import { NotificationBell } from "@/components/admin/NotificationBell";
 import { AdminSearch } from "@/components/admin/AdminSearch";
 import { logActivity } from "@/lib/api/activityLog";
-import { UsersPermissionsTab } from "@/components/admin/UsersPermissionsTab";
-import { ApprovalsTab } from "@/components/admin/ApprovalsTab";
-import { DocumentsTab } from "@/components/admin/DocumentsTab";
-import { SupportTab } from "@/components/admin/SupportTab";
-import { OpportunitiesTab } from "@/components/admin/OpportunitiesTab";
-import { PosManagementTab } from "@/components/admin/PosManagementTab";
-import { ImageManagerTab } from "@/components/admin/ImageManagerTab";
+import type { KanbanStatus, KanbanOrder } from "../components/admin/OrderKanban";
+import { MarketingTab } from "@/components/admin/MarketingTab";
+
+// Lazy loaded tabs
+const SalesDashboard = lazy(() => import("@/components/admin/SalesDashboard").then(m => ({ default: m.SalesDashboard })));
+const ClientCRM = lazy(() => import("@/components/admin/ClientCRM").then(m => ({ default: m.ClientCRM })));
+const OrderKanban = lazy(() => import("@/components/admin/OrderKanban"));
+const SuppliersTab = lazy(() => import("@/components/admin/SuppliersTab").then(m => ({ default: m.SuppliersTab })));
+const BrandsTab = lazy(() => import("@/components/admin/BrandsTab").then(m => ({ default: m.BrandsTab })));
+const PricingRulesTab = lazy(() => import("@/components/admin/PricingRulesTab").then(m => ({ default: m.PricingRulesTab })));
+const ReportsTab = lazy(() => import("@/components/admin/ReportsTab").then(m => ({ default: m.ReportsTab })));
+const ActivityLogTab = lazy(() => import("@/components/admin/ActivityLogTab").then(m => ({ default: m.ActivityLogTab })));
+const SupplierApisSyncTab = lazy(() => import("@/components/admin/SupplierApisSyncTab").then(m => ({ default: m.SupplierApisSyncTab })));
+const StockTab = lazy(() => import("@/components/admin/StockTab").then(m => ({ default: m.StockTab })));
+const InvoicesTab = lazy(() => import("@/components/admin/InvoicesTab").then(m => ({ default: m.InvoicesTab })));
+const StockMovementsTab = lazy(() => import("@/components/admin/StockMovementsTab").then(m => ({ default: m.StockMovementsTab })));
+const CreditTab = lazy(() => import("@/components/admin/CreditTab").then(m => ({ default: m.CreditTab })));
+const QuotesAdminTab = lazy(() => import("@/components/admin/QuotesAdminTab").then(m => ({ default: m.QuotesAdminTab })));
+const PurchaseOrdersTab = lazy(() => import("@/components/admin/PurchaseOrdersTab").then(m => ({ default: m.PurchaseOrdersTab })));
+const UsersPermissionsTab = lazy(() => import("@/components/admin/UsersPermissionsTab").then(m => ({ default: m.UsersPermissionsTab })));
+const ApprovalsTab = lazy(() => import("@/components/admin/ApprovalsTab").then(m => ({ default: m.ApprovalsTab })));
+const DocumentsTab = lazy(() => import("@/components/admin/DocumentsTab").then(m => ({ default: m.DocumentsTab })));
+const SupportTab = lazy(() => import("@/components/admin/SupportTab").then(m => ({ default: m.SupportTab })));
+const OpportunitiesTab = lazy(() => import("@/components/admin/OpportunitiesTab").then(m => ({ default: m.OpportunitiesTab })));
+const PosManagementTab = lazy(() => import("@/components/admin/PosManagementTab").then(m => ({ default: m.PosManagementTab })));
+const ImageManagerTab = lazy(() => import("@/components/admin/ImageManagerTab").then(m => ({ default: m.ImageManagerTab })));
 import {
   fetchProductsForContent,
   processProductContent,
@@ -65,6 +69,8 @@ interface SupabaseOrder {
   status: string;
   order_number?: string;
   numero_remito?: string;
+  shipping_provider?: string;
+  tracking_number?: string;
   created_at: string;
 }
 
@@ -176,7 +182,7 @@ function LegacyStatusBadge({ status }: { status: string }) {
   );
 }
 
-type Tab = "dashboard" | "products" | "imports" | "categories" | "opportunities" | "pos" | "seller_mode" | "orders" | "kanban" | "clients" | "users_permissions" | "approvals" | "documents" | "support" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "supplier_sync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders" | "images";
+type Tab = "dashboard" | "products" | "imports" | "categories" | "opportunities" | "pos" | "seller_mode" | "orders" | "kanban" | "clients" | "users_permissions" | "approvals" | "documents" | "support" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "supplier_sync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders" | "images" | "marketing";
 
 
 
@@ -303,8 +309,14 @@ const Admin = () => {
   const [productFilterFeatured, setProductFilterFeatured] = useState("all");
   const productFormRef = useRef<HTMLDivElement | null>(null);
 
+  // Logistics state
+  const [shippingProvider, setShippingProvider] = useState("");
+  const [trackingNumber,   setTrackingNumber]   = useState("");
+  const [notifyByEmail,    setNotifyByEmail]    = useState(true);
+  const [savingLogistics,  setSavingLogistics]  = useState(false);
+
   // Realtime orders for kanban
-  const { orders: rtOrders, updateStatus: rtUpdateStatus } = useOrdersRealtime();
+  const { orders: rtOrders, updateStatus: rtUpdateStatus, updateLogistics: rtUpdateLogistics } = useOrdersRealtime();
 
   // Order tab filters + pagination
   const [filterOrderStatus, setFilterOrderStatus] = useState("all");
@@ -520,6 +532,50 @@ const Admin = () => {
     fetchQuoteSearchItems();
     fetchPaymentSearchItems();
   }, []);
+
+  useEffect(() => {
+    if (selectedOrder) {
+      setShippingProvider(selectedOrder.shipping_provider || "");
+      setTrackingNumber(selectedOrder.tracking_number || "");
+    }
+  }, [selectedOrder]);
+
+  async function handleSaveLogistics() {
+    if (!selectedOrder) return;
+    setSavingLogistics(true);
+    try {
+      await rtUpdateLogistics(selectedOrder.id, shippingProvider, trackingNumber);
+      
+      if (notifyByEmail) {
+        const client = clients.find(c => c.id === selectedOrder.client_id);
+        if (client?.email) {
+          await fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "order_shipped",
+              orderId: selectedOrder.id,
+              orderNumber: selectedOrder.order_number || `#${String(selectedOrder.id).slice(-8)}`,
+              clientId: selectedOrder.client_id,
+              clientEmail: client.email,
+              clientName: client.company_name || client.contact_name,
+              products: selectedOrder.products,
+              total: selectedOrder.total,
+              shippingProvider,
+              trackingNumber,
+            }),
+          });
+        }
+      }
+
+      // Update local state if needed (realtime might handle it, but for safety:)
+      setSelectedOrder(prev => prev ? { ...prev, shipping_provider: shippingProvider, tracking_number: trackingNumber } : null);
+    } catch (err) {
+       console.error("Error saving logistics:", err);
+    } finally {
+      setSavingLogistics(false);
+    }
+  }
 
   useEffect(() => {
     const validIds = new Set(categories.map((category) => category.id));
@@ -904,20 +960,15 @@ async function handleCreateClient() {
       return;
     }
 
-    if (!phone) {
-      setCreateError("El celular es obligatorio.");
-      return;
-    }
-
-    // Acepta 10-13 dígitos (código de área + número, con o sin prefijo 549)
-    if (phone.replace(/\D/g, "").length < 10) {
-      setCreateError("El celular debe incluir código de área y número (ej: 3411234567).");
+    // El celular ahora es opcional. Solo validamos si se ingresó algo.
+    if (phone && phone.replace(/\D/g, "").length < 10) {
+      setCreateError("Si se ingresa un celular, debe incluir código de área y número (ej: 3411234567).");
       return;
     }
 
     setCreatingClient(true);
 
-    // 🔥 SIGNUP (sin phone en options.data para evitar error del trigger)
+    // 🔥 SIGNUP (Incluimos el phone para que el trigger handle_new_user lo procese correctamente)
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -928,7 +979,8 @@ async function handleCreateClient() {
           client_type: newClient.client_type,
           default_margin: newClient.default_margin,
           role: newClient.role,
-          email,
+          phone: phone, // Agregado para evitar error 500 del trigger
+          email: email,
         },
       },
     });
@@ -1180,7 +1232,8 @@ async function handleCreateClient() {
         { id: "stock",           label: "Stock",          icon: Layers,       adminOnly: true },
         { id: "movements",       label: "Movimientos",    icon: History,      adminOnly: true },
         { id: "purchase_orders", label: "Órdenes Compra", icon: ShoppingBag,  adminOnly: true },
-        { id: "support",         label: "Postventa",      icon: MessageSquare, adminOnly: true },
+        { id: "support",         label: "Soporte",        icon: LifeBuoy,     adminOnly: true },
+        { id: "marketing",       label: "Marketing",      icon: Ticket,       adminOnly: true },
         { id: "activity",        label: "Actividad",      icon: Activity,     adminOnly: true },
       ],
     },
@@ -1443,6 +1496,11 @@ async function handleCreateClient() {
 
       <main className="flex-1 p-4 md:p-5 overflow-y-auto min-w-0">
       <ErrorBoundary section={activeTab}>
+        <Suspense fallback={
+          <div className="flex items-center justify-center min-h-[400px]">
+             <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#2D9F6A] border-t-transparent" />
+          </div>
+        }>
 
         {/* -- DASHBOARD -- */}
         {activeTab === "dashboard" && (
@@ -1520,6 +1578,11 @@ async function handleCreateClient() {
             products={products}
             onRefreshProducts={fetchProducts}
           />
+        )}
+
+        {/* -- MARKETING -- */}
+        {activeTab === "marketing" && (
+          <MarketingTab isDark={isDark} />
         )}
 
         {/* -- IMPORTACIONES -- */}
@@ -2087,6 +2150,60 @@ async function handleCreateClient() {
                   </div>
                 </div>
 
+                <div className={`mb-5 p-4 rounded-xl border ${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-[#f9f9f9] border-[#e5e5e5]")}`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Truck size={14} className="text-[#2D9F6A]" />
+                    <h4 className={`text-xs font-bold uppercase tracking-widest ${dk("text-gray-300", "text-[#171717]")}`}>Logística y Envío</h4>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <label className="block text-[10px] text-gray-500 uppercase font-bold mb-1 ml-1">Transporte</label>
+                      <select 
+                        value={shippingProvider}
+                        onChange={(e) => setShippingProvider(e.target.value)}
+                        className={`w-full rounded-lg border px-3 py-2 text-xs outline-none ${dk("bg-[#111] border-[#2a2a2a] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}
+                      >
+                        <option value="">Seleccionar...</option>
+                        <option value="Andreani">Andreani</option>
+                        <option value="OCA">OCA</option>
+                        <option value="OCASA">OCASA</option>
+                        <option value="Logística Bartez">Logística Bartez</option>
+                        <option value="Retiro en sucursal">Retiro en sucursal</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-500 uppercase font-bold mb-1 ml-1">Guía / Tracking</label>
+                      <input 
+                        value={trackingNumber}
+                        onChange={(e) => setTrackingNumber(e.target.value)}
+                        placeholder="Nro de seguimiento"
+                        className={`w-full rounded-lg border px-3 py-2 text-xs outline-none ${dk("bg-[#111] border-[#2a2a2a] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 mb-4 px-1">
+                    <input 
+                      type="checkbox"
+                      id="notify-email"
+                      checked={notifyByEmail}
+                      onChange={(e) => setNotifyByEmail(e.target.checked)}
+                      className="rounded border-gray-300 text-[#2D9F6A] focus:ring-[#2D9F6A]"
+                    />
+                    <label htmlFor="notify-email" className={`text-[10px] font-bold uppercase tracking-wider cursor-pointer ${dk("text-gray-400", "text-gray-600")}`}>
+                      Notificar al cliente por email
+                    </label>
+                  </div>
+
+                  <button 
+                    onClick={handleSaveLogistics}
+                    disabled={savingLogistics}
+                    className="w-full bg-[#2D9F6A] hover:bg-[#25835A] disabled:opacity-50 text-white rounded-lg py-2 text-[11px] font-bold uppercase tracking-widest transition shadow-lg shadow-[#2D9F6A]/10"
+                  >
+                    {savingLogistics ? "Guardando..." : "Actualizar Información de Envío"}
+                  </button>
+                </div>
+
                 {selectedOrder.status === "pending" && (() => {
                   const phone = clients.find((c) => c.id === selectedOrder.client_id)?.phone ?? "";
                   const waMsg = encodeURIComponent(
@@ -2245,7 +2362,7 @@ async function handleCreateClient() {
                       </div>
                       <div className="col-span-2">
                         <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>
-                          Celular * <span className="font-normal opacity-60">(cód. de área + número, ej: 3411234567 · 1145678901)</span>
+                          Celular <span className="font-normal opacity-60">(cód. de área + número, ej: 3411234567 · 1145678901)</span>
                         </label>
                         <input
                           type="tel"
@@ -2424,7 +2541,7 @@ async function handleCreateClient() {
         {activeTab === "supplier_sync" && (
           <SupplierApisSyncTab isDark={isDark} userId={userId} onSyncDone={fetchProducts} />
         )}
-
+        </Suspense>
       </ErrorBoundary>
       </main>
       </div>{/* end body flex */}

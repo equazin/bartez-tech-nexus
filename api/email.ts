@@ -48,6 +48,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    if (payload.type === "order_shipped" && payload.clientEmail) {
+      const { orderShippedHTML } = await import("./_shared/emailTemplates");
+      await transport.sendMail({
+        from: `"Bartez Tecnologia" <${fromEmail}>`,
+        to: payload.clientEmail,
+        subject: sanitizeHeaderText(
+          `Tu pedido ${payload.orderNumber} está en camino`,
+          "Pedido en camino"
+        ),
+        html: orderShippedHTML({
+          orderNumber: payload.orderNumber,
+          clientName: payload.clientName ?? "Cliente",
+          shippingProvider: payload.shippingProvider,
+          trackingNumber: payload.trackingNumber,
+        }),
+      });
+    }
+
+    if (payload.type === "order_delivered" && payload.clientEmail) {
+      const { orderDeliveredHTML } = await import("./_shared/emailTemplates");
+      await transport.sendMail({
+        from: `"Bartez Tecnologia" <${fromEmail}>`,
+        to: payload.clientEmail,
+        subject: sanitizeHeaderText(
+          `¡Tu pedido ${payload.orderNumber} fue entregado!`,
+          "Pedido entregado"
+        ),
+        html: orderDeliveredHTML({
+          orderNumber: payload.orderNumber,
+          clientName: payload.clientName ?? "Cliente",
+        }),
+      });
+    }
+
     if (payload.type === "order_confirmed" || payload.type === "new_order_admin") {
       await transport.sendMail({
         from: `"Bartez B2B" <${fromEmail}>`,

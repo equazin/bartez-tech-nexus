@@ -25,7 +25,7 @@ export const orderProductSchema = z.object({
 });
 
 export const orderEmailSchema = z.object({
-  type: z.enum(["order_confirmed", "new_order_admin"]),
+  type: z.enum(["order_confirmed", "new_order_admin", "order_shipped", "order_delivered"]),
   orderId: z.coerce.number().int().positive(),
   orderNumber: z.string().trim().min(1).max(64),
   clientId: z.string().trim().min(1).max(128),
@@ -33,6 +33,8 @@ export const orderEmailSchema = z.object({
   clientName: optionalTrimmedString(120),
   products: z.array(orderProductSchema).max(200),
   total: z.coerce.number().nonnegative(),
+  shippingProvider: optionalTrimmedString(100),
+  trackingNumber:   optionalTrimmedString(100),
 });
 
 export const createOrderSchema = z.object({

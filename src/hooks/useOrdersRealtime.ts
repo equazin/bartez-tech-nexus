@@ -16,7 +16,7 @@ export function useOrdersRealtime() {
     try {
       const { data, error } = await supabase
         .from("orders")
-        .select("id, order_number, client_id, total, status, products, created_at, notes")
+        .select("id, order_number, client_id, total, status, products, created_at, notes, shipping_provider, tracking_number")
         .order("created_at", { ascending: false });
 
       if (!error && data) {
@@ -75,7 +75,17 @@ export function useOrdersRealtime() {
     []
   );
 
-  return { orders, loading, refetch: fetchAll, updateStatus };
+  const updateLogistics = useCallback(
+    async (orderId: string, provider: string, tracking: string): Promise<void> => {
+      await supabase.from("orders").update({ 
+        shipping_provider: provider, 
+        tracking_number: tracking 
+      }).eq("id", orderId);
+    },
+    []
+  );
+
+  return { orders, loading, refetch: fetchAll, updateStatus, updateLogistics };
 }
 
 // ── Mapper ────────────────────────────────────────────────────────────────────
@@ -94,6 +104,8 @@ function rowToKanban(row: Record<string, unknown>): KanbanOrder {
     margin_pct:   marginPct,
     created_at:   row.created_at as string,
     status:       (row.status as KanbanOrder["status"]) ?? "pending",
+    shipping_provider: row.shipping_provider as string | undefined,
+    tracking_number:   row.tracking_number as string | undefined,
     products:     products.map((p) => ({
       name:     p.name     ?? "Producto",
       quantity: p.quantity ?? 0,

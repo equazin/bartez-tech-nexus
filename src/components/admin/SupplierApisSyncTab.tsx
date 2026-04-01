@@ -208,7 +208,7 @@ function parseCapacityGbFromText(value: unknown): number[] {
   return out;
 }
 
-function resolvePreviewCapacityGb(item: PreviewItem<AirProduct | ElitProduct>): number | null {
+function resolvePreviewCapacityGb(item: PreviewItem<AirProduct | ElitProduct | InvidArticle>): number | null {
   const raw = (item.raw && typeof item.raw === "object") ? (item.raw as Record<string, unknown>) : {};
   const all = [
     item.name,
@@ -346,7 +346,7 @@ function inferBrandTokenFromText(value: unknown): string {
   return "";
 }
 
-function getPreviewBrandToken(item: PreviewItem<AirProduct | ElitProduct>): string {
+function getPreviewBrandToken(item: PreviewItem<AirProduct | ElitProduct | InvidArticle>): string {
   return normalizeToken(item.brand) || inferBrandTokenFromText(item.name);
 }
 

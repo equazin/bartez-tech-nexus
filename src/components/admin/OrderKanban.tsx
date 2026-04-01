@@ -23,6 +23,8 @@ export interface KanbanOrder {
   created_at: string;
   status: KanbanStatus;
   products: { name: string; quantity: number }[];
+  shipping_provider?: string;
+  tracking_number?: string;
 }
 
 interface Column {

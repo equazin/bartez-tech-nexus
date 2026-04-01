@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { ClipboardList, MapPin, Package, Search, Truck } from "lucide-react";
+import { toast } from "sonner";
+import { ClipboardList, MapPin, Package, Search, Truck, ExternalLink, Copy } from "lucide-react";
 import { OrderStatusBadge } from "@/components/OrderStatusBadge";
 import { OrderPaymentProof } from "@/components/OrderPaymentProof";
 import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
@@ -235,6 +236,45 @@ export function OrdersPanel({
                         {order.shipping_transport && (
                           <p className="text-[11px] text-gray-500 mt-1">Transporte: {order.shipping_transport}</p>
                         )}
+                        
+                        {/* ── SEGUIMIENTO (Phase 5.2) ── */}
+                        {order.tracking_number && (
+                          <div className={`mt-3 p-3 rounded-lg border ${dk("bg-[#171717] border-[#222]", "bg-blue-50 border-blue-100")}`}>
+                            <div className="flex items-center justify-between mb-2">
+                               <span className={`text-[10px] font-bold uppercase tracking-wider ${dk("text-gray-500", "text-blue-700/60")}`}>Seguimiento</span>
+                               <span className={`text-[10px] font-bold uppercase ${dk("text-[#2D9F6A]", "text-blue-700")}`}>{order.shipping_provider || 'transporte'}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                               <p className={`text-xs font-mono font-bold ${dk("text-white", "text-[#171717]")}`}>{order.tracking_number}</p>
+                               <button 
+                                 onClick={(e) => {
+                                   e.stopPropagation();
+                                   navigator.clipboard.writeText(order.tracking_number!);
+                                   toast.success("Número copiado al portapapeles");
+                                 }}
+                                 className="p-1 hover:bg-black/10 rounded transition"
+                                 title="Copiar número"
+                               >
+                                 <Copy size={10} />
+                               </button>
+                            </div>
+                            {order.shipping_provider && ['andreani', 'oca'].includes(order.shipping_provider) && (
+                              <a 
+                                href={
+                                  order.shipping_provider === 'andreani' 
+                                    ? `https://seguimiento.andreani.com/envio/${order.tracking_number}`
+                                    : `https://www4.oca.com.ar/ocaonline/seguimiento/buscar_envio.asp?p_search=${order.tracking_number}`
+                                }
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`mt-2 flex items-center justify-center gap-1.5 w-full py-1.5 rounded-md text-[10px] font-bold transition-all ${dk("bg-[#2D9F6A] text-white hover:bg-[#25835A]", "bg-blue-600 text-white hover:bg-blue-700")}`}
+                              >
+                                <ExternalLink size={10} /> Ver en {order.shipping_provider.toUpperCase()}
+                              </a>
+                            )}
+                          </div>
+                        )}
+
                         {typeof order.shipping_cost === "number" && order.shipping_cost > 0 && (
                           <p className="text-[11px] text-gray-500 mt-1">Costo: {formatPrice(order.shipping_cost)}</p>
                         )}

@@ -17,5 +17,11 @@
     { "source": "/assets/(.*)", "destination": "/assets/$1" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/" }
+  ],
+  "crons": [
+    {
+      "path": "/api/sync-suppliers",
+      "schedule": "0 6 * * *"
+    }
   ]
 }

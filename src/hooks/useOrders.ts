@@ -8,7 +8,7 @@ export interface PortalOrder {
   client_id?: string;
   products: PortalOrderProduct[];
   total: number;
-  status: "pending" | "approved" | "preparing" | "shipped" | "delivered" | "rejected" | "dispatched";
+  status: "pending_approval" | "pending" | "approved" | "preparing" | "shipped" | "delivered" | "rejected" | "dispatched";
   /** Número correlativo visible: ORD-0001, ORD-0002 … generado server-side */
   order_number?: string;
   /** Número de remito al despachar */
@@ -19,8 +19,12 @@ export interface PortalOrder {
   shipping_address?: string;
   shipping_transport?: string;
   shipping_cost?: number;
+  shipping_provider?: 'andreani' | 'oca' | 'propio' | 'otro';
+  tracking_number?: string;
   notes?: string;
   payment_proofs?: unknown[];
+  coupon_id?: string;
+  discount_amount?: number;
   created_at: string;
 }
 
@@ -35,7 +39,9 @@ export interface PortalOrderProduct {
   margin: number;
 }
 
-export type AddOrderPayload = Omit<PortalOrder, "id" | "client_id" | "order_number">;
+export type AddOrderPayload = Omit<PortalOrder, "id" | "client_id" | "order_number"> & {
+  coupon_code?: string;
+};
 
 export function useOrders() {
   const { user, profile } = useAuth();
@@ -61,6 +67,37 @@ export function useOrders() {
     setLoading(false);
   }, [user]);
 
+  const fetchManagedOrders = useCallback(async () => {
+    if (!user) return [];
+    setLoading(true);
+    try {
+      // 1. Get children IDs
+      const { data: children } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("parent_id", user.id);
+
+      if (!children || children.length === 0) return [];
+
+      const ids = children.map(c => c.id);
+
+      // 2. Get orders for those children
+      const { data, error } = await supabase
+        .from("orders")
+        .select("*")
+        .in("client_id", ids)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return (data || []) as PortalOrder[];
+    } catch (err) {
+      console.error("Error fetching managed orders:", err);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
@@ -79,114 +116,73 @@ export function useOrders() {
     if (!user) return { error: "No autenticado" };
 
     try {
-      const { data, error } = await supabase.rpc("reserve_stock_and_create_order", {
-        p_client_id:             user.id,
-        p_products:              orderData.products,
-        p_total:                 orderData.total,
-        p_status:                orderData.status ?? "pending",
-        p_payment_method:        orderData.payment_method        ?? null,
-        p_payment_surcharge_pct: orderData.payment_surcharge_pct ?? null,
-        p_shipping_type:         orderData.shipping_type         ?? null,
-        p_shipping_address:      orderData.shipping_address      ?? null,
-        p_shipping_transport:    orderData.shipping_transport     ?? null,
-        p_shipping_cost:         orderData.shipping_cost         ?? null,
-        p_notes:                 orderData.notes                 ?? null,
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || "";
+
+      const payload = {
+        products: orderData.products.map((p) => ({ id: p.product_id, quantity: p.quantity })),
+        status: orderData.status ?? "pending",
+        payment_method: orderData.payment_method ?? null,
+        payment_surcharge_pct: orderData.payment_surcharge_pct ?? null,
+        shipping_type: orderData.shipping_type ?? null,
+        shipping_address: orderData.shipping_address ?? null,
+        shipping_transport: orderData.shipping_transport ?? null,
+        shipping_cost: orderData.shipping_cost ?? null,
+        notes: orderData.notes ?? null,
+        coupon_code: orderData.coupon_code ?? null,
+      };
+
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(payload),
       });
 
-      if (error) return { error: error.message };
-
-      const result = data as { id: number; order_number: string; status: string };
-
-      // Fetch the full order row to update local state
-      const { data: fullOrder } = await supabase
-        .from("orders")
-        .select("*")
-        .eq("id", result.id)
-        .single();
-
-      if (fullOrder) {
-        setOrders((prev) => [fullOrder as PortalOrder, ...prev]);
-      }
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Error en el checkout");
 
       // Log activity
-      logActivity({
-        user_id:     user.id,
-        action:      "place_order",
+      void logActivity({
+        action: "place_order",
         entity_type: "order",
-        entity_id:   String(result.id),
-        metadata:    { order_number: result.order_number, total: orderData.total },
+        entity_id: String(body.id),
+        metadata: { order_number: body.order_number, total: orderData.total }
       });
 
-      // Fire-and-forget email notification (does not block order success)
-      sendOrderConfirmationEmail({
-        orderId:     result.id,
-        orderNumber: result.order_number,
-        clientId:    user.id,
-        clientEmail: user.email ?? undefined,
-        clientName:  profile?.company_name ?? profile?.contact_name ?? undefined,
-        products:    orderData.products,
-        total:       orderData.total,
-      }).catch(() => {/* silencioso */});
+      // Refresh local list
+      void fetchOrders();
 
-      return { error: null, orderId: result.id, orderNumber: result.order_number };
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Error al crear pedido";
-      return { error: message };
+      return { error: null, orderId: body.id, orderNumber: body.order_number };
+    } catch (err) {
+      console.error("AddOrder error:", err);
+      return { error: err instanceof Error ? err.message : "Error al procesar el pedido" };
     }
   };
 
-  const updateOrder = async (
-    orderId: string | number,
-    patch: Partial<PortalOrder>
-  ): Promise<{ error: string | null }> => {
-    if (!user) return { error: "No autenticado" };
+  const updateOrder = async (id: string | number, updates: Partial<PortalOrder>) => {
+    if (!user) return;
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("orders")
-        .update(patch)
-        .eq("id", orderId)
-        .eq("client_id", user.id)
-        .select("*")
-        .single();
-      if (error) return { error: error.message };
-      if (data) {
-        setOrders((prev) =>
-          prev.map((o) => (String(o.id) === String(orderId) ? (data as PortalOrder) : o))
-        );
+        .update(updates)
+        .eq("id", id);
+      if (!error) {
+        setOrders(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o));
       }
-      return { error: null };
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Error al actualizar pedido";
-      return { error: message };
+    } catch (err) {
+      console.error("UpdateOrder error:", err);
     }
   };
 
-  return { orders, loading, addOrder, updateOrder, refetch: fetchOrders };
-}
-
-// ── Email helper ─────────────────────────────────────────────────────────────
-
-async function sendOrderConfirmationEmail(payload: {
-  orderId: number;
-  orderNumber: string;
-  clientId: string;
-  clientEmail?: string;
-  clientName?: string;
-  products: PortalOrderProduct[];
-  total: number;
-}): Promise<void> {
-  await fetch("/api/email", {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({
-      type:        "order_confirmed",
-      orderId:     payload.orderId,
-      orderNumber: payload.orderNumber,
-      clientId:    payload.clientId,
-      clientEmail: payload.clientEmail,
-      clientName:  payload.clientName,
-      products:    payload.products,
-      total:       payload.total,
-    }),
-  });
+  return {
+    orders,
+    loading,
+    fetchOrders,
+    fetchManagedOrders,
+    addOrder,
+    updateOrder
+  };
 }
