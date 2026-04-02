@@ -30,7 +30,7 @@ function json(data: unknown, status = 200) {
 }
 
 function getSupabaseServiceRole() {
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
+  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
   if (!url || !serviceKey) throw new Error("Server configuration error: Missing Supabase Service Key.");
   return createClient(url, serviceKey);
@@ -56,8 +56,8 @@ export default async function handler(request: Request): Promise<Response> {
   }
 
   // 1. Authenticate user
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
-  const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
+  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
+  const anonKey = process.env.VITE_SUPABASE_ANON_KEY || "";
   const sbUser = createClient(url, anonKey, { global: { headers: { Authorization: authHeader } } });
 
   const { data: { user }, error: authError } = await sbUser.auth.getUser();
