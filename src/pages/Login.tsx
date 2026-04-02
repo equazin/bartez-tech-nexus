@@ -183,8 +183,12 @@ const Login = () => {
         {/* Solicitar acceso */}
         <div className="mt-6 text-center space-y-3">
           <p className="text-sm text-muted-foreground">
-            ¿No tenés acceso al portal?
+            ¿No tenés acceso al portal?{" "}
+            <Link to="/registrarse" className="text-primary font-semibold hover:underline">
+              Registrate acá
+            </Link>
           </p>
+          <p className="text-[10px] text-muted-foreground/60">O solicitá asistencia:</p>
           <a
             href="https://wa.me/5493415104902?text=Hola%2C%20quiero%20solicitar%20acceso%20al%20portal%20de%20clientes%20Bartez."
             target="_blank"

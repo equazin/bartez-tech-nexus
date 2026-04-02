@@ -12,11 +12,11 @@ import { useCurrency } from "@/context/CurrencyContext";
 import { OrderStatusBadge as StatusBadge } from "@/components/OrderStatusBadge";
 import { toggleSetValue } from "@/lib/toggleSet";
 import {
-  CheckCircle2, XCircle, Clock, Trash2, RefreshCw, Save,
+  CheckCircle2, XCircle, Clock, Trash2, RefreshCw, Save, Sparkles,
   Users, Package, ClipboardList, LogOut, UserPlus, X, Plus,
   DollarSign, Pencil, Check, LayoutDashboard, Sun, Moon, Phone,
   Truck, Download, Building2, Tag, BarChart2, Activity, Wifi, Bookmark, Flame,
-  Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag, Image, LifeBuoy, Ticket, Globe, RotateCcw, Handshake, type LucideIcon,
+  Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag, Image, LifeBuoy, Ticket, Globe, RotateCcw, Handshake, ShieldCheck, type LucideIcon,
 } from "lucide-react";
 import { exportOrdersCSV, exportCatalogCSV, exportReportsCSV } from "@/lib/exportCsv";
 import { exportCatalogPdf, exportRemitoPdf } from "@/lib/exportPdf";
@@ -30,6 +30,7 @@ import { AdminSearch } from "@/components/admin/AdminSearch";
 import { logActivity } from "@/lib/api/activityLog";
 import type { KanbanStatus, KanbanOrder } from "../components/admin/OrderKanban";
 import { MarketingTab } from "@/components/admin/MarketingTab";
+import { B2BInsights } from "@/components/admin/B2BInsights";
 
 // Lazy loaded tabs
 const SalesDashboard = lazy(() => import("@/components/admin/SalesDashboard").then(m => ({ default: m.SalesDashboard })));
@@ -57,6 +58,7 @@ const ImageManagerTab = lazy(() => import("@/components/admin/ImageManagerTab").
 const WebhooksTab = lazy(() => import("@/components/admin/WebhooksTab").then(m => ({ default: m.WebhooksTab })));
 const RmaAdminTab = lazy(() => import("@/components/admin/RmaAdminTab").then(m => ({ default: m.RmaAdminTab })));
 const PriceAgreementsTab = lazy(() => import("@/components/admin/PriceAgreementsTab").then(m => ({ default: m.PriceAgreementsTab })));
+const SerialsTab = lazy(() => import("@/components/admin/SerialsTab").then(m => ({ default: m.SerialsTab })));
 import {
   fetchProductsForContent,
   processProductContent,
@@ -185,7 +187,7 @@ function LegacyStatusBadge({ status }: { status: string }) {
   );
 }
 
-type Tab = "dashboard" | "products" | "imports" | "categories" | "opportunities" | "pos" | "seller_mode" | "orders" | "kanban" | "clients" | "users_permissions" | "approvals" | "documents" | "support" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "supplier_sync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders" | "images" | "marketing" | "rma" | "price_agreements" | "webhooks";
+type Tab = "dashboard" | "products" | "imports" | "categories" | "opportunities" | "pos" | "seller_mode" | "orders" | "kanban" | "clients" | "users_permissions" | "approvals" | "documents" | "support" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "supplier_sync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders" | "images" | "marketing" | "rma" | "price_agreements" | "webhooks" | "serials";
 
 
 
@@ -332,6 +334,16 @@ const Admin = () => {
   const [contentProgress, setContentProgress] = useState<ContentProcessProgress | null>(null);
   const [contentError, setContentError] = useState<string | null>(null);
 
+  // Single-product AI generator
+  const [showSingleGen, setShowSingleGen] = useState(false);
+  const [singleGenSearch, setSingleGenSearch] = useState("");
+  const [singleGenResults, setSingleGenResults] = useState<{ id: number; name: string; sku: string; brand_name: string | null }[]>([]);
+  const [singleGenSelected, setSingleGenSelected] = useState<{ id: number; name: string; sku: string; brand_name: string | null } | null>(null);
+  const [singleGenMode, setSingleGenMode] = useState<ContentMode>("both");
+  const [singleGenRunning, setSingleGenRunning] = useState(false);
+  const [singleGenResult, setSingleGenResult] = useState<{ description_short?: string; description_full?: string; specs?: Record<string, string> } | null>(null);
+  const [singleGenError, setSingleGenError] = useState<string | null>(null);
+
   async function deleteZeroStockProducts() {
     setDeletingZeroStock(true);
     await supabase.from("products").delete().eq("stock", 0);
@@ -432,6 +444,58 @@ const Admin = () => {
     } finally {
       setContentRunning(false);
     }
+  }
+
+  async function searchProductsForSingleGen(q: string) {
+    if (q.trim().length < 2) { setSingleGenResults([]); return; }
+    const { data } = await supabase
+      .from("products")
+      .select("id, name, sku, brand_name")
+      .or(`name.ilike.%${q}%,sku.ilike.%${q}%`)
+      .eq("active", true)
+      .limit(8);
+    setSingleGenResults((data ?? []) as { id: number; name: string; sku: string; brand_name: string | null }[]);
+  }
+
+  async function handleSingleProductGenerate() {
+    if (!singleGenSelected) return;
+    setSingleGenRunning(true);
+    setSingleGenError(null);
+    setSingleGenResult(null);
+    try {
+      const base = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+      const res = await fetch(`${base}/api/content-enricher`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          products: [{ id: singleGenSelected.id, name: singleGenSelected.name, brand: singleGenSelected.brand_name, sku: singleGenSelected.sku }],
+          mode: singleGenMode,
+          preview: true,
+        }),
+      });
+      if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`);
+      const data = await res.json() as { ok: boolean; previews?: { id: number; description_short?: string; description_full?: string; specs?: Record<string, string> }[] };
+      if (data.previews?.[0]) setSingleGenResult(data.previews[0]);
+      else throw new Error("Sin respuesta del generador");
+    } catch (e) {
+      setSingleGenError(e instanceof Error ? e.message : String(e));
+    }
+    setSingleGenRunning(false);
+  }
+
+  async function applySingleGenResult() {
+    if (!singleGenSelected || !singleGenResult) return;
+    const update: Record<string, unknown> = {};
+    if (singleGenResult.description_short) update.description_short = singleGenResult.description_short;
+    if (singleGenResult.description_full)  update.description_full  = singleGenResult.description_full;
+    if (singleGenResult.specs)             update.specs             = singleGenResult.specs;
+    await supabase.from("products").update(update).eq("id", singleGenSelected.id);
+    setProducts(prev => prev.map(p => p.id === singleGenSelected.id ? { ...p, ...update } : p));
+    setSingleGenResult(null);
+    setSingleGenSelected(null);
+    setSingleGenSearch("");
+    setSingleGenResults([]);
+    setShowSingleGen(false);
   }
 
   async function fetchOrders() {
@@ -1243,6 +1307,7 @@ async function handleCreateClient() {
         { id: "supplier_sync",   label: "Sync",           icon: Wifi,         adminOnly: true },
 
         { id: "stock",           label: "Stock",          icon: Layers,       adminOnly: true },
+        { id: "serials",         label: "Números Serie",  icon: ShieldCheck,  adminOnly: true },
         { id: "movements",       label: "Movimientos",    icon: History,      adminOnly: true },
         { id: "purchase_orders",  label: "Órdenes Compra",   icon: ShoppingBag,  adminOnly: true },
         { id: "rma",              label: "Devoluciones",     icon: RotateCcw,    adminOnly: true },
@@ -1533,7 +1598,19 @@ async function handleCreateClient() {
 
         {/* -- DASHBOARD -- */}
         {activeTab === "dashboard" && (
-          <SalesDashboard orders={orders} clients={clients} isDark={isDark} onRefreshOrders={fetchOrders} />
+          <div className="space-y-6">
+            <B2BInsights 
+              clients={clients.map(c => ({
+                ...c,
+                total_orders: orders.filter(o => o.client_id === c.id).length,
+                last_order_date: orders.filter(o => o.client_id === c.id).sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]?.created_at
+              }))} 
+              orders={orders} 
+              isDark={isDark} 
+              onNavigate={(tab) => setActiveTab(tab as Tab)} 
+            />
+            <SalesDashboard orders={orders} clients={clients} isDark={isDark} onRefreshOrders={fetchOrders} />
+          </div>
         )}
 
         {/* -- PRODUCTOS -- */}
@@ -1711,14 +1788,22 @@ async function handleCreateClient() {
                     Genera descripción resumida, descripción completa y especificaciones técnicas según nombre, marca y SKU.
                   </p>
                 </div>
-                <button
-                  onClick={() => { void handleRunContentCompletion(); }}
-                  disabled={contentRunning}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#2D9F6A] hover:bg-[#25835A] text-white font-semibold transition disabled:opacity-50"
-                >
-                  <CheckCircle2 size={12} />
-                  {contentRunning ? "Procesando..." : "Completar descripciones automáticamente"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowSingleGen(v => !v)}
+                    className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition font-semibold ${dk("border-[#2a2a2a] text-[#a3a3a3] hover:text-white hover:border-[#2D9F6A]", "border-[#e5e5e5] text-[#525252] hover:border-[#2D9F6A] hover:text-[#2D9F6A]")}`}
+                  >
+                    <Sparkles size={12} /> Generar para un producto
+                  </button>
+                  <button
+                    onClick={() => { void handleRunContentCompletion(); }}
+                    disabled={contentRunning}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#2D9F6A] hover:bg-[#25835A] text-white font-semibold transition disabled:opacity-50"
+                  >
+                    <CheckCircle2 size={12} />
+                    {contentRunning ? "Procesando..." : "Completar descripciones automáticamente"}
+                  </button>
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`text-xs ${dk("text-gray-400", "text-[#525252]")}`}>Modo:</span>
@@ -1743,6 +1828,99 @@ async function handleCreateClient() {
               {contentError && (
                 <div className={`rounded-lg px-4 py-3 text-xs ${dk("bg-red-500/10 text-red-400 border border-red-500/30", "bg-red-50 text-red-700 border border-red-200")}`}>
                   {contentError}
+                </div>
+              )}
+
+              {/* ── Single product AI generator ── */}
+              {showSingleGen && (
+                <div className={`rounded-xl border p-4 space-y-3 ${dk("border-[#2a2a2a] bg-[#0a0a0a]", "border-[#e5e5e5] bg-[#fafafa]")}`}>
+                  <p className={`text-xs font-bold flex items-center gap-2 ${dk("text-white", "text-[#171717]")}`}>
+                    <Sparkles size={13} className="text-[#2D9F6A]" /> Generar descripción con IA para un producto
+                  </p>
+
+                  {/* Search */}
+                  <div className="relative">
+                    <input
+                      value={singleGenSearch}
+                      onChange={e => { setSingleGenSearch(e.target.value); setSingleGenSelected(null); setSingleGenResult(null); void searchProductsForSingleGen(e.target.value); }}
+                      placeholder="Buscar por nombre o SKU..."
+                      className={`w-full text-xs px-3 py-2 rounded-lg border outline-none ${dk("bg-[#0d0d0d] border-[#2a2a2a] text-white placeholder:text-[#525252]", "bg-white border-[#e5e5e5] text-[#171717]")}`}
+                    />
+                    {singleGenResults.length > 0 && !singleGenSelected && (
+                      <div className={`absolute z-10 w-full mt-1 rounded-lg border shadow-lg overflow-hidden ${dk("bg-[#111] border-[#2a2a2a]", "bg-white border-[#e5e5e5]")}`}>
+                        {singleGenResults.map(p => (
+                          <button key={p.id} onClick={() => { setSingleGenSelected(p); setSingleGenSearch(p.name); setSingleGenResults([]); }}
+                            className={`w-full text-left px-3 py-2 text-xs border-b last:border-b-0 transition ${dk("border-[#1a1a1a] hover:bg-[#1a1a1a] text-[#d4d4d4]", "border-[#f0f0f0] hover:bg-[#f5f5f5] text-[#171717]")}`}>
+                            <span className="font-semibold">{p.name}</span>
+                            <span className="text-[#737373] ml-2">{p.sku}{p.brand_name ? ` · ${p.brand_name}` : ""}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {singleGenSelected && (
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg border ${dk("border-[#2D9F6A]/30 bg-[#2D9F6A]/5 text-[#2D9F6A]", "border-[#2D9F6A]/30 bg-[#2D9F6A]/5 text-[#2D9F6A]")}`}>
+                        <CheckCircle2 size={11} /> {singleGenSelected.name}
+                      </div>
+                      <select value={singleGenMode} onChange={e => setSingleGenMode(e.target.value as ContentMode)}
+                        className={`text-xs px-2.5 py-1.5 rounded-lg border outline-none ${dk("bg-[#141414] border-[#2a2a2a] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}>
+                        <option value="both">Descripciones + specs</option>
+                        <option value="only_descriptions">Solo descripción</option>
+                        <option value="only_specs">Solo specs</option>
+                      </select>
+                      <button onClick={() => { void handleSingleProductGenerate(); }} disabled={singleGenRunning}
+                        className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-lg bg-[#2D9F6A] text-white hover:bg-[#25885a] disabled:opacity-50 transition font-semibold">
+                        {singleGenRunning ? <><RefreshCw size={11} className="animate-spin" /> Generando...</> : <><Sparkles size={11} /> Generar</>}
+                      </button>
+                    </div>
+                  )}
+
+                  {singleGenError && (
+                    <p className="text-xs text-red-400 bg-red-500/5 border border-red-500/20 rounded px-3 py-2">{singleGenError}</p>
+                  )}
+
+                  {/* Preview */}
+                  {singleGenResult && (
+                    <div className={`rounded-lg border p-3 space-y-3 ${dk("border-[#2a2a2a] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
+                      <p className={`text-xs font-bold ${dk("text-white", "text-[#171717]")}`}>Vista previa generada</p>
+                      {singleGenResult.description_short && (
+                        <div>
+                          <p className="text-[10px] uppercase tracking-widest text-[#525252] mb-1">Descripción corta</p>
+                          <p className={`text-xs ${dk("text-[#d4d4d4]", "text-[#525252]")}`}>{singleGenResult.description_short}</p>
+                        </div>
+                      )}
+                      {singleGenResult.description_full && (
+                        <div>
+                          <p className="text-[10px] uppercase tracking-widest text-[#525252] mb-1">Descripción completa</p>
+                          <p className={`text-xs ${dk("text-[#d4d4d4]", "text-[#525252]")} line-clamp-4`}>{singleGenResult.description_full}</p>
+                        </div>
+                      )}
+                      {singleGenResult.specs && Object.keys(singleGenResult.specs).length > 0 && (
+                        <div>
+                          <p className="text-[10px] uppercase tracking-widest text-[#525252] mb-1">Specs ({Object.keys(singleGenResult.specs).length} campos)</p>
+                          <div className="grid grid-cols-2 gap-1">
+                            {Object.entries(singleGenResult.specs).slice(0, 6).map(([k, v]) => (
+                              <span key={k} className={`text-[10px] px-2 py-0.5 rounded ${dk("bg-[#1a1a1a] text-[#a3a3a3]", "bg-[#f0f0f0] text-[#525252]")}`}>
+                                <span className="font-semibold">{k}:</span> {String(v)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex gap-2 pt-1">
+                        <button onClick={() => { void applySingleGenResult(); }}
+                          className="flex items-center gap-1.5 text-xs px-4 py-1.5 rounded-lg bg-[#2D9F6A] text-white hover:bg-[#25885a] transition font-semibold">
+                          <CheckCircle2 size={11} /> Aplicar al producto
+                        </button>
+                        <button onClick={() => setSingleGenResult(null)}
+                          className={`text-xs px-3 py-1.5 rounded-lg border transition ${dk("border-[#2a2a2a] text-[#737373]", "border-[#e5e5e5] text-[#525252]")}`}>
+                          Descartar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2573,6 +2751,8 @@ async function handleCreateClient() {
         {activeTab === "rma" && (
           <RmaAdminTab isDark={isDark} />
         )}
+
+        {activeTab === "serials" && <SerialsTab isDark={isDark} />}
 
         {activeTab === "price_agreements" && (
           <PriceAgreementsTab isDark={isDark} clients={clients} />

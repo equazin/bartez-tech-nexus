@@ -16,9 +16,9 @@ import { toggleSetValue } from "@/lib/toggleSet";
 import {
   LogOut, ShoppingCart, Search, LayoutGrid, List, Package,
   ClipboardList, CheckCircle2, XCircle, Clock,
-  ShieldCheck, Check, AlertTriangle, AlertCircle, SlidersHorizontal,
+  ShieldCheck, Check, AlertTriangle, AlertCircle, SlidersHorizontal, Shield,
   Star, Sun, Moon, ChevronDown, ChevronRight, FileText,
-  Table2, Zap, Truck, ChevronUp, Download, Upload, Users, MessageSquare, Loader2, RotateCcw, type LucideIcon,
+  Table2, Zap, Truck, ChevronUp, Download, Upload, Users, MessageSquare, Loader2, RotateCcw, type LucideIcon, ShoppingBag, Heart, User, MapPin
 } from "lucide-react";
 import { getAvailableStock } from "@/lib/pricing";
 import { usePricing } from "@/hooks/usePricing";
@@ -48,9 +48,16 @@ import { AccountCenter } from "@/components/b2b/AccountCenter";
 import { SupportCenter } from "@/components/b2b/SupportCenter";
 import { ProductDetailModal } from "@/components/b2b/ProductDetailModal";
 import { CatalogSection } from "@/components/b2b/CatalogSection";
+import { ClientDashboard } from "@/components/b2b/ClientDashboard";
 import type { ViewMode, CatalogContext } from "@/components/b2b/CatalogSection";
 import { useCartSync } from "@/hooks/useCartSync";
 import { CartDrawer } from "@/components/CartDrawer";
+import { useImpersonate } from "@/context/ImpersonateContext";
+import { BulkImport } from "@/components/b2b/BulkImport";
+import { DetailedAccountView } from "@/components/b2b/DetailedAccountView";
+import { 
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose 
+} from "@/components/ui/dialog";
 
 type CartItem = {
   product: Product;
@@ -150,11 +157,12 @@ function isPosCategoryValue(value: unknown): boolean {
 }
 
 export default function B2BPortal() {
-  type PortalTab = "catalog" | "orders" | "quotes" | "invoices" | "cuenta" | "approvals" | "support" | "rma";
+  type PortalTab = "home" | "catalog" | "orders" | "quotes" | "invoices" | "cuenta" | "approvals" | "support" | "rma" | "bulk";
 
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { profile, user, isAdmin, signOut } = useAuth();
+  const { profile: authProfile, user, isAdmin, signOut } = useAuth();
+  const { activeProfile: profile, isImpersonating, stopImpersonation } = useImpersonate();
   const { computePrice } = usePricing(profile);
 
   const [catalogContext, setCatalogContext] = useState<CatalogContext>("default");
@@ -282,7 +290,7 @@ export default function B2BPortal() {
   const [globalMargin, setGlobalMargin] = useState(defaultMargin);
   const [viewModeByContext, setViewModeByContext] = useState<ViewModeByContext>(() => loadViewModeByContext());
   const [viewMode, setViewMode] = useState<ViewMode>(() => loadViewModeByContext().default);
-  const [activeTab, setActiveTab] = useState<PortalTab>("catalog");
+  const [activeTab, setActiveTab] = useState<PortalTab>("home");
   
   // Marketing / Coupons (Phase 5.4)
   const [couponCode, setCouponCode] = useState("");
@@ -292,8 +300,36 @@ export default function B2BPortal() {
 
   // const [isCartOpen, setIsCartOpen] = useState(false); // Eliminado para redirigir a /cart
   const [loadingInitial, setLoadingInitial] = useState(true);
+  const cartToken = searchParams.get("cart_token");
+
+  useEffect(() => {
+    if (cartToken && profile) {
+      supabase.from("shared_carts").select("items").eq("id", cartToken).single().then(({ data }) => {
+        if (data?.items) {
+          const newCart: Record<number, number> = {};
+          (data.items as any[]).forEach(item => {
+            newCart[item.product_id] = item.quantity;
+          });
+          setCart(newCart);
+          localStorage.setItem(cartKey, JSON.stringify(newCart));
+          // Remove token from URL
+          searchParams.delete("cart_token");
+          setSearchParams(searchParams);
+          alert("¡Carrito reconstruido desde el enlace compartido!");
+        }
+      });
+    }
+  }, [cartToken, profile]);
 
   const [myInvoices, setMyInvoices] = useState<Invoice[]>([]);
+  const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null);
+  
+  useEffect(() => {
+    supabase.from("warehouses").select("*").eq("is_active", true).then(({ data }) => {
+      if (data) setWarehouses(data);
+    });
+  }, []);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
 
   const loadMyInvoices = useCallback(async () => {
@@ -314,7 +350,7 @@ export default function B2BPortal() {
   }, [fetchManagedOrders]);
 
   useEffect(() => {
-    if (activeTab === "invoices" || activeTab === "cuenta") loadMyInvoices();
+    if (activeTab === "invoices" || activeTab === "cuenta" || activeTab === "home") loadMyInvoices();
     if (activeTab === "approvals") {
       refreshApprovals();
     }
@@ -1082,6 +1118,7 @@ export default function B2BPortal() {
       formatUSD={formatUSD}
       currency={currency}
       setCurrency={setCurrency}
+      isDark={isDark}
       dk={dk}
       onClose={() => setSelectedProduct(null)}
       onAddToCart={handleAddToCart}
@@ -1124,6 +1161,7 @@ export default function B2BPortal() {
       {/* TABS */}
       <div className={`flex border-b ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")} px-4 md:px-6 overflow-x-auto whitespace-nowrap scrollbar-none`}>
         {[
+          { id: "home",     label: "Inicio", icon: LayoutGrid },
           { id: "catalog",  label: "Catálogo", icon: Package },
           { id: "orders",   label: `Mis Pedidos${orders.length ? ` (${orders.length})` : ""}`, icon: ClipboardList },
           { id: "quotes",   label: `Cotizaciones${quotes.length ? ` (${quotes.length})` : ""}`, icon: FileText },
@@ -1147,6 +1185,22 @@ export default function B2BPortal() {
           </button>
         ))}
       </div>
+
+      {/* BANNER SOPORTE (Impersonate) */}
+      {isImpersonating && (
+        <div className="bg-red-600 text-white px-4 py-2 text-center text-xs font-bold flex items-center justify-center gap-4 z-[100] sticky top-0 shadow-lg animate-pulse">
+          <div className="flex items-center gap-2">
+            <Shield size={14} />
+            MODO SOPORTE ACTIVO: {profile?.company_name || profile?.contact_name}
+          </div>
+          <button 
+            onClick={stopImpersonation}
+            className="bg-white text-red-600 px-3 py-1 rounded-full hover:bg-red-50 transition-colors shadow-sm"
+          >
+            Detener sesión de soporte
+          </button>
+        </div>
+      )}
 
       {/* BANNER ADMIN */}
       {isAdmin && (
@@ -1240,6 +1294,19 @@ export default function B2BPortal() {
 
         {/* CONTENIDO PRINCIPAL */}
         <main className={`flex-1 p-4 md:p-5 overflow-y-auto`}>
+
+          {/* ── INICIO / DASHBOARD ── */}
+          {activeTab === "home" && profile && (
+            <ClientDashboard
+              profile={profile}
+              orders={orders}
+              invoices={myInvoices}
+              creditLimit={profile.credit_limit ?? 0}
+              creditUsed={creditUsed}
+              isDark={isDark}
+              onGoTo={(tab) => setActiveTab(tab as PortalTab)}
+            />
+          )}
 
           {/* ── APROBACIONES (Phase 4.1) ── */}
           {activeTab === "approvals" && (
@@ -1357,6 +1424,63 @@ export default function B2BPortal() {
               isDark={isDark}
             />
           )}
+
+          {/* ── CARGA MASIVA (Phase 4.4) ── */}
+          {activeTab === "bulk" && (
+            <BulkImport 
+              products={products}
+              isDark={isDark}
+              onAddAll={(items) => {
+                items.forEach(it => handleSmartAddToCart(it.product, it.quantity));
+                setActiveTab("catalog");
+              }}
+            />
+          )}
+          {/* ── CUENTA CORRIENTE ── */}
+          {activeTab === "cuenta" && (
+            <DetailedAccountView 
+              profile={profile}
+              invoices={myInvoices}
+              payments={[]} 
+              isDark={isDark}
+              formatPrice={formatPrice}
+            />
+          )}
+
+          {/* ── PICKUP POINTS SELECTOR (Modal) ── */}
+          <Dialog open={!!confirmingOrderId} onOpenChange={() => {}}>
+            <DialogContent className={`${isDark ? "bg-[#0d0d0d] border-[#1a1a1a] text-white" : "bg-white text-black"}`}>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <MapPin className="text-[#2D9F6A]" /> Seleccionar Punto de Retiro
+                </DialogTitle>
+              </DialogHeader>
+              <div className="grid grid-cols-1 gap-3 py-4">
+                {(warehouses || []).filter(w => w.allows_pickup).map(w => (
+                  <button 
+                    key={w.id}
+                    onClick={() => {
+                        // Logic to set selected warehouse for the order
+                    }}
+                    className={`p-3 rounded-xl border text-left transition ${isDark ? "bg-[#111] border-[#1f1f1f] hover:bg-[#1a1a1a]" : "bg-[#f8f8f8] border-[#eee] hover:bg-[#f0f0f0]"}`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs font-bold">{w.name}</p>
+                        <p className="text-[10px] text-gray-500">{w.address}</p>
+                      </div>
+                      <span className="text-[9px] font-bold text-[#2D9F6A] bg-[#2D9F6A]/10 px-2 py-0.5 rounded-full">DISPONIBLE</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <DialogFooter>
+                <button className="w-full py-2.5 bg-[#2D9F6A] text-white font-bold rounded-xl text-sm hover:hover:bg-[#25835A]">
+                  Confirmar Retiro
+                </button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           {showLegacyPortalSections && activeTab === "cuenta" && profile && (() => {
             const confirmedOrders  = orders.filter((o) => !["rejected"].includes(o.status));
             const totalSpent       = confirmedOrders.reduce((s, o) => s + o.total, 0);

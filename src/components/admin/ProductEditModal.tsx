@@ -372,9 +372,11 @@ export default function ProductEditModal({ product, categories, brands = [], onS
           </div>
 
           {/* Description */}
-          <div>
-            <label className="text-xs text-gray-400 mb-1 block">Descripción</label>
-            <textarea value={form.description} onChange={(e) => set("description", e.target.value)} rows={3}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-gray-400 block">Descripción</label>
+            </div>
+            <textarea value={form.description} onChange={(e) => set("description", e.target.value)} rows={4}
               className="w-full bg-[#232323] border border-[#333] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2D9F6A] resize-none" />
           </div>
 

@@ -4,7 +4,8 @@ import {
   CheckCircle2, XCircle, TrendingUp, Users, MousePointerClick,
   ShoppingCart, Activity, RefreshCw, BarChart3,
   Megaphone, Lightbulb, ArrowRight, Wand2, Copy, ThumbsUp, ThumbsDown,
-  Zap, AlertCircle, TrendingDown, PauseCircle,
+  Zap, AlertCircle, TrendingDown, PauseCircle, Sparkles, Rocket,
+  ChevronDown, ChevronUp, Eye,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -277,29 +278,72 @@ interface CampaignPerf {
   last_synced: string | null;
 }
 
-const EMPTY_CAMPAIGN = { name: "", type: "search", target_segment: "", daily_budget: "" };
+interface AdGroup { name: string; keywords: string[]; headlines: string[]; descriptions: string[] }
+interface CampaignStructure {
+  name: string;
+  ad_groups: AdGroup[];
+  negative_keywords?: string[];
+  bidding_strategy?: string;
+  notes?: string;
+}
+interface CampaignDraft {
+  id: string;
+  name: string;
+  objective: string;
+  campaign_type: string;
+  target_segment: string | null;
+  daily_budget_ars: number | null;
+  status: "pending_review" | "approved" | "rejected" | "launched" | "launch_error";
+  campaign_structure: CampaignStructure;
+  created_at: string;
+  google_ads_campaign_id: string | null;
+  launch_error: string | null;
+  reviewer_notes: string | null;
+}
+
+const EMPTY_AI_FORM = {
+  objective:        "leads" as "leads" | "ventas" | "awareness",
+  campaign_type:    "search" as "search" | "display" | "remarketing",
+  target_segment:   "empresas",
+  daily_budget_ars: "",
+  product_focus:    "",
+  extra_context:    "",
+  num_ad_groups:    "3",
+};
 
 function CampaignsSection({ isDark }: { isDark: boolean }) {
   const d = dk(isDark);
-  const [campaigns, setCampaigns] = useState<CampaignPerf[]>([]);
-  const [utmStats, setUtmStats]   = useState<CampaignStat[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [showForm, setShowForm]   = useState(false);
-  const [form, setForm]           = useState({ ...EMPTY_CAMPAIGN });
-  const [saving, setSaving]       = useState(false);
-  const [syncing, setSyncing]     = useState(false);
-  const [syncMsg, setSyncMsg]     = useState<string | null>(null);
+  const [campaigns, setCampaigns]   = useState<CampaignPerf[]>([]);
+  const [utmStats, setUtmStats]     = useState<CampaignStat[]>([]);
+  const [drafts, setDrafts]         = useState<CampaignDraft[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [syncing, setSyncing]       = useState(false);
+  const [syncMsg, setSyncMsg]       = useState<string | null>(null);
+
+  // AI generator
+  const [showAIForm, setShowAIForm] = useState(false);
+  const [aiForm, setAIForm]         = useState({ ...EMPTY_AI_FORM });
+  const [generating, setGenerating] = useState(false);
+  const [genMsg, setGenMsg]         = useState<string | null>(null);
+
+  // Draft detail expansion
+  const [expandedDraft, setExpandedDraft] = useState<string | null>(null);
+
+  // Launch
+  const [launching, setLaunching]   = useState<string | null>(null);
+  const [launchMsg, setLaunchMsg]   = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const [{ data: perfData }, { data: evtData }] = await Promise.all([
+    const [{ data: perfData }, { data: evtData }, { data: draftData }] = await Promise.all([
       supabase.from("campaign_performance").select("*").order("clicks_30d", { ascending: false }),
       supabase.from("marketing_events").select("utm_campaign, event_type").not("utm_campaign", "is", null),
+      supabase.from("campaign_drafts").select("*").order("created_at", { ascending: false }).limit(20),
     ]);
 
     setCampaigns((perfData as CampaignPerf[]) ?? []);
+    setDrafts((draftData as CampaignDraft[]) ?? []);
 
-    // UTM stats from events (complementary)
     const map: Record<string, CampaignStat> = {};
     for (const row of (evtData ?? []) as { utm_campaign: string; event_type: string }[]) {
       const c = row.utm_campaign;
@@ -314,25 +358,8 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
 
   useEffect(() => { void load(); }, []);
 
-  async function handleCreate() {
-    if (!form.name.trim()) return;
-    setSaving(true);
-    const id = `manual_${Date.now()}`;
-    await supabase.from("ad_campaigns").insert({
-      id, name: form.name.trim(), type: form.type,
-      target_segment: form.target_segment || null,
-      daily_budget: form.daily_budget ? Number(form.daily_budget) : null,
-      source: "manual",
-    });
-    setForm({ ...EMPTY_CAMPAIGN });
-    setShowForm(false);
-    setSaving(false);
-    void load();
-  }
-
   async function triggerSync() {
-    setSyncing(true);
-    setSyncMsg(null);
+    setSyncing(true); setSyncMsg(null);
     try {
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-ads-sync`, {
         method: "POST",
@@ -341,33 +368,309 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
       const data = await res.json() as { ok: boolean; message?: string; synced?: number };
       setSyncMsg(data.ok ? `✓ ${data.synced ?? 0} registros sincronizados` : (data.message ?? "Sin credenciales configuradas"));
       if (data.ok) void load();
-    } catch {
-      setSyncMsg("Error al conectar con la función de sync");
-    }
+    } catch { setSyncMsg("Error al conectar con la función de sync"); }
     setSyncing(false);
+  }
+
+  async function generateCampaign() {
+    if (!aiForm.daily_budget_ars) { setGenMsg("Ingresá un presupuesto diario"); return; }
+    setGenerating(true); setGenMsg(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-campaign`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          objective:        aiForm.objective,
+          campaign_type:    aiForm.campaign_type,
+          target_segment:   aiForm.target_segment,
+          daily_budget_ars: Number(aiForm.daily_budget_ars),
+          product_focus:    aiForm.product_focus || undefined,
+          extra_context:    aiForm.extra_context || undefined,
+          num_ad_groups:    Number(aiForm.num_ad_groups),
+        }),
+      });
+      const data = await res.json() as { ok: boolean; draft?: CampaignDraft; message?: string };
+      if (data.ok && data.draft) {
+        setGenMsg("✓ Campaña generada. Revisá y aprobá abajo.");
+        setAIForm({ ...EMPTY_AI_FORM });
+        setShowAIForm(false);
+        setExpandedDraft(data.draft.id);
+        void load();
+      } else {
+        setGenMsg(`Error: ${data.message ?? "desconocido"}`);
+      }
+    } catch (e) {
+      setGenMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    setGenerating(false);
+  }
+
+  async function approveDraft(id: string) {
+    await supabase.from("campaign_drafts").update({ status: "approved", reviewed_at: new Date().toISOString() }).eq("id", id);
+    setDrafts(prev => prev.map(d => d.id === id ? { ...d, status: "approved" } : d));
+  }
+
+  async function rejectDraft(id: string) {
+    await supabase.from("campaign_drafts").update({ status: "rejected", reviewed_at: new Date().toISOString() }).eq("id", id);
+    setDrafts(prev => prev.map(d => d.id === id ? { ...d, status: "rejected" } : d));
+  }
+
+  async function launchDraft(id: string) {
+    setLaunching(id); setLaunchMsg(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/launch-campaign`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ draft_id: id }),
+      });
+      const data = await res.json() as { ok: boolean; message?: string; google_ads_campaign_id?: string };
+      setLaunchMsg(data.message ?? (data.ok ? "Lanzada" : "Error"));
+      void load();
+    } catch (e) {
+      setLaunchMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    setLaunching(null);
   }
 
   const inputCls = `w-full text-xs px-3 py-2 rounded-lg border ${d("bg-[#0d0d0d] border-[#2a2a2a] text-white","bg-white border-[#e5e5e5] text-[#171717]")}`;
 
+  const DRAFT_STATUS_STYLE: Record<string, string> = {
+    pending_review: "text-amber-400 bg-amber-500/10 border-amber-500/30",
+    approved:       "text-blue-400 bg-blue-500/10 border-blue-500/30",
+    rejected:       "text-red-400 bg-red-500/10 border-red-500/30",
+    launched:       "text-[#2D9F6A] bg-[#2D9F6A]/10 border-[#2D9F6A]/30",
+    launch_error:   "text-red-400 bg-red-500/10 border-red-500/30",
+  };
+  const DRAFT_STATUS_LABEL: Record<string, string> = {
+    pending_review: "Pendiente revisión",
+    approved:       "Aprobada",
+    rejected:       "Rechazada",
+    launched:       "Lanzada",
+    launch_error:   "Error al lanzar",
+  };
+
   return (
-    <div className="space-y-4">
-      {/* Header actions */}
+    <div className="space-y-5">
+      {/* ── AI Generator CTA ────────────────────────── */}
+      <div className={`rounded-xl border p-4 ${d("border-[#2D9F6A]/20 bg-[#2D9F6A]/5","border-[#2D9F6A]/20 bg-[#2D9F6A]/3")}`}>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <p className={`text-sm font-bold flex items-center gap-2 ${d("text-white","text-[#171717]")}`}>
+              <Sparkles size={14} className="text-[#2D9F6A]" /> Generador de Campañas con IA
+            </p>
+            <p className="text-xs text-[#737373] mt-0.5">
+              Ingresá el objetivo y el presupuesto — Claude arma toda la estructura: grupos de anuncios, keywords, headlines y descripciones listas para Google Ads.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowAIForm(v => !v)}
+            className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg bg-[#2D9F6A] text-white hover:bg-[#25885a] transition font-semibold whitespace-nowrap"
+          >
+            <Sparkles size={13} /> Generar campaña con IA
+          </button>
+        </div>
+
+        {showAIForm && (
+          <div className={`mt-4 pt-4 border-t space-y-4 ${d("border-[#1f1f1f]","border-[#e0e0e0]")}`}>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Objetivo</label>
+                <select value={aiForm.objective} onChange={e => setAIForm(f => ({...f, objective: e.target.value as typeof f.objective}))} className={inputCls}>
+                  <option value="leads">Captar leads B2B</option>
+                  <option value="ventas">Generar ventas</option>
+                  <option value="awareness">Reconocimiento de marca</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Tipo de campaña</label>
+                <select value={aiForm.campaign_type} onChange={e => setAIForm(f => ({...f, campaign_type: e.target.value as typeof f.campaign_type}))} className={inputCls}>
+                  <option value="search">Search (texto)</option>
+                  <option value="display">Display (banners)</option>
+                  <option value="remarketing">Remarketing</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Segmento objetivo</label>
+                <select value={aiForm.target_segment} onChange={e => setAIForm(f => ({...f, target_segment: e.target.value}))} className={inputCls}>
+                  <option value="empresas">Empresas medianas/grandes</option>
+                  <option value="resellers">Resellers y distribuidores</option>
+                  <option value="integradores">Integradores de sistemas</option>
+                  <option value="general">General</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Budget diario (ARS)</label>
+                <input type="number" value={aiForm.daily_budget_ars} onChange={e => setAIForm(f => ({...f, daily_budget_ars: e.target.value}))} placeholder="Ej: 15000" className={inputCls} />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Foco de producto (opcional)</label>
+                <input value={aiForm.product_focus} onChange={e => setAIForm(f => ({...f, product_focus: e.target.value}))} placeholder="Ej: notebooks, servidores, switches" className={inputCls} />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Grupos de anuncios</label>
+                <select value={aiForm.num_ad_groups} onChange={e => setAIForm(f => ({...f, num_ad_groups: e.target.value}))} className={inputCls}>
+                  {["1","2","3","4","5"].map(n => <option key={n} value={n}>{n} grupos</option>)}
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Contexto adicional (opcional)</label>
+                <textarea value={aiForm.extra_context} onChange={e => setAIForm(f => ({...f, extra_context: e.target.value}))} placeholder="Ej: Campaña para fin de año, enfocada en equipamiento de oficina para empresas de RRHH en AMBA" rows={2} className={`${inputCls} resize-none`} />
+              </div>
+            </div>
+
+            {genMsg && (
+              <p className={`text-xs px-3 py-2 rounded-lg border ${genMsg.startsWith("✓") ? "text-[#2D9F6A] border-[#2D9F6A]/20 bg-[#2D9F6A]/5" : "text-red-400 border-red-500/20 bg-red-500/5"}`}>
+                {genMsg}
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <button onClick={generateCampaign} disabled={generating} className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-[#2D9F6A] text-white hover:bg-[#25885a] disabled:opacity-50 transition font-semibold">
+                {generating ? <><RefreshCw size={11} className="animate-spin" /> Generando...</> : <><Sparkles size={11} /> Generar</>}
+              </button>
+              <button onClick={() => setShowAIForm(false)} className={`text-xs px-3 py-1.5 rounded-lg border ${d("border-[#2a2a2a] text-[#737373]","border-[#e5e5e5] text-[#525252]")} transition`}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Campaign Drafts list ─────────────────────── */}
+      {drafts.length > 0 && (
+        <div className="space-y-2">
+          <p className={`text-[10px] uppercase tracking-widest font-bold ${d("text-[#525252]","text-[#a3a3a3]")}`}>
+            Campañas generadas ({drafts.length})
+          </p>
+          {launchMsg && (
+            <p className={`text-xs px-3 py-2 rounded-lg border ${launchMsg.startsWith("✓") || launchMsg.includes("creada") || launchMsg.includes("lanzada") || launchMsg.includes("Campaña") ? "text-[#2D9F6A] border-[#2D9F6A]/20 bg-[#2D9F6A]/5" : "text-amber-400 border-amber-500/20 bg-amber-500/5"}`}>
+              {launchMsg}
+            </p>
+          )}
+          {drafts.map((draft) => (
+            <div key={draft.id} className={`rounded-xl border overflow-hidden ${d("border-[#2a2a2a] bg-[#0d0d0d]","border-[#e5e5e5] bg-white")}`}>
+              {/* Draft header */}
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-semibold truncate ${d("text-white","text-[#171717]")}`}>{draft.name}</p>
+                  <p className="text-[10px] text-[#525252] mt-0.5">
+                    {draft.campaign_type} · {draft.target_segment ?? "general"} · {draft.daily_budget_ars ? `$${Number(draft.daily_budget_ars).toLocaleString("es-AR")}/día` : "sin presupuesto"}
+                    {" · "}{draft.campaign_structure.ad_groups?.length ?? 0} grupos
+                    {draft.google_ads_campaign_id ? ` · ID Google Ads: ${draft.google_ads_campaign_id}` : ""}
+                  </p>
+                </div>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${DRAFT_STATUS_STYLE[draft.status]}`}>
+                  {DRAFT_STATUS_LABEL[draft.status]}
+                </span>
+
+                {/* Action buttons */}
+                {draft.status === "pending_review" && (
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={() => approveDraft(draft.id)} title="Aprobar"
+                      className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-lg bg-[#2D9F6A]/15 text-[#2D9F6A] border border-[#2D9F6A]/30 hover:bg-[#2D9F6A]/25 transition">
+                      <ThumbsUp size={10} /> Aprobar
+                    </button>
+                    <button onClick={() => rejectDraft(draft.id)} title="Rechazar"
+                      className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition">
+                      <ThumbsDown size={10} /> Rechazar
+                    </button>
+                  </div>
+                )}
+                {draft.status === "approved" && (
+                  <button onClick={() => launchDraft(draft.id)} disabled={launching === draft.id}
+                    className="flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg bg-blue-500/15 text-blue-400 border border-blue-500/30 hover:bg-blue-500/25 transition font-semibold">
+                    {launching === draft.id ? <><RefreshCw size={10} className="animate-spin" /> Lanzando...</> : <><Rocket size={10} /> Lanzar en Google Ads</>}
+                  </button>
+                )}
+
+                <button onClick={() => setExpandedDraft(expandedDraft === draft.id ? null : draft.id)}
+                  className={`text-[#525252] hover:${d("text-white","text-[#171717]")} transition`}>
+                  {expandedDraft === draft.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+              </div>
+
+              {/* Expanded structure preview */}
+              {expandedDraft === draft.id && (
+                <div className={`border-t px-4 py-4 space-y-4 ${d("border-[#1f1f1f]","border-[#f0f0f0]")}`}>
+                  {draft.campaign_structure.notes && (
+                    <p className="text-xs text-[#737373] italic">{draft.campaign_structure.notes}</p>
+                  )}
+                  {draft.campaign_structure.bidding_strategy && (
+                    <p className="text-xs text-[#737373]">
+                      <span className="font-semibold text-[#525252]">Puja: </span>{draft.campaign_structure.bidding_strategy}
+                    </p>
+                  )}
+                  {(draft.campaign_structure.ad_groups ?? []).map((ag, i) => (
+                    <div key={i} className={`rounded-lg border p-3 space-y-2 ${d("border-[#2a2a2a] bg-[#111]","border-[#e5e5e5] bg-[#fafafa]")}`}>
+                      <p className={`text-xs font-bold ${d("text-white","text-[#171717]")}`}>Grupo {i+1}: {ag.name}</p>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-[#525252] mb-1">Keywords ({ag.keywords?.length ?? 0})</p>
+                        <div className="flex flex-wrap gap-1">
+                          {(ag.keywords ?? []).map((kw, j) => (
+                            <span key={j} className={`text-[10px] px-2 py-0.5 rounded-full ${d("bg-[#1a1a1a] text-[#a3a3a3]","bg-[#f0f0f0] text-[#525252]")}`}>{kw}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-[#525252] mb-1">Headlines ({ag.headlines?.length ?? 0} · máx 30 chars)</p>
+                        <div className="grid grid-cols-3 gap-1">
+                          {(ag.headlines ?? []).map((h, j) => (
+                            <span key={j} className={`text-[10px] px-2 py-1 rounded border truncate ${h.length > 30 ? "text-amber-400 border-amber-500/20 bg-amber-500/5" : d("border-[#2a2a2a] text-[#d4d4d4]","border-[#e5e5e5] text-[#525252]")}`} title={h}>
+                              {h.length > 30 ? "⚠ " : ""}{h}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-[#525252] mb-1">Descriptions ({ag.descriptions?.length ?? 0} · máx 90 chars)</p>
+                        <div className="space-y-1">
+                          {(ag.descriptions ?? []).map((desc, j) => (
+                            <p key={j} className={`text-[10px] px-2 py-1 rounded border ${desc.length > 90 ? "text-amber-400 border-amber-500/20 bg-amber-500/5" : d("border-[#2a2a2a] text-[#a3a3a3]","border-[#e5e5e5] text-[#525252]")}`}>
+                              {desc.length > 90 ? "⚠ " : ""}{desc}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {(draft.campaign_structure.negative_keywords ?? []).length > 0 && (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-[#525252] mb-1">Negativos</p>
+                      <div className="flex flex-wrap gap-1">
+                        {(draft.campaign_structure.negative_keywords ?? []).map((kw, j) => (
+                          <span key={j} className="text-[10px] px-2 py-0.5 rounded-full text-red-400 bg-red-500/10">{kw}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {draft.launch_error && (
+                    <p className="text-xs text-red-400 bg-red-500/5 border border-red-500/20 rounded px-3 py-2">
+                      Error al lanzar: {draft.launch_error}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Header (sync + live campaigns) ──────────── */}
       <div className="flex items-center gap-2 flex-wrap">
         <p className={`text-xs flex-1 ${d("text-[#525252]","text-[#a3a3a3]")}`}>
-          {campaigns.length} campañas · últimos 30 días
+          {campaigns.length} campañas activas · últimos 30 días
         </p>
-        <button
-          onClick={triggerSync} disabled={syncing}
-          className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition ${d("border-[#2a2a2a] text-[#737373] hover:text-white","border-[#e5e5e5] text-[#525252] hover:bg-[#f5f5f5]")}`}
-          title="Sincronizar con Google Ads API"
-        >
+        <button onClick={triggerSync} disabled={syncing}
+          className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition ${d("border-[#2a2a2a] text-[#737373] hover:text-white","border-[#e5e5e5] text-[#525252] hover:bg-[#f5f5f5]")}`}>
           <RefreshCw size={11} className={syncing ? "animate-spin" : ""} /> Sync Google Ads
-        </button>
-        <button
-          onClick={() => setShowForm(v => !v)}
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#2D9F6A]/15 text-[#2D9F6A] border border-[#2D9F6A]/30 hover:bg-[#2D9F6A]/25 transition"
-        >
-          <Plus size={11} /> Nueva campaña manual
         </button>
       </div>
 
@@ -377,115 +680,56 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
         </p>
       )}
 
-      {/* Create form */}
-      {showForm && (
-        <div className={`rounded-xl border p-4 space-y-3 ${d("border-[#2a2a2a] bg-[#0a0a0a]","border-[#e5e5e5] bg-[#fafafa]")}`}>
-          <p className={`text-xs font-bold ${d("text-white","text-[#171717]")}`}>Nueva campaña manual</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Nombre</label>
-              <input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="Ej: Search B2B Laptops MAY26" className={inputCls} />
-            </div>
-            <div>
-              <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Tipo</label>
-              <select value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value}))} className={inputCls}>
-                <option value="search">Search</option>
-                <option value="display">Display</option>
-                <option value="remarketing">Remarketing</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Segmento</label>
-              <select value={form.target_segment} onChange={e => setForm(f => ({...f, target_segment: e.target.value}))} className={inputCls}>
-                <option value="">General</option>
-                <option value="empresas">Empresas</option>
-                <option value="resellers">Resellers</option>
-                <option value="integradores">Integradores</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Budget diario (ARS)</label>
-              <input type="number" value={form.daily_budget} onChange={e => setForm(f => ({...f, daily_budget: e.target.value}))} placeholder="0" className={inputCls} />
-            </div>
+      {loading ? (
+        <div className="space-y-2">{Array.from({length:3}).map((_,i) => <div key={i} className={`h-14 rounded-xl animate-pulse ${d("bg-[#111]","bg-[#f0f0f0]")}`} />)}</div>
+      ) : campaigns.length > 0 && (
+        <div className={`rounded-xl border overflow-hidden ${d("border-[#1f1f1f]","border-[#e5e5e5]")}`}>
+          <div className={`grid grid-cols-[1.5fr_70px_70px_80px_80px_80px_80px] gap-2 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider ${d("bg-[#0d0d0d] text-[#525252]","bg-[#f5f5f5] text-[#a3a3a3]")}`}>
+            <span>Campaña</span>
+            <span className="text-right">Clicks</span>
+            <span className="text-right">Costo</span>
+            <span className="text-right">Registros</span>
+            <span className="text-right">CPL</span>
+            <span className="text-right">ROAS</span>
+            <span className="text-right">Estado</span>
           </div>
-          <div className="flex gap-2">
-            <button onClick={handleCreate} disabled={saving} className="text-xs px-4 py-1.5 rounded-lg bg-[#2D9F6A] text-white hover:bg-[#25885a] disabled:opacity-50 transition">
-              {saving ? "Guardando..." : "Crear campaña"}
-            </button>
-            <button onClick={() => setShowForm(false)} className={`text-xs px-3 py-1.5 rounded-lg border ${d("border-[#2a2a2a] text-[#737373]","border-[#e5e5e5] text-[#525252]")} transition`}>
-              Cancelar
-            </button>
-          </div>
+          {campaigns.map((c) => (
+            <div key={c.id} className={`grid grid-cols-[1.5fr_70px_70px_80px_80px_80px_80px] gap-2 px-4 py-3 border-t text-xs items-center ${d("border-[#1a1a1a] bg-[#111]","border-[#f0f0f0] bg-white")}`}>
+              <div className="min-w-0">
+                <p className={`font-semibold truncate ${d("text-white","text-[#171717]")}`}>{c.name}</p>
+                <p className="text-[10px] text-[#525252]">{c.type}{c.target_segment ? ` · ${c.target_segment}` : ""}{c.source === "google_ads_api" ? " · API" : " · manual"}</p>
+              </div>
+              <span className={`text-right ${d("text-[#d4d4d4]","text-[#525252]")}`}>{fmt(c.clicks_30d)}</span>
+              <span className={`text-right ${d("text-[#d4d4d4]","text-[#525252]")}`}>{c.cost_30d > 0 ? `$${Math.round(c.cost_30d).toLocaleString("es-AR")}` : "—"}</span>
+              <span className={`text-right ${d("text-white","text-[#171717]")}`}>{fmt(c.conversions_30d)}</span>
+              <span className={`text-right ${c.cpl_30d && c.cpl_30d > 8000 ? "text-red-400" : c.cpl_30d ? "text-[#2D9F6A]" : d("text-[#525252]","text-[#a3a3a3]")}`}>
+                {c.cpl_30d ? `$${Math.round(c.cpl_30d).toLocaleString("es-AR")}` : "—"}
+              </span>
+              <span className={`text-right font-semibold ${c.roas_30d >= 3 ? "text-[#2D9F6A]" : c.roas_30d >= 1 ? "text-amber-400" : c.roas_30d > 0 ? "text-red-400" : d("text-[#525252]","text-[#a3a3a3]")}`}>
+                {c.roas_30d > 0 ? `${c.roas_30d}x` : "—"}
+              </span>
+              <span className={`text-right text-[10px] px-2 py-0.5 rounded-full ${c.status === "active" ? "text-green-400 bg-green-500/10" : "text-gray-400 bg-gray-500/10"}`}>
+                {c.status === "active" ? "Activa" : "Pausada"}
+              </span>
+            </div>
+          ))}
         </div>
       )}
 
-      {loading ? (
-        <div className="space-y-2">{Array.from({length:3}).map((_,i) => <div key={i} className={`h-14 rounded-xl animate-pulse ${d("bg-[#111]","bg-[#f0f0f0]")}`} />)}</div>
-      ) : campaigns.length === 0 && utmStats.length === 0 ? (
-        <div className={`rounded-xl border p-10 text-center ${d("border-[#1f1f1f] bg-[#0d0d0d]","border-[#e5e5e5] bg-white")}`}>
-          <Megaphone size={28} className="mx-auto mb-3 text-[#404040]" />
-          <p className={`text-sm font-semibold ${d("text-[#737373]","text-[#a3a3a3]")}`}>Sin campañas aún</p>
-          <p className="text-xs text-[#525252] mt-1 max-w-sm mx-auto">
-            Creá una campaña manual o configurá las credenciales de Google Ads API
-            en Supabase Dashboard → Edge Functions → Secrets para sincronizar automáticamente.
-          </p>
+      {utmStats.length > 0 && (
+        <div>
+          <p className={`text-[10px] uppercase tracking-widest font-bold mb-2 ${d("text-[#525252]","text-[#a3a3a3]")}`}>UTM en tráfico</p>
+          <div className={`rounded-xl border overflow-hidden ${d("border-[#1f1f1f]","border-[#e5e5e5]")}`}>
+            {utmStats.map((s) => (
+              <div key={s.campaign} className={`grid grid-cols-[1fr_repeat(3,80px)] gap-2 px-4 py-2.5 border-t first:border-t-0 text-xs ${d("border-[#1a1a1a] bg-[#111]","border-[#f0f0f0] bg-white")}`}>
+                <span className={`font-mono truncate ${d("text-[#a3a3a3]","text-[#525252]")}`}>{s.campaign}</span>
+                <span className={`text-right ${d("text-white","text-[#171717]")}`}>{s.clicks}</span>
+                <span className={`text-right ${d("text-white","text-[#171717]")}`}>{s.registrations}</span>
+                <span className="text-right font-semibold text-[#2D9F6A]">{s.orders}</span>
+              </div>
+            ))}
+          </div>
         </div>
-      ) : (
-        <>
-          {/* Campaigns from DB */}
-          {campaigns.length > 0 && (
-            <div className={`rounded-xl border overflow-hidden ${d("border-[#1f1f1f]","border-[#e5e5e5]")}`}>
-              <div className={`grid grid-cols-[1.5fr_70px_70px_80px_80px_80px_80px] gap-2 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider ${d("bg-[#0d0d0d] text-[#525252]","bg-[#f5f5f5] text-[#a3a3a3]")}`}>
-                <span>Campaña</span>
-                <span className="text-right">Clicks</span>
-                <span className="text-right">Costo</span>
-                <span className="text-right">Registros</span>
-                <span className="text-right">CPL</span>
-                <span className="text-right">ROAS</span>
-                <span className="text-right">Estado</span>
-              </div>
-              {campaigns.map((c) => (
-                <div key={c.id} className={`grid grid-cols-[1.5fr_70px_70px_80px_80px_80px_80px] gap-2 px-4 py-3 border-t text-xs items-center ${d("border-[#1a1a1a] bg-[#111]","border-[#f0f0f0] bg-white")}`}>
-                  <div className="min-w-0">
-                    <p className={`font-semibold truncate ${d("text-white","text-[#171717]")}`}>{c.name}</p>
-                    <p className="text-[10px] text-[#525252]">{c.type}{c.target_segment ? ` · ${c.target_segment}` : ""}{c.source === "google_ads_api" ? " · API" : " · manual"}</p>
-                  </div>
-                  <span className={`text-right ${d("text-[#d4d4d4]","text-[#525252]")}`}>{fmt(c.clicks_30d)}</span>
-                  <span className={`text-right ${d("text-[#d4d4d4]","text-[#525252]")}`}>{c.cost_30d > 0 ? `$${Math.round(c.cost_30d).toLocaleString("es-AR")}` : "—"}</span>
-                  <span className={`text-right ${d("text-white","text-[#171717]")}`}>{fmt(c.conversions_30d)}</span>
-                  <span className={`text-right ${c.cpl_30d && c.cpl_30d > 8000 ? "text-red-400" : c.cpl_30d ? "text-[#2D9F6A]" : d("text-[#525252]","text-[#a3a3a3]")}`}>
-                    {c.cpl_30d ? `$${Math.round(c.cpl_30d).toLocaleString("es-AR")}` : "—"}
-                  </span>
-                  <span className={`text-right font-semibold ${c.roas_30d >= 3 ? "text-[#2D9F6A]" : c.roas_30d >= 1 ? "text-amber-400" : c.roas_30d > 0 ? "text-red-400" : d("text-[#525252]","text-[#a3a3a3]")}`}>
-                    {c.roas_30d > 0 ? `${c.roas_30d}x` : "—"}
-                  </span>
-                  <span className={`text-right text-[10px] px-2 py-0.5 rounded-full ${c.status === "active" ? "text-green-400 bg-green-500/10" : "text-gray-400 bg-gray-500/10"}`}>
-                    {c.status === "active" ? "Activa" : "Pausada"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* UTM-only stats (no campaign in DB) */}
-          {utmStats.length > 0 && (
-            <div>
-              <p className={`text-[10px] uppercase tracking-widest font-bold mb-2 ${d("text-[#525252]","text-[#a3a3a3]")}`}>
-                UTM detectados en tráfico (sin campaña registrada)
-              </p>
-              <div className={`rounded-xl border overflow-hidden ${d("border-[#1f1f1f]","border-[#e5e5e5]")}`}>
-                {utmStats.map((s) => (
-                  <div key={s.campaign} className={`grid grid-cols-[1fr_repeat(3,80px)] gap-2 px-4 py-2.5 border-t first:border-t-0 text-xs ${d("border-[#1a1a1a] bg-[#111]","border-[#f0f0f0] bg-white")}`}>
-                    <span className={`font-mono truncate ${d("text-[#a3a3a3]","text-[#525252]")}`}>{s.campaign}</span>
-                    <span className={`text-right ${d("text-white","text-[#171717]")}`}>{s.clicks}</span>
-                    <span className={`text-right ${d("text-white","text-[#171717]")}`}>{s.registrations}</span>
-                    <span className="text-right font-semibold text-[#2D9F6A]">{s.orders}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
       )}
 
       {/* ── Ad Rules ─────────────────────────────────── */}

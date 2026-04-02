@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   Package, ChevronDown, ChevronUp, Plus, Pencil, Trash2,
-  Save, X, Star, StarOff, AlertTriangle, Layers,
+  Save, X, Star, StarOff, AlertTriangle, Layers, MapPin, Building
 } from "lucide-react";
 
 interface Props { isDark?: boolean }
@@ -72,6 +72,19 @@ const EMPTY_FORM = {
   external_id: "",
 };
 
+interface Warehouse {
+  id: string;
+  name: string;
+  location: string;
+}
+
+interface WarehouseStock {
+  warehouse_id: string;
+  warehouse_name: string;
+  stock: number;
+  stock_reserved: number;
+}
+
 export function StockTab({ isDark = true }: Props) {
   const dk = (d: string, l: string) => (isDark ? d : l);
 
@@ -91,6 +104,11 @@ export function StockTab({ isDark = true }: Props) {
   const [showAddForm, setShowAddForm] = useState<number | null>(null);
   const [addForm, setAddForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  
+  const [viewMode, setViewMode] = useState<'suppliers' | 'warehouses'>('suppliers');
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [whStocks, setWhStocks] = useState<Record<number, WarehouseStock[]>>({});
+  const [loadingWh, setLoadingWh] = useState<number | null>(null);
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -131,27 +149,51 @@ export function StockTab({ isDark = true }: Props) {
   useEffect(() => {
     supabase.from("suppliers").select("id, name").eq("active", true).order("name")
       .then(({ data }) => setSupplierOptions((data ?? []) as SupplierOption[]));
+      
+    supabase.from("warehouses").select("id, name, location").eq("is_active", true).order("name")
+      .then(({ data }) => setWarehouses((data ?? []) as Warehouse[]));
   }, []);
 
   async function toggleExpand(productId: number) {
     if (expandedId === productId) { setExpandedId(null); return; }
     setExpandedId(productId);
-    if (sources[productId]) return;
-    setLoadingSources(productId);
-    const { data } = await supabase
-      .from("product_suppliers")
-      .select("*, suppliers(name)")
-      .eq("product_id", productId)
-      .order("is_preferred", { ascending: false })
-      .order("cost_price", { ascending: true });
-    setSources((prev) => ({
-      ...prev,
-      [productId]: ((data as ProductSupplierQueryRow[] | null) ?? []).map((r) => ({
-        ...r,
-        supplier_name: r.suppliers?.name ?? "—",
-      })),
-    }));
-    setLoadingSources(null);
+    
+    if (viewMode === 'suppliers') {
+      if (sources[productId]) return;
+      setLoadingSources(productId);
+      const { data } = await supabase
+        .from("product_suppliers")
+        .select("*, suppliers(name)")
+        .eq("product_id", productId)
+        .order("is_preferred", { ascending: false })
+        .order("cost_price", { ascending: true });
+      setSources((prev) => ({
+        ...prev,
+        [productId]: ((data as ProductSupplierQueryRow[] | null) ?? []).map((r) => ({
+          ...r,
+          supplier_name: r.suppliers?.name ?? "—",
+        })),
+      }));
+      setLoadingSources(null);
+    } else {
+      if (whStocks[productId]) return;
+      setLoadingWh(productId);
+      const { data } = await supabase
+        .from("product_stocks")
+        .select("*, warehouses(name, location)")
+        .eq("product_id", productId);
+      
+      setWhStocks((prev) => ({
+        ...prev,
+        [productId]: ((data as any[] | null) ?? []).map((r) => ({
+          warehouse_id: r.warehouse_id,
+          warehouse_name: r.warehouses?.name || "Desconocido",
+          stock: r.stock,
+          stock_reserved: r.stock_reserved
+        }))
+      }));
+      setLoadingWh(null);
+    }
   }
 
   async function refreshSources(productId: number) {
@@ -232,7 +274,20 @@ export function StockTab({ isDark = true }: Props) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className={`text-base font-bold ${dk("text-white", "text-[#171717]")}`}>Gestión de Stock</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Stock por proveedor · multi-supplier</p>
+          <div className="flex items-center gap-4 mt-1">
+            <button 
+              onClick={() => setViewMode('suppliers')}
+              className={`text-xs font-bold transition-colors ${viewMode === 'suppliers' ? 'text-[#2D9F6A]' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+              Por Proveedor
+            </button>
+            <button 
+              onClick={() => setViewMode('warehouses')}
+              className={`text-xs font-bold transition-colors ${viewMode === 'warehouses' ? 'text-[#2D9F6A]' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+              Por Depósito
+            </button>
+          </div>
         </div>
         <input
           value={search}
@@ -291,8 +346,8 @@ export function StockTab({ isDark = true }: Props) {
                   </div>
                 </div>
 
-                {/* Expanded supplier sources */}
-                {isExpanded && (
+                {/* Expanded content */}
+                {isExpanded && viewMode === 'suppliers' && (
                   <div className={`border-t px-4 py-3 space-y-3 ${dk("border-[#1a1a1a] bg-[#080808]", "border-[#f0f0f0] bg-[#fafafa]")}`}>
                     {loadingSources === product.id ? (
                       <div className="text-xs text-gray-500 py-2">Cargando fuentes…</div>
@@ -469,6 +524,44 @@ export function StockTab({ isDark = true }: Props) {
                       >
                         <Plus size={12} /> Agregar proveedor
                       </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Expanded warehouse stock */}
+                {isExpanded && viewMode === 'warehouses' && (
+                  <div className={`border-t px-4 py-3 space-y-3 ${dk("border-[#1a1a1a] bg-[#080808]", "border-[#f0f0f0] bg-[#fafafa]")}`}>
+                    {loadingWh === product.id ? (
+                      <div className="text-xs text-gray-500 py-2">Cargando depósitos…</div>
+                    ) : (whStocks[product.id] ?? []).length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-6 text-gray-600">
+                        <MapPin size={24} className="mb-2 opacity-20" />
+                        <p className="text-xs">No hay stock registrado en depósitos físicos.</p>
+                        <p className="text-[10px] text-gray-700">El stock se sincronizará desde proveedores.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {(whStocks[product.id] ?? []).map((wh) => (
+                          <div key={wh.warehouse_id} className={`p-3 rounded-xl border ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <Building size={12} className="text-[#2D9F6A]" />
+                              <span className="text-xs font-bold">{wh.warehouse_name}</span>
+                            </div>
+                            <div className="flex justify-between items-end">
+                              <div>
+                                <p className="text-[10px] text-gray-500 uppercase font-bold">Disponible</p>
+                                <p className="text-lg font-extrabold tabular-nums text-[#2D9F6A]">{wh.stock}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-[10px] text-gray-500 uppercase font-bold">Reservado</p>
+                                <p className={`text-sm font-bold tabular-nums ${wh.stock_reserved > 0 ? 'text-amber-400' : 'text-gray-500'}`}>
+                                  {wh.stock_reserved}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 )}

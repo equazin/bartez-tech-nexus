@@ -4,6 +4,7 @@ import type { PriceResult } from "@/hooks/usePricing";
 import { getAvailableStock } from "@/lib/pricing";
 import { getLugStock } from "@/lib/stockUtils";
 import { StockBadge } from "@/components/b2b/StockBadge";
+import { SmartCompatibility } from "@/components/b2b/SmartCompatibility";
 
 // ── Spec helpers ────────────────────────────────────────────────────────────
 
@@ -50,6 +51,7 @@ export interface ProductDetailModalProps {
   formatUSD: (n: number) => string;
   currency: string;
   setCurrency: (c: "ARS" | "USD") => void;
+  isDark: boolean;
   dk: (dark: string, light: string) => string;
   onClose: () => void;
   onAddToCart: (p: Product) => void;
@@ -65,6 +67,7 @@ export function ProductDetailModal({
   formatUSD,
   currency,
   setCurrency,
+  isDark,
   dk,
   onClose,
   onAddToCart,
@@ -179,6 +182,16 @@ export function ProductDetailModal({
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* AI Compatibility (Phase 4.1) */}
+            <div className="mb-4">
+              <SmartCompatibility 
+                productId={p.id} 
+                isDark={isDark} 
+                onAddToCart={onAddToCart}
+                formatPrice={formatPrice}
+              />
             </div>
 
             {/* Price tiers */}

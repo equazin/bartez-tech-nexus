@@ -239,7 +239,7 @@ export function ReportsTab({
                   <td className="px-3 py-2.5 text-center text-xs">{row.orderCount}</td>
                   <td className="px-3 py-2.5 text-right text-xs font-bold text-[#2D9F6A]">{formatPrice(row.revenue)}</td>
                   <td className="hidden sm:table-cell px-3 py-2.5 text-right text-xs">
-                    {formatPrice(row.grossProfit)} ({row.marginPct.toFixed(1)}%)
+                    {formatPrice(row.grossProfit)} ({(row.marginPct ?? 0).toFixed(1)}%)
                   </td>
                 </tr>
               ))}
@@ -267,7 +267,7 @@ export function ReportsTab({
                   <td className="px-3 py-2.5 text-center text-xs">{row.units}</td>
                   <td className="px-3 py-2.5 text-right text-xs font-bold text-[#2D9F6A]">{formatPrice(row.revenue)}</td>
                   <td className="hidden sm:table-cell px-3 py-2.5 text-right text-xs">
-                    {formatPrice(row.grossProfit)} ({row.marginPct.toFixed(1)}%)
+                    {formatPrice(row.grossProfit)} ({(row.marginPct ?? 0).toFixed(1)}%)
                   </td>
                 </tr>
               ))}

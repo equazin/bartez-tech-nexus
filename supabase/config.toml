@@ -46,31 +46,31 @@ verify_jwt = false   # invocado por cron (sin JWT de usuario)
 [functions.ad-copy-generator]
 verify_jwt = true    # requiere JWT de admin
 
-# ── Cron Schedules ─────────────────────────────────────────────
-# Requiere: pg_cron extension habilitada en Supabase Dashboard
-# Dashboard > Database > Extensions > pg_cron
-#
-# Para activar en producción usar Supabase CLI:
-#   supabase functions deploy google-ads-sync
-#   supabase functions deploy ad-copy-generator
-#
-# O configurar el cron vía SQL:
-#   SELECT cron.schedule('google-ads-sync-daily', '0 6 * * *',
-#     $$SELECT net.http_post(
-#       url := current_setting('app.supabase_url') || '/functions/v1/google-ads-sync',
-#       headers := '{"Content-Type":"application/json"}'::jsonb,
-#       body := '{}'::jsonb
-#     )$$
-#   );
-
-[functions.google-ads-sync.cron]
-# Cron diario a las 6am UTC (3am ARG)
-# Sincroniza rendimiento de campañas de ayer
-schedule = "0 6 * * *"
-
 [functions.ad-rules-executor]
 verify_jwt = false
 
-[functions.ad-rules-executor.cron]
-# Ejecutar reglas automáticas una vez por día a las 7am UTC
-schedule = "0 7 * * *"
+[functions.generate-campaign]
+verify_jwt = true    # requiere JWT de admin/vendedor
+
+[functions.launch-campaign]
+verify_jwt = true    # requiere JWT de admin
+
+# ── Cron Schedules ─────────────────────────────────────────────
+# Los crons NO se configuran aquí (no soportado en CLI v2).
+# Configurar vía SQL en Supabase Dashboard > SQL Editor:
+#
+# SELECT cron.schedule('google-ads-sync-daily', '0 6 * * *',
+#   $$SELECT net.http_post(
+#     url := 'https://mfetwdftkiqydbwiqyfi.supabase.co/functions/v1/google-ads-sync',
+#     headers := '{"Content-Type":"application/json"}'::jsonb,
+#     body := '{}'::jsonb
+#   )$$
+# );
+#
+# SELECT cron.schedule('ad-rules-executor-daily', '0 7 * * *',
+#   $$SELECT net.http_post(
+#     url := 'https://mfetwdftkiqydbwiqyfi.supabase.co/functions/v1/ad-rules-executor',
+#     headers := '{"Content-Type":"application/json"}'::jsonb,
+#     body := '{}'::jsonb
+#   )$$
+# );

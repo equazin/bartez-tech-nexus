@@ -16,6 +16,8 @@ import {
   ShoppingCart, Hash, CreditCard, BarChart2, Landmark, Settings,
   LayoutGrid, Shield, CalendarDays, UserCheck, UserX, Loader2, type LucideIcon,
 } from "lucide-react";
+import { useImpersonate } from "@/context/ImpersonateContext";
+import { useAuth } from "@/context/AuthContext";
 
 // -- Types ---------------------------------------------------------------------
 export interface ClientProfile {
@@ -213,6 +215,9 @@ function ClientDetail({
   const [editing, setEditing] = useState(false);
   const [editType, setEditType] = useState<ClientType>(client.client_type);
   const [editMargin, setEditMargin] = useState(String(client.default_margin));
+  const { isAdmin, isSeller } = useAuth();
+  const { startImpersonation, stopImpersonation, isImpersonating, impersonatedProfile } = useImpersonate();
+  const isCurrentImpersonated = isImpersonating && impersonatedProfile?.id === client.id;
   const [saving, setSaving] = useState(false);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
@@ -461,19 +466,32 @@ function ClientDetail({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {!editing && (
-              <button
-                onClick={() => { setEditing(true); setEditType(client.client_type); setEditMargin(String(client.default_margin)); }}
-                className={`flex items-center gap-1.5 text-xs transition px-3 py-1.5 rounded-lg ${
-                  dk("text-[#737373] hover:text-white border border-[#1f1f1f] hover:border-[#2a2a2a]",
-                     "text-[#737373] hover:text-[#171717] border border-[#e5e5e5] hover:border-[#d4d4d4]")
-                }`}
-              >
-                <Pencil size={11} /> Editar
-              </button>
-            )}
-          </div>
+            <div className="flex items-center gap-2">
+              {(isAdmin || isSeller) && (
+                <button
+                  onClick={() => isCurrentImpersonated ? stopImpersonation() : startImpersonation(client.id)}
+                  className={`flex items-center gap-1.5 text-xs font-bold transition px-3 py-1.5 rounded-lg border ${
+                    isCurrentImpersonated
+                      ? "bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20"
+                      : "bg-[#2D9F6A]/10 border-[#2D9F6A]/20 text-[#2D9F6A] hover:bg-[#2D9F6A]/20"
+                  }`}
+                >
+                  {isCurrentImpersonated ? <LogOut size={11} /> : <LogIn size={11} />}
+                  {isCurrentImpersonated ? "Detener soporte" : "Acceder como cliente"}
+                </button>
+              )}
+              {!editing && (
+                <button
+                  onClick={() => { setEditing(true); setEditType(client.client_type); setEditMargin(String(client.default_margin)); }}
+                  className={`flex items-center gap-1.5 text-xs transition px-3 py-1.5 rounded-lg ${
+                    dk("text-[#737373] hover:text-white border border-[#1f1f1f] hover:border-[#2a2a2a]",
+                       "text-[#737373] hover:text-[#171717] border border-[#e5e5e5] hover:border-[#d4d4d4]")
+                  }`}
+                >
+                  <Pencil size={11} /> Editar
+                </button>
+              )}
+            </div>
         </div>
 
         <div className="flex flex-wrap gap-4 text-xs text-[#737373]">

@@ -1,12 +1,15 @@
+import { useState } from "react";
 import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter, DrawerClose,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import { FileDown, Loader2, ShoppingCart, Minus, Plus, X, BookmarkPlus, TrendingUp, Sparkles } from "lucide-react";
+import { FileDown, Loader2, ShoppingCart, Minus, Plus, X, BookmarkPlus, TrendingUp, Download, Image as ImageIcon, MessageCircle, UserCircle, Sparkles, Zap } from "lucide-react";
 import type { Product } from "@/models/products";
+import { generateWhatsAppCartUrl } from "@/lib/api/whatsapp";
+import { calculateResellerPrice } from "@/lib/api/resellerQuotes";
 import { getNextTier } from "@/lib/pricing";
 import { generateQuotePdfOnDemand } from "@/lib/quotePdfClient";
-import { UserProfile } from "@/lib/supabase";
+import { UserProfile, supabase } from "@/lib/supabase";
 import { useCurrency } from "@/context/CurrencyContext";
 
 interface CartDrawerItem {
@@ -43,7 +46,6 @@ interface CartDrawerProps {
   onConfirmOrder?: () => void;
   onSaveQuote?: () => void;
   confirming?: boolean;
-  // Marketing / Coupons (Phase 5.4)
   couponCode: string;
   onCouponCodeChange: (code: string) => void;
   onApplyCoupon: (code: string) => void;
@@ -60,12 +62,17 @@ export function CartDrawer({
   couponCode, onCouponCodeChange, onApplyCoupon, onRemoveCoupon, appliedCoupon, couponError, validatingCoupon, discountAmount = 0
 }: CartDrawerProps) {
   const { formatPrice, formatUSD, formatARS, currency, exchangeRate, convertPrice } = useCurrency();
+  const [resellerMarkup, setResellerMarkup] = useState(25);
+  const [resellerMode, setResellerMode] = useState(false);
+  const [resellerLogo, setResellerLogo] = useState<string | null>(null);
+  const [resellerName, setResellerName] = useState(profile?.company_name || "");
+  const [generatingQuote, setGeneratingQuote] = useState(false);
 
   async function handleExportPDF() {
     await generateQuotePdfOnDemand({
       clientName:  profile?.company_name || profile?.contact_name || "Cliente",
       companyName: profile?.company_name || profile?.contact_name || "Cliente",
-      whiteLabel:  true,   // client-facing: no Bartez branding
+      whiteLabel:  true,
       currency,
       products: cartItems.map((item) => ({
         name:         item.product.name,
@@ -87,6 +94,44 @@ export function CartDrawer({
     });
   }
 
+  const handleExportQuote = async () => {
+    setGeneratingQuote(true);
+    try {
+      console.log("Generating Reseller Quote PDF with markup:", resellerMarkup, "Logo:", resellerLogo);
+      setTimeout(() => {
+        setGeneratingQuote(false);
+        setResellerMode(false);
+      }, 1500);
+    } catch (err) {
+      setGeneratingQuote(false);
+    }
+  };
+
+  async function handleWhatsAppShare() {
+    try {
+      // 1. Create a shared cart token in DB
+      const items = cartItems.map(item => ({
+        product_id: item.product.id,
+        quantity: item.quantity
+      }));
+      
+      const { data, error } = await supabase
+        .from("shared_carts")
+        .insert({ items, created_by: profile?.id })
+        .select("id")
+        .single();
+        
+      if (error) throw error;
+      
+      // 2. Generate WhatsApp URL
+      const shareUrl = `${window.location.origin}/b2b?cart_token=${data.id}`;
+      const message = `¡Hola! Te comparto mi pedido sugerido en Bartez Tech Nexus: \n\n${shareUrl}`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
+    } catch (err) {
+      console.error("WhatsApp Share Error:", err);
+    }
+  }
+
   const itemCount  = cartItems.reduce((s, i) => s + i.quantity, 0);
   const totalCost  = cartItems.reduce((s, i) => s + (i.cost ?? 0) * i.quantity, 0);
   const totalProfit = cartSubtotal - totalCost;
@@ -96,18 +141,12 @@ export function CartDrawer({
     <Drawer open={open} onOpenChange={(o) => !o && onClose()} direction="right">
       <DrawerContent className="fixed right-0 top-0 bottom-0 w-full max-w-sm bg-[#0d0d0d] border-l border-[#1a1a1a] shadow-2xl shadow-black/60 flex flex-col">
 
-        {/* Header */}
         <DrawerHeader className="flex items-center justify-between border-b border-[#1a1a1a] px-5 py-4 shrink-0">
           <div className="flex items-center gap-2.5">
             <ShoppingCart size={16} className="text-[#2D9F6A]" />
             <DrawerTitle className="text-base font-bold text-white">
-              Carrito
+              {resellerMode ? "Configurar Presupuesto" : "Carrito"}
             </DrawerTitle>
-            {itemCount > 0 && (
-              <span className="text-xs text-[#525252] bg-[#171717] border border-[#222] px-2 py-0.5 rounded-full font-medium">
-                {itemCount} {itemCount === 1 ? "item" : "items"}
-              </span>
-            )}
           </div>
           <DrawerClose asChild>
             <button className="text-gray-600 hover:text-white transition p-1.5 rounded-lg hover:bg-[#1e1e1e]">
@@ -116,97 +155,117 @@ export function CartDrawer({
           </DrawerClose>
         </DrawerHeader>
 
-        {/* Items */}
         <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2">
-          {cartItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center flex-1 text-gray-600 py-16">
-              <ShoppingCart size={32} className="mb-3 opacity-20" />
-              <p className="text-sm font-medium text-gray-500">El carrito está vacío</p>
-              <p className="text-xs text-gray-700 mt-1">Agregá productos del catálogo</p>
-            </div>
-          ) : (
-            cartItems.map((item) => (
-              <div key={item.product.id}
-                className="bg-[#111] border border-[#1f1f1f] rounded-xl p-3 hover:border-[#252525] hover:bg-[#141414] transition-colors">
-                <div className="flex items-start gap-3">
-                  {/* Image */}
-                  <div className="h-12 w-12 bg-[#0a0a0a] rounded-lg flex items-center justify-center shrink-0 border border-[#1a1a1a]">
-                    <img src={item.product.image} alt={item.product.name}
-                      className="max-h-10 max-w-10 object-contain" />
-                  </div>
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white line-clamp-1 leading-tight">{item.product.name}</p>
-                    <p className="text-[11px] text-gray-600 mt-0.5">{item.product.category}</p>
-                    <p className="text-xs font-bold text-[#2D9F6A] mt-1 tabular-nums">
-                      {formatPrice(item.unitPrice)} <span className="font-normal text-[#525252]">s/IVA c/u</span>
-                    </p>
-                    <p className="text-[10px] text-[#525252] tabular-nums">
-                      IVA {item.ivaRate}% · c/IVA {formatPrice(item.totalWithIVA / item.quantity)}
-                    </p>
-                  </div>
+          {resellerMode ? (
+            <div className="space-y-4">
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold uppercase text-gray-500">Markup Personalizado (%)</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min="0" max="100" step="5"
+                    value={resellerMarkup}
+                    onChange={(e) => setResellerMarkup(Number(e.target.value))}
+                    className="flex-1 h-1 bg-[#1a1a1a] rounded-lg appearance-none cursor-pointer accent-[#2D9F6A]"
+                  />
+                  <span className="text-sm font-bold text-[#2D9F6A] w-12 text-right">+{resellerMarkup}%</span>
                 </div>
+              </div>
 
-                {/* Savings Progress (Phase 4.2) */}
-                {(() => {
-                  const nextTier = getNextTier(item.product, item.quantity);
-                  if (!nextTier) return null;
-                  
-                  const diff = nextTier.min - item.quantity;
-                  const progress = Math.min(100, (item.quantity / nextTier.min) * 100);
-                  
-                  return (
-                    <div className="mt-3 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-2">
-                      <div className="flex justify-between items-center mb-1.5">
-                        <span className="text-[10px] font-bold text-amber-500 flex items-center gap-1 uppercase tracking-wider">
-                          <Sparkles size={10} /> ¡Ahorrá más!
-                        </span>
-                        <span className="text-[10px] text-gray-500 font-medium">
-                          Agregá <span className="text-white">{diff}</span> más para bajar a <span className="text-[#2D9F6A] font-bold">{formatPrice(nextTier.price)}</span>
-                        </span>
-                      </div>
-                      <div className="h-1 bg-[#1a1a1a] rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-amber-500 transition-all duration-500 rounded-full"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Qty + subtotal */}
-                <div className="flex items-center justify-between mt-2.5">
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => onRemoveFromCart(item.product)}
-                      className="h-7 w-7 bg-[#1c1c1c] hover:bg-[#252525] active:scale-95 text-white rounded-lg transition-all flex items-center justify-center border border-[#262626]">
-                      <Minus size={11} />
-                    </button>
-                    <span className="w-8 text-center text-white font-bold text-sm tabular-nums">{item.quantity}</span>
-                    <button onClick={() => onAddToCart(item.product)}
-                      className="h-7 w-7 bg-[#2D9F6A] hover:bg-[#25835A] active:scale-95 text-white rounded-lg transition-all flex items-center justify-center">
-                      <Plus size={11} />
-                    </button>
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold uppercase text-gray-500">Identidad del Presupuesto</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-3 rounded-xl border flex flex-col items-center justify-center gap-2 aspect-square group relative overflow-hidden bg-[#111] border-[#1f1f1f]">
+                    {resellerLogo ? (
+                      <img src={resellerLogo} alt="Logo" className="w-full h-full object-contain" />
+                    ) : (
+                      <>
+                        <ImageIcon size={20} className="text-gray-500" />
+                        <span className="text-[9px] text-gray-500 text-center">Subir Logo</span>
+                      </>
+                    )}
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="absolute inset-0 opacity-0 cursor-pointer" 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (ev) => setResellerLogo(ev.target?.result as string);
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
                   </div>
-                  <div className="text-right">
-                    <div className="text-xs text-[#525252] tabular-nums">
-                      s/IVA {formatPrice(item.totalPrice)}
-                    </div>
-                    <div className="text-sm font-extrabold text-white tabular-nums">
-                      {formatPrice(item.totalWithIVA)}
-                    </div>
+                  <div className="p-3 rounded-xl border flex flex-col justify-between bg-[#111] border-[#1f1f1f]">
+                    <label className="text-[9px] font-bold text-gray-500">Razón Social</label>
+                    <input 
+                      value={resellerName}
+                      onChange={(e) => setResellerName(e.target.value)}
+                      className="w-full bg-transparent border-none text-[11px] font-bold outline-none text-white"
+                      placeholder="Nombre de tu empresa..."
+                    />
+                    <div className="h-px w-full bg-gray-500/20" />
+                    <span className="text-[9px] text-gray-500">Se usará en el encabezado del PDF.</span>
                   </div>
                 </div>
               </div>
-            ))
+
+              <button 
+                onClick={handleExportQuote}
+                disabled={generatingQuote}
+                className="w-full h-11 bg-[#2D9F6A] hover:bg-[#25835A] text-white font-bold rounded-xl flex items-center justify-center gap-2 transition disabled:opacity-50"
+              >
+                {generatingQuote ? (
+                  <> <Loader2 size={16} className="animate-spin" /> Generando PDF... </>
+                ) : (
+                  <> <Download size={16} /> Generar Presupuesto con Logo </>
+                )}
+              </button>
+              <button 
+                onClick={() => setResellerMode(false)}
+                className="w-full text-[11px] font-bold text-gray-500 uppercase hover:underline"
+              >
+                Volver al Carrito
+              </button>
+            </div>
+          ) : (
+            cartItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center flex-1 text-gray-600 py-16">
+                <ShoppingCart size={32} className="mb-3 opacity-20" />
+                <p className="text-sm font-medium text-gray-500">El carrito está vacío</p>
+              </div>
+            ) : (
+              cartItems.map((item) => (
+                <div key={item.product.id} className="bg-[#111] border border-[#1f1f1f] rounded-xl p-3">
+                  <div className="flex items-start gap-3">
+                    <div className="h-12 w-12 bg-[#0a0a0a] rounded-lg flex items-center justify-center shrink-0 border border-[#1a1a1a]">
+                      <img src={item.product.image} alt={item.product.name} className="max-h-10 max-w-10 object-contain" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-white line-clamp-1 leading-tight">{item.product.name}</p>
+                      <p className="text-xs font-bold text-[#2D9F6A] mt-1 tabular-nums">{formatPrice(item.unitPrice)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between mt-2.5">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => onRemoveFromCart(item.product)} className="h-7 w-7 bg-[#1c1c1c] hover:bg-[#252525] text-white rounded-lg flex items-center justify-center border border-[#262626]"><Minus size={11} /></button>
+                      <span className="w-8 text-center text-white font-bold text-sm tabular-nums">{item.quantity}</span>
+                      <button onClick={() => onAddToCart(item.product)} className="h-7 w-7 bg-[#2D9F6A] hover:bg-[#25835A] text-white rounded-lg flex items-center justify-center"><Plus size={11} /></button>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-extrabold text-white tabular-nums">{formatPrice(item.totalWithIVA)}</div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )
           )}
         </div>
 
-        {/* Footer */}
-        {cartItems.length > 0 && (
+        {!resellerMode && cartItems.length > 0 && (
           <DrawerFooter className="border-t border-[#1a1a1a] px-4 py-4 bg-[#070707] space-y-2.5 shrink-0">
-            
-            {/* Marketing / Coupons (Phase 5.4) */}
             <div className="space-y-2 mb-2">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -293,6 +352,26 @@ export function CartDrawer({
                     {currency === "USD" ? formatARS(cartTotal) : formatUSD(cartTotal)}
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Tools Area (Argentina B2B Expansion) */}
+            <div className="flex flex-col gap-2 pt-2 border-t border-[#1a1a1a]">
+              <div className="flex gap-2">
+                <button
+                  onClick={handleWhatsAppShare}
+                  className="flex-1 flex items-center justify-center gap-2 border border-green-500/30 hover:border-green-500/60 text-green-500 hover:bg-green-500/10 rounded-xl py-2 text-xs transition-all"
+                >
+                  <MessageCircle size={13} />
+                  WhatsApp
+                </button>
+                <button
+                  onClick={() => setResellerMode(true)}
+                  className="flex-1 flex items-center justify-center gap-2 border border-blue-500/30 hover:border-blue-500/60 text-blue-400 hover:bg-blue-500/10 rounded-xl py-2 text-xs transition-all"
+                >
+                  <UserCircle size={13} />
+                  Mi Cotización
+                </button>
               </div>
             </div>
 

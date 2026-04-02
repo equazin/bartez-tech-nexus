@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { usePricingRules } from "@/hooks/usePricingRules";
 import { resolveMarginWithContext } from "@/lib/pricingEngine";
 import { getUnitPrice, getEffectiveCostPrice } from "@/lib/pricing";
+import { calculatePerception, type ProvinceCode } from "@/lib/api/iibb";
 import type { Product } from "@/models/products";
 import type { UserProfile } from "@/lib/supabase";
 import { useCurrency } from "@/context/CurrencyContext";
@@ -21,6 +22,10 @@ export interface PriceResult {
   ivaAmount: number;
   /** Total con IVA */
   totalWithIVA: number;
+  /** IIBB Perception amount (specific to Argentina) */
+  iibbAmount: number;
+  /** Final total including IVA and IIBB */
+  grandTotal: number;
   isVolumePricing: boolean;
 }
 
@@ -62,6 +67,14 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
       const totalPrice = unitPrice * quantity;
       const ivaRate    = product.iva_rate ?? 21;
       const ivaAmount  = totalPrice * (ivaRate / 100);
+      const totalWithIVA = totalPrice + ivaAmount;
+
+      // 4. Compute IIBB Perception (AR-specific)
+      // Only if the profile has a province defined
+      const province = (profile as any)?.provincia || (profile as any)?.iibb_province;
+      const iibbAmount = province 
+        ? calculatePerception(totalPrice, province as ProvinceCode, (profile as any)?.iibb_aliquot)
+        : 0;
 
       return {
         cost: cost_base ?? 0,
@@ -71,7 +84,9 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
         totalPrice,
         ivaRate,
         ivaAmount,
-        totalWithIVA: totalPrice + ivaAmount,
+        totalWithIVA,
+        iibbAmount,
+        grandTotal: totalWithIVA + iibbAmount,
         isVolumePricing,
       };
     },
