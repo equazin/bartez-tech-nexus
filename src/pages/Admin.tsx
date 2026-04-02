@@ -1407,6 +1407,19 @@ async function handleCreateClient() {
         </span>
 
         <div className="ml-auto flex items-center gap-1.5">
+          {/* Quick-access: Marketing */}
+          <button
+            onClick={() => setActiveTab("marketing")}
+            title="Marketing B2B"
+            className={`hidden sm:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition ${
+              activeTab === "marketing"
+                ? "bg-[#2D9F6A]/15 border-[#2D9F6A]/40 text-[#2D9F6A]"
+                : dk("border-[#1f1f1f] text-[#525252] hover:text-white hover:bg-[#1c1c1c]", "border-[#e5e5e5] text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")
+            }`}
+          >
+            <Ticket size={12} /> <span className="hidden lg:inline font-semibold">Marketing</span>
+          </button>
+
           <div className={`hidden sm:flex items-center rounded-lg border p-0.5 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-[#f8f8f8]")}`}>
             {(["USD", "ARS"] as const).map((option) => {
               const active = currency === option;
