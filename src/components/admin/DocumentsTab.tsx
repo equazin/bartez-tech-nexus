@@ -40,10 +40,21 @@ interface DocumentsTabProps {
   onOpenTab: (tab: string) => void;
 }
 
+function getNextActionTab(nextAction: string): string | null {
+  if (nextAction === "Preparar remito") return "orders";
+  if (nextAction === "Emitir factura") return "invoices";
+  if (nextAction === "Registrar cobro") return "movements";
+  if (nextAction === "Convertir en pedido") return "quotes_admin";
+  if (nextAction === "Gestionar cobranza") return "credit";
+  if (nextAction === "Hacer seguimiento") return "orders";
+  return null;
+}
+
 export function DocumentsTab({
   isDark = true,
   orders,
   clients,
+  onOpenTab,
 }: DocumentsTabProps) {
   const dk = (d: string, l: string) => (isDark ? d : l);
   const [query, setQuery] = useState("");
@@ -221,9 +232,18 @@ export function DocumentsTab({
                 </div>
 
                 <div className="text-right space-y-1">
-                  <p className={`text-xs font-semibold ${story.overdue ? "text-red-400" : story.delayed ? "text-amber-400" : "text-[#2D9F6A]"}`}>
-                    {story.nextAction}
-                  </p>
+                  {getNextActionTab(story.nextAction) ? (
+                    <button
+                      onClick={() => onOpenTab(getNextActionTab(story.nextAction)!)}
+                      className={`text-xs font-semibold underline underline-offset-2 cursor-pointer hover:opacity-75 transition-opacity ${story.overdue ? "text-red-400" : story.delayed ? "text-amber-400" : "text-[#2D9F6A]"}`}
+                    >
+                      {story.nextAction}
+                    </button>
+                  ) : (
+                    <p className={`text-xs font-semibold ${story.overdue ? "text-red-400" : story.delayed ? "text-amber-400" : "text-[#2D9F6A]"}`}>
+                      {story.nextAction}
+                    </p>
+                  )}
                   {story.overdue && <p className="text-[10px] text-red-400/80">Prioridad cobranza</p>}
                   {story.delayed && !story.overdue && (
                     <p className="text-[10px] text-amber-400/80 inline-flex items-center gap-1 justify-end">
