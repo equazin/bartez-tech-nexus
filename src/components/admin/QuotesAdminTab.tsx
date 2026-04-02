@@ -25,6 +25,7 @@ interface AdminQuote {
   // joined
   company_name?: string;
   contact_name?: string;
+  client_email?: string;
 }
 
 const STATUS_CONFIG: Record<QuoteStatus, { label: string; icon: any; cls: string }> = {
@@ -64,7 +65,7 @@ export function QuotesAdminTab({ isDark = true }: Props) {
     setLoading(true);
     let query = supabase
       .from("quotes")
-      .select("*, profiles(company_name, contact_name)")
+      .select("*, profiles(company_name, contact_name, email)")
       .order("created_at", { ascending: false })
       .limit(200);
     if (filterStatus !== "all") query = query.eq("status", filterStatus);
@@ -77,6 +78,7 @@ export function QuotesAdminTab({ isDark = true }: Props) {
         iva_total:    q.iva_total ?? 0,
         company_name: q.profiles?.company_name,
         contact_name: q.profiles?.contact_name,
+        client_email: q.profiles?.email,
       }))
     );
     setLoading(false);
@@ -111,6 +113,27 @@ export function QuotesAdminTab({ isDark = true }: Props) {
     await supabase.from("quotes").update({ status }).eq("id", quoteId);
     setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, status: status as QuoteStatus } : q));
     setUpdatingStatus(null);
+
+    // Fire email notification when approving or rejecting (non-blocking)
+    if (status === "approved" || status === "rejected") {
+      const quote = quotes.find((q) => q.id === quoteId);
+      if (quote?.client_email) {
+        void fetch("/api/email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: status === "approved" ? "quote_approved" : "quote_rejected",
+            orderNumber: `COT-${quoteId}`,
+            quoteId,
+            clientId: quote.client_id,
+            clientEmail: quote.client_email,
+            clientName: quote.company_name || quote.contact_name || quote.client_name,
+            products: [],
+            total: quote.total,
+          }),
+        }).catch(() => {/* non-critical */});
+      }
+    }
   }
 
   const fmt = (n: number, cur: "USD" | "ARS") =>

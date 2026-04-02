@@ -16,7 +16,7 @@ import {
   Users, Package, ClipboardList, LogOut, UserPlus, X, Plus,
   DollarSign, Pencil, Check, LayoutDashboard, Sun, Moon, Phone,
   Truck, Download, Building2, Tag, BarChart2, Activity, Wifi, Bookmark, Flame,
-  Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag, Image, LifeBuoy, Ticket, type LucideIcon,
+  Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag, Image, LifeBuoy, Ticket, Globe, type LucideIcon,
 } from "lucide-react";
 import { exportOrdersCSV, exportCatalogCSV, exportReportsCSV } from "@/lib/exportCsv";
 import { exportCatalogPdf, exportRemitoPdf } from "@/lib/exportPdf";
@@ -54,6 +54,7 @@ const SupportTab = lazy(() => import("@/components/admin/SupportTab").then(m => 
 const OpportunitiesTab = lazy(() => import("@/components/admin/OpportunitiesTab").then(m => ({ default: m.OpportunitiesTab })));
 const PosManagementTab = lazy(() => import("@/components/admin/PosManagementTab").then(m => ({ default: m.PosManagementTab })));
 const ImageManagerTab = lazy(() => import("@/components/admin/ImageManagerTab").then(m => ({ default: m.ImageManagerTab })));
+const WebhooksTab = lazy(() => import("@/components/admin/WebhooksTab").then(m => ({ default: m.WebhooksTab })));
 import {
   fetchProductsForContent,
   processProductContent,
@@ -946,6 +947,8 @@ const Admin = () => {
   const pendingOrders = orders.filter((o) => o.status === "pending").length;
 
 // -- Crear cliente --
+// Uses a server-side API endpoint (service role key) so the admin's session
+// is never replaced by the newly created user's session.
 async function handleCreateClient() {
   try {
     setCreateError("");
@@ -954,13 +957,11 @@ async function handleCreateClient() {
     const password = newClient.password;
     const phone = normalizePhoneForSupabase(newClient.phone.trim());
 
-    // 🔹 Validaciones
     if (!email || !password) {
       setCreateError("Email y contraseña son obligatorios.");
       return;
     }
 
-    // El celular ahora es opcional. Solo validamos si se ingresó algo.
     if (phone && phone.replace(/\D/g, "").length < 10) {
       setCreateError("Si se ingresa un celular, debe incluir código de área y número (ej: 3411234567).");
       return;
@@ -968,65 +969,44 @@ async function handleCreateClient() {
 
     setCreatingClient(true);
 
-    const signUpData = {
-      company_name: newClient.company_name?.trim() || "",
-      contact_name: newClient.contact_name?.trim() || "",
-      client_type: newClient.client_type,
-      default_margin: Number(newClient.default_margin) || 20,
-      role:           newClient.role || "client",
-      phone:          phone || "",
-      email:          email,
-    };
-
-    console.log("Intentando registro en Supabase Auth con metadatos:", signUpData);
-
-    // 🔥 SIGNUP (Incluimos el phone para que el trigger handle_new_user lo procese correctamente)
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: signUpData,
-      },
-    });
-
-    if (error || !data?.user) {
-      console.error("Supabase Error detallado:", error);
-      console.error("Metadatos que causaron el error:", signUpData);
-
-      const rawMsg = error?.message || "Error al crear el usuario.";
-
-      if (rawMsg.toLowerCase().includes("database error")) {
-        setCreateError(
-          "Error de base de datos en Supabase. Revisá que el celular o el email no estén repetidos."
-        );
-      } else if (rawMsg.toLowerCase().includes("already registered")) {
-        setCreateError("El email ya está registrado.");
-      } else {
-        setCreateError(rawMsg);
-      }
-
+    // Get current admin session token to authenticate the request
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      setCreateError("Sesión expirada. Volvé a iniciar sesión.");
       return;
     }
 
-    // 🔹 Actualizar perfil
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .update({
+    const response = await fetch("/api/create-user", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        email,
+        password,
         company_name: newClient.company_name,
         contact_name: newClient.contact_name,
         client_type: newClient.client_type,
-        default_margin: newClient.default_margin,
-        role: newClient.role,
-        phone: phone || null,
-        email,
-      })
-      .eq("id", data.user.id);
+        default_margin: Number(newClient.default_margin) || 20,
+        role: newClient.role || "client",
+        phone,
+      }),
+    });
 
-    if (profileError) {
-      console.error("Profile error:", profileError);
+    const result = await response.json() as { ok: boolean; error?: string };
+
+    if (!response.ok || !result.ok) {
+      const msg = result.error ?? "Error al crear el usuario.";
+      if (response.status === 409) {
+        setCreateError("El email ya está registrado.");
+      } else {
+        setCreateError(msg);
+      }
+      return;
     }
 
-    // 🔹 Reset UI
+    // Reset UI
     setShowNewClient(false);
     setNewClient({
       email: "",
@@ -1041,7 +1021,7 @@ async function handleCreateClient() {
 
     fetchClients();
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Error inesperado:", err);
     setCreateError("Error inesperado al crear el cliente.");
   } finally {
@@ -1239,6 +1219,7 @@ async function handleCreateClient() {
         { id: "purchase_orders", label: "Órdenes Compra", icon: ShoppingBag,  adminOnly: true },
         { id: "support",         label: "Soporte",        icon: LifeBuoy,     adminOnly: true },
         { id: "marketing",       label: "Marketing",      icon: Ticket,       adminOnly: true },
+        { id: "webhooks",        label: "Webhooks",       icon: Globe,        adminOnly: true },
         { id: "activity",        label: "Actividad",      icon: Activity,     adminOnly: true },
       ],
     },
@@ -2540,6 +2521,10 @@ async function handleCreateClient() {
             isDark={isDark}
             clients={clients}
           />
+        )}
+
+        {activeTab === "webhooks" && (
+          <WebhooksTab isDark={isDark} />
         )}
 
         {/* -- SYNC PROVEEDORES -- */}

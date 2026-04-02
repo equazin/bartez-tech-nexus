@@ -1,5 +1,5 @@
 import React from "react";
-import { Search, Zap, Plus, X, LayoutGrid, List, Table2, Moon, Sun, Download, ShoppingCart, TrendingUp } from "lucide-react";
+import { Search, Zap, Plus, X, LayoutGrid, List, Table2, Moon, Sun, Download, ShoppingCart, TrendingUp, RefreshCw } from "lucide-react";
 import { Product } from "@/models/products";
 
 interface PortalHeaderProps {
@@ -14,7 +14,9 @@ interface PortalHeaderProps {
   handleViewModeChange: (m: "grid" | "list" | "table") => void;
   currency: "USD" | "ARS";
   setCurrency: (c: "USD" | "ARS") => void;
-  exchangeRate: { rate: number; updatedAt: string };
+  exchangeRate: { rate: number; updatedAt: string; source: "manual" | "api" };
+  onRefreshRate: () => void;
+  isFetchingRate: boolean;
   isDark: boolean;
   toggleTheme: () => void;
   themeFlash: boolean;
@@ -40,6 +42,8 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
   currency,
   setCurrency,
   exchangeRate,
+  onRefreshRate,
+  isFetchingRate,
   isDark,
   toggleTheme,
   themeFlash,
@@ -150,11 +154,31 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
         </button>
 
         {/* Currency Rate Display */}
-        <div className={`hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border ${dk("bg-[#111] border-[#1f1f1f] text-gray-400", "bg-[#f9f9f9] border-[#e5e5e5] text-[#525252]")} text-[11px] font-medium animate-in fade-in slide-in-from-right-4 duration-500`}>
-          <TrendingUp size={11} className="text-[#2D9F6A]" />
-          <span>USD oficial: </span>
-          <span className={`font-bold ${dk("text-white", "text-[#171717]")}`}>$ {exchangeRate.rate.toLocaleString("es-AR")}</span>
-        </div>
+        {(() => {
+          const ageMs = Date.now() - new Date(exchangeRate.updatedAt).getTime();
+          const ageMin = Math.floor(ageMs / 60000);
+          const ageLabel = ageMin < 2 ? "Ahora" : ageMin < 60 ? `hace ${ageMin}m` : `hace ${Math.floor(ageMin / 60)}h`;
+          return (
+            <div className={`hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border ${dk("bg-[#111] border-[#1f1f1f] text-gray-400", "bg-[#f9f9f9] border-[#e5e5e5] text-[#525252]")} text-[11px] font-medium`}>
+              <TrendingUp size={11} className="text-[#2D9F6A] shrink-0" />
+              <div className="flex flex-col leading-none gap-0.5">
+                <span className={`font-bold ${dk("text-white", "text-[#171717]")}`}>
+                  $ {exchangeRate.rate.toLocaleString("es-AR")}
+                  <span className="ml-1 font-normal text-[10px] opacity-60">oficial</span>
+                </span>
+                <span className="text-[10px] opacity-50">{exchangeRate.source === "api" ? ageLabel : "manual"}</span>
+              </div>
+              <button
+                onClick={onRefreshRate}
+                disabled={isFetchingRate}
+                title="Actualizar cotización"
+                className={`ml-0.5 p-1 rounded transition hover:bg-[#2D9F6A]/15 ${isFetchingRate ? "opacity-40 cursor-not-allowed" : "opacity-60 hover:opacity-100 hover:text-[#2D9F6A]"}`}
+              >
+                <RefreshCw size={10} className={isFetchingRate ? "animate-spin" : ""} />
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Cart Button */}
         <button

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useMemo, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useMemo, useEffect, ReactNode } from "react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 export type Currency = "USD" | "ARS";
@@ -22,9 +22,16 @@ interface CurrencyContextType {
   formatUSD: (usdValue: number) => string;
   /** Always format as ARS regardless of active currency */
   formatARS: (usdValue: number) => string;
-  /** Fetch rate from external API (stub, ready to implement) */
+  /** Fetch rate from external API */
   fetchExchangeRate: () => Promise<void>;
+  /** Whether a fetch is in progress */
+  isFetchingRate: boolean;
+  /** Last fetch error message, null if none */
+  fetchRateError: string | null;
 }
+
+// How old a cached rate can be before auto-refreshing (6 hours)
+const RATE_TTL_MS = 6 * 60 * 60 * 1000;
 
 // ── Storage keys ───────────────────────────────────────────────────────────
 const CURRENCY_KEY     = "bartez_currency";
@@ -73,6 +80,8 @@ function loadExchangeRate(): ExchangeRate {
 export function CurrencyProvider({ children }: { children: ReactNode }) {
   const [currency, _setCurrency]         = useState<Currency>(loadCurrency);
   const [exchangeRate, _setExchangeRate] = useState<ExchangeRate>(loadExchangeRate);
+  const [isFetchingRate, setIsFetchingRate] = useState(false);
+  const [fetchRateError, setFetchRateError] = useState<string | null>(null);
 
   const setCurrency = useCallback((c: Currency) => {
     _setCurrency(c);
@@ -110,11 +119,13 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
    *   /dolares/tarjeta    → credit card rate
    */
   const fetchExchangeRate = useCallback(async () => {
+    setIsFetchingRate(true);
+    setFetchRateError(null);
     try {
       const res = await fetch("https://dolarapi.com/v1/dolares/oficial");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const rate = json.venta as number;
+      const json = await res.json() as { venta?: number; fechaActualizacion?: string };
+      const rate = json.venta;
       if (!rate || rate <= 0) throw new Error("Valor inválido en respuesta");
       setExchangeRate({
         rate,
@@ -122,18 +133,32 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         updatedAt: json.fechaActualizacion ?? new Date().toISOString(),
       });
     } catch (err) {
-      console.error("[CurrencyContext] fetchExchangeRate failed:", err);
-      throw err; // re-throw so callers can show UI feedback
+      const msg = err instanceof Error ? err.message : "Error desconocido";
+      setFetchRateError(msg);
+      throw err;
+    } finally {
+      setIsFetchingRate(false);
     }
   }, [setExchangeRate]);
+
+  // Auto-fetch on mount if cached rate is stale (> TTL) or was manually entered
+  useEffect(() => {
+    const cachedAt = new Date(exchangeRate.updatedAt).getTime();
+    const isStale = Date.now() - cachedAt > RATE_TTL_MS;
+    if (isStale || exchangeRate.source === "manual") {
+      fetchExchangeRate().catch(() => { /* silently fall back to cached rate */ });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const value = useMemo<CurrencyContextType>(() => ({
     currency, setCurrency,
     exchangeRate, setExchangeRate,
     convertPrice, formatPrice, formatUSD, formatARS,
-    fetchExchangeRate,
+    fetchExchangeRate, isFetchingRate, fetchRateError,
   }), [currency, setCurrency, exchangeRate, setExchangeRate,
-       convertPrice, formatPrice, formatUSD, formatARS, fetchExchangeRate]);
+       convertPrice, formatPrice, formatUSD, formatARS,
+       fetchExchangeRate, isFetchingRate, fetchRateError]);
 
   return (
     <CurrencyContext.Provider value={value}>

@@ -211,6 +211,59 @@ export function orderShippedHTML(params: {
 </html>`;
 }
 
+export function quoteStatusHTML(params: {
+  quoteId: number;
+  clientName: string;
+  total: number;
+  currency: string;
+  status: "approved" | "rejected";
+}): string {
+  const { quoteId, clientName, total, currency, status } = params;
+  const isApproved = status === "approved";
+  const headerBg = isApproved ? "#2D9F6A" : "#dc2626";
+  const headerText = isApproved ? "Cotización Aprobada" : "Cotización Rechazada";
+  const bodyText = isApproved
+    ? "Tu cotización fue revisada y aprobada por nuestro equipo. Podés convertirla en un pedido desde el Portal B2B."
+    : "Tu cotización fue revisada y no pudo ser aprobada en esta oportunidad. Podés generar una nueva desde el Portal B2B o contactarnos para más información.";
+  const ctaText = isApproved ? "Ver cotización aprobada" : "Generar nueva cotización";
+  const fmt = new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(total);
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+        <tr>
+          <td style="background:${headerBg};padding:28px 32px;">
+            <h1 style="margin:0;color:#fff;font-size:22px;">${headerText}</h1>
+            <p style="margin:4px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">Cotización #${quoteId} — ${fmt}</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px 32px;">
+            <p style="margin:0 0 16px;color:#333;font-size:15px;">Hola <strong>${clientName}</strong>,</p>
+            <p style="margin:0 0 24px;color:#555;font-size:14px;line-height:1.6;">${bodyText}</p>
+            <div style="text-align:center;margin:28px 0;">
+              <a href="https://bartez-tech-nexus.vercel.app/b2b-portal" style="display:inline-block;background:${headerBg};color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;">${ctaText}</a>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 32px;border-top:1px solid #f0f0f0;background:#fafafa;">
+            <p style="margin:0;font-size:12px;color:#aaa;text-align:center;">
+              Este es un mensaje automático. Por consultas, respondé este email.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 export function orderDeliveredHTML(params: {
   orderNumber: string;
   clientName: string;

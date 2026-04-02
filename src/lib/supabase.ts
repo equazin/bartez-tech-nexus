@@ -29,15 +29,29 @@ export const CLIENT_TYPE_MARGINS: Record<ClientType, number> = {
 
 export interface UserProfile {
   id: string;
+  email?: string;
+  phone?: string;
   company_name: string;
   contact_name: string;
   default_margin: number;
   client_type: ClientType;
   role: UserRole;
+  active?: boolean;
+  // Credit (migration 002)
   credit_limit?: number;
   credit_used?: number;
   payment_terms?: number;
-  active?: boolean;
+  // CRM fields (migration 016)
+  estado?: "activo" | "inactivo" | "bloqueado";
+  precio_lista?: "standard" | "mayorista" | "distribuidor" | "especial";
+  razon_social?: string;
+  cuit?: string;
+  direccion?: string;
+  ciudad?: string;
+  provincia?: string;
+  notas_internas?: string;
+  vendedor_id?: string;
+  // Corporate hierarchy (migration 031)
   parent_id?: string;
   b2b_role?: "manager" | "buyer" | "admin";
   approval_threshold?: number;

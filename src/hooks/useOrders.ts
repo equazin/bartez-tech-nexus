@@ -144,18 +144,52 @@ export function useOrders() {
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Error en el checkout");
 
+      // checkout returns { ok: true, data: { id, order_number, status } }
+      const orderResult = body.data ?? body;
+      const orderId = orderResult.id;
+      const orderNumber = orderResult.order_number;
+
       // Log activity
       void logActivity({
         action: "place_order",
         entity_type: "order",
-        entity_id: String(body.id),
-        metadata: { order_number: body.order_number, total: orderData.total }
+        entity_id: String(orderId),
+        metadata: { order_number: orderNumber, total: orderData.total }
       });
 
       // Refresh local list
       void fetchOrders();
 
-      return { error: null, orderId: body.id, orderNumber: body.order_number };
+      // Fire order confirmation email in background (non-blocking)
+      void (async () => {
+        try {
+          await fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "order_confirmed",
+              orderId: Number(orderId),
+              orderNumber: orderNumber ?? "",
+              clientId: user.id,
+              clientEmail: user.email ?? undefined,
+              clientName: profile?.company_name || profile?.contact_name || undefined,
+              products: orderData.products.map((p) => ({
+                product_id: p.product_id,
+                name: p.name,
+                sku: p.sku,
+                quantity: p.quantity,
+                unit_price: p.unit_price,
+                total_price: p.total_price,
+              })),
+              total: orderData.total,
+            }),
+          });
+        } catch {
+          // Email es non-critical, nunca bloquea el flujo del pedido
+        }
+      })();
+
+      return { error: null, orderId, orderNumber };
     } catch (err) {
       console.error("AddOrder error:", err);
       return { error: err instanceof Error ? err.message : "Error al procesar el pedido" };

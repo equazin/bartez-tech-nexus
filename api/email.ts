@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { orderConfirmationHTML, newOrderAlertHTML } from "./_shared/emailTemplates";
+import { orderConfirmationHTML, newOrderAlertHTML, quoteStatusHTML } from "./_shared/emailTemplates";
 import { createMailerTransport, getDefaultFromEmail, sanitizeHeaderText } from "./_shared/mailer";
 import { orderEmailSchema } from "./_shared/schemas";
 
@@ -96,6 +96,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           clientId: payload.clientId,
           products,
           total: payload.total,
+        }),
+      });
+    }
+
+    if ((payload.type === "quote_approved" || payload.type === "quote_rejected") && payload.clientEmail && payload.quoteId) {
+      await transport.sendMail({
+        from: `"Bartez Tecnologia" <${fromEmail}>`,
+        to: payload.clientEmail,
+        subject: sanitizeHeaderText(
+          payload.type === "quote_approved"
+            ? `Tu cotización #${payload.quoteId} fue aprobada`
+            : `Tu cotización #${payload.quoteId} fue rechazada`,
+          payload.type === "quote_approved" ? "Cotización aprobada" : "Cotización rechazada"
+        ),
+        html: quoteStatusHTML({
+          quoteId: payload.quoteId,
+          clientName: payload.clientName ?? "Cliente",
+          total: payload.total,
+          currency: "ARS",
+          status: payload.type === "quote_approved" ? "approved" : "rejected",
         }),
       });
     }

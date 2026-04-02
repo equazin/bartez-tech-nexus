@@ -8,6 +8,92 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+// ── Quote lifecycle stepper ────────────────────────────────────────────────────
+
+type StepState = "done" | "active" | "pending" | "skipped";
+
+interface QuoteStep {
+  status: QuoteStatus;
+  label: string;
+}
+
+const QUOTE_FLOW: QuoteStep[] = [
+  { status: "draft",     label: "Borrador" },
+  { status: "sent",      label: "Enviada" },
+  { status: "viewed",    label: "Vista" },
+  { status: "approved",  label: "Aprobada" },
+  { status: "converted", label: "Pedido" },
+];
+
+const TERMINAL_STATUSES = new Set<QuoteStatus>(["rejected", "expired"]);
+
+function getStepState(stepStatus: QuoteStatus, currentStatus: QuoteStatus): StepState {
+  if (TERMINAL_STATUSES.has(currentStatus)) return "skipped";
+  const flowOrder = QUOTE_FLOW.map((s) => s.status);
+  const stepIdx    = flowOrder.indexOf(stepStatus);
+  const currentIdx = flowOrder.indexOf(currentStatus);
+  if (stepIdx < currentIdx)  return "done";
+  if (stepIdx === currentIdx) return "active";
+  return "pending";
+}
+
+function QuoteStatusStepper({ status }: { status: QuoteStatus }) {
+  const isTerminal = TERMINAL_STATUSES.has(status);
+
+  return (
+    <div className="flex items-center gap-0 w-full">
+      {QUOTE_FLOW.map((step, i) => {
+        const state: StepState = getStepState(step.status, status);
+        const isLast = i === QUOTE_FLOW.length - 1;
+
+        const dotCls = isTerminal
+          ? "border-red-500/30 text-red-400/60 bg-red-500/5"
+          : state === "done"
+            ? "border-[#2D9F6A] bg-[#2D9F6A] text-white"
+            : state === "active"
+              ? "border-[#2D9F6A] bg-[#2D9F6A]/20 text-[#2D9F6A]"
+              : "border-[#2a2a2a] bg-transparent text-[#444]";
+
+        const labelCls = isTerminal
+          ? "text-red-400/50"
+          : state === "done"
+            ? "text-[#2D9F6A]"
+            : state === "active"
+              ? "text-[#2D9F6A] font-bold"
+              : "text-[#3a3a3a]";
+
+        const lineCls = state === "done" && !isTerminal
+          ? "bg-[#2D9F6A]"
+          : "bg-[#1f1f1f]";
+
+        return (
+          <div key={step.status} className="flex items-center flex-1 min-w-0">
+            <div className="flex flex-col items-center gap-1 shrink-0">
+              <div className={`h-5 w-5 rounded-full border flex items-center justify-center text-[10px] font-bold transition-all ${dotCls}`}>
+                {state === "done" && !isTerminal ? <CheckCircle2 size={11} /> : i + 1}
+              </div>
+              <span className={`text-[9px] whitespace-nowrap transition-colors ${labelCls}`}>{step.label}</span>
+            </div>
+            {!isLast && (
+              <div className={`flex-1 h-px mx-1 mb-3.5 transition-all ${lineCls}`} />
+            )}
+          </div>
+        );
+      })}
+      {isTerminal && (
+        <div className="ml-2 shrink-0 flex flex-col items-center gap-1">
+          <div className="h-5 w-5 rounded-full border border-red-500/40 bg-red-500/10 flex items-center justify-center">
+            {status === "rejected" ? <XCircle size={11} className="text-red-400" /> : <AlertTriangle size={11} className="text-amber-400" />}
+          </div>
+          <span className="text-[9px] text-red-400/70">
+            {status === "rejected" ? "Rechazada" : "Expirada"}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Status config ────────────────────────────────────────────────────────────
 const STATUS_MAP: Record<QuoteStatus, { label: string; className: string; icon: LucideIcon }> = {
   draft:    { label: "Borrador",  className: "bg-[#1f1f1f] text-[#a3a3a3] border-[#2a2a2a]",      icon: FileText },
@@ -107,8 +193,13 @@ export function QuoteList({ quotes, isDark, onLoad, onUpdateStatus, onDelete, on
         return (
           <div key={q.id} className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl overflow-hidden`}>
 
+            {/* Status stepper */}
+            <div className={`px-5 pt-3 pb-2 border-b ${dk("border-[#1a1a1a]", "border-[#f0f0f0]")}`}>
+              <QuoteStatusStepper status={q.status} />
+            </div>
+
             {/* Header row */}
-            <div className={`flex items-center justify-between px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#f0f0f0]")}`}>
+            <div className={`flex items-center justify-between px-5 py-3 border-b ${dk("border-[#1a1a1a]", "border-[#f0f0f0]")}`}>
               <div className="flex items-center gap-3 min-w-0">
                 {/* Expand toggle */}
                 <button
