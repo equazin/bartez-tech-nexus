@@ -657,8 +657,8 @@ function ProfitabilityPanel({
             <div key={order.id} className={`rounded-xl border px-3 py-3 ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
               <div className="flex items-center justify-between gap-3">
                 <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>{order.order_number ?? `#${String(order.id).slice(-6).toUpperCase()}`}</p>
-                <span className={`text-xs font-bold ${metrics.marginPct >= 20 ? "text-[#2D9F6A]" : metrics.marginPct >= 10 ? "text-amber-400" : "text-red-400"}`}>
-                  {metrics.marginPct.toFixed(1)}%
+                <span className={`text-xs font-bold ${(metrics.marginPct ?? 0) >= 20 ? "text-[#2D9F6A]" : (metrics.marginPct ?? 0) >= 10 ? "text-amber-400" : "text-red-400"}`}>
+                  {(metrics.marginPct ?? 0).toFixed(1)}%
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-3 mt-2 text-[11px]">
@@ -706,10 +706,10 @@ function AnalyticsCharts({ isDark, stats }: { isDark: boolean; stats: any }) {
             <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Evolución de Ventas</h3>
             <p className="text-xs text-[#737373] mt-0.5">Revenue mensual y crecimiento</p>
           </div>
-          {stats?.monthly?.length > 0 && (
+          {stats?.monthly?.length > 0 && stats.monthly[0].growth_pct != null && (
              <div className="text-right">
                 <span className={`text-xs font-bold ${stats.monthly[0].growth_pct >= 0 ? "text-green-400" : "text-red-400"}`}>
-                  {stats.monthly[0].growth_pct >= 0 ? "+" : ""}{stats.monthly[0].growth_pct.toFixed(1)}% MoM
+                  {stats.monthly[0].growth_pct >= 0 ? "+" : ""}{Number(stats.monthly[0].growth_pct).toFixed(1)}% MoM
                 </span>
              </div>
           )}
