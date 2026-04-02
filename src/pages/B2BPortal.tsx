@@ -578,9 +578,8 @@ export default function B2BPortal() {
     return map;
   }, [orders]);
 
-  const handleSmartAddToCart = (productId: number) => {
-    const p = products.find((prod) => prod.id === productId);
-    if (p) handleAddToCart(p);
+  const handleSmartAddToCart = (product: Product, qty: number = 1) => {
+    for (let i = 0; i < qty; i++) handleAddToCart(product);
   };
 
   const handleRemoveCoupon = useCallback(() => {

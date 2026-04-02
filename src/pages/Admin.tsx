@@ -185,7 +185,7 @@ function LegacyStatusBadge({ status }: { status: string }) {
   );
 }
 
-type Tab = "dashboard" | "products" | "imports" | "categories" | "opportunities" | "pos" | "seller_mode" | "orders" | "kanban" | "clients" | "users_permissions" | "approvals" | "documents" | "support" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "supplier_sync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders" | "images" | "marketing" | "rma" | "price_agreements";
+type Tab = "dashboard" | "products" | "imports" | "categories" | "opportunities" | "pos" | "seller_mode" | "orders" | "kanban" | "clients" | "users_permissions" | "approvals" | "documents" | "support" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "supplier_sync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders" | "images" | "marketing" | "rma" | "price_agreements" | "webhooks";
 
 
 

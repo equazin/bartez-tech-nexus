@@ -117,7 +117,10 @@ export function CatalogSection({
       {/* ── Smart suggestions ── */}
       <SmartSuggestions
         isDark={isDark}
-        onAddToCart={handleSmartAddToCart}
+        onAddToCart={(productId) => {
+          const p = products.find((x) => x.id === productId);
+          if (p) handleSmartAddToCart(p, 1);
+        }}
         formatPrice={formatPrice}
       />
 

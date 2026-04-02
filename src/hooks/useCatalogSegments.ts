@@ -19,20 +19,18 @@ export function useCatalogSegments(clientId: string | undefined) {
     let cancelled = false;
     setLoading(true);
 
-    supabase
-      .rpc("get_hidden_product_ids_for_client", { p_client_id: clientId })
-      .then(({ data, error }) => {
+    void (async () => {
+      try {
+        const { data, error } = await supabase
+          .rpc("get_hidden_product_ids_for_client", { p_client_id: clientId });
         if (cancelled) return;
-        if (error || !data) {
-          setHiddenProductIds(new Set());
-          return;
-        }
+        if (error || !data) { setHiddenProductIds(new Set()); return; }
         const ids = (data as Array<{ product_id: number }>).map((r) => r.product_id);
         setHiddenProductIds(new Set(ids));
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
 
     return () => { cancelled = true; };
   }, [clientId]);

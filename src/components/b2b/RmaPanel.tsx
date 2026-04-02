@@ -230,8 +230,8 @@ export function RmaPanel({ clientId, orders, isDark }: RmaPanelProps) {
   const { rmas, loading, createRma, refetch } = useRma(clientId);
   const [showForm, setShowForm] = useState(false);
 
-  async function handleSubmit(data: Parameters<typeof createRma>[0]) {
-    const result = await createRma(data);
+  async function handleSubmit(data: Omit<Parameters<typeof createRma>[0], "client_id">) {
+    const result = await createRma({ ...data, client_id: clientId });
     if (result) setShowForm(false);
   }
 
