@@ -87,6 +87,8 @@ COMMENT ON VIEW activity_logs_all IS
 -- 5. RLS on archive table — admin only
 ALTER TABLE activity_logs_archive ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "admin_activity_logs_archive_select" ON activity_logs_archive;
+
 CREATE POLICY "admin_activity_logs_archive_select"
   ON activity_logs_archive FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+  USING (get_my_role() = 'admin');

@@ -59,6 +59,10 @@ CREATE INDEX IF NOT EXISTS idx_rma_status     ON rma_requests(status);
 -- 4. RLS
 ALTER TABLE rma_requests ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "client_rma_select" ON rma_requests;
+DROP POLICY IF EXISTS "client_rma_insert" ON rma_requests;
+DROP POLICY IF EXISTS "admin_rma_all"     ON rma_requests;
+
 -- Client: can read and create their own RMAs
 CREATE POLICY "client_rma_select"
   ON rma_requests FOR SELECT TO authenticated
@@ -71,4 +75,4 @@ CREATE POLICY "client_rma_insert"
 -- Admin: full access
 CREATE POLICY "admin_rma_all"
   ON rma_requests FOR ALL TO authenticated
-  USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+  USING (get_my_role() = 'admin');

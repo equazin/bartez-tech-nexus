@@ -46,20 +46,17 @@ CREATE INDEX IF NOT EXISTS idx_catalog_segments_product_id
 -- 3. RLS
 ALTER TABLE catalog_segments ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "admin_manage_catalog_segments" ON catalog_segments;
+DROP POLICY IF EXISTS "client_read_own_segments"      ON catalog_segments;
+
 -- Admins can manage all segments
 CREATE POLICY "admin_manage_catalog_segments"
-  ON catalog_segments
-  FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
+  ON catalog_segments FOR ALL TO authenticated
+  USING (get_my_role() = 'admin');
 
--- Clients can read their own segments (to understand their catalog scope)
+-- Clients can read their own segments
 CREATE POLICY "client_read_own_segments"
-  ON catalog_segments
-  FOR SELECT
-  TO authenticated
+  ON catalog_segments FOR SELECT TO authenticated
   USING (client_id = auth.uid());
 
 -- 4. Helper function: get hidden product IDs for a given client

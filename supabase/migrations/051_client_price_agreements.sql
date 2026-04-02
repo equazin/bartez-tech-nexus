@@ -76,6 +76,11 @@ CREATE INDEX IF NOT EXISTS idx_price_agreement_items_agreement ON price_agreemen
 ALTER TABLE client_price_agreements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE price_agreement_items   ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "client_price_agreement_select" ON client_price_agreements;
+DROP POLICY IF EXISTS "admin_price_agreement_all"     ON client_price_agreements;
+DROP POLICY IF EXISTS "client_agreement_items_select" ON price_agreement_items;
+DROP POLICY IF EXISTS "admin_agreement_items_all"     ON price_agreement_items;
+
 -- Client: can view their own active agreements
 CREATE POLICY "client_price_agreement_select"
   ON client_price_agreements FOR SELECT TO authenticated
@@ -84,7 +89,7 @@ CREATE POLICY "client_price_agreement_select"
 -- Admin: full access to agreements
 CREATE POLICY "admin_price_agreement_all"
   ON client_price_agreements FOR ALL TO authenticated
-  USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+  USING (get_my_role() = 'admin');
 
 -- Client: can view items for their own agreements
 CREATE POLICY "client_agreement_items_select"
@@ -99,7 +104,7 @@ CREATE POLICY "client_agreement_items_select"
 -- Admin: full access to items
 CREATE POLICY "admin_agreement_items_all"
   ON price_agreement_items FOR ALL TO authenticated
-  USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+  USING (get_my_role() = 'admin');
 
 -- 6. RPC: get active agreement for a client (most recent valid one)
 CREATE OR REPLACE FUNCTION get_active_price_agreement(p_client_id UUID)

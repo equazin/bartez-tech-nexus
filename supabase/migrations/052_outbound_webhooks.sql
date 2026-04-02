@@ -54,13 +54,16 @@ CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_endpoint
 ALTER TABLE webhook_endpoints  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE webhook_deliveries ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "admin_webhook_endpoints_all"  ON webhook_endpoints;
+DROP POLICY IF EXISTS "admin_webhook_deliveries_all" ON webhook_deliveries;
+
 CREATE POLICY "admin_webhook_endpoints_all"
   ON webhook_endpoints FOR ALL TO authenticated
-  USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+  USING (get_my_role() = 'admin');
 
 CREATE POLICY "admin_webhook_deliveries_all"
   ON webhook_deliveries FOR ALL TO authenticated
-  USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+  USING (get_my_role() = 'admin');
 
 -- 5. Helper: enqueue an event to all matching active endpoints
 CREATE OR REPLACE FUNCTION enqueue_webhook_event(
