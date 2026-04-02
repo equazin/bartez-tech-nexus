@@ -2,8 +2,8 @@ import { useEffect, useState, useMemo } from "react";
 import {
   Ticket, Plus, Trash2, Calendar, Percent, DollarSign,
   CheckCircle2, XCircle, TrendingUp, Users, MousePointerClick,
-  ShoppingCart, AlertTriangle, Activity, RefreshCw, BarChart3,
-  Megaphone, Lightbulb, ArrowRight,
+  ShoppingCart, Activity, RefreshCw, BarChart3,
+  Megaphone, Lightbulb, ArrowRight, Wand2, Copy, ThumbsUp, ThumbsDown,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -37,7 +37,7 @@ interface CampaignStat {
   orders: number;
 }
 
-type SubTab = "funnel" | "campaigns" | "insights" | "coupons";
+type SubTab = "funnel" | "campaigns" | "copies" | "insights" | "coupons";
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -63,10 +63,11 @@ export function MarketingTab({ isDark = true }: MarketingTabProps) {
       {/* Sub-tabs */}
       <div className={`flex gap-1 p-1 rounded-xl border ${d("border-[#1f1f1f] bg-[#0a0a0a]", "border-[#e5e5e5] bg-[#f5f5f5]")}`}>
         {([
-          { id: "funnel",    label: "Funnel B2B",   icon: TrendingUp },
-          { id: "campaigns", label: "Campañas",      icon: Megaphone },
-          { id: "insights",  label: "Insights",      icon: Lightbulb },
-          { id: "coupons",   label: "Cupones",        icon: Ticket },
+          { id: "funnel",    label: "Funnel B2B", icon: TrendingUp },
+          { id: "campaigns", label: "Campañas",   icon: Megaphone  },
+          { id: "copies",    label: "Copy AI",    icon: Wand2      },
+          { id: "insights",  label: "Insights",   icon: Lightbulb  },
+          { id: "coupons",   label: "Cupones",    icon: Ticket     },
         ] as { id: SubTab; label: string; icon: React.ElementType }[]).map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -84,6 +85,7 @@ export function MarketingTab({ isDark = true }: MarketingTabProps) {
 
       {subTab === "funnel"    && <FunnelSection    isDark={isDark} />}
       {subTab === "campaigns" && <CampaignsSection isDark={isDark} />}
+      {subTab === "copies"    && <CopiesSection    isDark={isDark} />}
       {subTab === "insights"  && <InsightsSection  isDark={isDark} />}
       {subTab === "coupons"   && <CouponsSection   isDark={isDark} />}
     </div>
@@ -483,6 +485,263 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
             </div>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// COPIES SECTION — Ad Copy AI Generator
+// ══════════════════════════════════════════════════════════════
+
+interface AdCopy {
+  id: number;
+  category: string; segment: string;
+  headline1: string; headline2: string; headline3: string;
+  description1: string; description2: string;
+  status: "draft" | "approved" | "rejected";
+  created_at: string;
+}
+
+const CATEGORIES = ["Laptops", "Desktops", "Servidores", "Networking", "Monitores", "Impresoras", "Storage", "Accesorios IT", "Software", "Tablets"];
+const SEGMENTS   = [
+  { value: "empresas",     label: "Empresas corporativas" },
+  { value: "resellers",    label: "Resellers / distribuidores" },
+  { value: "integradores", label: "Integradores IT" },
+];
+
+function CopiesSection({ isDark }: { isDark: boolean }) {
+  const d = dk(isDark);
+  const [copies, setCopies]       = useState<AdCopy[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError]   = useState<string | null>(null);
+  const [copied, setCopied]       = useState<number | null>(null);
+
+  // Form state
+  const [category, setCategory]   = useState(CATEGORIES[0]);
+  const [segment, setSegment]     = useState("empresas");
+  const [count, setCount]         = useState(3);
+  const [filter, setFilter]       = useState<"all" | "draft" | "approved">("all");
+
+  const loadCopies = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from("ad_copies")
+      .select("id, category, segment, headline1, headline2, headline3, description1, description2, status, created_at")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    setCopies((data as AdCopy[]) ?? []);
+    setLoading(false);
+  };
+
+  useEffect(() => { void loadCopies(); }, []);
+
+  async function handleGenerate() {
+    setGenerating(true);
+    setGenError(null);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ad-copy-generator`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            "Content-Type":  "application/json",
+          },
+          body: JSON.stringify({ category, segment, count }),
+        },
+      );
+      const data = await res.json() as { ok: boolean; copies?: AdCopy[]; error?: string };
+      if (!data.ok) {
+        setGenError(data.error ?? "Error al generar copies");
+      } else {
+        void loadCopies();
+      }
+    } catch {
+      setGenError("Error de conexión con la función de generación");
+    }
+    setGenerating(false);
+  }
+
+  async function updateStatus(id: number, status: "approved" | "rejected") {
+    await supabase.from("ad_copies").update({
+      status,
+      ...(status === "approved" ? { approved_at: new Date().toISOString() } : {}),
+    }).eq("id", id);
+    setCopies(prev => prev.map(c => c.id === id ? { ...c, status } : c));
+  }
+
+  async function handleCopyToClipboard(copy: AdCopy) {
+    const text = [
+      `Titular 1: ${copy.headline1}`,
+      `Titular 2: ${copy.headline2}`,
+      `Titular 3: ${copy.headline3}`,
+      `Descripción 1: ${copy.description1}`,
+      `Descripción 2: ${copy.description2}`,
+    ].join("\n");
+    await navigator.clipboard.writeText(text);
+    setCopied(copy.id);
+    setTimeout(() => setCopied(null), 2000);
+  }
+
+  const filtered = filter === "all" ? copies : copies.filter(c => c.status === filter);
+  const inputCls = `text-xs px-3 py-2 rounded-lg border ${d("bg-[#0d0d0d] border-[#2a2a2a] text-white","bg-white border-[#e5e5e5] text-[#171717]")}`;
+
+  return (
+    <div className="space-y-5">
+      {/* Generator form */}
+      <div className={`rounded-xl border p-4 space-y-4 ${d("border-[#1f1f1f] bg-[#0d0d0d]","border-[#e5e5e5] bg-white")}`}>
+        <div className="flex items-center gap-2">
+          <Wand2 size={14} className="text-[#2D9F6A]" />
+          <p className={`text-xs font-bold ${d("text-white","text-[#171717]")}`}>Generar copies B2B con IA</p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Categoría</label>
+            <select value={category} onChange={e => setCategory(e.target.value)} className={`w-full ${inputCls}`}>
+              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Segmento</label>
+            <select value={segment} onChange={e => setSegment(e.target.value)} className={`w-full ${inputCls}`}>
+              {SEGMENTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Variantes (1-5)</label>
+            <input
+              type="number" min={1} max={5} value={count}
+              onChange={e => setCount(Math.min(5, Math.max(1, Number(e.target.value))))}
+              className={`w-full ${inputCls}`}
+            />
+          </div>
+        </div>
+
+        {genError && <p className="text-xs text-red-400">{genError}</p>}
+
+        <button
+          onClick={handleGenerate} disabled={generating}
+          className="flex items-center gap-2 text-xs px-4 py-2 rounded-lg bg-[#2D9F6A] text-white hover:bg-[#25885a] disabled:opacity-50 transition font-semibold"
+        >
+          <Wand2 size={12} className={generating ? "animate-spin" : ""} />
+          {generating ? "Generando..." : `Generar ${count} variante${count > 1 ? "s" : ""}`}
+        </button>
+      </div>
+
+      {/* Filter + list */}
+      <div className="flex items-center gap-2">
+        <p className={`text-xs flex-1 ${d("text-[#525252]","text-[#a3a3a3]")}`}>
+          {copies.length} copies · {copies.filter(c=>c.status==="approved").length} aprobados
+        </p>
+        <div className={`flex gap-1 p-0.5 rounded-lg border ${d("border-[#1f1f1f] bg-[#0d0d0d]","border-[#e5e5e5] bg-[#f5f5f5]")}`}>
+          {(["all","draft","approved"] as const).map(f => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`text-[11px] px-2.5 py-1 rounded-md transition ${filter===f ? "bg-[#2D9F6A] text-white" : d("text-[#525252] hover:text-white","text-[#737373]")}`}
+            >
+              {f === "all" ? "Todos" : f === "draft" ? "Borradores" : "Aprobados"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">{Array.from({length:2}).map((_,i) => <div key={i} className={`h-32 rounded-xl animate-pulse ${d("bg-[#111]","bg-[#f0f0f0]")}`} />)}</div>
+      ) : filtered.length === 0 ? (
+        <div className={`rounded-xl border p-10 text-center ${d("border-[#1f1f1f] bg-[#0d0d0d]","border-[#e5e5e5] bg-white")}`}>
+          <Wand2 size={28} className="mx-auto mb-3 text-[#404040]" />
+          <p className={`text-sm font-semibold ${d("text-[#737373]","text-[#a3a3a3]")}`}>
+            {copies.length === 0 ? "Generá tu primer copy B2B" : "Sin copies en este filtro"}
+          </p>
+          {copies.length === 0 && (
+            <p className="text-xs text-[#525252] mt-1 max-w-xs mx-auto">
+              Seleccioná categoría, segmento y hacé click en "Generar".
+              Requiere <code className="text-[10px]">ANTHROPIC_API_KEY</code> en Supabase Secrets.
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(copy => (
+            <div key={copy.id} className={`rounded-xl border p-4 space-y-3 ${
+              copy.status === "approved"
+                ? d("border-[#2D9F6A]/30 bg-[#2D9F6A]/5","border-[#2D9F6A]/20 bg-[#2D9F6A]/3")
+                : copy.status === "rejected"
+                  ? d("border-red-500/20 bg-red-500/5","border-red-500/15 bg-red-500/3")
+                  : d("border-[#1f1f1f] bg-[#0d0d0d]","border-[#e5e5e5] bg-white")
+            }`}>
+              {/* Header */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-[10px] px-2 py-0.5 rounded-full border ${d("border-[#2a2a2a] text-[#737373]","border-[#e5e5e5] text-[#737373]")}`}>
+                  {copy.category}
+                </span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full border ${d("border-[#2a2a2a] text-[#737373]","border-[#e5e5e5] text-[#737373]")}`}>
+                  {SEGMENTS.find(s=>s.value===copy.segment)?.label ?? copy.segment}
+                </span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full border ml-auto ${
+                  copy.status === "approved" ? "text-[#2D9F6A] border-[#2D9F6A]/30 bg-[#2D9F6A]/10"
+                  : copy.status === "rejected" ? "text-red-400 border-red-500/20 bg-red-500/10"
+                  : d("text-[#737373] border-[#2a2a2a]","text-[#737373] border-[#e5e5e5]")
+                }`}>
+                  {copy.status === "approved" ? "Aprobado" : copy.status === "rejected" ? "Rechazado" : "Borrador"}
+                </span>
+                <span className="text-[10px] text-[#525252]">
+                  {new Date(copy.created_at).toLocaleDateString("es-AR")}
+                </span>
+              </div>
+
+              {/* Headlines */}
+              <div className="grid grid-cols-3 gap-2">
+                {[copy.headline1, copy.headline2, copy.headline3].map((h, i) => (
+                  <div key={i} className={`rounded-lg p-2 ${d("bg-[#111]","bg-[#f8f8f8]")}`}>
+                    <p className="text-[9px] uppercase tracking-widest text-[#525252] mb-0.5">Titular {i+1}</p>
+                    <p className={`text-xs font-semibold ${d("text-white","text-[#171717]")}`}>{h}</p>
+                    <p className={`text-[9px] mt-0.5 ${h.length > 28 ? "text-amber-400" : "text-[#525252]"}`}>{h.length}/30</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Descriptions */}
+              <div className="space-y-2">
+                {[copy.description1, copy.description2].map((desc, i) => (
+                  <div key={i} className={`rounded-lg p-2 ${d("bg-[#111]","bg-[#f8f8f8]")}`}>
+                    <p className="text-[9px] uppercase tracking-widest text-[#525252] mb-0.5">Descripción {i+1}</p>
+                    <p className={`text-xs ${d("text-[#d4d4d4]","text-[#404040]")}`}>{desc}</p>
+                    <p className={`text-[9px] mt-0.5 ${desc.length > 85 ? "text-amber-400" : "text-[#525252]"}`}>{desc.length}/90</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-2">
+                {copy.status !== "approved" && (
+                  <button
+                    onClick={() => updateStatus(copy.id, "approved")}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#2D9F6A]/15 text-[#2D9F6A] border border-[#2D9F6A]/30 hover:bg-[#2D9F6A]/25 transition"
+                  >
+                    <ThumbsUp size={11} /> Aprobar
+                  </button>
+                )}
+                {copy.status !== "rejected" && (
+                  <button
+                    onClick={() => updateStatus(copy.id, "rejected")}
+                    className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition ${d("border-[#2a2a2a] text-[#737373] hover:text-red-400 hover:border-red-500/30","border-[#e5e5e5] text-[#737373] hover:text-red-400")}`}
+                  >
+                    <ThumbsDown size={11} /> Rechazar
+                  </button>
+                )}
+                <button
+                  onClick={() => handleCopyToClipboard(copy)}
+                  className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition ml-auto ${d("border-[#2a2a2a] text-[#737373] hover:text-white","border-[#e5e5e5] text-[#737373] hover:text-[#171717]")}`}
+                >
+                  <Copy size={11} /> {copied === copy.id ? "¡Copiado!" : "Copiar"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
