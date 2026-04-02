@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { logActivity } from "@/lib/api/activityLog";
+import { trackFirstOrder, trackOrderPlaced } from "@/lib/marketingTracker";
 
 export interface PortalOrder {
   id: string | number;
@@ -159,6 +160,13 @@ export function useOrders() {
 
       // Refresh local list
       void fetchOrders();
+
+      // Marketing tracking: first_order vs order_placed
+      if (orders.length === 0) {
+        trackFirstOrder(user.id, String(orderId), orderData.total);
+      } else {
+        trackOrderPlaced(user.id, String(orderId), orderData.total);
+      }
 
       // Fire order confirmation email in background (non-blocking)
       void (async () => {

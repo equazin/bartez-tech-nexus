@@ -1,13 +1,14 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { RouteLoading } from "@/components/RouteLoading";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { CurrencyProvider } from "@/context/CurrencyContext";
+import { refreshUTMs, track, getOrCreateSession } from "@/lib/marketingTracker";
 
 const Index = lazy(() => import("./pages/Index"));
 const Products = lazy(() => import("./pages/Products"));
@@ -28,6 +29,35 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
 });
+
+// ── Route Tracker ─────────────────────────────────────────────
+// Registra page_view en cada cambio de ruta y actualiza UTMs activos.
+// Debe vivir DENTRO de BrowserRouter para poder usar useLocation.
+const EMPRESAS_PATHS = new Set(["/empresas", "/partnership", "/soluciones-corporativas"]);
+
+function RouteTracker() {
+  const location = useLocation();
+  const { session } = useAuth();
+
+  useEffect(() => {
+    // Asegurar sesión activa y capturar UTMs para esta navegación
+    getOrCreateSession();
+    refreshUTMs();
+
+    const userId = session?.user?.id ?? null;
+    const path   = location.pathname;
+
+    void track("page_view", { path }, userId);
+
+    // Evento especial para páginas de conversión empresarial
+    if (EMPRESAS_PATHS.has(path)) {
+      void track("landing_empresas_view", { path }, userId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
+  return null;
+}
 
 const RequireAuth = ({ children }: { children: JSX.Element }) => {
   const { session, profile, loading } = useAuth();
@@ -55,6 +85,7 @@ const App = () => (
         <AuthProvider>
           <CurrencyProvider>
             <ErrorBoundary>
+            <RouteTracker />
             <Suspense fallback={<RouteLoading />}>
               <Routes>
                 <Route path="/" element={<Index />} />

@@ -109,5 +109,36 @@ async function _handler(req: VercelRequest, res: VercelResponse) {
     console.error("[create-user] Profile upsert failed:", profileError.message);
   }
 
+  // 5. Save lead_source attribution (best-effort — first-touch desde el body si viene)
+  const {
+    utm_source,
+    utm_medium,
+    utm_campaign,
+    utm_term,
+    attribution_history,
+    landing_page,
+  } = req.body as Record<string, unknown>;
+
+  const hasUTM = utm_source || utm_medium || utm_campaign;
+  if (hasUTM) {
+    await adminClient.from("lead_sources").upsert({
+      user_id:              userId,
+      first_touch_source:   utm_source   as string ?? null,
+      first_touch_medium:   utm_medium   as string ?? null,
+      first_touch_campaign: utm_campaign as string ?? null,
+      first_touch_term:     utm_term     as string ?? null,
+      first_touch_at:       new Date().toISOString(),
+      first_landing_page:   landing_page as string ?? null,
+      last_touch_source:    utm_source   as string ?? null,
+      last_touch_medium:    utm_medium   as string ?? null,
+      last_touch_campaign:  utm_campaign as string ?? null,
+      last_touch_term:      utm_term     as string ?? null,
+      attribution_history:  Array.isArray(attribution_history) ? attribution_history : [],
+      registered_at:        new Date().toISOString(),
+    }, { onConflict: "user_id" }).then(({ error }) => {
+      if (error) console.error("[create-user] lead_sources upsert failed:", error.message);
+    });
+  }
+
   return ok(res, { id: userId, email: authData.user.email }, 201);
 }
