@@ -153,7 +153,10 @@ export function ImageManagerTab({ isDark = true, products: externalProducts, onR
     try {
       const data = await fetchSuggestionsForProduct(productId);
       setSuggestions(data);
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error("[ImageManager] loadSuggestions error:", err);
+      setSuggestions([]);
+    }
     setLoadingSuggestions(false);
   }
 
