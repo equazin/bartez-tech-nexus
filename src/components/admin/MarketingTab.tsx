@@ -4,6 +4,7 @@ import {
   CheckCircle2, XCircle, TrendingUp, Users, MousePointerClick,
   ShoppingCart, Activity, RefreshCw, BarChart3,
   Megaphone, Lightbulb, ArrowRight, Wand2, Copy, ThumbsUp, ThumbsDown,
+  Zap, AlertCircle, TrendingDown, PauseCircle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -485,6 +486,201 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
             </div>
           )}
         </>
+      )}
+
+      {/* ── Ad Rules ─────────────────────────────────── */}
+      <AdRulesPanel isDark={isDark} />
+    </div>
+  );
+}
+
+// ── Ad Rules Panel ────────────────────────────────────────────
+
+interface AdRule {
+  id: number;
+  name: string;
+  active: boolean;
+  condition: { metric: string; operator: string; value: number; window_days: number };
+  action: { type: string; value?: number };
+  last_fired: string | null;
+  fire_count: number;
+}
+
+const METRIC_LABELS: Record<string, string> = {
+  roas:       "ROAS",
+  cpl_ars:    "CPL (ARS)",
+  clicks:     "Clicks",
+  cost_ars:   "Costo (ARS)",
+  ctr:        "CTR %",
+};
+const OP_LABELS: Record<string, string> = { gt: ">", lt: "<", gte: ">=", lte: "<=" };
+const ACTION_LABELS: Record<string, string> = {
+  pause_campaign:    "Pausar campaña",
+  increase_budget:   "Aumentar presupuesto",
+  decrease_budget:   "Reducir presupuesto",
+  alert:             "Generar alerta",
+};
+const ACTION_ICONS: Record<string, React.ElementType> = {
+  pause_campaign:  PauseCircle,
+  increase_budget: TrendingUp,
+  decrease_budget: TrendingDown,
+  alert:           AlertCircle,
+};
+
+const DEFAULT_RULES = [
+  { name: "Pausar campaña ineficiente", condition: { metric:"roas", operator:"lt", value:0.8, window_days:7 }, action: { type:"pause_campaign" } },
+  { name: "Escalar campaña rentable",   condition: { metric:"roas", operator:"gt", value:3,   window_days:7 }, action: { type:"increase_budget", value:20 } },
+  { name: "Alerta CPL alto",            condition: { metric:"cpl_ars", operator:"gt", value:8000, window_days:3 }, action: { type:"alert" } },
+];
+
+const EMPTY_RULE = {
+  name: "",
+  metric: "roas", operator: "lt", value: "1", window_days: "7",
+  action_type: "alert", action_value: "",
+};
+
+function AdRulesPanel({ isDark }: { isDark: boolean }) {
+  const d = dk(isDark);
+  const [rules, setRules]       = useState<AdRule[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm]         = useState({ ...EMPTY_RULE });
+  const [saving, setSaving]     = useState(false);
+
+  const loadRules = async () => {
+    setLoading(true);
+    const { data } = await supabase.from("ad_rules").select("*").order("created_at", { ascending: false });
+    setRules((data as AdRule[]) ?? []);
+    setLoading(false);
+  };
+
+  useEffect(() => { void loadRules(); }, []);
+
+  async function seedDefaults() {
+    await supabase.from("ad_rules").insert(DEFAULT_RULES.map(r => ({ ...r, active: true })));
+    void loadRules();
+  }
+
+  async function toggleRule(id: number, active: boolean) {
+    await supabase.from("ad_rules").update({ active: !active }).eq("id", id);
+    setRules(prev => prev.map(r => r.id === id ? { ...r, active: !active } : r));
+  }
+
+  async function deleteRule(id: number) {
+    await supabase.from("ad_rules").delete().eq("id", id);
+    setRules(prev => prev.filter(r => r.id !== id));
+  }
+
+  async function createRule() {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    await supabase.from("ad_rules").insert({
+      name: form.name.trim(),
+      active: true,
+      condition: { metric: form.metric, operator: form.operator, value: Number(form.value), window_days: Number(form.window_days) },
+      action: { type: form.action_type, ...(form.action_value ? { value: Number(form.action_value) } : {}) },
+    });
+    setForm({ ...EMPTY_RULE });
+    setShowForm(false);
+    setSaving(false);
+    void loadRules();
+  }
+
+  const inputCls = `text-xs px-2.5 py-1.5 rounded-lg border ${d("bg-[#0d0d0d] border-[#2a2a2a] text-white","bg-white border-[#e5e5e5] text-[#171717]")}`;
+
+  return (
+    <div className="space-y-3 pt-2 border-t border-[#1f1f1f]">
+      <div className="flex items-center gap-2">
+        <Zap size={13} className="text-amber-400" />
+        <p className={`text-xs font-bold ${d("text-white","text-[#171717]")}`}>Reglas de automatización</p>
+        <div className="ml-auto flex gap-2">
+          {rules.length === 0 && !loading && (
+            <button onClick={seedDefaults} className={`text-xs px-2.5 py-1 rounded-lg border ${d("border-[#2a2a2a] text-[#737373] hover:text-white","border-[#e5e5e5] text-[#525252]")} transition`}>
+              Cargar reglas base
+            </button>
+          )}
+          <button
+            onClick={() => setShowForm(v => !v)}
+            className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-[#2D9F6A]/15 text-[#2D9F6A] border border-[#2D9F6A]/30 hover:bg-[#2D9F6A]/25 transition"
+          >
+            <Plus size={10} /> Nueva regla
+          </button>
+        </div>
+      </div>
+
+      {showForm && (
+        <div className={`rounded-xl border p-3 space-y-3 ${d("border-[#2a2a2a] bg-[#0a0a0a]","border-[#e5e5e5] bg-[#fafafa]")}`}>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="col-span-2">
+              <input value={form.name} onChange={e => setForm(f=>({...f,name:e.target.value}))} placeholder="Nombre de la regla" className={`w-full ${inputCls}`} />
+            </div>
+            <div className="flex gap-1 col-span-2 items-center flex-wrap">
+              <span className="text-[10px] text-[#525252]">Si</span>
+              <select value={form.metric} onChange={e=>setForm(f=>({...f,metric:e.target.value}))} className={inputCls}>
+                {Object.entries(METRIC_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+              <select value={form.operator} onChange={e=>setForm(f=>({...f,operator:e.target.value}))} className={inputCls}>
+                {Object.entries(OP_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+              <input type="number" value={form.value} onChange={e=>setForm(f=>({...f,value:e.target.value}))} className={`w-20 ${inputCls}`} />
+              <span className="text-[10px] text-[#525252]">en últimos</span>
+              <input type="number" value={form.window_days} onChange={e=>setForm(f=>({...f,window_days:e.target.value}))} className={`w-14 ${inputCls}`} />
+              <span className="text-[10px] text-[#525252]">días →</span>
+              <select value={form.action_type} onChange={e=>setForm(f=>({...f,action_type:e.target.value}))} className={inputCls}>
+                {Object.entries(ACTION_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+              {(form.action_type === "increase_budget" || form.action_type === "decrease_budget") && (
+                <><input type="number" value={form.action_value} onChange={e=>setForm(f=>({...f,action_value:e.target.value}))} placeholder="%" className={`w-16 ${inputCls}`} /><span className="text-[10px] text-[#525252]">%</span></>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={createRule} disabled={saving} className="text-xs px-3 py-1.5 rounded-lg bg-[#2D9F6A] text-white hover:bg-[#25885a] disabled:opacity-50 transition">
+              {saving ? "Guardando..." : "Crear"}
+            </button>
+            <button onClick={() => setShowForm(false)} className={`text-xs px-2.5 py-1.5 rounded-lg border ${d("border-[#2a2a2a] text-[#737373]","border-[#e5e5e5] text-[#525252]")} transition`}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="space-y-2">{Array.from({length:2}).map((_,i) => <div key={i} className={`h-10 rounded-xl animate-pulse ${d("bg-[#111]","bg-[#f0f0f0]")}`} />)}</div>
+      ) : rules.length === 0 ? (
+        <p className={`text-xs ${d("text-[#525252]","text-[#a3a3a3]")}`}>Sin reglas. Hacé click en "Cargar reglas base" para agregar las 3 reglas recomendadas.</p>
+      ) : (
+        <div className="space-y-2">
+          {rules.map(rule => {
+            const ActionIcon = ACTION_ICONS[rule.action.type] ?? Zap;
+            return (
+              <div key={rule.id} className={`rounded-xl border px-3 py-2.5 flex items-center gap-3 ${d("border-[#1f1f1f] bg-[#0d0d0d]","border-[#e5e5e5] bg-white")} ${!rule.active ? "opacity-50" : ""}`}>
+                <ActionIcon size={12} className={
+                  rule.action.type === "alert" ? "text-amber-400"
+                  : rule.action.type === "pause_campaign" ? "text-red-400"
+                  : "text-[#2D9F6A]"
+                } />
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-semibold truncate ${d("text-white","text-[#171717]")}`}>{rule.name}</p>
+                  <p className="text-[10px] text-[#525252] truncate">
+                    {METRIC_LABELS[rule.condition.metric]} {OP_LABELS[rule.condition.operator]} {rule.condition.value} · {rule.condition.window_days}d → {ACTION_LABELS[rule.action.type]}{rule.action.value ? ` ${rule.action.value}%` : ""}
+                    {rule.last_fired && ` · último disparo: ${new Date(rule.last_fired).toLocaleDateString("es-AR")}`}
+                    {rule.fire_count > 0 && ` (${rule.fire_count}x)`}
+                  </p>
+                </div>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full border ${rule.active ? "text-green-400 bg-green-500/10 border-green-500/20" : "text-gray-400 bg-gray-500/10 border-gray-500/20"}`}>
+                  {rule.active ? "Activa" : "Pausada"}
+                </span>
+                <button onClick={() => toggleRule(rule.id, rule.active)} className="text-[#525252] hover:text-white transition">
+                  {rule.active ? <CheckCircle2 size={13} className="text-[#2D9F6A]" /> : <XCircle size={13} />}
+                </button>
+                <button onClick={() => deleteRule(rule.id)} className="text-[#525252] hover:text-red-400 transition">
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

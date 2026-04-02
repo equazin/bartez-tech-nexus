@@ -1,0 +1,76 @@
+# Supabase project configuration
+# Docs: https://supabase.com/docs/guides/local-development
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+
+[auth]
+enabled = true
+# Site URL for redirect after OAuth
+site_url = "http://localhost:8080"
+additional_redirect_urls = ["https://bartez.com.ar"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+# ── Edge Functions ─────────────────────────────────────────────
+
+[functions.google-ads-sync]
+verify_jwt = false   # invocado por cron (sin JWT de usuario)
+
+[functions.ad-copy-generator]
+verify_jwt = true    # requiere JWT de admin
+
+# ── Cron Schedules ─────────────────────────────────────────────
+# Requiere: pg_cron extension habilitada en Supabase Dashboard
+# Dashboard > Database > Extensions > pg_cron
+#
+# Para activar en producción usar Supabase CLI:
+#   supabase functions deploy google-ads-sync
+#   supabase functions deploy ad-copy-generator
+#
+# O configurar el cron vía SQL:
+#   SELECT cron.schedule('google-ads-sync-daily', '0 6 * * *',
+#     $$SELECT net.http_post(
+#       url := current_setting('app.supabase_url') || '/functions/v1/google-ads-sync',
+#       headers := '{"Content-Type":"application/json"}'::jsonb,
+#       body := '{}'::jsonb
+#     )$$
+#   );
+
+[functions.google-ads-sync.cron]
+# Cron diario a las 6am UTC (3am ARG)
+# Sincroniza rendimiento de campañas de ayer
+schedule = "0 6 * * *"
+
+[functions.ad-rules-executor]
+verify_jwt = false
+
+[functions.ad-rules-executor.cron]
+# Ejecutar reglas automáticas una vez por día a las 7am UTC
+schedule = "0 7 * * *"
