@@ -161,6 +161,20 @@ function scoreImage(
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+async function fetchWithTimeout(input: string, init: RequestInit = {}, ms = 8000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Image sources
 // ---------------------------------------------------------------------------
 
@@ -183,7 +197,7 @@ async function getMercadoLibreToken(): Promise<string> {
   if (!appId || !clientSecret) return "";
 
   try {
-    const res = await fetch("https://api.mercadolibre.com/oauth/token", {
+    const res = await fetchWithTimeout("https://api.mercadolibre.com/oauth/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
       body: `grant_type=client_credentials&client_id=${appId}&client_secret=${clientSecret}`
@@ -209,7 +223,7 @@ async function searchBing(query: string): Promise<ImageResult[]> {
 
   try {
     const url = `https://api.bing.microsoft.com/v7.0/images/search?q=${encodeURIComponent(query)}&count=10&mkt=es-AR&safeSearch=Strict&minWidth=400&minHeight=400`;
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: { "Ocp-Apim-Subscription-Key": apiKey },
     });
     if (!res.ok) return [];
@@ -248,7 +262,7 @@ async function searchSerper(query: string): Promise<ImageResult[]> {
   if (!apiKey) return [];
 
   try {
-    const res = await fetch("https://google.serper.dev/images", {
+    const res = await fetchWithTimeout("https://google.serper.dev/images", {
       method: "POST",
       headers: {
         "X-API-KEY": apiKey,
@@ -291,7 +305,7 @@ async function searchSerpApi(query: string): Promise<ImageResult[]> {
 
   try {
     const url = `https://serpapi.com/search.json?engine=google_images&q=${encodeURIComponent(query)}&num=10&api_key=${apiKey}&gl=ar&hl=es`;
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url);
     if (!res.ok) return [];
     const data = await res.json() as {
       images_results?: Array<{
@@ -331,7 +345,7 @@ async function searchMercadoLibre(query: string): Promise<ImageResult[]> {
       headers["Authorization"] = `Bearer ${mlToken}`;
     }
 
-    const res = await fetch(url, { headers });
+    const res = await fetchWithTimeout(url, { headers });
     if (!res.ok) return [];
     const data = await res.json() as {
       results?: Array<{
@@ -486,38 +500,26 @@ export default async function handler(request: Request): Promise<Response> {
 
     const query = buildQuery(product);
     const strictQuery = buildQuery(product, true);
-    const allCandidates: ImageResult[] = [];
 
-    // Source 1: Supplier images (highest priority)
-    try {
-      const supplierImages = await getSupplierImages(supabase, product.id);
-      allCandidates.push(...supplierImages);
-    } catch { /* ignore */ }
+    // Run all sources in parallel with individual timeouts already set
+    const [supplierImages, serperImages, mlImages, bingImages] = await Promise.all([
+      getSupplierImages(supabase, product.id).catch(() => [] as ImageResult[]),
+      searchSerper(query).catch(() => [] as ImageResult[]),
+      searchMercadoLibre(strictQuery).catch(() => [] as ImageResult[]),
+      searchBing(query).catch(() => [] as ImageResult[]),
+    ]);
 
-    // Source 2: Serper.dev (Google Images)
-    try {
-      const serperImages = await searchSerper(query);
-      allCandidates.push(...serperImages);
-    } catch { /* ignore */ }
+    const allCandidates: ImageResult[] = [
+      ...supplierImages,
+      ...serperImages,
+      ...mlImages,
+      ...bingImages,
+    ];
 
-    // Source 2: MercadoLibre API (free, public)
-    try {
-      const mlImages = await searchMercadoLibre(strictQuery);
-      allCandidates.push(...mlImages);
-    } catch { /* ignore */ }
-
-    // Source 3: Bing Image Search API
-    try {
-      const bingImages = await searchBing(query);
-      allCandidates.push(...bingImages);
-    } catch { /* ignore */ }
-
-    // Source 4: SerpAPI (Google Images fallback)
+    // SerpAPI fallback only if we have too few candidates
     if (allCandidates.length < 3) {
-      try {
-        const serpImages = await searchSerpApi(query);
-        allCandidates.push(...serpImages);
-      } catch { /* ignore */ }
+      const serpImages = await searchSerpApi(query).catch(() => [] as ImageResult[]);
+      allCandidates.push(...serpImages);
     }
 
     if (allCandidates.length === 0) {
