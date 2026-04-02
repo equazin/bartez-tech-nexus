@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fail } from "./http";
+import { fail } from "./http.js";
 
 export type ApiRole = "admin" | "vendedor" | "cliente" | "client" | "anonymous";
 

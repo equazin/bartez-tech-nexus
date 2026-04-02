@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { fail, methodNotAllowed, ok, parsePagination } from "./_shared/http";
-import { ensureWriteRole } from "./_shared/roles";
-import { updateStockSchema } from "./_shared/schemas";
-import { getSupabaseClient } from "./_shared/supabaseServer";
+import { fail, methodNotAllowed, ok, parsePagination } from "./_shared/http.js";
+import { ensureWriteRole } from "./_shared/roles.js";
+import { updateStockSchema } from "./_shared/schemas.js";
+import { getSupabaseClient } from "./_shared/supabaseServer.js";
 
 interface StockRow {
   id: number;

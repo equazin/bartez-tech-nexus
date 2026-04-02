@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { orderConfirmationHTML, newOrderAlertHTML, quoteStatusHTML } from "./_shared/emailTemplates";
-import { createMailerTransport, getDefaultFromEmail, sanitizeHeaderText } from "./_shared/mailer";
-import { orderEmailSchema } from "./_shared/schemas";
+import { orderConfirmationHTML, newOrderAlertHTML, quoteStatusHTML } from "./_shared/emailTemplates.js";
+import { createMailerTransport, getDefaultFromEmail, sanitizeHeaderText } from "./_shared/mailer.js";
+import { orderEmailSchema } from "./_shared/schemas.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {

@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { createMailerTransport, getDefaultFromEmail, sanitizeHeaderText } from "./_shared/mailer";
-import { contactRequestSchema } from "./_shared/schemas";
+import { createMailerTransport, getDefaultFromEmail, sanitizeHeaderText } from "./_shared/mailer.js";
+import { contactRequestSchema } from "./_shared/schemas.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
