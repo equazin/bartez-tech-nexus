@@ -16,7 +16,7 @@ import {
   Users, Package, ClipboardList, LogOut, UserPlus, X, Plus,
   DollarSign, Pencil, Check, LayoutDashboard, Sun, Moon, Phone,
   Truck, Download, Building2, Tag, BarChart2, Activity, Wifi, Bookmark, Flame,
-  Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag, Image, LifeBuoy, Ticket, Globe, type LucideIcon,
+  Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag, Image, LifeBuoy, Ticket, Globe, RotateCcw, Handshake, type LucideIcon,
 } from "lucide-react";
 import { exportOrdersCSV, exportCatalogCSV, exportReportsCSV } from "@/lib/exportCsv";
 import { exportCatalogPdf, exportRemitoPdf } from "@/lib/exportPdf";
@@ -55,6 +55,8 @@ const OpportunitiesTab = lazy(() => import("@/components/admin/OpportunitiesTab"
 const PosManagementTab = lazy(() => import("@/components/admin/PosManagementTab").then(m => ({ default: m.PosManagementTab })));
 const ImageManagerTab = lazy(() => import("@/components/admin/ImageManagerTab").then(m => ({ default: m.ImageManagerTab })));
 const WebhooksTab = lazy(() => import("@/components/admin/WebhooksTab").then(m => ({ default: m.WebhooksTab })));
+const RmaAdminTab = lazy(() => import("@/components/admin/RmaAdminTab").then(m => ({ default: m.RmaAdminTab })));
+const PriceAgreementsTab = lazy(() => import("@/components/admin/PriceAgreementsTab").then(m => ({ default: m.PriceAgreementsTab })));
 import {
   fetchProductsForContent,
   processProductContent,
@@ -183,7 +185,7 @@ function LegacyStatusBadge({ status }: { status: string }) {
   );
 }
 
-type Tab = "dashboard" | "products" | "imports" | "categories" | "opportunities" | "pos" | "seller_mode" | "orders" | "kanban" | "clients" | "users_permissions" | "approvals" | "documents" | "support" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "supplier_sync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders" | "images" | "marketing";
+type Tab = "dashboard" | "products" | "imports" | "categories" | "opportunities" | "pos" | "seller_mode" | "orders" | "kanban" | "clients" | "users_permissions" | "approvals" | "documents" | "support" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "supplier_sync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders" | "images" | "marketing" | "rma" | "price_agreements";
 
 
 
@@ -1110,6 +1112,29 @@ async function handleCreateClient() {
     }
   }
 
+  async function sendOrderStatusEmail(orderId: string, status: "order_shipped" | "order_delivered") {
+    const order = orders.find((o) => String(o.id) === String(orderId));
+    if (!order) return;
+    const client = clients.find((c) => c.id === order.client_id);
+    if (!client?.email) return;
+    try {
+      await fetch("/api/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: status,
+          orderId: order.id,
+          orderNumber: order.order_number || `#${String(order.id).slice(-8)}`,
+          clientId: order.client_id,
+          clientEmail: client.email,
+          clientName: client.company_name || client.contact_name,
+          products: order.products,
+          total: order.total,
+        }),
+      });
+    } catch { /* non-blocking */ }
+  }
+
   async function dispatchOrder(orderId: string, numeroRemito: string) {
     if (!numeroRemito.trim()) return;
     setDispatchingOrder(true);
@@ -1123,6 +1148,7 @@ async function handleCreateClient() {
       setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, ...updated } : o));
       if (selectedOrder?.id === orderId) setSelectedOrder((o) => o ? { ...o, ...updated } : o);
       setRemitoInput("");
+      sendOrderStatusEmail(orderId, "order_shipped");
     }
   }
 
@@ -1135,6 +1161,8 @@ async function handleCreateClient() {
       setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: newStatus } : o));
       if (selectedOrder?.id === orderId) setSelectedOrder((o) => o ? { ...o, status: newStatus } : o);
       logActivity({ user_id: userId, action: "order_status_change", entity_type: "order", entity_id: orderId, metadata: { status: newStatus } });
+      if (newStatus === "shipped" || newStatus === "dispatched") sendOrderStatusEmail(orderId, "order_shipped");
+      if (newStatus === "delivered") sendOrderStatusEmail(orderId, "order_delivered");
     }
   }
 
@@ -1216,8 +1244,10 @@ async function handleCreateClient() {
 
         { id: "stock",           label: "Stock",          icon: Layers,       adminOnly: true },
         { id: "movements",       label: "Movimientos",    icon: History,      adminOnly: true },
-        { id: "purchase_orders", label: "Órdenes Compra", icon: ShoppingBag,  adminOnly: true },
-        { id: "support",         label: "Soporte",        icon: LifeBuoy,     adminOnly: true },
+        { id: "purchase_orders",  label: "Órdenes Compra",   icon: ShoppingBag,  adminOnly: true },
+        { id: "rma",              label: "Devoluciones",     icon: RotateCcw,    adminOnly: true },
+        { id: "price_agreements", label: "Acuerdos Precio",  icon: Handshake,    adminOnly: true },
+        { id: "support",          label: "Soporte",          icon: LifeBuoy,     adminOnly: true },
         { id: "marketing",       label: "Marketing",      icon: Ticket,       adminOnly: true },
         { id: "webhooks",        label: "Webhooks",       icon: Globe,        adminOnly: true },
         { id: "activity",        label: "Actividad",      icon: Activity,     adminOnly: true },
@@ -2525,6 +2555,14 @@ async function handleCreateClient() {
 
         {activeTab === "webhooks" && (
           <WebhooksTab isDark={isDark} />
+        )}
+
+        {activeTab === "rma" && (
+          <RmaAdminTab isDark={isDark} />
+        )}
+
+        {activeTab === "price_agreements" && (
+          <PriceAgreementsTab isDark={isDark} clients={clients} />
         )}
 
         {/* -- SYNC PROVEEDORES -- */}

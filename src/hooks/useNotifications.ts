@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 import type { PortalOrder } from "@/hooks/useOrders";
 import type { Product } from "@/models/products";
 
@@ -16,14 +17,11 @@ const STATUS_LABELS: Record<string, string> = {
 function cacheKey(userId: string) {
   return `b2b_notif_cache_${userId}`;
 }
-function priceKey() {
-  return `b2b_price_cache`;
-}
 
 interface NotifCache {
-  orderStatuses: Record<string, string>; // id → status
-  productPrices: Record<number, number>; // id → cost_price
-  productStock:  Record<number, number>; // id → stock
+  orderStatuses: Record<string, string>;
+  productPrices: Record<number, number>;
+  productStock:  Record<number, number>;
 }
 
 function readCache(userId: string): NotifCache {
@@ -41,16 +39,17 @@ function writeCache(userId: string, data: NotifCache) {
 export function useNotifications(
   userId: string | undefined,
   orders: PortalOrder[],
-  products: Product[]
+  products: Product[],
+  onOrderStatusChange?: (orderId: string, newStatus: string) => void
 ) {
   const initialized = useRef(false);
 
+  // ── Poll-based detection (existing logic) ────────────────────────────────
   useEffect(() => {
     if (!userId || !orders.length) return;
 
     const cache = readCache(userId);
 
-    // ── Order status changes ───────────────────────────────────────────────
     const newOrderStatuses: Record<string, string> = {};
     for (const order of orders) {
       const id = String(order.id);
@@ -68,10 +67,10 @@ export function useNotifications(
         } else {
           toast.info(`Pedido ${label} → ${newLabel}`, { duration: 4000 });
         }
+        onOrderStatusChange?.(id, currStatus);
       }
     }
 
-    // ── Product price / stock changes ─────────────────────────────────────
     const newPrices: Record<number, number> = {};
     const newStock: Record<number, number> = {};
     for (const p of products) {
@@ -101,5 +100,48 @@ export function useNotifications(
     });
 
     initialized.current = true;
-  }, [userId, orders, products]);
+  }, [userId, orders, products, onOrderStatusChange]);
+
+  // ── Supabase Realtime — order status changes ──────────────────────────────
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase
+      .channel(`orders_realtime_${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "orders",
+          filter: `client_id=eq.${userId}`,
+        },
+        (payload) => {
+          const updated = payload.new as { id: string; status: string; order_number?: string };
+          const prevStatus = payload.old?.status as string | undefined;
+          if (!updated?.status || updated.status === prevStatus) return;
+
+          const label = updated.order_number ?? String(updated.id).slice(-6).toUpperCase();
+          const newLabel = STATUS_LABELS[updated.status] ?? updated.status;
+
+          if (updated.status === "approved" || updated.status === "delivered") {
+            toast.success(`Pedido ${label}: ${newLabel}`, { duration: 6000 });
+          } else if (updated.status === "rejected") {
+            toast.error(`Pedido ${label}: Rechazado`, { duration: 6000 });
+          } else {
+            toast.info(`Pedido ${label} → ${newLabel}`, { duration: 4000 });
+          }
+
+          onOrderStatusChange?.(String(updated.id), updated.status);
+
+          // Update cache
+          const cache = readCache(userId);
+          cache.orderStatuses = { ...cache.orderStatuses, [String(updated.id)]: updated.status };
+          writeCache(userId, cache);
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [userId, onOrderStatusChange]);
 }
