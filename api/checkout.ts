@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
-import { resolveMarginWithContext } from "../src/lib/pricingEngine";
-import { getEffectiveCostPrice } from "../src/lib/pricing";
-import type { Product } from "../src/models/products";
-import type { PricingRule } from "../src/models/pricingRule";
+import { resolveMarginWithContext } from "../src/lib/pricingEngine.js";
+import { getEffectiveCostPrice } from "../src/lib/pricing.js";
+import type { Product } from "../src/models/products.js";
+import type { PricingRule } from "../src/models/pricingRule.js";
 
 export const config = { maxDuration: 60 };
 

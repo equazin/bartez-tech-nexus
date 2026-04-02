@@ -34,7 +34,6 @@ export default async function handler(request: Request): Promise<Response> {
   }
 
   const airUrl = `${AIR_BASE}/?${url.searchParams.toString()}`;
-  console.log(`[air-proxy] -> ${airUrl}`);
 
   try {
     const body = request.body ? await request.text() : undefined;
@@ -48,7 +47,6 @@ export default async function handler(request: Request): Promise<Response> {
       body,
     });
 
-    console.log(`[air-proxy] <- status=${airRes.status} q=${q}`);
 
     return new Response(airRes.body, {
       status: airRes.status,

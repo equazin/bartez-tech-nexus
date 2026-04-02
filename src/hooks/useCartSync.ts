@@ -26,7 +26,6 @@ export function useCartSync(cart: Record<number, number>, setCart: (cart: Record
         if (error && error.code !== "PGRST116") throw error; // PGRST116 is "no rows found"
 
         if (data?.items) {
-          console.log("Cart loaded from Supabase:", data.items);
           setCart(data.items as Record<number, number>);
         }
       } catch (err) {
@@ -60,7 +59,6 @@ export function useCartSync(cart: Record<number, number>, setCart: (cart: Record
           });
 
         if (error) throw error;
-        console.log("Cart synced to Supabase");
       } catch (err) {
         console.error("Error syncing cart to Supabase:", err);
       }
