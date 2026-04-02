@@ -265,77 +265,225 @@ function FunnelSection({ isDark }: { isDark: boolean }) {
 // CAMPAIGNS SECTION
 // ══════════════════════════════════════════════════════════════
 
+interface CampaignPerf {
+  id: string; name: string; type: string; status: string;
+  daily_budget: number | null; target_segment: string | null; source: string;
+  impressions_30d: number; clicks_30d: number; cost_30d: number;
+  conversions_30d: number; revenue_30d: number;
+  roas_30d: number; cpl_30d: number | null;
+  last_synced: string | null;
+}
+
+const EMPTY_CAMPAIGN = { name: "", type: "search", target_segment: "", daily_budget: "" };
+
 function CampaignsSection({ isDark }: { isDark: boolean }) {
   const d = dk(isDark);
-  const [stats, setStats] = useState<CampaignStat[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [campaigns, setCampaigns] = useState<CampaignPerf[]>([]);
+  const [utmStats, setUtmStats]   = useState<CampaignStat[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [showForm, setShowForm]   = useState(false);
+  const [form, setForm]           = useState({ ...EMPTY_CAMPAIGN });
+  const [saving, setSaving]       = useState(false);
+  const [syncing, setSyncing]     = useState(false);
+  const [syncMsg, setSyncMsg]     = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      // Aggregate events by utm_campaign
-      const { data } = await supabase
-        .from("marketing_events")
-        .select("utm_campaign, event_type")
-        .not("utm_campaign", "is", null);
+  const load = async () => {
+    setLoading(true);
+    const [{ data: perfData }, { data: evtData }] = await Promise.all([
+      supabase.from("campaign_performance").select("*").order("clicks_30d", { ascending: false }),
+      supabase.from("marketing_events").select("utm_campaign, event_type").not("utm_campaign", "is", null),
+    ]);
 
-      if (!data) { setLoading(false); return; }
+    setCampaigns((perfData as CampaignPerf[]) ?? []);
 
-      const map: Record<string, CampaignStat> = {};
-      for (const row of data as { utm_campaign: string; event_type: string }[]) {
-        const c = row.utm_campaign;
-        if (!map[c]) map[c] = { campaign: c, clicks: 0, registrations: 0, orders: 0 };
-        if (row.event_type === "cta_click")             map[c].clicks++;
-        if (row.event_type === "registration_complete") map[c].registrations++;
-        if (row.event_type === "first_order")           map[c].orders++;
-      }
-
-      setStats(Object.values(map).sort((a, b) => b.clicks - a.clicks));
-      setLoading(false);
+    // UTM stats from events (complementary)
+    const map: Record<string, CampaignStat> = {};
+    for (const row of (evtData ?? []) as { utm_campaign: string; event_type: string }[]) {
+      const c = row.utm_campaign;
+      if (!map[c]) map[c] = { campaign: c, clicks: 0, registrations: 0, orders: 0 };
+      if (row.event_type === "cta_click")             map[c].clicks++;
+      if (row.event_type === "registration_complete") map[c].registrations++;
+      if (row.event_type === "first_order")           map[c].orders++;
     }
+    setUtmStats(Object.values(map).sort((a, b) => b.clicks - a.clicks));
+    setLoading(false);
+  };
+
+  useEffect(() => { void load(); }, []);
+
+  async function handleCreate() {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    const id = `manual_${Date.now()}`;
+    await supabase.from("ad_campaigns").insert({
+      id, name: form.name.trim(), type: form.type,
+      target_segment: form.target_segment || null,
+      daily_budget: form.daily_budget ? Number(form.daily_budget) : null,
+      source: "manual",
+    });
+    setForm({ ...EMPTY_CAMPAIGN });
+    setShowForm(false);
+    setSaving(false);
     void load();
-  }, []);
+  }
 
-  if (loading) return (
-    <div className="space-y-3">
-      {Array.from({length:3}).map((_,i) => (
-        <div key={i} className={`h-12 rounded-xl animate-pulse ${d("bg-[#111]","bg-[#f0f0f0]")}`} />
-      ))}
-    </div>
-  );
+  async function triggerSync() {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-ads-sync`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+      });
+      const data = await res.json() as { ok: boolean; message?: string; synced?: number };
+      setSyncMsg(data.ok ? `✓ ${data.synced ?? 0} registros sincronizados` : (data.message ?? "Sin credenciales configuradas"));
+      if (data.ok) void load();
+    } catch {
+      setSyncMsg("Error al conectar con la función de sync");
+    }
+    setSyncing(false);
+  }
 
-  if (stats.length === 0) return (
-    <div className={`rounded-xl border p-10 text-center ${d("border-[#1f1f1f] bg-[#0d0d0d]","border-[#e5e5e5] bg-white")}`}>
-      <Megaphone size={28} className="mx-auto mb-3 text-[#404040]" />
-      <p className={`text-sm font-semibold ${d("text-[#737373]","text-[#a3a3a3]")}`}>Sin datos de campañas aún</p>
-      <p className="text-xs text-[#525252] mt-1 max-w-xs mx-auto">
-        Los datos aparecerán automáticamente cuando el tráfico llegue con parámetros UTM
-        (<code className="text-[10px]">utm_campaign=...</code>).
-      </p>
-    </div>
-  );
+  const inputCls = `w-full text-xs px-3 py-2 rounded-lg border ${d("bg-[#0d0d0d] border-[#2a2a2a] text-white","bg-white border-[#e5e5e5] text-[#171717]")}`;
 
   return (
-    <div className="space-y-3">
-      <p className={`text-xs ${d("text-[#525252]","text-[#a3a3a3]")}`}>
-        Rendimiento por campaña — basado en eventos UTM capturados
-      </p>
-      <div className={`rounded-xl border overflow-hidden ${d("border-[#1f1f1f]","border-[#e5e5e5]")}`}>
-        <div className={`grid grid-cols-[1fr_repeat(3,90px)] gap-2 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider ${d("bg-[#0d0d0d] text-[#525252]","bg-[#f5f5f5] text-[#a3a3a3]")}`}>
-          <span>Campaña</span>
-          <span className="text-right">CTAs</span>
-          <span className="text-right">Registros</span>
-          <span className="text-right">1er pedido</span>
-        </div>
-        {stats.map((s) => (
-          <div key={s.campaign} className={`grid grid-cols-[1fr_repeat(3,90px)] gap-2 px-4 py-3 border-t text-xs ${d("border-[#1a1a1a] bg-[#111]","border-[#f0f0f0] bg-white")}`}>
-            <span className={`font-mono truncate ${d("text-[#d4d4d4]","text-[#404040]")}`}>{s.campaign}</span>
-            <span className={`text-right ${d("text-white","text-[#171717]")}`}>{s.clicks}</span>
-            <span className={`text-right ${d("text-white","text-[#171717]")}`}>{s.registrations}</span>
-            <span className="text-right font-semibold text-[#2D9F6A]">{s.orders}</span>
-          </div>
-        ))}
+    <div className="space-y-4">
+      {/* Header actions */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <p className={`text-xs flex-1 ${d("text-[#525252]","text-[#a3a3a3]")}`}>
+          {campaigns.length} campañas · últimos 30 días
+        </p>
+        <button
+          onClick={triggerSync} disabled={syncing}
+          className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition ${d("border-[#2a2a2a] text-[#737373] hover:text-white","border-[#e5e5e5] text-[#525252] hover:bg-[#f5f5f5]")}`}
+          title="Sincronizar con Google Ads API"
+        >
+          <RefreshCw size={11} className={syncing ? "animate-spin" : ""} /> Sync Google Ads
+        </button>
+        <button
+          onClick={() => setShowForm(v => !v)}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#2D9F6A]/15 text-[#2D9F6A] border border-[#2D9F6A]/30 hover:bg-[#2D9F6A]/25 transition"
+        >
+          <Plus size={11} /> Nueva campaña manual
+        </button>
       </div>
+
+      {syncMsg && (
+        <p className={`text-xs px-3 py-2 rounded-lg border ${syncMsg.startsWith("✓") ? "text-[#2D9F6A] border-[#2D9F6A]/20 bg-[#2D9F6A]/5" : "text-amber-400 border-amber-500/20 bg-amber-500/5"}`}>
+          {syncMsg}
+        </p>
+      )}
+
+      {/* Create form */}
+      {showForm && (
+        <div className={`rounded-xl border p-4 space-y-3 ${d("border-[#2a2a2a] bg-[#0a0a0a]","border-[#e5e5e5] bg-[#fafafa]")}`}>
+          <p className={`text-xs font-bold ${d("text-white","text-[#171717]")}`}>Nueva campaña manual</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Nombre</label>
+              <input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="Ej: Search B2B Laptops MAY26" className={inputCls} />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Tipo</label>
+              <select value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value}))} className={inputCls}>
+                <option value="search">Search</option>
+                <option value="display">Display</option>
+                <option value="remarketing">Remarketing</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Segmento</label>
+              <select value={form.target_segment} onChange={e => setForm(f => ({...f, target_segment: e.target.value}))} className={inputCls}>
+                <option value="">General</option>
+                <option value="empresas">Empresas</option>
+                <option value="resellers">Resellers</option>
+                <option value="integradores">Integradores</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Budget diario (ARS)</label>
+              <input type="number" value={form.daily_budget} onChange={e => setForm(f => ({...f, daily_budget: e.target.value}))} placeholder="0" className={inputCls} />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleCreate} disabled={saving} className="text-xs px-4 py-1.5 rounded-lg bg-[#2D9F6A] text-white hover:bg-[#25885a] disabled:opacity-50 transition">
+              {saving ? "Guardando..." : "Crear campaña"}
+            </button>
+            <button onClick={() => setShowForm(false)} className={`text-xs px-3 py-1.5 rounded-lg border ${d("border-[#2a2a2a] text-[#737373]","border-[#e5e5e5] text-[#525252]")} transition`}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="space-y-2">{Array.from({length:3}).map((_,i) => <div key={i} className={`h-14 rounded-xl animate-pulse ${d("bg-[#111]","bg-[#f0f0f0]")}`} />)}</div>
+      ) : campaigns.length === 0 && utmStats.length === 0 ? (
+        <div className={`rounded-xl border p-10 text-center ${d("border-[#1f1f1f] bg-[#0d0d0d]","border-[#e5e5e5] bg-white")}`}>
+          <Megaphone size={28} className="mx-auto mb-3 text-[#404040]" />
+          <p className={`text-sm font-semibold ${d("text-[#737373]","text-[#a3a3a3]")}`}>Sin campañas aún</p>
+          <p className="text-xs text-[#525252] mt-1 max-w-sm mx-auto">
+            Creá una campaña manual o configurá las credenciales de Google Ads API
+            en Supabase Dashboard → Edge Functions → Secrets para sincronizar automáticamente.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Campaigns from DB */}
+          {campaigns.length > 0 && (
+            <div className={`rounded-xl border overflow-hidden ${d("border-[#1f1f1f]","border-[#e5e5e5]")}`}>
+              <div className={`grid grid-cols-[1.5fr_70px_70px_80px_80px_80px_80px] gap-2 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider ${d("bg-[#0d0d0d] text-[#525252]","bg-[#f5f5f5] text-[#a3a3a3]")}`}>
+                <span>Campaña</span>
+                <span className="text-right">Clicks</span>
+                <span className="text-right">Costo</span>
+                <span className="text-right">Registros</span>
+                <span className="text-right">CPL</span>
+                <span className="text-right">ROAS</span>
+                <span className="text-right">Estado</span>
+              </div>
+              {campaigns.map((c) => (
+                <div key={c.id} className={`grid grid-cols-[1.5fr_70px_70px_80px_80px_80px_80px] gap-2 px-4 py-3 border-t text-xs items-center ${d("border-[#1a1a1a] bg-[#111]","border-[#f0f0f0] bg-white")}`}>
+                  <div className="min-w-0">
+                    <p className={`font-semibold truncate ${d("text-white","text-[#171717]")}`}>{c.name}</p>
+                    <p className="text-[10px] text-[#525252]">{c.type}{c.target_segment ? ` · ${c.target_segment}` : ""}{c.source === "google_ads_api" ? " · API" : " · manual"}</p>
+                  </div>
+                  <span className={`text-right ${d("text-[#d4d4d4]","text-[#525252]")}`}>{fmt(c.clicks_30d)}</span>
+                  <span className={`text-right ${d("text-[#d4d4d4]","text-[#525252]")}`}>{c.cost_30d > 0 ? `$${Math.round(c.cost_30d).toLocaleString("es-AR")}` : "—"}</span>
+                  <span className={`text-right ${d("text-white","text-[#171717]")}`}>{fmt(c.conversions_30d)}</span>
+                  <span className={`text-right ${c.cpl_30d && c.cpl_30d > 8000 ? "text-red-400" : c.cpl_30d ? "text-[#2D9F6A]" : d("text-[#525252]","text-[#a3a3a3]")}`}>
+                    {c.cpl_30d ? `$${Math.round(c.cpl_30d).toLocaleString("es-AR")}` : "—"}
+                  </span>
+                  <span className={`text-right font-semibold ${c.roas_30d >= 3 ? "text-[#2D9F6A]" : c.roas_30d >= 1 ? "text-amber-400" : c.roas_30d > 0 ? "text-red-400" : d("text-[#525252]","text-[#a3a3a3]")}`}>
+                    {c.roas_30d > 0 ? `${c.roas_30d}x` : "—"}
+                  </span>
+                  <span className={`text-right text-[10px] px-2 py-0.5 rounded-full ${c.status === "active" ? "text-green-400 bg-green-500/10" : "text-gray-400 bg-gray-500/10"}`}>
+                    {c.status === "active" ? "Activa" : "Pausada"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* UTM-only stats (no campaign in DB) */}
+          {utmStats.length > 0 && (
+            <div>
+              <p className={`text-[10px] uppercase tracking-widest font-bold mb-2 ${d("text-[#525252]","text-[#a3a3a3]")}`}>
+                UTM detectados en tráfico (sin campaña registrada)
+              </p>
+              <div className={`rounded-xl border overflow-hidden ${d("border-[#1f1f1f]","border-[#e5e5e5]")}`}>
+                {utmStats.map((s) => (
+                  <div key={s.campaign} className={`grid grid-cols-[1fr_repeat(3,80px)] gap-2 px-4 py-2.5 border-t first:border-t-0 text-xs ${d("border-[#1a1a1a] bg-[#111]","border-[#f0f0f0] bg-white")}`}>
+                    <span className={`font-mono truncate ${d("text-[#a3a3a3]","text-[#525252]")}`}>{s.campaign}</span>
+                    <span className={`text-right ${d("text-white","text-[#171717]")}`}>{s.clicks}</span>
+                    <span className={`text-right ${d("text-white","text-[#171717]")}`}>{s.registrations}</span>
+                    <span className="text-right font-semibold text-[#2D9F6A]">{s.orders}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
