@@ -23,6 +23,16 @@ import { getRoleFromRequest } from "./_shared/roles.js";
  * Auth: Bearer <admin JWT> — must have role = 'admin'
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  try {
+    return await _handler(req, res);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Error interno del servidor.";
+    console.error("[create-user] Unhandled error:", msg);
+    return fail(res, msg, 500);
+  }
+}
+
+async function _handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
 
   // 1. Verify caller is admin
