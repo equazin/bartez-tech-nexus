@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { fail, methodNotAllowed, ok } from "./_shared/http";
-import { getSupabaseAdmin, getSupabaseClient } from "./_shared/supabaseServer";
-import { getRoleFromRequest } from "./_shared/roles";
+import { fail, methodNotAllowed, ok } from "./_shared/http.js";
+import { getSupabaseAdmin, getSupabaseClient } from "./_shared/supabaseServer.js";
+import { getRoleFromRequest } from "./_shared/roles.js";
 
 /**
  * POST /api/create-user
