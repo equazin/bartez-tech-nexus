@@ -308,7 +308,7 @@ const EMPTY_AI_FORM = {
   daily_budget_ars: "",
   product_focus:    "",
   extra_context:    "",
-  num_ad_groups:    "3",
+  num_ad_groups:    "1",
 };
 
 function CampaignsSection({ isDark }: { isDark: boolean }) {
@@ -520,7 +520,7 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
               <div>
                 <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Grupos de anuncios</label>
                 <select value={aiForm.num_ad_groups} onChange={e => setAIForm(f => ({...f, num_ad_groups: e.target.value}))} className={inputCls}>
-                  {["1","2","3","4","5"].map(n => <option key={n} value={n}>{n} grupos</option>)}
+                  {["1","2"].map(n => <option key={n} value={n}>{n} grupo{n === "1" ? "" : "s"}</option>)}
                 </select>
               </div>
               <div className="col-span-2">
