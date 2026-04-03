@@ -180,63 +180,105 @@ async function handleEnrichContent(body: Record<string, unknown>) {
   return json({ ok: true, results, summary: { total: results.length, generated: results.filter(r => r.action === "generated").length, review_required: results.filter(r => r.action === "review_required").length, skipped: 0 } });
 }
 
-// ── generate_campaign ──────────────────────────────────────────────────────
+// ── generate_campaign (template engine — sin dependencia de API externa) ───
+
+const KEYWORDS_BY_SEGMENT: Record<string, string[]> = {
+  empresas:     ["comprar notebooks para empresa", "equipamiento IT corporativo", "proveedor tecnología empresas argentina", "laptops empresa precio mayorista", "tecnología corporativa argentina"],
+  resellers:    ["distribuidor mayorista tecnología", "comprar al por mayor IT", "mayorista notebooks argentina", "precio mayorista tecnología", "distribuidor IT argentina"],
+  integradores: ["proveedor integradores IT", "distribuidor networking mayorista", "switches routers precio mayorista", "equipamiento servidores integradores", "soluciones IT para integradores"],
+  general:      ["tecnología para empresas argentina", "equipos IT precio mayorista", "notebooks empresas argentina", "proveedor IT corporativo", "servidores y networking argentina"],
+};
+
+const KEYWORDS_BY_PRODUCT: Record<string, string[]> = {
+  notebook:     ["notebook empresas precio", "laptops corporativas argentina", "notebook mayorista B2B"],
+  server:       ["servidores empresas argentina", "servidor rack precio mayorista", "servidores IT corporativos"],
+  networking:   ["switches cisco mayorista", "routers empresas argentina", "access point mayorista"],
+  storage:      ["discos SSD empresas", "almacenamiento NVMe mayorista", "storage corporativo argentina"],
+  monitor:      ["monitores empresas mayorista", "pantallas corporativas precio", "monitores IT argentina"],
+};
+
+const HEADLINES_BY_OBJECTIVE: Record<string, string[]> = {
+  leads:      ["Portal B2B Bartez", "Registrate Gratis Hoy", "Cotizá Sin Compromiso", "Acceso B2B Inmediato", "Precios Mayoristas IT", "Tecnología para Empresas"],
+  ventas:     ["Comprá IT Mejor Precio", "Stock Disponible Hoy", "Entrega 24-48hs", "Precios Mayoristas IT", "Portal B2B Bartez", "Tecnología Corporativa"],
+  awareness:  ["Bartez Tecnología B2B", "Distribuidor IT Argentina", "14.000 Productos IT", "Portal Mayorista B2B", "Catálogo Completo IT", "Precios para Empresas"],
+};
+
+const HEADLINES_BY_SEGMENT: Record<string, string[]> = {
+  empresas:     ["IT para tu Empresa", "Equipá tu Oficina Ya"],
+  resellers:    ["Precio Especial Reseller", "Margen para Revendedores"],
+  integradores: ["Stock para Integradores", "Precios para Proyectos IT"],
+  general:      ["Tecnología al Mejor Precio", "Catálogo IT Completo"],
+};
+
+const DESCRIPTIONS_BY_OBJECTIVE: Record<string, string[]> = {
+  leads:     ["Accedé al portal B2B de Bartez. Cotizá tecnología mayorista para tu empresa.", "Registrate y gestioná pedidos IT con precios preferenciales en Argentina."],
+  ventas:    ["Notebooks, servidores y networking al precio mayorista con stock en Argentina.", "Catálogo +14.000 productos con precios exclusivos y entrega en todo el país."],
+  awareness: ["Bartez: distribuidor mayorista de IT para empresas e integradores en Argentina.", "Portal B2B con más de 14.000 productos tecnológicos y precios mayoristas."],
+};
+
+const NEGATIVE_KEYWORDS = ["gratis", "segunda mano", "usado", "reparación", "tutoriales"];
+
+const BIDDING_BY_OBJECTIVE: Record<string, string> = {
+  leads:     "Maximizar conversiones",
+  ventas:    "CPC manual optimizado",
+  awareness: "Maximizar clics",
+};
+
+const GROUP_NAMES_BY_SEGMENT: Record<string, string[]> = {
+  empresas:     ["Empresas Medianas y Grandes", "Equipamiento Corporativo"],
+  resellers:    ["Revendedores IT", "Distribución Mayorista"],
+  integradores: ["Integradores de Sistemas", "Proyectos IT"],
+  general:      ["Tecnología para Empresas", "IT Corporativo"],
+};
+
+function detectProductCategory(focus: string): string | null {
+  const f = focus.toLowerCase();
+  if (/notebook|laptop/.test(f)) return "notebook";
+  if (/server|servidor/.test(f)) return "server";
+  if (/switch|router|network|wifi|access/.test(f)) return "networking";
+  if (/ssd|nvme|disco|storage|almacenamiento/.test(f)) return "storage";
+  if (/monitor|pantalla|display/.test(f)) return "monitor";
+  return null;
+}
 
 async function handleGenerateCampaign(body: Record<string, unknown>, userId: string) {
-  const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-  if (!ANTHROPIC_API_KEY) return json({ ok: false, message: "ANTHROPIC_API_KEY no configurada" }, 400);
-
-  const { objective, campaign_type, target_segment, daily_budget_ars, product_focus, extra_context } = body as Record<string, string | number>;
+  const { objective, campaign_type, target_segment, daily_budget_ars, product_focus } = body as Record<string, string | number>;
+  const seg = String(target_segment ?? "general");
+  const obj = String(objective ?? "leads");
   const numGroups = Math.min(2, Math.max(1, Number(body.num_ad_groups ?? 1)));
 
-  const objectiveLabel: Record<string, string> = {
-    leads: "captar leads B2B (formularios de contacto y registro de empresas)",
-    ventas: "generar ventas directas en el portal B2B",
-    awareness: "generar reconocimiento de marca Bartez entre empresas e integradores",
+  const baseKeywords = KEYWORDS_BY_SEGMENT[seg] ?? KEYWORDS_BY_SEGMENT.general;
+  const productCat = product_focus ? detectProductCategory(String(product_focus)) : null;
+  const productKeywords = productCat ? KEYWORDS_BY_PRODUCT[productCat] ?? [] : [];
+  const allKeywords = [...new Set([...baseKeywords, ...productKeywords])];
+
+  const baseHeadlines = HEADLINES_BY_OBJECTIVE[obj] ?? HEADLINES_BY_OBJECTIVE.leads;
+  const segHeadlines = HEADLINES_BY_SEGMENT[seg] ?? HEADLINES_BY_SEGMENT.general;
+  const allHeadlines = [...new Set([...baseHeadlines, ...segHeadlines])];
+
+  const descriptions = DESCRIPTIONS_BY_OBJECTIVE[obj] ?? DESCRIPTIONS_BY_OBJECTIVE.leads;
+  const groupNames = GROUP_NAMES_BY_SEGMENT[seg] ?? GROUP_NAMES_BY_SEGMENT.general;
+
+  const chunkSize = Math.ceil(allKeywords.length / numGroups);
+  const ad_groups = Array.from({ length: numGroups }, (_, i) => ({
+    name: groupNames[i] ?? `Grupo ${i + 1}`,
+    keywords: allKeywords.slice(i * chunkSize, (i + 1) * chunkSize).slice(0, 5),
+    headlines: allHeadlines.slice(0, 6),
+    descriptions: descriptions.slice(0, 2),
+  }));
+
+  const productLabel = product_focus ? ` - ${product_focus}` : "";
+  const campaignName = `Bartez ${seg} ${obj}${productLabel} ${new Date().toLocaleDateString("es-AR")}`;
+
+  const structure = {
+    name: campaignName,
+    ad_groups,
+    negative_keywords: NEGATIVE_KEYWORDS,
+    bidding_strategy: BIDDING_BY_OBJECTIVE[obj] ?? "Maximizar clics",
+    notes: `Campaña generada automáticamente para segmento "${seg}", objetivo "${obj}". Presupuesto diario: $${Number(daily_budget_ars).toLocaleString("es-AR")} ARS. Revisá los textos antes de activar.`,
   };
-  const segmentLabel: Record<string, string> = {
-    empresas: "empresas medianas y grandes de Argentina buscando equipamiento IT",
-    resellers: "resellers y distribuidores de tecnología en Argentina",
-    integradores: "integradores de sistemas y empresas de servicios IT en Argentina",
-    general: "empresas argentinas que necesiten tecnología, laptops, servidores o networking",
-  };
 
-  const prompt = `Sos un experto en Google Ads B2B para el mercado argentino. Generá una campaña completa para Bartez, distribuidora de tecnología mayorista con portal B2B.
-
-PARÁMETROS:
-- Objetivo: ${objectiveLabel[String(objective)] ?? objective}
-- Tipo: ${campaign_type}
-- Segmento: ${segmentLabel[String(target_segment)] ?? target_segment}
-- Presupuesto diario: $${Number(daily_budget_ars).toLocaleString("es-AR")} ARS
-${product_focus ? `- Foco de producto: ${product_focus}` : ""}
-${extra_context ? `- Contexto: ${extra_context}` : ""}
-
-Generá ${numGroups} grupo(s) de anuncios. Por grupo: 5 keywords, 6 headlines (máx 30 chars c/u), 2 descriptions (máx 90 chars c/u). Español rioplatense. Foco en B2B Argentina. Sin match_types. 4 negativos globales.
-
-Respondé SOLO con JSON minificado (sin markdown ni texto extra):
-{"name":"...","ad_groups":[{"name":"...","keywords":[],"headlines":[],"descriptions":[]}],"negative_keywords":[],"bidding_strategy":"CPC manual o Maximizar clics","notes":"..."}`;
-
-  const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 800, messages: [{ role: "user", content: prompt }] }),
-  });
-
-  if (!anthropicRes.ok) return json({ ok: false, message: `Error Claude API: ${await anthropicRes.text()}` }, 500);
-
-  const anthropicData = await anthropicRes.json() as { content: { type: string; text: string }[]; usage: { input_tokens: number; output_tokens: number } };
-  const rawText = anthropicData.content[0]?.text ?? "";
-
-  let structure: Record<string, unknown>;
-  try { structure = JSON.parse(rawText); }
-  catch {
-    const match = rawText.match(/\{[\s\S]*\}/);
-    if (!match) return json({ ok: false, message: "Claude no devolvió JSON válido" }, 500);
-    structure = JSON.parse(match[0]);
-  }
-
-  const campaignName = (structure.name as string) || `${target_segment} ${objective} ${new Date().toLocaleDateString("es-AR")}`;
-  const draft = await insertDraft({ created_by: userId, name: campaignName, objective, campaign_type, target_segment, daily_budget_ars, campaign_structure: structure, ai_model: "claude-haiku-4-5-20251001" });
+  const draft = await insertDraft({ created_by: userId, name: campaignName, objective, campaign_type, target_segment, daily_budget_ars, campaign_structure: structure, ai_model: "template-v1" });
   if (!draft) return json({ ok: false, message: "No se pudo guardar el borrador" }, 500);
   return json({ ok: true, draft });
 }
