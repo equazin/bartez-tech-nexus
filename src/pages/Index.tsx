@@ -9,6 +9,7 @@ import CorporateClients from "@/components/CorporateClients";
 import IndustriesServed from "@/components/IndustriesServed";
 import ClientTestimonials from "@/components/ClientTestimonials";
 import WorkMethodology from "@/components/WorkMethodology";
+import FeaturedProducts from "@/components/FeaturedProducts";
 import heroBg from "@/assets/hero-bg.png";
 
 const fadeUp = {
@@ -200,6 +201,9 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      {/* Featured Products */}
+      <FeaturedProducts />
 
       {/* Work Methodology */}
       <section className="relative">

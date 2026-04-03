@@ -2,7 +2,7 @@ import { useMemo, useEffect, useState } from "react";
 import {
   TrendingUp, AlertTriangle, Package,
   Activity, Archive, Sparkles,
-  RefreshCcw, UserX, UserCheck, BarChart3, Zap, Search,
+  RefreshCcw, UserX, UserCheck, BarChart3, Zap, Search, TrendingDown,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -51,7 +51,31 @@ export function B2BInsights({ clients, orders, isDark, onNavigate }: InsightProp
       .map(([id, vol]) => ({ client: clients.find(c => c.id === id), volume: vol }));
   }, [orders, clients]);
 
-  // ── 3. Stock Inmovilizado — real DB query ──────────────────────
+  // ── 3. Ticket Average Decline ────────────────────────────────
+  const ticketDecline = useMemo(() => {
+    const now = new Date();
+    const d30 = new Date(now); d30.setDate(d30.getDate() - 30);
+    const d60 = new Date(now); d60.setDate(d60.getDate() - 60);
+
+    const clientIds = [...new Set(orders.map(o => o.client_id))];
+    const results: Array<{ id: string; name: string; prev: number; curr: number; drop: number }> = [];
+
+    for (const cid of clientIds) {
+      const curr30 = orders.filter(o => o.client_id === cid && new Date(o.created_at) >= d30 && o.status !== "rejected");
+      const prev30 = orders.filter(o => o.client_id === cid && new Date(o.created_at) >= d60 && new Date(o.created_at) < d30 && o.status !== "rejected");
+      if (curr30.length < 2 || prev30.length < 2) continue;
+      const avgCurr = curr30.reduce((s, o) => s + o.total, 0) / curr30.length;
+      const avgPrev = prev30.reduce((s, o) => s + o.total, 0) / prev30.length;
+      const drop = ((avgPrev - avgCurr) / avgPrev) * 100;
+      if (drop >= 20) {
+        const c = clients.find(cl => cl.id === cid);
+        if (c) results.push({ id: cid, name: c.company_name || c.contact_name || cid, prev: avgPrev, curr: avgCurr, drop });
+      }
+    }
+    return results.sort((a, b) => b.drop - a.drop).slice(0, 4);
+  }, [orders, clients]);
+
+  // ── 4. Stock Inmovilizado — real DB query ──────────────────────
   // Products with stock > 0 but very low stock (below stock_min) or
   // high stock that hasn't moved (using stock_min as proxy for slow movers)
   const [stockRisk, setStockRisk]     = useState<StockRiskProduct[]>([]);
@@ -118,7 +142,7 @@ export function B2BInsights({ clients, orders, isDark, onNavigate }: InsightProp
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         {/* Churn Risk */}
         <div className={`p-6 rounded-2xl border ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
           <div className="flex items-center gap-2 mb-4 text-[#EAB308]">
@@ -162,6 +186,31 @@ export function B2BInsights({ clients, orders, isDark, onNavigate }: InsightProp
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Ticket Average Decline */}
+        <div className={`p-6 rounded-2xl border ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
+          <div className="flex items-center gap-2 mb-4 text-rose-400">
+            <TrendingDown size={16} />
+            <h3 className="text-sm font-bold uppercase tracking-widest">Caída Ticket Promedio</h3>
+          </div>
+          <p className="text-[11px] text-[#525252] mb-4">Clientes con ticket promedio &gt;20% menor vs. el mes anterior.</p>
+          <div className="space-y-3">
+            {ticketDecline.map(t => (
+              <div key={t.id} className={`p-3 rounded-xl border ${dk("bg-[#0a0a0a] border-[#1a1a1a]", "bg-[#fafafa] border-[#f0f0f0]")}`}>
+                <div className="flex items-center justify-between mb-1">
+                  <p className={`text-xs font-bold truncate ${dk("text-white", "text-[#171717]")}`}>{t.name}</p>
+                  <span className="text-[10px] font-extrabold text-rose-400">-{t.drop.toFixed(0)}%</span>
+                </div>
+                <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                  <span>Ant: <span className="text-gray-400">${Math.round(t.prev).toLocaleString("es-AR")}</span></span>
+                  <span>→</span>
+                  <span>Act: <span className="text-rose-400">${Math.round(t.curr).toLocaleString("es-AR")}</span></span>
+                </div>
+              </div>
+            ))}
+            {ticketDecline.length === 0 && <p className="text-xs text-center py-4 text-[#525252]">Sin caídas significativas detectadas.</p>}
           </div>
         </div>
 
