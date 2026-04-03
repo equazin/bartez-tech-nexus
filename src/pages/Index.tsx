@@ -10,6 +10,13 @@ import IndustriesServed from "@/components/IndustriesServed";
 import ClientTestimonials from "@/components/ClientTestimonials";
 import WorkMethodology from "@/components/WorkMethodology";
 import FeaturedProducts from "@/components/FeaturedProducts";
+import HeroContactForm from "@/components/HeroContactForm";
+import ProductCounter from "@/components/ProductCounter";
+import CaseStudies from "@/components/CaseStudies";
+import ClientLogos from "@/components/ClientLogos";
+import ITSavingsCalculator from "@/components/ITSavingsCalculator";
+import FAQSection from "@/components/FAQSection";
+import WhatsAppFloat from "@/components/WhatsAppFloat";
 import heroBg from "@/assets/hero-bg.png";
 
 const fadeUp = {
@@ -37,10 +44,11 @@ const services = [
 ];
 
 const stats = [
-  { value: "500+", label: "Empresas confían en nosotros" },
-  { value: "15+", label: "Años de trayectoria" },
-  { value: "98%", label: "Índice de satisfacción" },
-  { value: "24/7", label: "Soporte disponible" },
+  { value: "500+",  label: "Empresas confían en nosotros" },
+  { value: "15+",   label: "Años de trayectoria" },
+  { value: "98%",   label: "Índice de satisfacción" },
+  { value: "24/7",  label: "Soporte disponible" },
+  { value: "live",  label: "Productos en catálogo" },
 ];
 
 const trustItems = [
@@ -112,6 +120,12 @@ const Index = () => {
               ))}
             </motion.div>
 
+            {/* Quick contact form */}
+            <motion.div variants={fadeUp} custom={5} className="mt-10 relative">
+              <p className="text-xs text-muted-foreground/70 mb-2.5">¿Querés que te contactemos? Dejá tu email:</p>
+              <HeroContactForm />
+            </motion.div>
+
             <motion.div
               variants={fadeUp}
               custom={5}
@@ -127,12 +141,15 @@ const Index = () => {
         </div>
       </section>
 
+      {/* Client Logos */}
+      <ClientLogos />
+
       {/* Stats + Brands */}
       <section className="relative">
         <div className="section-divider" />
         <div className="bg-surface">
           <div className="container mx-auto px-4 py-14 lg:px-8 lg:py-16">
-            <div className="grid grid-cols-2 gap-8 md:grid-cols-4 mb-12">
+            <div className="grid grid-cols-2 gap-8 md:grid-cols-5 mb-12">
               {stats.map((stat, i) => (
                 <motion.div
                   key={stat.label}
@@ -142,7 +159,9 @@ const Index = () => {
                   transition={{ delay: i * 0.1, duration: 0.5 }}
                   className="text-center"
                 >
-                  <div className="stat-number text-3xl md:text-4xl lg:text-5xl">{stat.value}</div>
+                  <div className="stat-number text-3xl md:text-4xl lg:text-5xl">
+                    {stat.value === "live" ? <ProductCounter /> : stat.value}
+                  </div>
                   <div className="mt-2 text-xs text-muted-foreground">{stat.label}</div>
                 </motion.div>
               ))}
@@ -204,6 +223,9 @@ const Index = () => {
 
       {/* Featured Products */}
       <FeaturedProducts />
+
+      {/* Case Studies */}
+      <CaseStudies />
 
       {/* Work Methodology */}
       <section className="relative">
@@ -277,6 +299,12 @@ const Index = () => {
 
       {/* Client Testimonials */}
       <ClientTestimonials />
+
+      {/* IT Savings Calculator */}
+      <ITSavingsCalculator />
+
+      {/* FAQ */}
+      <FAQSection />
 
       {/* B2B Partner CTA */}
       <section className="relative">
@@ -451,6 +479,9 @@ const Index = () => {
         </div>
       </section>
     </Layout>
+
+    {/* WhatsApp floating button */}
+    <WhatsAppFloat />
   );
 };
 
