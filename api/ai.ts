@@ -241,12 +241,7 @@ function detectProductCategory(focus: string): string | null {
   return null;
 }
 
-async function handleGenerateCampaign(body: Record<string, unknown>, userId: string) {
-  const { objective, campaign_type, target_segment, daily_budget_ars, product_focus } = body as Record<string, string | number>;
-  const seg = String(target_segment ?? "general");
-  const obj = String(objective ?? "leads");
-  const numGroups = Math.min(2, Math.max(1, Number(body.num_ad_groups ?? 1)));
-
+function buildTemplateStructure(seg: string, obj: string, numGroups: number, product_focus: string | number | undefined, daily_budget_ars: string | number | undefined) {
   const baseKeywords = KEYWORDS_BY_SEGMENT[seg] ?? KEYWORDS_BY_SEGMENT.general;
   const productCat = product_focus ? detectProductCategory(String(product_focus)) : null;
   const productKeywords = productCat ? KEYWORDS_BY_PRODUCT[productCat] ?? [] : [];
@@ -258,8 +253,8 @@ async function handleGenerateCampaign(body: Record<string, unknown>, userId: str
 
   const descriptions = DESCRIPTIONS_BY_OBJECTIVE[obj] ?? DESCRIPTIONS_BY_OBJECTIVE.leads;
   const groupNames = GROUP_NAMES_BY_SEGMENT[seg] ?? GROUP_NAMES_BY_SEGMENT.general;
-
   const chunkSize = Math.ceil(allKeywords.length / numGroups);
+
   const ad_groups = Array.from({ length: numGroups }, (_, i) => ({
     name: groupNames[i] ?? `Grupo ${i + 1}`,
     keywords: allKeywords.slice(i * chunkSize, (i + 1) * chunkSize).slice(0, 5),
@@ -270,15 +265,107 @@ async function handleGenerateCampaign(body: Record<string, unknown>, userId: str
   const productLabel = product_focus ? ` - ${product_focus}` : "";
   const campaignName = `Bartez ${seg} ${obj}${productLabel} ${new Date().toLocaleDateString("es-AR")}`;
 
-  const structure = {
-    name: campaignName,
-    ad_groups,
-    negative_keywords: NEGATIVE_KEYWORDS,
-    bidding_strategy: BIDDING_BY_OBJECTIVE[obj] ?? "Maximizar clics",
-    notes: `Campaña generada automáticamente para segmento "${seg}", objetivo "${obj}". Presupuesto diario: $${Number(daily_budget_ars).toLocaleString("es-AR")} ARS. Revisá los textos antes de activar.`,
+  return {
+    campaignName,
+    structure: {
+      name: campaignName,
+      ad_groups,
+      negative_keywords: NEGATIVE_KEYWORDS,
+      bidding_strategy: BIDDING_BY_OBJECTIVE[obj] ?? "Maximizar clics",
+      notes: `Campaña generada para segmento "${seg}", objetivo "${obj}". Presupuesto diario: $${Number(daily_budget_ars).toLocaleString("es-AR")} ARS. Revisá los textos antes de activar.`,
+    },
+  };
+}
+
+async function callGemini(prompt: string): Promise<string | null> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return null;
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 800, temperature: 0.4 },
+      }),
+    }
+  );
+  if (!res.ok) return null;
+  const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
+}
+
+async function handleGenerateCampaign(body: Record<string, unknown>, userId: string) {
+  const { objective, campaign_type, target_segment, daily_budget_ars, product_focus, extra_context } = body as Record<string, string | number>;
+  const seg = String(target_segment ?? "general");
+  const obj = String(objective ?? "leads");
+  const numGroups = Math.min(2, Math.max(1, Number(body.num_ad_groups ?? 1)));
+
+  const objectiveLabel: Record<string, string> = {
+    leads: "captar leads B2B (formularios de contacto y registro)",
+    ventas: "generar ventas directas en el portal B2B",
+    awareness: "reconocimiento de marca entre empresas e integradores",
+  };
+  const segmentLabel: Record<string, string> = {
+    empresas: "empresas medianas y grandes de Argentina buscando equipamiento IT",
+    resellers: "resellers y distribuidores de tecnología en Argentina",
+    integradores: "integradores de sistemas y empresas de servicios IT en Argentina",
+    general: "empresas argentinas que necesiten tecnología, laptops, servidores o networking",
   };
 
-  const draft = await insertDraft({ created_by: userId, name: campaignName, objective, campaign_type, target_segment, daily_budget_ars, campaign_structure: structure, ai_model: "template-v1" });
+  let structure: Record<string, unknown>;
+  let campaignName: string;
+  let aiModel = "template-v1";
+
+  const geminiKey = process.env.GEMINI_API_KEY;
+
+  if (geminiKey) {
+    const prompt = `Sos un experto en Google Ads B2B para el mercado argentino. Generá una campaña completa para Bartez, distribuidora de tecnología mayorista con portal B2B.
+
+PARÁMETROS:
+- Objetivo: ${objectiveLabel[String(objective)] ?? objective}
+- Tipo: ${campaign_type}
+- Segmento: ${segmentLabel[seg] ?? seg}
+- Presupuesto diario: $${Number(daily_budget_ars).toLocaleString("es-AR")} ARS
+${product_focus ? `- Foco de producto: ${product_focus}` : ""}
+${extra_context ? `- Contexto: ${extra_context}` : ""}
+
+Generá ${numGroups} grupo(s) de anuncios. Por grupo: 5 keywords, 6 headlines (máx 30 chars c/u), 2 descriptions (máx 90 chars c/u). Español rioplatense. Foco en B2B Argentina. Sin match_types. 4 negativos globales.
+
+Respondé SOLO con JSON minificado sin markdown:
+{"name":"...","ad_groups":[{"name":"...","keywords":[],"headlines":[],"descriptions":[]}],"negative_keywords":[],"bidding_strategy":"...","notes":"..."}`;
+
+    const rawText = await callGemini(prompt);
+    if (rawText) {
+      try {
+        const cleaned = rawText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        const match = cleaned.match(/\{[\s\S]*\}/);
+        if (match) {
+          structure = JSON.parse(match[0]);
+          campaignName = (structure.name as string) || `Bartez ${seg} ${obj} ${new Date().toLocaleDateString("es-AR")}`;
+          aiModel = "gemini-2.0-flash";
+        } else {
+          throw new Error("no JSON found");
+        }
+      } catch {
+        // Gemini returned invalid JSON — fall back to template
+        const tpl = buildTemplateStructure(seg, obj, numGroups, product_focus, daily_budget_ars);
+        structure = tpl.structure;
+        campaignName = tpl.campaignName;
+      }
+    } else {
+      const tpl = buildTemplateStructure(seg, obj, numGroups, product_focus, daily_budget_ars);
+      structure = tpl.structure;
+      campaignName = tpl.campaignName;
+    }
+  } else {
+    const tpl = buildTemplateStructure(seg, obj, numGroups, product_focus, daily_budget_ars);
+    structure = tpl.structure;
+    campaignName = tpl.campaignName;
+  }
+
+  const draft = await insertDraft({ created_by: userId, name: campaignName, objective, campaign_type, target_segment, daily_budget_ars, campaign_structure: structure, ai_model: aiModel });
   if (!draft) return json({ ok: false, message: "No se pudo guardar el borrador" }, 500);
   return json({ ok: true, draft });
 }
