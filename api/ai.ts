@@ -5,11 +5,12 @@
  *   action: "enrich_content"    → product description/specs generation
  *   action: "generate_campaign" → Google Ads campaign structure via Claude
  */
-import { createClient } from "@supabase/supabase-js";
-
-export const config = { maxDuration: 60 };
+export const config = { runtime: "edge" };
 
 // ── Shared helpers ─────────────────────────────────────────────────────────
+
+const SB_URL = () => (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "").replace(/\/$/, "");
+const SB_KEY = () => process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -18,20 +19,38 @@ function json(data: unknown, status = 200) {
   });
 }
 
-function getAdminSupabase() {
-  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-  if (!url || !key) throw new Error("Missing Supabase config");
-  return createClient(url, key);
+async function getAuthUser(request: Request): Promise<{ id: string } | null> {
+  const authHeader = request.headers.get("Authorization") || "";
+  if (!authHeader.startsWith("Bearer ")) return null;
+  const res = await fetch(`${SB_URL()}/auth/v1/user`, {
+    headers: { Authorization: authHeader, apikey: process.env.VITE_SUPABASE_ANON_KEY || "" },
+  });
+  if (!res.ok) return null;
+  const data = await res.json() as { id?: string };
+  return data.id ? { id: data.id } : null;
 }
 
-async function getAuthUser(request: Request) {
-  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
-  const anonKey = process.env.VITE_SUPABASE_ANON_KEY || "";
-  const authHeader = request.headers.get("Authorization") || "";
-  const sbUser = createClient(url, anonKey, { global: { headers: { Authorization: authHeader } } });
-  const { data: { user }, error } = await sbUser.auth.getUser();
-  return error ? null : user;
+async function getProfile(userId: string): Promise<{ role: string } | null> {
+  const res = await fetch(`${SB_URL()}/rest/v1/profiles?id=eq.${userId}&select=role&limit=1`, {
+    headers: { Authorization: `Bearer ${SB_KEY()}`, apikey: SB_KEY(), Accept: "application/json" },
+  });
+  if (!res.ok) return null;
+  const rows = await res.json() as { role: string }[];
+  return rows[0] ?? null;
+}
+
+async function insertDraft(record: Record<string, unknown>): Promise<{ id: string } | null> {
+  const res = await fetch(`${SB_URL()}/rest/v1/campaign_drafts`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${SB_KEY()}`, apikey: SB_KEY(),
+      "Content-Type": "application/json", Prefer: "return=representation",
+    },
+    body: JSON.stringify(record),
+  });
+  if (!res.ok) return null;
+  const rows = await res.json() as { id: string }[];
+  return rows[0] ?? null;
 }
 
 // ── enrich_content ─────────────────────────────────────────────────────────
@@ -111,15 +130,27 @@ function buildSpecs(type: string, name: string, sku?: string | null): Record<str
   return out;
 }
 
-async function handleEnrichContent(body: Record<string, unknown>, request: Request) {
+async function sbPatch(table: string, id: number, data: Record<string, unknown>): Promise<void> {
+  await fetch(`${SB_URL()}/rest/v1/${table}?id=eq.${id}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${SB_KEY()}`, apikey: SB_KEY(), "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify(data),
+  });
+}
+
+async function sbInsert(table: string, data: Record<string, unknown>): Promise<void> {
+  await fetch(`${SB_URL()}/rest/v1/${table}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${SB_KEY()}`, apikey: SB_KEY(), "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify(data),
+  });
+}
+
+async function handleEnrichContent(body: Record<string, unknown>) {
   const products = (body.products as ContentProductInput[]) ?? [];
   const mode: Mode = (body.mode as Mode) ?? "both";
   const dryRun = Boolean(body.dryRun);
   if (products.length === 0) return json({ ok: true, results: [], summary: { total: 0, generated: 0, review_required: 0, skipped: 0 } });
-
-  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || request.headers.get("x-supabase-apikey") || "";
-  const supabase = createClient(url, key);
 
   const results: { productId: number; action: string; confidence: number; notes?: string }[] = [];
 
@@ -127,8 +158,8 @@ async function handleEnrichContent(body: Record<string, unknown>, request: Reque
     const type = detectType(product.name);
     if (!type || isGenericName(product.name)) {
       if (!dryRun) {
-        await supabase.from("products").update({ content_review_required: true }).eq("id", product.id);
-        await supabase.from("content_generation_log").insert({ product_id: product.id, mode, action: "review_required", confidence: 0.2, notes: "No se pudo identificar tipo de producto" });
+        await sbPatch("products", product.id, { content_review_required: true });
+        await sbInsert("content_generation_log", { product_id: product.id, mode, action: "review_required", confidence: 0.2, notes: "No se pudo identificar tipo de producto" });
       }
       results.push({ productId: product.id, action: "review_required", confidence: 0.2, notes: "producto ambiguo" });
       continue;
@@ -140,8 +171,8 @@ async function handleEnrichContent(body: Record<string, unknown>, request: Reque
       const updatePayload: Record<string, unknown> = { content_review_required: false };
       if (mode === "both" || mode === "only_descriptions") { updatePayload.description_short = short; updatePayload.description_full = full; updatePayload.description = full; }
       if (mode === "both" || mode === "only_specs") updatePayload.specs = { ...(product.specs ?? {}), ...techSpecs };
-      await supabase.from("products").update(updatePayload).eq("id", product.id);
-      await supabase.from("content_generation_log").insert({ product_id: product.id, mode, action: "generated", confidence: 0.9 });
+      await sbPatch("products", product.id, updatePayload);
+      await sbInsert("content_generation_log", { product_id: product.id, mode, action: "generated", confidence: 0.9 });
     }
     results.push({ productId: product.id, action: "generated", confidence: 0.9 });
   }
@@ -204,15 +235,9 @@ Respondé SOLO con JSON minificado (sin markdown ni texto extra):
     structure = JSON.parse(match[0]);
   }
 
-  const sbAdmin = getAdminSupabase();
   const campaignName = (structure.name as string) || `${target_segment} ${objective} ${new Date().toLocaleDateString("es-AR")}`;
-
-  const { data: draft, error: insertErr } = await sbAdmin
-    .from("campaign_drafts")
-    .insert({ created_by: userId, name: campaignName, objective, campaign_type, target_segment, daily_budget_ars, campaign_structure: structure, ai_model: "claude-haiku-4-5-20251001" })
-    .select().single();
-
-  if (insertErr) return json({ ok: false, message: insertErr.message }, 500);
+  const draft = await insertDraft({ created_by: userId, name: campaignName, objective, campaign_type, target_segment, daily_budget_ars, campaign_structure: structure, ai_model: "claude-haiku-4-5-20251001" });
+  if (!draft) return json({ ok: false, message: "No se pudo guardar el borrador" }, 500);
   return json({ ok: true, draft });
 }
 
@@ -230,14 +255,13 @@ export default async function handler(request: Request): Promise<Response> {
 
   const action = String(body.action ?? "");
 
-  if (action === "enrich_content") return handleEnrichContent(body, request);
+  if (action === "enrich_content") return handleEnrichContent(body);
 
   if (action === "generate_campaign") {
     const user = await getAuthUser(request);
     if (!user) return json({ ok: false, error: "Unauthorized" }, 401);
-    const sbAdmin = getAdminSupabase();
-    const { data: profile } = await sbAdmin.from("profiles").select("role").eq("id", user.id).single();
-    if (!profile || !["admin", "vendedor"].includes((profile as any).role)) return json({ ok: false, error: "Permisos insuficientes" }, 403);
+    const profile = await getProfile(user.id);
+    if (!profile || !["admin", "vendedor"].includes(profile.role)) return json({ ok: false, error: "Permisos insuficientes" }, 403);
     return handleGenerateCampaign(body, user.id);
   }
 
