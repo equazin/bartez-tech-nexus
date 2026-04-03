@@ -186,6 +186,41 @@ export function ClientDashboard({
     : null;
   const creditPct = creditLimit > 0 ? Math.min(100, (creditUsed / creditLimit) * 100) : 0;
 
+  // ── Spending analytics ────────────────────────────────────────
+
+  const spendingStats = useMemo(() => {
+    const now = new Date();
+    const yearStart = new Date(now.getFullYear(), 0, 1).getTime();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+    const delivered = orders.filter(o => o.status === "delivered");
+    const ytd   = delivered.filter(o => new Date(o.created_at).getTime() >= yearStart);
+    const month = delivered.filter(o => new Date(o.created_at).getTime() >= monthStart);
+
+    const ytdTotal   = ytd.reduce((s, o) => s + (o.total ?? 0), 0);
+    const monthTotal = month.reduce((s, o) => s + (o.total ?? 0), 0);
+    const avgOrder   = ytd.length > 0 ? ytdTotal / ytd.length : 0;
+
+    // Last 6 months buckets for sparkline
+    const buckets: number[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1).getTime();
+      const start = d.getTime();
+      const total = delivered
+        .filter(o => {
+          const t = new Date(o.created_at).getTime();
+          return t >= start && t < end;
+        })
+        .reduce((s, o) => s + (o.total ?? 0), 0);
+      buckets.push(total);
+    }
+
+    const maxBucket = Math.max(...buckets, 1);
+
+    return { ytdTotal, monthTotal, avgOrder, buckets, maxBucket, ytdCount: ytd.length };
+  }, [orders]);
+
   // ── KPI Cards ─────────────────────────────────────────────────
 
   const kpis = [
@@ -259,26 +294,27 @@ export function ClientDashboard({
         </div>
         
         <div className="flex items-center gap-3">
-           <Button variant="outline" className={`h-11 rounded-2xl gap-2 font-bold px-5 border-white/5 ${dk("bg-white/5 hover:bg-white/10", "bg-gray-100/50 hover:bg-gray-200/50")}`}>
+           <Button onClick={() => onGoTo("catalog")} variant="outline" className={`h-11 rounded-2xl gap-2 font-bold px-5 border-white/5 ${dk("bg-white/5 hover:bg-white/10", "bg-gray-100/50 hover:bg-gray-200/50")}`}>
               <Download size={16} /> Lista de Precios
            </Button>
-           <Button className="h-11 rounded-2xl gap-2 font-bold px-6 bg-gradient-primary shadow-lg shadow-primary/20">
+           <Button onClick={() => onGoTo("catalog")} className="h-11 rounded-2xl gap-2 font-bold px-6 bg-gradient-primary shadow-lg shadow-primary/20">
               <Plus size={18} /> Nueva Compra
            </Button>
         </div>
       </div>
 
-      {/* IA Predictiva: Sugerencias inteligentes sugeridas al tope */}
-      {orders.length > 0 && (
-        <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+      {/* IA Predictiva + Proyectos + Alertas */}
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
            <div className="space-y-6">
-              <SmartSuggestions 
-                orders={orders} 
-                products={products} 
-                onAddToCart={onAddToCart}
-                isDark={isDark}
-              />
-              
+              {orders.length > 0 && (
+                <SmartSuggestions
+                  orders={orders}
+                  products={products}
+                  onAddToCart={onAddToCart}
+                  isDark={isDark}
+                />
+              )}
+
               {/* Projects Quick Access */}
               <div className={`p-6 rounded-[28px] border overflow-hidden relative group ${dk("bg-[#0d0d0d] border-white/5", "bg-white border-black/5 shadow-sm")}`}>
                  <div className="absolute right-0 top-0 p-8 opacity-5 -rotate-12">
@@ -390,7 +426,7 @@ export function ClientDashboard({
            </div>
 
            {/* Sidebar: Smart Alerts Feed */}
-           <div className={`rounded-[28px] border p-5 space-y-5 ${dk("bg-[#0d0d0d] border-white/5", "bg-white border-black/5")}`}>
+           <div className={`rounded-[28px] border p-5 space-y-5 h-fit ${dk("bg-[#0d0d0d] border-white/5", "bg-white border-black/5")}`}>
               <div className="flex items-center justify-between">
                 <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Alertas de Negocio</h3>
                 <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse" />
@@ -442,7 +478,6 @@ export function ClientDashboard({
               </div>
            </div>
         </div>
-      )}
 
       {/* Alerta deuda vencida */}
       {overdueInvoices.length > 0 && (
@@ -463,6 +498,54 @@ export function ClientDashboard({
           </div>
           <ArrowRight size={16} className="text-red-400 group-hover:translate-x-1 transition-transform" />
         </button>
+      )}
+
+      {/* Spending analytics widget */}
+      {spendingStats.ytdCount > 0 && (
+        <div className={`rounded-xl border p-4 ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")}`}>
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-3 flex-1">
+              <p className={`text-[10px] font-bold uppercase tracking-widest ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>
+                Resumen de cuenta · {new Date().getFullYear()}
+              </p>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <p className={`text-lg font-bold ${dk("text-white", "text-[#171717]")}`}>
+                    {formatMoneyAmount(convertMoneyAmount(spendingStats.ytdTotal, "ARS", currency, exchangeRate.rate), currency, 0)}
+                  </p>
+                  <p className={`text-[10px] mt-0.5 ${dk("text-[#737373]", "text-[#a3a3a3]")}`}>Total comprado este año</p>
+                </div>
+                <div>
+                  <p className={`text-lg font-bold text-[#2D9F6A]`}>
+                    {formatMoneyAmount(convertMoneyAmount(spendingStats.monthTotal, "ARS", currency, exchangeRate.rate), currency, 0)}
+                  </p>
+                  <p className={`text-[10px] mt-0.5 ${dk("text-[#737373]", "text-[#a3a3a3]")}`}>Este mes</p>
+                </div>
+                <div>
+                  <p className={`text-lg font-bold ${dk("text-white", "text-[#171717]")}`}>
+                    {formatMoneyAmount(convertMoneyAmount(spendingStats.avgOrder, "ARS", currency, exchangeRate.rate), currency, 0)}
+                  </p>
+                  <p className={`text-[10px] mt-0.5 ${dk("text-[#737373]", "text-[#a3a3a3]")}`}>Ticket promedio</p>
+                </div>
+              </div>
+            </div>
+            {/* Mini sparkline */}
+            <div className="flex items-end gap-[3px] h-10 shrink-0 pr-1">
+              {spendingStats.buckets.map((v, i) => {
+                const pct = spendingStats.maxBucket > 0 ? Math.max(4, (v / spendingStats.maxBucket) * 100) : 4;
+                const isLast = i === spendingStats.buckets.length - 1;
+                return (
+                  <div
+                    key={i}
+                    title={formatMoneyAmount(v, "ARS", 0)}
+                    style={{ height: `${pct}%` }}
+                    className={`w-3 rounded-sm transition-all ${isLast ? "bg-[#2D9F6A]" : dk("bg-white/10", "bg-black/10")}`}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* KPI Grid */}
