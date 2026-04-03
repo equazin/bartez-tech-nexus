@@ -394,7 +394,9 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
           num_ad_groups:    Number(aiForm.num_ad_groups),
         }),
       });
-      const data = await res.json() as { ok: boolean; draft?: CampaignDraft; message?: string };
+      const text = await res.text();
+      let data: { ok: boolean; draft?: CampaignDraft; message?: string };
+      try { data = JSON.parse(text); } catch { throw new Error(res.status === 504 ? "Tiempo de espera agotado — intentá con menos grupos de anuncios" : `Error del servidor (${res.status})`); }
       if (data.ok && data.draft) {
         setGenMsg("✓ Campaña generada. Revisá y aprobá abajo.");
         setAIForm({ ...EMPTY_AI_FORM });

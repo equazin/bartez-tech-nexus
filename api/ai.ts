@@ -156,7 +156,7 @@ async function handleGenerateCampaign(body: Record<string, unknown>, userId: str
   if (!ANTHROPIC_API_KEY) return json({ ok: false, message: "ANTHROPIC_API_KEY no configurada" }, 400);
 
   const { objective, campaign_type, target_segment, daily_budget_ars, product_focus, extra_context } = body as Record<string, string | number>;
-  const numGroups = Math.min(5, Math.max(1, Number(body.num_ad_groups ?? 3)));
+  const numGroups = Math.min(3, Math.max(1, Number(body.num_ad_groups ?? 2)));
 
   const objectiveLabel: Record<string, string> = {
     leads: "captar leads B2B (formularios de contacto y registro de empresas)",
@@ -180,15 +180,15 @@ PARÁMETROS:
 ${product_focus ? `- Foco de producto: ${product_focus}` : ""}
 ${extra_context ? `- Contexto: ${extra_context}` : ""}
 
-Generá exactamente ${numGroups} grupos de anuncios. Cada grupo: 8-15 keywords (español, Argentina), 15 headlines (máx 30 chars), 4 descriptions (máx 90 chars). Español rioplatense. USPs: envío nacional, precios mayoristas, portal B2B, soporte técnico. Incluir negativos.
+Generá exactamente ${numGroups} grupos de anuncios. Cada grupo: 6 keywords (español, Argentina), 8 headlines (máx 30 chars), 3 descriptions (máx 90 chars). Español rioplatense. USPs: envío nacional, precios mayoristas, portal B2B. Incluir 5 negativos.
 
-Respondé ÚNICAMENTE con JSON válido sin markdown:
+Respondé ÚNICAMENTE con JSON minificado válido (sin markdown, sin espacios extra):
 {"name":"...","ad_groups":[{"name":"...","keywords":[],"match_types":{},"headlines":[],"descriptions":[]}],"negative_keywords":[],"bidding_strategy":"...","notes":"..."}`;
 
   const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 4096, messages: [{ role: "user", content: prompt }] }),
+    body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 2000, messages: [{ role: "user", content: prompt }] }),
   });
 
   if (!anthropicRes.ok) return json({ ok: false, message: `Error Claude API: ${await anthropicRes.text()}` }, 500);
