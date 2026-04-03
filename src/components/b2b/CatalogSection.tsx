@@ -4,6 +4,7 @@ import type { PriceResult } from "@/hooks/usePricing";
 import { SmartSuggestions } from "@/components/b2b/SmartSuggestions";
 import { ProductItem } from "@/components/b2b/ProductItem";
 import { ProductTable } from "@/components/b2b/ProductTable";
+import { VirtualizedProductList } from "@/components/b2b/VirtualizedProductList";
 
 export type ViewMode = "grid" | "list" | "table";
 export type CatalogContext = "default" | "featured" | "pos";
@@ -192,8 +193,30 @@ export function CatalogSection({
             </button>
           )}
         </div>
-      ) : viewMode === "grid" || viewMode === "list" ? (
-        <div className={viewMode === "grid" ? "grid gap-4 grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4" : "flex flex-col gap-1.5"}>
+      ) : viewMode === "list" ? (
+        <VirtualizedProductList
+          products={displayProducts}
+          cart={cart}
+          favoriteProductIds={favoriteProductIds}
+          compareList={compareList}
+          addedIds={addedIds}
+          purchaseHistory={purchaseHistory}
+          latestPurchaseUnitPrice={latestPurchaseUnitPrice}
+          computePrice={computePrice}
+          formatPrice={formatPrice}
+          handleAddToCart={handleAddToCart}
+          onRemoveFromCart={onRemoveFromCart}
+          handleToggleFavorite={handleToggleFavorite}
+          toggleCompare={toggleCompare}
+          setSelectedProduct={setSelectedProduct}
+          setBrandFilter={setBrandFilter}
+          isPosProduct={isPosProduct}
+          dk={dk}
+          hasMore={hasMore}
+          onLoadMore={loadMore}
+        />
+      ) : viewMode === "grid" ? (
+        <div className="grid gap-4 grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
           {displayProducts.map((product) => {
             const price = computePrice(product, Math.max(cart[product.id] || 0, 1));
             return (
@@ -201,12 +224,12 @@ export function CatalogSection({
                 key={product.id}
                 style={{
                   contentVisibility: "auto",
-                  containIntrinsicSize: viewMode === "grid" ? "0 220px" : "0 80px",
+                  containIntrinsicSize: "0 220px",
                 }}
               >
                 <ProductItem
                   product={product}
-                  viewMode={viewMode}
+                  viewMode="grid"
                   inCart={cart[product.id] || 0}
                   isFavorite={favoriteProductIds.includes(product.id)}
                   isCompared={compareList.includes(product.id)}
@@ -251,8 +274,8 @@ export function CatalogSection({
         />
       )}
 
-      {/* ── Load more ── */}
-      {hasMore && !productsLoading && (
+      {/* ── Load more (grid/table only — list uses infinite scroll) ── */}
+      {hasMore && !productsLoading && viewMode !== "list" && (
         <div className="flex justify-center mt-8 mb-12">
           <button
             onClick={loadMore}
