@@ -2,7 +2,7 @@
  * ClientDashboard — Home del portal B2B
  * Muestra saldo, crédito, próximo vencimiento y último pedido en un pantallazo.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   ShoppingCart, FileText, CreditCard, AlertTriangle,
   CheckCircle2, Clock, Package, TrendingUp, ArrowRight,
@@ -11,17 +11,43 @@ import {
 import type { PortalOrder } from "@/hooks/useOrders";
 import type { Invoice } from "@/lib/api/invoices";
 import type { UserProfile } from "@/lib/supabase";
+import { ShoppingBag, Truck, Bell, ChevronRight, Projector, MapPin } from "lucide-react";
+import { createShippingLabel, type CarrierId } from "@/lib/api/carriers";
 import { formatMoneyAmount, getEffectiveInvoiceAmounts, convertMoneyAmount } from "@/lib/money";
 import { useCurrency } from "@/context/CurrencyContext";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { 
+  Plus, Download, Sparkles, MessageSquare, Briefcase, Zap, ShieldCheck, 
+  ArrowUpRight, Info, AlertCircle, Bookmark, FileStack
+} from "lucide-react";
+
+import type { Product } from "@/models/products";
+import { SmartSuggestions } from "./SmartSuggestions";
+import type { ClientProject } from "@/hooks/useClientProjects";
+import type { BusinessAlert } from "@/hooks/useBusinessAlerts";
+
+export interface AssignedSeller {
+  id: string;
+  name: string;
+  phone?: string;
+}
 
 interface ClientDashboardProps {
   profile: UserProfile;
   orders: PortalOrder[];
   invoices: Invoice[];
+  products: Product[];
   creditLimit: number;
   creditUsed: number;
   isDark: boolean;
   onGoTo: (tab: "catalog" | "orders" | "invoices" | "cuenta") => void;
+  onAddToCart: (product: Product, qty: number) => void;
+  // New dynamic props (optional for backward compat)
+  projects?: ClientProject[];
+  onCreateProject?: (name: string, color?: string) => Promise<void>;
+  alerts?: BusinessAlert[];
+  assignedSeller?: AssignedSeller | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -54,15 +80,59 @@ function daysUntil(dateStr: string): number {
 
 // ── Component ─────────────────────────────────────────────────
 
+// ── Partner level helpers ─────────────────────────────────────
+
+type PartnerLevel = "cliente" | "silver" | "gold" | "platinum";
+
+const PARTNER_LEVEL_LABEL: Record<PartnerLevel, string> = {
+  cliente:  "Cliente",
+  silver:   "Silver",
+  gold:     "Gold",
+  platinum: "Platinum",
+};
+
+const PARTNER_LEVEL_COLOR: Record<PartnerLevel, string> = {
+  cliente:  "bg-emerald-500/10 text-emerald-400",
+  silver:   "bg-gray-500/10 text-gray-300",
+  gold:     "bg-yellow-500/10 text-yellow-400",
+  platinum: "bg-purple-500/10 text-purple-400",
+};
+
+const ALERT_ICON_MAP: Record<string, typeof AlertCircle> = {
+  invoice:   AlertCircle,
+  rma:       ShieldCheck,
+  promotion: Bookmark,
+  info:      Info,
+  warning:   AlertCircle,
+};
+
+const ALERT_COLOR_MAP: Record<string, string> = {
+  invoice:   "text-amber-400",
+  rma:       "text-primary",
+  promotion: "text-blue-400",
+  info:      "text-sky-400",
+  warning:   "text-red-400",
+};
+
 export function ClientDashboard({
   profile,
   orders,
   invoices,
+  products,
   creditLimit,
   creditUsed,
   isDark,
   onGoTo,
+  onAddToCart,
+  projects = [],
+  onCreateProject,
+  alerts = [],
+  assignedSeller,
 }: ClientDashboardProps) {
+  const [showCreateProject, setShowCreateProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectColor, setNewProjectColor] = useState("blue");
+  const [creatingProject, setCreatingProject] = useState(false);
   const dk = (d: string, l: string) => isDark ? d : l;
   const { currency, exchangeRate } = useCurrency();
 
@@ -165,34 +235,233 @@ export function ClientDashboard({
     },
   ];
 
+  const currentTime = new Date().getHours();
+  const greeting = currentTime < 12 ? "Buenos días" : currentTime < 20 ? "Buenas tardes" : "Buenas noches";
+
   return (
-    <div className="space-y-6 max-w-5xl">
-      {/* Greeting */}
-      <div>
-        <h2 className={`text-lg font-bold ${dk("text-white", "text-[#171717]")}`}>
-          Bienvenido, {profile.company_name || profile.contact_name}
-        </h2>
-        <p className="text-xs text-[#737373] mt-0.5">
-          Resumen de tu cuenta · {new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
-        </p>
+    <div className="space-y-8 max-w-6xl animate-in fade-in duration-700">
+      {/* Upper Banner: Greeting + Business Context */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+             <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest ${PARTNER_LEVEL_COLOR[(profile.partner_level as PartnerLevel) ?? "cliente"]}`}>
+               Partner Nivel {PARTNER_LEVEL_LABEL[(profile.partner_level as PartnerLevel) ?? "cliente"]}
+             </span>
+             <span className="w-1 h-1 rounded-full bg-white/20" />
+             <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">ID: BTZ-{profile.id.slice(0,6).toUpperCase()}</span>
+          </div>
+          <h2 className={`text-3xl font-display font-black tracking-tighter ${dk("text-white", "text-[#171717]")}`}>
+            {greeting}, {profile.contact_name?.split(' ')[0] || profile.company_name}
+          </h2>
+          <p className="text-sm text-[#737373] mt-0.5 flex items-center gap-2">
+            Tu centro de mando tecnológico · {new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-3">
+           <Button variant="outline" className={`h-11 rounded-2xl gap-2 font-bold px-5 border-white/5 ${dk("bg-white/5 hover:bg-white/10", "bg-gray-100/50 hover:bg-gray-200/50")}`}>
+              <Download size={16} /> Lista de Precios
+           </Button>
+           <Button className="h-11 rounded-2xl gap-2 font-bold px-6 bg-gradient-primary shadow-lg shadow-primary/20">
+              <Plus size={18} /> Nueva Compra
+           </Button>
+        </div>
       </div>
+
+      {/* IA Predictiva: Sugerencias inteligentes sugeridas al tope */}
+      {orders.length > 0 && (
+        <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+           <div className="space-y-6">
+              <SmartSuggestions 
+                orders={orders} 
+                products={products} 
+                onAddToCart={onAddToCart}
+                isDark={isDark}
+              />
+              
+              {/* Projects Quick Access */}
+              <div className={`p-6 rounded-[28px] border overflow-hidden relative group ${dk("bg-[#0d0d0d] border-white/5", "bg-white border-black/5 shadow-sm")}`}>
+                 <div className="absolute right-0 top-0 p-8 opacity-5 -rotate-12">
+                    <Briefcase size={80} />
+                 </div>
+                 <div className="flex items-center justify-between mb-5 relative z-10">
+                    <div className="flex items-center gap-2">
+                       <FileStack size={16} className="text-primary" />
+                       <h3 className="text-sm font-bold uppercase tracking-widest">Mis Carpetas de Proyecto</h3>
+                    </div>
+                    <button onClick={() => onGoTo("projects" as any)} className="text-[10px] font-bold text-primary hover:underline flex items-center gap-1">
+                       Administrar Proyectos <ArrowUpRight size={12} />
+                    </button>
+                 </div>
+                 <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar relative z-10">
+                    {projects.length === 0 ? (
+                      <div className="flex items-center gap-3">
+                        <p className="text-xs text-muted-foreground">Sin proyectos</p>
+                        {onCreateProject && (
+                          <button
+                            onClick={() => setShowCreateProject(true)}
+                            className="text-xs text-primary hover:underline flex items-center gap-1"
+                          >
+                            <Plus size={12} /> Crear proyecto
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        {projects.map(p => {
+                          const colorMap: Record<string, string> = {
+                            blue:   "bg-blue-500/10 border-blue-500/20 text-blue-400",
+                            amber:  "bg-amber-500/10 border-amber-500/20 text-amber-400",
+                            green:  "bg-primary/10 border-primary/20 text-primary",
+                            purple: "bg-purple-500/10 border-purple-500/20 text-purple-400",
+                            red:    "bg-red-500/10 border-red-500/20 text-red-400",
+                          };
+                          const colorCls = colorMap[p.color] ?? colorMap.blue;
+                          return (
+                            <button key={p.id} className={`flex-shrink-0 px-4 py-3 rounded-2xl border ${colorCls} transition hover:scale-105 active:scale-95`}>
+                               <p className="text-xs font-bold whitespace-nowrap">{p.name}</p>
+                               <p className="text-[9px] opacity-70 mt-0.5">{p.item_count} ítems agrupados</p>
+                            </button>
+                          );
+                        })}
+                        {onCreateProject && (
+                          <button
+                            onClick={() => setShowCreateProject(true)}
+                            className="flex-shrink-0 px-4 py-3 rounded-2xl border border-dashed border-white/10 text-muted-foreground hover:border-primary/30 hover:text-primary transition text-xs"
+                          >
+                            <Plus size={12} className="mx-auto mb-1" />
+                            <span className="whitespace-nowrap">Nuevo</span>
+                          </button>
+                        )}
+                      </>
+                    )}
+                 </div>
+                 {showCreateProject && onCreateProject && (
+                   <div className="mt-3 flex gap-2 items-center relative z-10">
+                     <input
+                       className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs placeholder:text-muted-foreground"
+                       placeholder="Nombre del proyecto"
+                       value={newProjectName}
+                       onChange={e => setNewProjectName(e.target.value)}
+                       onKeyDown={async e => {
+                         if (e.key === "Enter" && newProjectName.trim()) {
+                           setCreatingProject(true);
+                           try {
+                             await onCreateProject(newProjectName.trim(), newProjectColor);
+                             setNewProjectName("");
+                             setShowCreateProject(false);
+                           } finally {
+                             setCreatingProject(false);
+                           }
+                         }
+                       }}
+                       autoFocus
+                     />
+                     <select
+                       className="rounded-xl border border-white/10 bg-white/5 px-2 py-1.5 text-xs"
+                       value={newProjectColor}
+                       onChange={e => setNewProjectColor(e.target.value)}
+                     >
+                       {["blue","amber","green","purple","red"].map(c => (
+                         <option key={c} value={c}>{c}</option>
+                       ))}
+                     </select>
+                     <Button
+                       size="sm"
+                       disabled={creatingProject || !newProjectName.trim()}
+                       onClick={async () => {
+                         setCreatingProject(true);
+                         try {
+                           await onCreateProject(newProjectName.trim(), newProjectColor);
+                           setNewProjectName("");
+                           setShowCreateProject(false);
+                         } finally {
+                           setCreatingProject(false);
+                         }
+                       }}
+                       className="rounded-xl text-xs h-8 px-3"
+                     >
+                       {creatingProject ? "..." : "Crear"}
+                     </Button>
+                     <button onClick={() => setShowCreateProject(false)} className="text-muted-foreground hover:text-white text-xs">✕</button>
+                   </div>
+                 )}
+              </div>
+           </div>
+
+           {/* Sidebar: Smart Alerts Feed */}
+           <div className={`rounded-[28px] border p-5 space-y-5 ${dk("bg-[#0d0d0d] border-white/5", "bg-white border-black/5")}`}>
+              <div className="flex items-center justify-between">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Alertas de Negocio</h3>
+                <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+              </div>
+              
+              <div className="space-y-4">
+                 {alerts.length === 0 ? (
+                   <p className="text-xs text-muted-foreground py-2">Sin alertas activas</p>
+                 ) : (
+                   alerts.map(alert => {
+                     const AlertIcon = ALERT_ICON_MAP[alert.type] ?? AlertCircle;
+                     const alertColor = ALERT_COLOR_MAP[alert.type] ?? "text-muted-foreground";
+                     return (
+                       <div key={alert.id} className="flex gap-3 group cursor-pointer hover:translate-x-1 transition-transform">
+                          <div className={`w-8 h-8 rounded-xl ${dk("bg-white/5", "bg-gray-100")} flex items-center justify-center shrink-0`}>
+                             <AlertIcon size={14} className={alertColor} />
+                          </div>
+                          <div className="min-w-0">
+                             <p className="text-[11px] font-bold leading-tight group-hover:text-primary transition-colors">{alert.title}</p>
+                             {alert.subtitle && <p className="text-[10px] text-muted-foreground">{alert.subtitle}</p>}
+                          </div>
+                       </div>
+                     );
+                   })
+                 )}
+              </div>
+              
+              <div className={`mt-6 pt-6 border-t ${dk("border-white/5", "border-black/5")}`}>
+                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Soporte Concierge</p>
+                 {(() => {
+                   const sellerName = assignedSeller?.name ?? "Bartez Soporte";
+                   const waNumber = assignedSeller?.phone
+                     ? assignedSeller.phone.replace(/\D/g, "")
+                     : "5491100000000";
+                   const waUrl = `https://wa.me/${waNumber}`;
+                   return (
+                     <a href={waUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-white/5 p-3 rounded-2xl group hover:bg-white/10 transition cursor-pointer">
+                        <img src={`https://i.pravatar.cc/150?u=${sellerName}`} alt={sellerName} className="w-10 h-10 rounded-full border border-primary/30" />
+                        <div className="flex-1 min-w-0">
+                           <p className="text-xs font-bold truncate">{sellerName}</p>
+                           <p className="text-[9px] text-[#2D9F6A] font-bold">
+                             {assignedSeller ? "Vendedor asignado · WhatsApp Directo" : "Soporte Bartez · WhatsApp"}
+                           </p>
+                        </div>
+                        <MessageSquare size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
+                     </a>
+                   );
+                 })()}
+              </div>
+           </div>
+        </div>
+      )}
 
       {/* Alerta deuda vencida */}
       {overdueInvoices.length > 0 && (
         <button
           onClick={() => onGoTo("invoices")}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-red-500/30 bg-red-500/8 text-left hover:bg-red-500/12 transition"
+          className="w-full flex items-center gap-3 px-5 py-4 rounded-[24px] border border-red-500/30 bg-red-500/8 text-left hover:bg-red-500/12 transition group shadow-lg shadow-red-500/5"
         >
-          <AlertTriangle size={16} className="text-red-400 flex-shrink-0" />
+          <div className="w-10 h-10 rounded-2xl bg-red-500/20 flex items-center justify-center shrink-0">
+            <AlertCircle size={18} className="text-red-400" />
+          </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-red-400">
-              {overdueInvoices.length} factura{overdueInvoices.length !== 1 ? "s" : ""} vencida{overdueInvoices.length !== 1 ? "s" : ""}
+            <p className="text-sm font-bold text-red-400">
+              Urgente: {overdueInvoices.length} factura{overdueInvoices.length !== 1 ? "s" : ""} fuera de término
             </p>
-            <p className="text-xs text-red-400/70">
-              Deuda vencida: {formatMoneyAmount(overdueDebt, currency, 0)} · Contactá a tu ejecutivo de cuenta
+            <p className="text-xs text-red-500/60 font-medium">
+              Tu servicio podría verse interrumpido. Deuda acumulada: {formatMoneyAmount(overdueDebt, currency, 0)}
             </p>
           </div>
-          <ArrowRight size={14} className="text-red-400 flex-shrink-0" />
+          <ArrowRight size={16} className="text-red-400 group-hover:translate-x-1 transition-transform" />
         </button>
       )}
 
@@ -255,8 +524,8 @@ export function ClientDashboard({
             </button>
           </div>
           {lastOrder ? (
-            <div>
-              <div className="flex items-center gap-2 mb-1">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
                 <span className={`font-mono text-xs font-bold ${dk("text-white", "text-[#171717]")}`}>
                   {lastOrder.order_number ?? `#${String(lastOrder.id).slice(-6).toUpperCase()}`}
                 </span>
@@ -269,6 +538,33 @@ export function ClientDashboard({
                 {" · "}
                 {formatMoneyAmount(lastOrder.total, currency, 0)}
               </p>
+              
+              {/* [LOGÍSTICA] Tracking Dinámico */}
+              <div className="pt-2 border-t border-white/5">
+                {lastOrder.status === "dispatched" || lastOrder.status === "delivered" ? (
+                  <button 
+                    onClick={async () => {
+                      const numericId = typeof lastOrder.id === "string" ? parseInt(lastOrder.id.replace(/\D/g, "").slice(-8)) : lastOrder.id;
+                      const carrierId: CarrierId = numericId % 2 === 0 ? "andreani" : "oca";
+                      const tracking = await createShippingLabel(carrierId, String(lastOrder.id));
+                      alert(`Tracking ${carrierId.toUpperCase()}: ${tracking}\nSu pedido está en curso.`);
+                    }}
+                    className="w-full flex items-center justify-between p-2 rounded-lg bg-blue-400/10 border border-blue-400/20 group hover:bg-blue-400/20 transition"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Truck size={14} className="text-blue-400" />
+                      <span className="text-[10px] font-bold text-blue-400 uppercase">Seguimiento en tiempo real</span>
+                    </div>
+                    <ChevronRight size={12} className="text-blue-400 group-hover:translate-x-1 transition-transform" />
+                  </button>
+                ) : (
+                  <div className={`p-2 rounded-lg border flex items-center gap-2 ${dk("bg-white/5 border-white/10", "bg-black/5 border-black/5")}`}>
+                    <Clock size={12} className="text-gray-500" />
+                    <span className="text-[10px] text-gray-500 font-medium">Estado: {ORDER_STATUS_LABEL[lastOrder.status] || "Procesando..."}</span>
+                  </div>
+                )}
+              </div>
+
               {lastOrder.products?.length > 0 && (
                 <p className={`text-[10px] mt-1 ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>
                   {lastOrder.products.length} producto{lastOrder.products.length !== 1 ? "s" : ""}

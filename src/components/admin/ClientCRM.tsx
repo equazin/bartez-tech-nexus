@@ -217,6 +217,25 @@ function ClientDetail({
   const [editing, setEditing] = useState(false);
   const [editType, setEditType] = useState<ClientType>(client.client_type);
   const [editMargin, setEditMargin] = useState(String(client.default_margin));
+  type PartnerLevel = "cliente" | "silver" | "gold" | "platinum";
+  const [editPartnerLevel, setEditPartnerLevel] = useState<PartnerLevel>(
+    ((client as unknown as Record<string, unknown>).partner_level as PartnerLevel) ?? "cliente"
+  );
+  const [editAssignedSeller, setEditAssignedSeller] = useState<string>(
+    ((client as unknown as Record<string, unknown>).assigned_seller_id as string) ?? ""
+  );
+  const [sellers, setSellers] = useState<Array<{ id: string; contact_name: string }>>([]);
+
+  useEffect(() => {
+    supabase
+      .from("profiles")
+      .select("id, contact_name")
+      .in("role", ["admin", "vendedor"])
+      .order("contact_name")
+      .then(({ data }) => {
+        if (data) setSellers(data as Array<{ id: string; contact_name: string }>);
+      });
+  }, []);
   const { isAdmin, isSeller } = useAuth();
   const { startImpersonation, stopImpersonation, isImpersonating, impersonatedProfile } = useImpersonate();
   const isCurrentImpersonated = isImpersonating && impersonatedProfile?.id === client.id;
@@ -401,6 +420,14 @@ function ClientDetail({
       client_type: editType,
       default_margin: Number(editMargin) || 0,
     });
+    // Save partner_level and assigned_seller_id directly
+    await supabase
+      .from("profiles")
+      .update({
+        partner_level: editPartnerLevel,
+        assigned_seller_id: editAssignedSeller || null,
+      })
+      .eq("id", client.id);
     setSaving(false);
     setEditing(false);
   }
@@ -542,6 +569,36 @@ function ClientDetail({
                   />
                   <span className="text-sm text-[#737373]">%</span>
                 </div>
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-500 mb-1 block font-semibold uppercase tracking-widest">Nivel Partner</label>
+                <select
+                  value={editPartnerLevel}
+                  onChange={e => setEditPartnerLevel(e.target.value as PartnerLevel)}
+                  className={`border rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[#2D9F6A] transition ${
+                    dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")
+                  }`}
+                >
+                  <option value="cliente">Cliente</option>
+                  <option value="silver">Silver</option>
+                  <option value="gold">Gold</option>
+                  <option value="platinum">Platinum</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-500 mb-1 block font-semibold uppercase tracking-widest">Vendedor asignado</label>
+                <select
+                  value={editAssignedSeller}
+                  onChange={e => setEditAssignedSeller(e.target.value)}
+                  className={`border rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[#2D9F6A] transition ${
+                    dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")
+                  }`}
+                >
+                  <option value="">Sin asignar</option>
+                  {sellers.map(s => (
+                    <option key={s.id} value={s.id}>{s.contact_name}</option>
+                  ))}
+                </select>
               </div>
               <div className="flex gap-2">
                 <button

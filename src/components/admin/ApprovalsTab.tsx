@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { EmailNotificationService } from "@/lib/api/emailNotifications";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -9,6 +10,12 @@ import {
   Save,
   ShieldAlert,
   XCircle,
+  UserPlus,
+  Users,
+  Mail,
+  Check,
+  X,
+  BellRing,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { fetchInvoices, type Invoice } from "@/lib/api/invoices";
@@ -26,6 +33,11 @@ interface ClientRow {
   id: string;
   company_name: string;
   contact_name: string;
+  email?: string;
+  phone?: string;
+  estado?: string;
+  cuit?: string;
+  created_at?: string;
 }
 
 interface QuoteRow {
@@ -151,10 +163,12 @@ export function ApprovalsTab({
     return map;
   }, [overdueInvoices]);
 
+  const [pendingAccounts, setPendingAccounts] = useState<ClientRow[]>([]);
+
   async function load() {
     setLoading(true);
     try {
-      const [{ data: quoteRows }, invoiceRows, { data: riskRows }, { data: logs }, { data: notes }] = await Promise.all([
+      const [{ data: quoteRows }, invoiceRows, { data: riskRows }, { data: logs }, { data: notes }, { data: accounts }] = await Promise.all([
         supabase
           .from("quotes")
           .select("id, client_id, total, status, created_at")
@@ -177,12 +191,18 @@ export function ApprovalsTab({
           .select("id, client_id, body, created_at")
           .order("created_at", { ascending: false })
           .limit(100),
+        supabase
+          .from("profiles")
+          .select("id, company_name, contact_name, email, phone, cuit, created_at, estado")
+          .eq("estado", "pendiente")
+          .order("created_at", { ascending: false }),
       ]);
       setQuotes((quoteRows as QuoteRow[] | null) ?? []);
       setOverdueInvoices(invoiceRows);
       setClientRiskRows((riskRows as ClientRiskRow[] | null) ?? []);
       setAuditLogs((logs as ApprovalLogRow[] | null) ?? []);
       setApprovalNotes(((notes as ApprovalNoteRow[] | null) ?? []).filter((note) => note.body.startsWith("[APPROVAL:")));
+      setPendingAccounts((accounts as ClientRow[] | null) ?? []);
     } finally {
       setLoading(false);
     }
@@ -394,6 +414,78 @@ export function ApprovalsTab({
         </div>
       )}
 
+      {/* ── Solicitudes de Registro Pendientes ── */}
+      {pendingAccounts.length > 0 && (
+        <div className={`rounded-2xl border p-5 ${dk("bg-blue-500/5 border-blue-500/20", "bg-blue-50 border-blue-200")}`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-blue-400">
+              <UserPlus size={16} />
+              <h3 className="text-sm font-bold uppercase tracking-widest">Nuevas Solicitudes de Cuenta B2B</h3>
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {pendingAccounts.map((account) => (
+              <div key={account.id} className={`rounded-xl border p-4 shadow-sm ${dk("bg-[#0d0d0d] border-white/5", "bg-white border-black/5")}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-black bg-primary/10 text-primary px-2 py-0.5 rounded-full uppercase">Onboarding VIP</span>
+                  <span className="text-[10px] text-gray-500">{account.created_at ? new Date(account.created_at).toLocaleDateString() : ""}</span>
+                </div>
+                <h4 className={`font-bold text-sm ${dk("text-white", "text-black")}`}>{account.company_name || "Empresa s/n"}</h4>
+                <div className="space-y-1.5 mt-2 mb-4">
+                   <p className="text-[11px] text-gray-500 flex items-center gap-1.5">
+                     <FileText size={12} /> CUIT: <span className={dk("text-gray-300", "text-gray-700")}>{account.cuit || "No validado"}</span>
+                   </p>
+                   <p className="text-[11px] text-gray-500 flex items-center gap-1.5">
+                     <Users size={12} /> Contacto: <span className={dk("text-gray-300", "text-gray-700")}>{account.contact_name}</span>
+                   </p>
+                   <p className="text-[11px] text-gray-500 flex items-center gap-1.5">
+                     <Mail size={12} /> {account.email}
+                   </p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2">
+                   <button
+                     onClick={async () => {
+                        const credit = prompt("Definir límite de crédito inicial en ARS:", "500000");
+                        if (credit === null) return;
+                        const { error } = await supabase.from("profiles").update({ 
+                          estado: "activo", 
+                          active: true,
+                          credit_limit: Number(credit),
+                          client_type: "reseller"
+                        }).eq("id", account.id);
+                        
+                        if (!error) {
+                          // [Vínculo Proactivo] Notificación por Email
+                          await EmailNotificationService.notifyCreditUpdate(
+                            account.email || "", 
+                            Number(credit), 
+                            account.company_name || account.contact_name
+                          );
+                          load();
+                        }
+                     }}
+                     className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-[#2D9F6A] text-white text-[10px] font-bold uppercase transition hover:bg-[#25835A]"
+                   >
+                     <Check size={12} /> Aprobar
+                   </button>
+                   <button
+                     onClick={async () => {
+                        if (!confirm("¿Rechazar solicitud de partner?")) return;
+                        const { error } = await supabase.from("profiles").update({ estado: "rechazado" }).eq("id", account.id);
+                        if (!error) load();
+                     }}
+                     className={`flex items-center justify-center gap-1.5 py-2 rounded-lg border text-[10px] font-bold uppercase transition ${dk("border-white/10 text-gray-400 hover:bg-white/5", "border-black/10 text-gray-500 hover:bg-black/5")}`}
+                   >
+                     <X size={12} /> Rechazar
+                   </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className={`text-base font-bold ${dk("text-white", "text-[#171717]")}`}>Centro de Aprobaciones</h2>
@@ -408,8 +500,9 @@ export function ApprovalsTab({
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {[
+          { label: "Solicitudes B2B", value: String(pendingAccounts.length), accent: "text-blue-400" },
           { label: "Pedidos pendientes", value: String(pendingOrders.length), accent: "text-[#2D9F6A]" },
           { label: "Con excepción", value: String(orderExceptions.length + quoteExceptions.length), accent: "text-amber-400" },
           { label: "Facturas vencidas", value: String(overdueInvoices.length), accent: overdueInvoices.length > 0 ? "text-red-400" : "text-emerald-400" },

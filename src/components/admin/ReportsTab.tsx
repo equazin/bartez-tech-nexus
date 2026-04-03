@@ -287,8 +287,8 @@ export function ReportsTab({
                     <p className="text-[11px] text-gray-500">{row.units} u. · revenue {formatPrice(row.revenue)}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-bold text-[#2D9F6A]">{formatPrice(row.grossProfit)}</p>
-                    <p className="text-[11px] text-gray-500">{row.marginPct.toFixed(1)}%</p>
+                    <p className="text-sm font-bold text-[#2D9F6A]">{formatPrice(row.grossProfit || 0)}</p>
+                    <p className="text-[11px] text-gray-500">{(row.marginPct ?? 0).toFixed(1)}%</p>
                   </div>
                 </div>
               </div>
@@ -335,9 +335,9 @@ export function ReportsTab({
                   <p className="text-[10px] text-gray-500">{row.category}</p>
                 </td>
                 <td className="px-3 py-2.5 text-center text-xs">{row.stock}</td>
-                <td className="hidden sm:table-cell px-3 py-2.5 text-center text-xs">{row.velocity30d.toFixed(2)}</td>
+                <td className="hidden sm:table-cell px-3 py-2.5 text-center text-xs">{(row.velocity30d ?? 0).toFixed(2)}</td>
                 <td className="px-3 py-2.5 text-right text-xs">
-                  {row.daysOfCover == null ? "Sin consumo" : `${row.daysOfCover.toFixed(1)} días`}
+                  {row.daysOfCover == null ? "Sin consumo" : `${(row.daysOfCover ?? 0).toFixed(1)} días`}
                 </td>
                 <td className="px-3 py-2.5 text-right text-xs font-bold text-amber-400">{row.suggestedReorder}</td>
               </tr>

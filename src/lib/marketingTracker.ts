@@ -54,11 +54,24 @@ const MAX_RETRY_QUEUE   = 20; // máximo eventos en cola (evitar bloat)
 // ── Session ───────────────────────────────────────────────────
 
 function generateId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  // Fallback para entornos sin crypto.randomUUID
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  try {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+  } catch (e) { /* ignore */ }
+
+  // Fallback Robusto (formato UUID v4 aproximado)
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+/** Valida si un string tiene formato UUID */
+function isValidUUID(uuid: string | null | undefined): boolean {
+  if (!uuid) return false;
+  const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return regex.test(uuid);
 }
 
 export function getOrCreateSession(): string {
@@ -208,8 +221,8 @@ export async function track(
   const payload: TrackPayload = {
     event_id,
     event_type,
-    user_id:    userId ?? null,
-    session_id,
+    user_id:    isValidUUID(userId) ? userId : null,
+    session_id: isValidUUID(session_id) ? session_id : generateId(),
     page:       typeof window !== "undefined" ? window.location.pathname : "",
     ...utms,
     metadata,
@@ -223,10 +236,6 @@ export async function track(
   if (error) {
     // No bloquear la UI — encolar para retry silencioso
     enqueueRetry(payload);
-    // Solo loguear en dev
-    if (import.meta.env.DEV) {
-      console.warn("[tracker] event queued for retry:", event_type, error.message);
-    }
   }
 }
 

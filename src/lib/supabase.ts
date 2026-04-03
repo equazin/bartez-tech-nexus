@@ -55,4 +55,7 @@ export interface UserProfile {
   parent_id?: string;
   b2b_role?: "manager" | "buyer" | "admin";
   approval_threshold?: number;
+  // Partner level + assigned seller (migration 069)
+  partner_level?: "cliente" | "silver" | "gold" | "platinum";
+  assigned_seller_id?: string;
 }

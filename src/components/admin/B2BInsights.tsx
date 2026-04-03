@@ -2,7 +2,7 @@ import { useMemo, useEffect, useState } from "react";
 import {
   TrendingUp, AlertTriangle, Package,
   Activity, Archive, Sparkles,
-  RefreshCcw, UserX, UserCheck, BarChart3, Zap, Search, TrendingDown,
+  RefreshCcw, UserX, UserCheck, BarChart3, Zap, Search, TrendingDown, Briefcase, ChevronRight,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -24,6 +24,7 @@ interface StockRiskProduct {
 
 export function B2BInsights({ clients, orders, isDark, onNavigate }: InsightProps) {
   const dk = (d: string, l: string) => (isDark ? d : l);
+  const fmtUSD = (n: number) => n > 0 ? `USD ${(n / 1000).toFixed(1)}k` : "USD 0";
 
   // ── 1. Churn Risk ─────────────────────────────────────────────
   const churnRisk = useMemo(() => {
@@ -138,7 +139,35 @@ export function B2BInsights({ clients, orders, isDark, onNavigate }: InsightProp
 
   const [nearStockout, setNearStockout] = useState<StockRiskProduct[]>([]);
 
-  const fmtUSD = (n: number) => n > 0 ? `USD ${(n / 1000).toFixed(1)}k` : "USD 0";
+  const [projects, setProjects] = useState<Array<{ id: string; name: string; client_name: string; total: number }>>([]);
+
+  useEffect(() => {
+    async function loadProjects() {
+      const { data } = await supabase
+        .from("projects")
+        .select("id, name, client_id, order_ids, quote_ids")
+        .order("created_at", { ascending: false })
+        .limit(10);
+      
+      if (data) {
+        const enriched = data.map(p => {
+          const client = clients.find(c => c.id === p.client_id);
+          // Calculate a rough total based on current orders/quotes in props
+          const pOrders = orders.filter(o => (p.order_ids || []).includes(String(o.id)));
+          const total = pOrders.reduce((s, o) => s + o.total, 0);
+
+          return {
+            id: p.id,
+            name: p.name,
+            client_name: client?.company_name || "Desconocido",
+            total
+          };
+        });
+        setProjects(enriched);
+      }
+    }
+    loadProjects();
+  }, [clients, orders]);
 
   return (
     <div className="space-y-6">
@@ -328,6 +357,43 @@ export function B2BInsights({ clients, orders, isDark, onNavigate }: InsightProp
             </p>
           </div>
         )}
+      </div>
+
+      {/* ── Pipeline de Proyectos de Integradores ── */}
+      <div className={`p-6 rounded-3xl border ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+             <div className="h-10 w-10 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <Briefcase size={20} className="text-primary" />
+             </div>
+             <div>
+                <h3 className="text-sm font-bold">Pipeline de Obras (Proyectos)</h3>
+                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Obras activas de tus clientes</p>
+             </div>
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+           {projects.map(p => (
+             <div key={p.id} className={`p-4 rounded-2xl border transition-all hover:translate-y-1 ${dk("bg-[#0d0d0d] border-[#1a1a1a] hover:border-primary/30", "bg-gray-50 border-[#eee] hover:border-primary/30")}`}>
+                <div className="flex items-center justify-between mb-3">
+                   <span className="text-[9px] font-black bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full uppercase">Obra Protegida</span>
+                   <ChevronRight size={12} className="text-gray-600" />
+                </div>
+                <h4 className="text-xs font-bold truncate mb-1">{p.name}</h4>
+                <p className="text-[10px] text-gray-500 mb-4">{p.client_name}</p>
+                <div className="pt-3 border-t border-white/5 flex items-center justify-between">
+                   <span className="text-[9px] text-gray-500 uppercase font-bold">Inversión</span>
+                   <span className="text-xs font-black text-[#2D9F6A]">USD {p.total.toLocaleString()}</span>
+                </div>
+             </div>
+           ))}
+           {projects.length === 0 && (
+             <div className="col-span-full py-10 text-center opacity-30 italic text-xs">
+                Analizando proyectos en curso...
+             </div>
+           )}
+        </div>
       </div>
 
       {/* Quick Actions */}

@@ -60,86 +60,80 @@ const Index = () => {
   return (
     <>
     <Layout>
-      {/* Hero */}
-      <section className="relative overflow-hidden min-h-[85vh] flex items-center">
+      {/* Hero: Portal B2B Focused */}
+      <section className="relative overflow-hidden min-h-[90vh] flex items-center">
         <div className="absolute inset-0">
           <video
             autoPlay muted loop playsInline
             className="h-full w-full object-cover opacity-20"
             poster={heroBg}
           >
-            <source src="https://www.pexels.com/download/video/7140931/" type="video/mp4" />
+            <source src="https://www.pexels.com/download/video/3129957/" type="video/mp4" />
           </video>
-          <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/75 to-background" />
+          <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/80 to-background" />
           <div className="absolute inset-0 hero-radial" />
         </div>
-        <div className="absolute inset-0 hero-grid opacity-20" />
+        <div className="absolute inset-0 hero-grid opacity-15" />
 
         <div className="relative container mx-auto px-4 py-28 md:py-36 lg:py-44 lg:px-8">
-          <motion.div initial="hidden" animate="visible" className="max-w-3xl">
-            <motion.div variants={fadeUp} custom={0}>
-              <span className="enterprise-badge mb-7 inline-flex">
-                <Globe size={11} />
-                Bartez Tecnología · Empresas
+          <motion.div initial="hidden" animate="visible" className="max-w-4xl mx-auto text-center">
+            <motion.div variants={fadeUp} custom={0} className="flex justify-center">
+              <span className="enterprise-badge mb-8 inline-flex items-center gap-2">
+                <Shield size={12} className="text-primary" />
+                Portal Exclusivo para Empresas · Argentina
               </span>
             </motion.div>
 
             <motion.h1
               variants={fadeUp}
               custom={1}
-              className="font-display text-3xl font-extrabold leading-[1.08] tracking-tight text-foreground sm:text-4xl md:text-5xl lg:text-6xl"
+              className="font-display text-4xl font-extrabold leading-[1.05] tracking-tight text-foreground sm:text-5xl md:text-6xl lg:text-7xl"
             >
-              Soluciones Tecnológicas{" "}
-              <br className="hidden md:block" />
-              <span className="text-gradient">para Empresas</span>
+              Potencie su compras IT con nuestro{" "}
+              <span className="text-gradient">Portal B2B Inteligente</span>
             </motion.h1>
 
             <motion.p
               variants={fadeUp}
               custom={2}
-              className="mt-6 max-w-lg text-base text-muted-foreground leading-relaxed md:text-lg"
+              className="mt-8 max-w-2xl mx-auto text-lg text-muted-foreground leading-relaxed md:text-xl"
             >
-              Infraestructura, soporte y provisión de equipamiento con foco en continuidad operativa y planificación IT.
+              Precios mayoristas, stock en tiempo real y gestión integral de suministros tecnológicos. 
+              La herramienta definitiva para el departamento de compras y tecnología.
             </motion.p>
 
-            <motion.div variants={fadeUp} custom={3} className="mt-9 flex flex-wrap gap-3">
-              <Link to="/evaluacion-tecnologica">
-                <Button size="lg" className="bg-gradient-primary btn-interactive font-semibold text-primary-foreground hover:opacity-90 glow-sm h-11 px-7 text-sm">
-                  Solicitar Evaluación Tecnológica <ArrowRight className="ml-2" size={14} />
+            <motion.div variants={fadeUp} custom={3} className="mt-12 flex flex-wrap justify-center gap-4">
+              <Link to="/login">
+                <Button size="lg" className="bg-gradient-primary btn-interactive font-bold text-primary-foreground hover:opacity-90 glow-md h-14 px-10 text-base">
+                  Acceder al Portal B2B <ArrowRight className="ml-2" size={18} />
                 </Button>
               </Link>
-              <a href="https://wa.me/5493415104902?text=Hola%2C%20quiero%20hacer%20una%20consulta%20sobre%20soluciones%20tecnol%C3%B3gicas%20para%20empresas." target="_blank" rel="noopener noreferrer">
-                <Button size="lg" variant="outline" className="btn-interactive border-border/60 text-foreground hover:bg-secondary h-11 px-7 text-sm">
-                  Hablar con un Especialista
+              <Link to="/contacto">
+                <Button size="lg" variant="outline" className="btn-interactive border-primary/20 bg-primary/5 text-foreground hover:bg-primary/10 h-14 px-10 text-base">
+                  Solicitar Cuenta Empresa
                 </Button>
-              </a>
+              </Link>
             </motion.div>
 
-            <motion.div variants={fadeUp} custom={4} className="mt-10 flex flex-wrap gap-x-6 gap-y-2">
-              {["15+ años acompañando empresas", "Soporte remoto y en sitio", "Implementación y proyectos llave en mano"].map((item) => (
-                <span key={item} className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <CheckCircle2 size={13} className="text-primary/70 shrink-0" />
-                  {item}
+            <motion.div variants={fadeUp} custom={4} className="mt-14 flex flex-wrap justify-center gap-x-10 gap-y-4">
+              {[
+                { icon: TrendingUp, label: "Precios Mayoristas Reales" },
+                { icon: Globe, label: "Stock con Entrega inmediata" },
+                { icon: Shield, label: "Garantía Oficial de Fábrica" }
+              ].map((item) => (
+                <span key={item.label} className="flex items-center gap-3 text-sm font-medium text-muted-foreground/80">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <item.icon size={12} />
+                  </div>
+                  {item.label}
                 </span>
               ))}
             </motion.div>
 
-            {/* Quick contact form */}
-            <motion.div variants={fadeUp} custom={5} className="mt-10 relative">
-              <p className="text-xs text-muted-foreground/70 mb-2.5">¿Querés que te contactemos? Dejá tu email:</p>
+            {/* Quick Portal Inquiry */}
+            <motion.div variants={fadeUp} custom={5} className="mt-16 max-w-md mx-auto relative px-4">
+              <p className="text-xs text-muted-foreground/60 mb-4 uppercase tracking-widest font-semibold">¿Interesado en ser cliente? Déjenos su email:</p>
               <HeroContactForm />
-            </motion.div>
-
-            <motion.div
-              variants={fadeUp}
-              custom={5}
-              className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-3"
-            >
-              {["Intel", "AMD", "Lenovo", "Dell", "HP", "Cisco", "Microsoft"].map((brand) => (
-                <span key={brand} className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/50">
-                  {brand}
-                </span>
-              ))}
             </motion.div>
           </motion.div>
         </div>
@@ -187,15 +181,51 @@ const Index = () => {
         <div className="section-divider" />
       </section>
 
-      {/* Corporate Solutions */}
-      <section className="py-20 lg:py-28">
+      {/* Portal Features Grid */}
+      <section className="py-20 lg:py-28 bg-gradient-to-b from-transparent to-surface/30">
         <div className="container mx-auto px-4 lg:px-8">
           <SectionHeading
-            badge="Soluciones Integrales"
-            title="Todo lo que su empresa necesita en"
-            highlight="tecnología"
-            description="No somos una tienda de computación. Somos el departamento IT externo que su empresa necesita para operar, crecer y competir."
+            badge="Ecosistema B2B"
+            title="Diseñado para la"
+            highlight="agilidad empresarial"
+            description="Más que una tienda, una plataforma integral de abastecimiento IT con herramientas exclusivas para su organización."
             large
+          />
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {[
+              { icon: TrendingUp, title: "Precios en Tiempo Real", desc: "Acceda a listas de precios actualizadas y descuentos por volumen instantáneos." },
+              { icon: Server, title: "Stock Garantizado", desc: "Vea disponibilidad real en nuestros depósitos y reserve equipamiento al instante." },
+              { icon: ClipboardCheck, title: "Cotizador Autónomo", desc: "Genere presupuestos formales en PDF para aprobación interna en segundos." },
+              { icon: Briefcase, title: "Línea de Crédito", desc: "Gestione sus pagos y acceda a condiciones financieras exclusivas para empresas." },
+            ].map((feature, i) => (
+              <motion.div
+                key={feature.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="card-enterprise p-6 rounded-2xl border-primary/5 hover:border-primary/20"
+              >
+                <div className="icon-container h-12 w-12 text-primary mb-5">
+                  <feature.icon size={22} />
+                </div>
+                <h3 className="font-display font-bold text-foreground mb-2">{feature.title}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">{feature.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Corporate Solutions (Secondary Support) */}
+      <section className="py-20 lg:py-28 relative">
+        <div className="container mx-auto px-4 lg:px-8">
+          <SectionHeading
+            badge="Respaldo Profesional"
+            title="El motor humano"
+            highlight="detrás del portal"
+            description="Complementamos nuestra plataforma con soporte experto e ingeniería de campo para implementaciones complejas."
+            center={false}
           />
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {corporateSolutions.map((sol, i) => (
@@ -206,14 +236,14 @@ const Index = () => {
                 viewport={{ once: true, margin: "-40px" }}
                 transition={{ delay: i * 0.08, duration: 0.5 }}
               >
-                <Link to={sol.link} className="group card-enterprise flex flex-col rounded-xl p-6 lg:p-7 h-full">
+                <Link to={sol.link} className="group card-enterprise flex flex-col rounded-xl p-6 lg:p-7 h-full border-white/5">
                   <div className="icon-container h-11 w-11 text-primary mb-4">
                     <sol.icon size={20} />
                   </div>
                   <h3 className="font-display text-sm font-semibold text-foreground">{sol.title}</h3>
                   <p className="mt-2 text-xs text-muted-foreground leading-relaxed flex-1">{sol.desc}</p>
-                  <span className="mt-4 inline-flex items-center text-xs font-medium text-primary transition-all group-hover:gap-2 gap-1">
-                    Más información <ArrowRight size={12} />
+                  <span className="mt-4 inline-flex items-center text-xs font-medium text-primary transition-all group-hover:gap-2 gap-1 uppercase tracking-widest">
+                    Ver servicio <ArrowRight size={10} />
                   </span>
                 </Link>
               </motion.div>

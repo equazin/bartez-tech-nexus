@@ -18,7 +18,7 @@ import {
   ClipboardList, CheckCircle2, XCircle, Clock,
   ShieldCheck, Check, AlertTriangle, AlertCircle, SlidersHorizontal, Shield,
   Star, Sun, Moon, ChevronDown, ChevronRight, FileText,
-  Table2, Zap, Truck, ChevronUp, Download, Upload, Users, MessageSquare, Loader2, RotateCcw, type LucideIcon, ShoppingBag, Heart, User, MapPin
+  Table2, Zap, Truck, ChevronUp, Download, Upload, Users, MessageSquare, Loader2, RotateCcw, type LucideIcon, ShoppingBag, Heart, User, MapPin, Briefcase, Sparkles
 } from "lucide-react";
 import { getAvailableStock } from "@/lib/pricing";
 import { usePricing } from "@/hooks/usePricing";
@@ -46,10 +46,15 @@ import { PortalHeader } from "@/components/b2b/PortalHeader";
 import { PortalSidebar } from "@/components/b2b/PortalSidebar";
 import { AccountCenter } from "@/components/b2b/AccountCenter";
 import { SupportCenter } from "@/components/b2b/SupportCenter";
+import { ProjectsPanel } from "@/components/b2b/ProjectsPanel";
+import { ExpressQuoter } from "@/components/b2b/ExpressQuoter";
 import { ProductDetailModal } from "@/components/b2b/ProductDetailModal";
 import { CatalogSection } from "@/components/b2b/CatalogSection";
 import { ClientDashboard } from "@/components/b2b/ClientDashboard";
+import type { AssignedSeller } from "@/components/b2b/ClientDashboard";
 import type { ViewMode, CatalogContext } from "@/components/b2b/CatalogSection";
+import { useClientProjects } from "@/hooks/useClientProjects";
+import { useBusinessAlerts } from "@/hooks/useBusinessAlerts";
 import { useCartSync } from "@/hooks/useCartSync";
 import { CartDrawer } from "@/components/CartDrawer";
 import { useImpersonate } from "@/context/ImpersonateContext";
@@ -157,7 +162,7 @@ function isPosCategoryValue(value: unknown): boolean {
 }
 
 export default function B2BPortal() {
-  type PortalTab = "home" | "catalog" | "orders" | "quotes" | "invoices" | "cuenta" | "approvals" | "support" | "rma" | "bulk";
+  type PortalTab = "home" | "catalog" | "orders" | "quotes" | "projects" | "express" | "invoices" | "cuenta" | "approvals" | "support" | "rma" | "bulk";
 
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -167,6 +172,30 @@ export default function B2BPortal() {
 
   const [catalogContext, setCatalogContext] = useState<CatalogContext>("default");
   const [search, setSearch] = useState("");
+
+  // ─── Dashboard dynamic data ───────────────────────────────────────────
+  const dashboardUserId = profile?.id ?? "";
+  const { projects, createProject } = useClientProjects(dashboardUserId);
+  const { alerts } = useBusinessAlerts(dashboardUserId);
+  const [assignedSeller, setAssignedSeller] = useState<AssignedSeller | null>(null);
+
+  useEffect(() => {
+    if (!profile?.assigned_seller_id) {
+      setAssignedSeller(null);
+      return;
+    }
+    supabase
+      .from("profiles")
+      .select("id, contact_name, phone")
+      .eq("id", profile.assigned_seller_id)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          const raw = data as { id: string; contact_name: string; phone?: string };
+          setAssignedSeller({ id: raw.id, name: raw.contact_name, phone: raw.phone });
+        }
+      });
+  }, [profile?.assigned_seller_id]);
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [brandFilter, setBrandFilter] = useState("all");
   const [minPrice, setMinPrice] = useState("");
@@ -1164,6 +1193,8 @@ export default function B2BPortal() {
           { id: "home",     label: "Inicio", icon: LayoutGrid },
           { id: "catalog",  label: "Catálogo", icon: Package },
           { id: "orders",   label: `Mis Pedidos${orders.length ? ` (${orders.length})` : ""}`, icon: ClipboardList },
+          { id: "projects", label: "Proyectos", icon: Briefcase },
+          { id: "express",  label: "Cotizador Express", icon: Sparkles },
           { id: "quotes",   label: `Cotizaciones${quotes.length ? ` (${quotes.length})` : ""}`, icon: FileText },
           { id: "invoices", label: `Facturas${myInvoices.length ? ` (${myInvoices.length})` : ""}`, icon: FileText },
           { id: "cuenta",   label: "Mi Cuenta", icon: Users },
@@ -1301,10 +1332,16 @@ export default function B2BPortal() {
               profile={profile}
               orders={orders}
               invoices={myInvoices}
+              products={products}
               creditLimit={profile.credit_limit ?? 0}
               creditUsed={creditUsed}
               isDark={isDark}
-              onGoTo={(tab) => setActiveTab(tab as PortalTab)}
+              onGoTo={(tab) => setActiveTab(tab as any)}
+              onAddToCart={handleSmartAddToCart}
+              projects={projects}
+              onCreateProject={createProject}
+              alerts={alerts}
+              assignedSeller={assignedSeller}
             />
           )}
 
@@ -1318,6 +1355,16 @@ export default function B2BPortal() {
               currency={currency}
               orders={managedOrders}
               onRefresh={refreshApprovals}
+            />
+          )}
+
+          {/* ── PROYECTOS ── */}
+          {activeTab === "projects" && (
+            <ProjectsPanel
+              orders={orders}
+              quotes={quotes}
+              profileId={profile?.id || "guest"}
+              isDark={isDark}
             />
           )}
 
@@ -1388,6 +1435,15 @@ export default function B2BPortal() {
               onGoToCatalog={() => setActiveTab("catalog")}
               onDuplicate={handleDuplicateQuote}
               onConvertToOrder={handleConvertQuoteToOrder}
+            />
+          )}
+
+          {/* ── COTIZADOR EXPRESS ── */}
+          {activeTab === "express" && (
+            <ExpressQuoter
+              products={products}
+              onAddToCart={handleSmartAddToCart}
+              isDark={isDark}
             />
           )}
 

@@ -16,7 +16,7 @@ import {
   Users, Package, ClipboardList, LogOut, UserPlus, X, Plus,
   DollarSign, Pencil, Check, LayoutDashboard, Sun, Moon, Phone,
   Truck, Download, Building2, Tag, BarChart2, Activity, Wifi, Bookmark, Flame,
-  Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag, Image, LifeBuoy, Ticket, Globe, RotateCcw, Handshake, ShieldCheck, type LucideIcon,
+  Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag, Image, LifeBuoy, Ticket, Globe, RotateCcw, Handshake, ShieldCheck, Bell, type LucideIcon,
 } from "lucide-react";
 import { exportOrdersCSV, exportCatalogCSV, exportReportsCSV } from "@/lib/exportCsv";
 import { exportCatalogPdf, exportRemitoPdf } from "@/lib/exportPdf";
@@ -57,6 +57,7 @@ const OpportunitiesTab = lazy(() => import("@/components/admin/OpportunitiesTab"
 const PosManagementTab = lazy(() => import("@/components/admin/PosManagementTab").then(m => ({ default: m.PosManagementTab })));
 const ImageManagerTab = lazy(() => import("@/components/admin/ImageManagerTab").then(m => ({ default: m.ImageManagerTab })));
 const WebhooksTab = lazy(() => import("@/components/admin/WebhooksTab").then(m => ({ default: m.WebhooksTab })));
+const BusinessAlertsTab = lazy(() => import("@/components/admin/BusinessAlertsTab").then(m => ({ default: m.BusinessAlertsTab })));
 const RmaAdminTab = lazy(() => import("@/components/admin/RmaAdminTab").then(m => ({ default: m.RmaAdminTab })));
 const PriceAgreementsTab = lazy(() => import("@/components/admin/PriceAgreementsTab").then(m => ({ default: m.PriceAgreementsTab })));
 const SerialsTab = lazy(() => import("@/components/admin/SerialsTab").then(m => ({ default: m.SerialsTab })));
@@ -1297,9 +1298,10 @@ async function handleCreateClient() {
     {
       id: "clientes", label: "Clientes", icon: Users,
       items: [
-        { id: "clients",           label: "Clientes", icon: Users,      badge: clients.length, adminOnly: true },
-        { id: "users_permissions", label: "Accesos",  icon: UserPlus,   adminOnly: true },
-        { id: "credit",            label: "Crédito",  icon: CreditCard, adminOnly: true },
+        { id: "clients",           label: "Clientes",      icon: Users,      badge: clients.length, adminOnly: true },
+        { id: "users_permissions", label: "Accesos",       icon: UserPlus,   adminOnly: true },
+        { id: "credit",            label: "Crédito",       icon: CreditCard, adminOnly: true },
+        { id: "business_alerts",   label: "Alertas B2B",  icon: Bell,       adminOnly: true },
       ],
     },
     {
@@ -2704,6 +2706,13 @@ async function handleCreateClient() {
         {/* -- CRÉDITO -- */}
         {activeTab === "credit" && (
           <CreditTab isDark={isDark} />
+        )}
+
+        {/* -- ALERTAS B2B -- */}
+        {activeTab === "business_alerts" && (
+          <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Cargando...</div>}>
+            <BusinessAlertsTab isDark={isDark} />
+          </Suspense>
         )}
 
         {/* -- COTIZACIONES ADMIN -- */}

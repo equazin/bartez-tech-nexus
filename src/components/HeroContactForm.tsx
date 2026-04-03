@@ -65,8 +65,8 @@ export default function HeroContactForm() {
             type="email"
             value={email}
             onChange={e => { setEmail(e.target.value); setError(""); }}
-            placeholder="Email corporativo"
-            className="flex-1 min-w-0 rounded-xl border border-border/50 bg-background/60 backdrop-blur-sm px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all"
+            placeholder="Email corporativo (@empresa.com)"
+            className="flex-1 min-w-0 rounded-xl border border-border/50 bg-background/60 backdrop-blur-sm px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all font-medium"
           />
           <button
             type="submit"
