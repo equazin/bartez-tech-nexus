@@ -465,10 +465,11 @@ const Admin = () => {
     setSingleGenResult(null);
     try {
       const base = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
-      const res = await fetch(`${base}/api/content-enricher`, {
+      const res = await fetch(`${base}/api/ai`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          action: "enrich_content",
           products: [{ id: singleGenSelected.id, name: singleGenSelected.name, brand: singleGenSelected.brand_name, sku: singleGenSelected.sku }],
           mode: singleGenMode,
           preview: true,

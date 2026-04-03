@@ -49,7 +49,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (payload.type === "order_shipped" && payload.clientEmail) {
-      const { orderShippedHTML } = await import("./_shared/emailTemplates");
+      const { orderShippedHTML } = await import("./_shared/emailTemplates.js");
       await transport.sendMail({
         from: `"Bartez Tecnologia" <${fromEmail}>`,
         to: payload.clientEmail,
@@ -67,7 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (payload.type === "order_delivered" && payload.clientEmail) {
-      const { orderDeliveredHTML } = await import("./_shared/emailTemplates");
+      const { orderDeliveredHTML } = await import("./_shared/emailTemplates.js");
       await transport.sendMail({
         from: `"Bartez Tecnologia" <${fromEmail}>`,
         to: payload.clientEmail,

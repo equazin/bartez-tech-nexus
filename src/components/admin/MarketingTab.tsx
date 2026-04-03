@@ -377,13 +377,14 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
     setGenerating(true); setGenMsg(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`/api/generate-campaign`, {
+      const res = await fetch(`/api/ai`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
         body: JSON.stringify({
+          action:           "generate_campaign",
           objective:        aiForm.objective,
           campaign_type:    aiForm.campaign_type,
           target_segment:   aiForm.target_segment,
