@@ -13,7 +13,7 @@
 -- 1. Create the normalized table
 CREATE TABLE IF NOT EXISTS order_items (
   id             BIGSERIAL PRIMARY KEY,
-  order_id       UUID         NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  order_id       BIGINT       NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   product_id     INTEGER      NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
   name           TEXT         NOT NULL,
   sku            TEXT,
