@@ -377,7 +377,7 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
     setGenerating(true); setGenMsg(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-campaign`, {
+      const res = await fetch(`/api/generate-campaign`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
