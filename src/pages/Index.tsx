@@ -58,6 +58,7 @@ const trustItems = [
 
 const Index = () => {
   return (
+    <>
     <Layout>
       {/* Hero */}
       <section className="relative overflow-hidden min-h-[85vh] flex items-center">
@@ -476,6 +477,7 @@ const Index = () => {
 
     {/* WhatsApp floating button */}
     <WhatsAppFloat />
+    </>
   );
 };
 
