@@ -9,7 +9,10 @@ export interface Product {
   category: string;
   stock: number;
   sku?: string;
+  /** @deprecated Legacy integer — use primary_supplier_id (UUID) instead */
   supplier_id?: number;
+  /** Canonical UUID FK to suppliers table. Replaces legacy integer supplier_id. */
+  primary_supplier_id?: string;
   supplier_name?: string;
   supplier_multiplier?: number;
   stock_min?: number;

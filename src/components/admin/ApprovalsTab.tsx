@@ -263,6 +263,49 @@ export function ApprovalsTab({
     await load();
   }
 
+  // ── Corporate pending_approval orders (from buyers waiting for manager/admin) ──
+  const [corporatePending, setCorporatePending] = useState<(OrderRow & { buyer_name?: string; b2b_role?: string; approval_threshold?: number })[]>([]);
+  const [corporateLoading, setCorporateLoading] = useState(false);
+  const [corporateNotes, setCorporateNotes] = useState<Record<string, string>>({});
+
+  async function loadCorporatePending() {
+    setCorporateLoading(true);
+    const { data } = await supabase
+      .from("orders")
+      .select("id, client_id, total, status, order_number, created_at")
+      .eq("status", "pending_approval")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (data) {
+      const enriched = await Promise.all((data as OrderRow[]).map(async (o) => {
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("company_name, contact_name, b2b_role, approval_threshold")
+          .eq("id", o.client_id)
+          .single();
+        return { ...o, buyer_name: (prof as any)?.company_name || (prof as any)?.contact_name || o.client_id, b2b_role: (prof as any)?.b2b_role, approval_threshold: (prof as any)?.approval_threshold };
+      }));
+      setCorporatePending(enriched);
+    }
+    setCorporateLoading(false);
+  }
+
+  useEffect(() => { void loadCorporatePending(); }, []);
+
+  async function approveCorporateOrder(orderId: string | number) {
+    await supabase.rpc("approve_b2b_order", { p_order_id: String(orderId) });
+    setCorporatePending(prev => prev.filter(o => String(o.id) !== String(orderId)));
+    await load();
+  }
+
+  async function rejectCorporateOrder(orderId: string | number) {
+    const note = corporateNotes[String(orderId)]?.trim();
+    await supabase.from("orders").update({ status: "rejected" }).eq("id", orderId);
+    if (note) await supabase.from("client_notes").insert({ client_id: corporatePending.find(o => String(o.id) === String(orderId))?.client_id, tipo: "seguimiento", body: `[APPROVAL:ORDER:REJECTED] ${approverLabel}${note ? ` · ${note}` : ""}` });
+    setCorporatePending(prev => prev.filter(o => String(o.id) !== String(orderId)));
+    await load();
+  }
+
   const pendingOrders = useMemo(() => orders.filter((order) => order.status === "pending"), [orders]);
   const orderExceptions = pendingOrders.filter((order) => orderReasons(order).length > 0);
   const quoteExceptions = quotes.filter((quote) => quoteReasons(quote).length > 0);
@@ -289,6 +332,68 @@ export function ApprovalsTab({
 
   return (
     <div className="space-y-5 max-w-6xl">
+
+      {/* ── Aprobaciones Corporativas (pending_approval) ── */}
+      {(corporateLoading || corporatePending.length > 0) && (
+        <div className={`rounded-2xl border p-5 ${dk("bg-amber-500/5 border-amber-500/20", "bg-amber-50 border-amber-200")}`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-amber-400">
+              <ShieldAlert size={16} />
+              <h3 className="text-sm font-bold uppercase tracking-widest">Aprobaciones Corporativas Pendientes</h3>
+              {corporatePending.length > 0 && (
+                <span className="ml-1 rounded-full bg-amber-400 text-black text-[10px] font-bold px-2 py-0.5">{corporatePending.length}</span>
+              )}
+            </div>
+            <button onClick={() => void loadCorporatePending()} className="text-[10px] text-gray-400 hover:text-white flex items-center gap-1">
+              <RefreshCw size={11} /> Actualizar
+            </button>
+          </div>
+          <p className="text-[11px] text-gray-500 mb-4">Órdenes de compradores (buyer) que superan su umbral de aprobación y requieren revisión del manager o admin.</p>
+          {corporateLoading ? (
+            <p className="text-xs text-gray-500 py-2">Cargando...</p>
+          ) : (
+            <div className="space-y-3">
+              {corporatePending.map(order => (
+                <div key={String(order.id)} className={`rounded-xl border p-4 ${dk("bg-[#111] border-[#2a2a2a]", "bg-white border-[#e5e5e5]")}`}>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <p className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>
+                        {order.order_number || `#${String(order.id).slice(-6).toUpperCase()}`}
+                        <span className="ml-2 text-[10px] font-normal text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-full">
+                          Pendiente aprobación corporativa
+                        </span>
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Comprador: <span className={dk("text-gray-300", "text-gray-700")}>{order.buyer_name}</span>
+                        {order.approval_threshold ? ` · Umbral: ${fmtMoney(order.approval_threshold)}` : ""}
+                      </p>
+                    </div>
+                    <p className="text-sm font-extrabold text-amber-400 shrink-0">{fmtMoney(order.total)}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Nota de aprobación (opcional)"
+                      value={corporateNotes[String(order.id)] ?? ""}
+                      onChange={e => setCorporateNotes(prev => ({ ...prev, [String(order.id)]: e.target.value }))}
+                      className={`flex-1 text-xs px-3 py-1.5 rounded-lg border outline-none ${dk("bg-[#1a1a1a] border-[#333] text-white placeholder-gray-600", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717]")}`}
+                    />
+                    <button onClick={() => void approveCorporateOrder(order.id)}
+                      className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition">
+                      <CheckCircle2 size={12} /> Aprobar
+                    </button>
+                    <button onClick={() => void rejectCorporateOrder(order.id)}
+                      className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition">
+                      <XCircle size={12} /> Rechazar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className={`text-base font-bold ${dk("text-white", "text-[#171717]")}`}>Centro de Aprobaciones</h2>
