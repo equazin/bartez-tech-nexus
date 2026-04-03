@@ -1,128 +1,122 @@
-import { useEffect, useState } from "react";
-import { Sparkles, ShoppingCart, Clock, Calendar, CheckCircle2 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/context/AuthContext";
-import { toast } from "sonner";
-
-interface RebuyRecommendation {
-  product_id: number;
-  product_name: string;
-  product_image: string;
-  product_sku: string;
-  purchase_count: number;
-  last_purchase_date: string;
-  avg_days_interval: number;
-  estimated_next_purchase: string;
-  days_until_next: number;
-}
+import { useMemo } from "react";
+import { Sparkles, ShoppingCart, ArrowRight, AlertCircle, TrendingUp } from "lucide-react";
+import type { PortalOrder } from "@/hooks/useOrders";
+import type { Product } from "@/models/products";
+import { Button } from "@/components/ui/button";
+import { formatMoneyAmount } from "@/lib/money";
+import { useCurrency } from "@/context/CurrencyContext";
+import { getAvailableStock } from "@/lib/pricing";
 
 interface SmartSuggestionsProps {
+  orders: PortalOrder[];
+  products: Product[];
+  onAddToCart: (product: Product, qty: number) => void;
   isDark: boolean;
-  onAddToCart: (productId: number) => void;
-  formatPrice: (val: number) => string;
 }
 
-export function SmartSuggestions({ isDark, onAddToCart, formatPrice }: SmartSuggestionsProps) {
-  const { profile } = useAuth();
-  const [recommendations, setRecommendations] = useState<RebuyRecommendation[]>([]);
-  const [loading, setLoading] = useState(true);
+export function SmartSuggestions({ orders = [], products = [], onAddToCart, isDark }: SmartSuggestionsProps) {
+  const { currency } = useCurrency();
+  const dk = (d: string, l: string) => isDark ? d : l;
 
-  useEffect(() => {
-    async function load() {
-      if (!profile?.id) return;
-      try {
-        const { data, error } = await supabase
-          .from("rebuy_recommendations")
-          .select("*")
-          .eq("client_id", profile.id)
-          .limit(4);
+  const suggestions = useMemo(() => {
+    if (orders.length < 2) return [];
 
-        if (!error && data) {
-          setRecommendations(data as RebuyRecommendation[]);
+    // 1. Group by product_id
+    const purchaseMap: Record<number, { dates: number[], totalQty: number, product: Product | null }> = {};
+    
+    orders.forEach(order => {
+      order.products.forEach(p => {
+        if (!purchaseMap[p.product_id]) {
+          const product = products.find(prod => prod.id === p.product_id) || null;
+          purchaseMap[p.product_id] = { dates: [], totalQty: 0, product };
         }
-      } catch (err) {
-        console.error("Error fetching rebuy recommendations:", err);
-      } finally {
-        setLoading(false);
+        purchaseMap[p.product_id].dates.push(new Date(order.created_at).getTime());
+        purchaseMap[p.product_id].totalQty += p.quantity;
+      });
+    });
+
+    const results = [];
+    const now = Date.now();
+
+    for (const [id, data] of Object.entries(purchaseMap)) {
+      if (!data.product || data.dates.length < 2) continue;
+
+      // Sort dates
+      const sortedDates = [...data.dates].sort((a, b) => b - a);
+      const lastPurchase = sortedDates[0];
+      
+      // Calculate intervals
+      const intervals = [];
+      for (let i = 0; i < sortedDates.length - 1; i++) {
+        intervals.push(sortedDates[i] - sortedDates[i+1]);
+      }
+      const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      
+      const daysSinceLast = (now - lastPurchase) / 86400000;
+      const avgDays = avgInterval / 86400000;
+      const stock = getAvailableStock(data.product);
+
+      // Condition: It's "due" soon (80% of interval passed) and stock is low or just a reminder
+      if (daysSinceLast > avgDays * 0.8) {
+        results.push({
+          product: data.product,
+          reason: daysSinceLast > avgDays ? "Consumo estimado superado" : "Reposición sugerida pronto",
+          type: daysSinceLast > avgDays ? "urgent" : "info",
+          avgQty: Math.ceil(data.totalQty / data.dates.length),
+          stock
+        });
       }
     }
-    load();
-  }, [profile?.id]);
 
-  if (loading || recommendations.length === 0) return null;
+    return results.slice(0, 3); // Max 3
+  }, [orders, products]);
 
-  const dk = (d: string, l: string) => (isDark ? d : l);
+  if (suggestions.length === 0) return null;
 
   return (
-    <div className={`mb-6 p-5 rounded-2xl border ${dk("bg-[#0d1410] border-[#1a2d21]", "bg-[#f0faf5] border-[#d1e7dd]")} transition-all`}>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-[#2D9F6A] flex items-center justify-center text-white shadow-lg shadow-green-500/20">
-            <Sparkles size={16} fill="currentColor" />
-          </div>
-          <div>
-            <h3 className={`text-sm font-bold ${dk("text-white", "text-[#1a7a50]")}`}>Sugerencias de Reabastecimiento IA</h3>
-            <p className={`text-[10px] uppercase tracking-wider font-semibold ${dk("text-[#4a8563]", "text-[#4a8563]/70")}`}>Basado en tu frecuencia de compra habitual</p>
-          </div>
-        </div>
+    <div className={`rounded-2xl border p-5 relative overflow-hidden ${dk("bg-primary/5 border-primary/20", "bg-primary/5 border-primary/10")}`}>
+      <div className="absolute top-0 right-0 p-8 text-primary/10 -rotate-12">
+        <Sparkles size={120} />
       </div>
 
-      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        {recommendations.map((rec) => {
-          const isUrgent = rec.days_until_next <= 0;
-          return (
-            <div key={rec.product_id} className={`flex flex-col p-4 rounded-xl border ${dk("bg-[#111] border-[#1f1f1f] hover:border-[#2D9F6A]/30", "bg-white border-[#e5e5e5] hover:border-[#2D9F6A]/30")} transition-all group`}>
-              <div className="flex items-start gap-3 mb-3">
-                <div className={`h-12 w-12 rounded-lg ${dk("bg-[#0d0d0d]", "bg-[#f9f9f9]")} flex items-center justify-center border shrink-0`}>
-                  <img src={rec.product_image} alt={rec.product_name} className="max-h-10 max-w-10 object-contain p-1" />
-                </div>
-                <div className="min-w-0">
-                  <p className={`text-xs font-bold truncate leading-tight ${dk("text-white", "text-[#171717]")}`}>{rec.product_name}</p>
-                  <p className="text-[10px] font-mono text-gray-500 mt-0.5">{rec.product_sku}</p>
-                </div>
-              </div>
+      <div className="relative z-10">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-1.5 rounded-lg bg-primary/20 text-primary">
+            <TrendingUp size={16} />
+          </div>
+          <h3 className={`text-sm font-bold ${dk("text-primary", "text-primary-foreground")}`}>Reabastecimiento Inteligente</h3>
+          <span className="ml-auto text-[10px] font-bold uppercase tracking-widest text-primary/60">BETA IA</span>
+        </div>
 
-              <div className="space-y-2 mb-4 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                   <span className="text-[10px] text-gray-500 flex items-center gap-1"><Clock size={10} /> Frecuencia:</span>
-                   <span className={`text-[10px] font-bold ${dk("text-gray-300", "text-[#525252]")}`}>Cada {rec.avg_days_interval} días</span>
+        <div className="grid gap-3">
+          {suggestions.map((s, i) => (
+            <div key={s.product.id} className={`p-3 rounded-xl border flex items-center justify-between gap-4 transition-all hover:scale-[1.01] ${dk("bg-[#0d0d0d] border-white/5", "bg-white border-black/5 shadow-sm")}`}>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.type === 'urgent' ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                    {s.reason}
+                  </span>
+                  {s.stock < 5 && <span className="text-[10px] text-amber-500 font-bold">Stock bajo ({s.stock})</span>}
                 </div>
-                <div className="flex items-center justify-between gap-2">
-                   <span className="text-[10px] text-gray-500 flex items-center gap-1"><Calendar size={10} /> Última compra:</span>
-                   <span className={`text-[10px] font-bold ${dk("text-gray-300", "text-[#525252]")}`}>{new Date(rec.last_purchase_date).toLocaleDateString()}</span>
-                </div>
-                {isUrgent ? (
-                  <div className={`mt-2 py-1.5 px-2 rounded-lg text-[10px] font-bold flex items-center gap-1.5 ${dk("bg-red-500/10 text-red-400 border border-red-500/20", "bg-red-50 text-red-600 border border-red-200")}`}>
-                    <AlertTriangle size={11} /> Stock crítico (hace {Math.abs(rec.days_until_next)}d)
-                  </div>
-                ) : (
-                  <div className={`mt-2 py-1.5 px-2 rounded-lg text-[10px] font-bold flex items-center gap-1.5 ${dk("bg-blue-500/10 text-blue-400 border border-blue-500/20", "bg-blue-50 text-blue-600 border border-blue-200")}`}>
-                    <Clock size={11} /> Faltan {rec.days_until_next} días
-                  </div>
-                )}
+                <h4 className={`text-xs font-bold truncate ${dk("text-white", "text-foreground")}`}>{s.product.name}</h4>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Sugerencia: Reponer {s.avgQty} unidades</p>
               </div>
-
-              <button
-                onClick={() => {
-                   onAddToCart(rec.product_id);
-                   toast.success(`${rec.product_name} añadido sugerido`, { icon: <Sparkles size={14} className="text-[#2D9F6A]" /> });
-                }}
-                className={`w-full py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${dk("bg-[#1a1a1a] hover:bg-[#262626] text-[#2D9F6A] border border-[#2D9F6A]/20 hover:border-[#2D9F6A]/40", "bg-[#f5f5f5] hover:bg-[#ebebeb] text-[#1a7a50] border border-[#1a7a50]/20 hover:border-[#1a7a50]/40")}`}
+              
+              <Button 
+                size="sm" 
+                onClick={() => onAddToCart(s.product, s.avgQty)}
+                className="h-8 rounded-lg bg-primary text-white hover:bg-primary/90 text-[10px] font-bold gap-1"
               >
-                <ShoppingCart size={13} /> Agregar Reposición
-              </button>
+                Sumar {s.avgQty} <ArrowRight size={12} />
+              </Button>
             </div>
-          );
-        })}
+          ))}
+        </div>
+        
+        <p className="text-[10px] text-muted-foreground mt-4 italic text-center">
+          * Algoritmo basado en tus compras de los últimos 12 meses.
+        </p>
       </div>
     </div>
   );
-}
-
-function AlertTriangle({ size, className }: { size: number; className?: string }) {
-    return (
-        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><path d="M12 9v4" /><path d="M12 17h.01" />
-        </svg>
-    )
 }
