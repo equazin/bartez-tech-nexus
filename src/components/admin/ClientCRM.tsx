@@ -15,6 +15,7 @@ import {
   ArrowLeft, Pencil, Activity, LogIn, LogOut, MousePointer,
   ShoppingCart, Hash, CreditCard, BarChart2, Landmark, Settings,
   LayoutGrid, Shield, CalendarDays, UserCheck, UserX, Loader2, type LucideIcon,
+  DollarSign, Trash2,
 } from "lucide-react";
 import { useImpersonate } from "@/context/ImpersonateContext";
 import { useAuth } from "@/context/AuthContext";
@@ -188,7 +189,7 @@ function StatPill({ icon: Icon, label, value, accent, isDark }: { icon: LucideIc
   );
 }
 
-type DetailTab = "vista360" | "resumen" | "credito" | "movimientos" | "facturas" | "datos";
+type DetailTab = "vista360" | "resumen" | "credito" | "movimientos" | "facturas" | "datos" | "precios";
 
 const DETAIL_TABS: Array<{ id: DetailTab; label: string; icon: LucideIcon }> = [
   { id: "vista360",    label: "Vista 360",   icon: Users       },
@@ -196,6 +197,7 @@ const DETAIL_TABS: Array<{ id: DetailTab; label: string; icon: LucideIcon }> = [
   { id: "credito",     label: "Credito",     icon: CreditCard  },
   { id: "movimientos", label: "Cuenta",      icon: BarChart2   },
   { id: "facturas",    label: "Facturas",    icon: Landmark    },
+  { id: "precios",     label: "Precios",     icon: DollarSign  },
   { id: "datos",       label: "Datos",       icon: Settings    },
 ];
 
@@ -955,6 +957,11 @@ function ClientDetail({
         </div>
       )}
 
+      {/* Tab: Precios Pactados */}
+      {activeTab === "precios" && (
+        <CustomPricesPanel clientId={client.id} isDark={isDark} />
+      )}
+
       {/* Tab: Datos */}
       {activeTab === "datos" && (
         <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-5`}>
@@ -968,6 +975,148 @@ function ClientDetail({
         </div>
       )}
 
+    </div>
+  );
+}
+
+// -- Custom Prices Panel -------------------------------------------------------
+interface CustomPriceRow {
+  id: string;
+  product_id: number;
+  product_name: string;
+  product_sku: string | null;
+  custom_price: number;
+  currency: string;
+}
+
+function CustomPricesPanel({ clientId, isDark }: { clientId: string; isDark: boolean }) {
+  const dk = (d: string, l: string) => isDark ? d : l;
+  const [rows, setRows]       = useState<CustomPriceRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [prodSearch, setProdSearch] = useState("");
+  const [prodResults, setProdResults] = useState<{ id: number; name: string; sku: string | null }[]>([]);
+  const [selectedProd, setSelectedProd] = useState<{ id: number; name: string; sku: string | null } | null>(null);
+  const [price, setPrice]     = useState("");
+  const [currency, setCurrency] = useState("USD");
+  const [saving, setSaving]   = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from("client_custom_prices")
+      .select("id, product_id, custom_price, currency, products(name, sku)")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false });
+    setRows(((data ?? []) as any[]).map(r => ({
+      id: r.id, product_id: r.product_id,
+      product_name: r.products?.name ?? "—", product_sku: r.products?.sku ?? null,
+      custom_price: r.custom_price, currency: r.currency,
+    })));
+    setLoading(false);
+  };
+
+  useEffect(() => { void load(); }, [clientId]);
+
+  async function searchProducts(q: string) {
+    if (q.length < 2) { setProdResults([]); return; }
+    const { data } = await supabase.from("products").select("id, name, sku").or(`name.ilike.%${q}%,sku.ilike.%${q}%`).eq("active", true).limit(8);
+    setProdResults((data ?? []) as { id: number; name: string; sku: string | null }[]);
+  }
+
+  async function handleSave() {
+    if (!selectedProd || !price) return;
+    setSaving(true);
+    await supabase.from("client_custom_prices").upsert({
+      client_id: clientId, product_id: selectedProd.id,
+      custom_price: Number(price), currency,
+    }, { onConflict: "client_id,product_id" });
+    setShowForm(false); setSelectedProd(null); setProdSearch(""); setPrice(""); setProdResults([]);
+    setSaving(false);
+    void load();
+  }
+
+  async function handleDelete(id: string) {
+    await supabase.from("client_custom_prices").delete().eq("id", id);
+    setRows(prev => prev.filter(r => r.id !== id));
+  }
+
+  const inp = `w-full text-xs px-3 py-2 rounded-lg border outline-none ${dk("bg-[#0d0d0d] border-[#2a2a2a] text-white", "bg-white border-[#e5e5e5] text-[#171717]")}`;
+
+  return (
+    <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-5 space-y-4`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Precios Pactados</p>
+          <p className="text-xs text-[#737373] mt-0.5">Precios netos por SKU que ignoran los márgenes globales.</p>
+        </div>
+        <button onClick={() => setShowForm(v => !v)}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#2D9F6A]/15 text-[#2D9F6A] border border-[#2D9F6A]/30 hover:bg-[#2D9F6A]/25 transition">
+          + Agregar precio
+        </button>
+      </div>
+
+      {showForm && (
+        <div className={`rounded-xl border p-3 space-y-3 ${dk("border-[#2a2a2a] bg-[#0a0a0a]", "border-[#e5e5e5] bg-[#fafafa]")}`}>
+          <div className="relative">
+            <input value={prodSearch} onChange={e => { setProdSearch(e.target.value); setSelectedProd(null); void searchProducts(e.target.value); }}
+              placeholder="Buscar producto por nombre o SKU..." className={inp} />
+            {prodResults.length > 0 && !selectedProd && (
+              <div className={`absolute z-10 w-full mt-1 rounded-lg border shadow-lg overflow-hidden ${dk("bg-[#111] border-[#2a2a2a]", "bg-white border-[#e5e5e5]")}`}>
+                {prodResults.map(p => (
+                  <button key={p.id} onClick={() => { setSelectedProd(p); setProdSearch(p.name); setProdResults([]); }}
+                    className={`w-full text-left px-3 py-2 text-xs border-b last:border-b-0 ${dk("border-[#1a1a1a] hover:bg-[#1a1a1a] text-[#d4d4d4]", "border-[#f0f0f0] hover:bg-[#f5f5f5] text-[#171717]")}`}>
+                    <span className="font-semibold">{p.name}</span>
+                    {p.sku && <span className="text-[#737373] ml-2">{p.sku}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="Precio neto" className={inp} />
+            <select value={currency} onChange={e => setCurrency(e.target.value)} className={inp}>
+              <option value="USD">USD</option>
+              <option value="ARS">ARS</option>
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleSave} disabled={saving || !selectedProd || !price}
+              className="text-xs px-4 py-1.5 rounded-lg bg-[#2D9F6A] text-white hover:bg-[#25885a] disabled:opacity-50 transition">
+              {saving ? "Guardando..." : "Guardar"}
+            </button>
+            <button onClick={() => setShowForm(false)}
+              className={`text-xs px-3 py-1.5 rounded-lg border ${dk("border-[#2a2a2a] text-[#737373]", "border-[#e5e5e5] text-[#525252]")}`}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="space-y-2">{[0,1,2].map(i => <div key={i} className={`h-10 rounded-xl animate-pulse ${dk("bg-[#1a1a1a]", "bg-[#f0f0f0]")}`} />)}</div>
+      ) : rows.length === 0 ? (
+        <p className="text-xs text-center py-6 text-[#525252]">Sin precios pactados. Agregá uno para que tenga prioridad sobre el margen global.</p>
+      ) : (
+        <div className={`rounded-xl border overflow-hidden ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")}`}>
+          <div className={`grid grid-cols-[1fr_100px_80px_40px] gap-2 px-4 py-2 text-[10px] font-bold uppercase tracking-wider ${dk("bg-[#0d0d0d] text-[#525252]", "bg-[#f5f5f5] text-[#a3a3a3]")}`}>
+            <span>Producto</span><span className="text-right">Precio neto</span><span className="text-right">Moneda</span><span />
+          </div>
+          {rows.map(r => (
+            <div key={r.id} className={`grid grid-cols-[1fr_100px_80px_40px] gap-2 px-4 py-2.5 border-t text-xs items-center ${dk("border-[#1a1a1a] bg-[#111]", "border-[#f0f0f0] bg-white")}`}>
+              <div>
+                <p className={`font-semibold truncate ${dk("text-white", "text-[#171717]")}`}>{r.product_name}</p>
+                {r.product_sku && <p className="text-[10px] text-[#525252]">{r.product_sku}</p>}
+              </div>
+              <span className={`text-right font-bold ${dk("text-[#2D9F6A]", "text-[#2D9F6A]")}`}>{r.custom_price.toLocaleString("es-AR")}</span>
+              <span className={`text-right text-[10px] ${dk("text-[#a3a3a3]", "text-[#525252]")}`}>{r.currency}</span>
+              <button onClick={() => handleDelete(r.id)} className="text-red-400 hover:text-red-300 transition flex justify-center">
+                <Trash2 size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

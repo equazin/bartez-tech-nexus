@@ -28,6 +28,7 @@ import { CreateOrderModal } from "@/components/admin/CreateOrderModal";
 import { NotificationBell } from "@/components/admin/NotificationBell";
 import { AdminSearch } from "@/components/admin/AdminSearch";
 import { logActivity } from "@/lib/api/activityLog";
+import { whatsappNotifications } from "@/lib/api/whatsappNotifications";
 import type { KanbanStatus, KanbanOrder } from "../components/admin/OrderKanban";
 import { MarketingTab } from "@/components/admin/MarketingTab";
 import { B2BInsights } from "@/components/admin/B2BInsights";
@@ -1239,6 +1240,14 @@ async function handleCreateClient() {
   async function handleKanbanStatus(orderId: string, newStatus: KanbanStatus) {
     await rtUpdateStatus(orderId, newStatus);
     logActivity({ user_id: userId, action: "order_status_change", entity_type: "order", entity_id: orderId, metadata: { status: newStatus } });
+    if (newStatus === "shipped" || newStatus === "dispatched") {
+      const order = rtOrders.find((o) => o.id === orderId);
+      // client_name holds the raw client_id value (see useOrdersRealtime rowToKanban mapper)
+      const client = order ? clients.find((c) => c.id === order.client_name) : undefined;
+      if (order && client) {
+        void whatsappNotifications.notifyOrderShipped(order, client);
+      }
+    }
   }
 
   const lowStockCount = products.filter((p) => p.stock <= 3 && p.active !== false).length;

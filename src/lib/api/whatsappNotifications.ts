@@ -44,7 +44,7 @@ El producto *${product.name}* ya ingresó a stock y está disponible para la com
     console.log(`[WA Notification] Sending to ${phone}: ${text}`);
     try {
       // In production, this calls a Vercel/Supabase Edge Function
-      const res = await fetch("/api/whatsapp/send", {
+      const res = await fetch("/api/whatsapp-send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone, text }),

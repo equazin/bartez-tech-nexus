@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePricingRules } from "@/hooks/usePricingRules";
 import { resolveMarginWithContext } from "@/lib/pricingEngine";
 import { getUnitPrice, getEffectiveCostPrice } from "@/lib/pricing";
@@ -6,6 +6,7 @@ import { calculatePerception, type ProvinceCode } from "@/lib/api/iibb";
 import type { Product } from "@/models/products";
 import type { UserProfile } from "@/lib/supabase";
 import { useCurrency } from "@/context/CurrencyContext";
+import { supabase } from "@/lib/supabase";
 
 export interface PriceResult {
   /** Costo base del proveedor (sin multiplicador) — para mostrar al admin */
@@ -27,77 +28,89 @@ export interface PriceResult {
   /** Final total including IVA and IIBB */
   grandTotal: number;
   isVolumePricing: boolean;
+  /** True when price comes from a client-specific agreement */
+  isCustomPrice: boolean;
 }
+
+interface CustomPrice { product_id: number; custom_price: number; currency: string }
 
 /**
  * Single source-of-truth pricing hook.
- * All components that compute sell prices should call `computePrice(product, quantity)`
- * instead of duplicating the resolveMarginWithContext + getUnitPrice logic inline.
- *
- * Usage:
- *   const { computePrice } = usePricing(profile);
- *   const price = computePrice(product, 10);
+ * Priority: client_custom_prices > pricing_rules > default_margin
  */
 export function usePricing(profile: UserProfile | null, baseMarginOverride?: number) {
   const { rules } = usePricingRules();
   const { exchangeRate } = useCurrency();
   const globalMargin = baseMarginOverride ?? profile?.default_margin ?? 20;
 
+  const [customPrices, setCustomPrices] = useState<Record<number, CustomPrice>>({});
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    supabase
+      .from("client_custom_prices")
+      .select("product_id, custom_price, currency")
+      .eq("client_id", profile.id)
+      .then(({ data }) => {
+        if (!data) return;
+        const map: Record<number, CustomPrice> = {};
+        for (const row of data as CustomPrice[]) map[row.product_id] = row;
+        setCustomPrices(map);
+      });
+  }, [profile?.id]);
+
   const computePrice = useCallback(
     (product: Product, quantity: number): PriceResult => {
-      // 1. Determine base cost
-      const cost_base = getUnitPrice(product, quantity);
+      const ivaRate = product.iva_rate ?? 21;
+
+      // ── Priority 1: client-specific pactado price ──────────────────────────
+      const pactado = customPrices[product.id];
+      if (pactado) {
+        // Convert to ARS if the pactado is in USD
+        const unitPriceARS = pactado.currency === "USD"
+          ? pactado.custom_price * exchangeRate.rate
+          : pactado.custom_price;
+        const totalPrice   = unitPriceARS * quantity;
+        const ivaAmount    = totalPrice * (ivaRate / 100);
+        const totalWithIVA = totalPrice + ivaAmount;
+        const province = (profile as any)?.provincia || (profile as any)?.iibb_province;
+        const iibbAmount = province
+          ? calculatePerception(totalPrice, province as ProvinceCode, (profile as any)?.iibb_aliquot)
+          : 0;
+        return {
+          cost: unitPriceARS, effectiveCost: unitPriceARS, margin: 0,
+          unitPrice: unitPriceARS, totalPrice, ivaRate, ivaAmount, totalWithIVA,
+          iibbAmount, grandTotal: totalWithIVA + iibbAmount,
+          isVolumePricing: false, isCustomPrice: true,
+        };
+      }
+
+      // ── Priority 2: pricing rules + default margin ─────────────────────────
+      const cost_base          = getUnitPrice(product, quantity);
       const effective_cost_base = getEffectiveCostPrice(product, quantity);
-
-      // 2. Resolve margin
       const { margin, isVolumePricing } = resolveMarginWithContext(
-        product,
-        rules,
-        globalMargin,
-        profile?.id,
-        quantity
+        product, rules, globalMargin, profile?.id, quantity
       );
-
-      // 3. Compute final unit price
-      // If cost_price is missing (Client Portal View), use pre-calculated unit_price
-      const unitPrice = (cost_base !== undefined && cost_base !== null)
+      const unitPrice    = (cost_base !== undefined && cost_base !== null)
         ? effective_cost_base * (1 + margin / 100)
         : (product.unit_price ?? 0);
-
-      const totalPrice = unitPrice * quantity;
-      const ivaRate    = product.iva_rate ?? 21;
-      const ivaAmount  = totalPrice * (ivaRate / 100);
+      const totalPrice   = unitPrice * quantity;
+      const ivaAmount    = totalPrice * (ivaRate / 100);
       const totalWithIVA = totalPrice + ivaAmount;
-
-      // 4. Compute IIBB Perception (AR-specific)
-      // Only if the profile has a province defined
       const province = (profile as any)?.provincia || (profile as any)?.iibb_province;
-      const iibbAmount = province 
+      const iibbAmount = province
         ? calculatePerception(totalPrice, province as ProvinceCode, (profile as any)?.iibb_aliquot)
         : 0;
-
       return {
-        cost: cost_base ?? 0,
-        effectiveCost: effective_cost_base ?? 0,
-        margin,
-        unitPrice,
-        totalPrice,
-        ivaRate,
-        ivaAmount,
-        totalWithIVA,
-        iibbAmount,
-        grandTotal: totalWithIVA + iibbAmount,
-        isVolumePricing,
+        cost: cost_base ?? 0, effectiveCost: effective_cost_base ?? 0, margin,
+        unitPrice, totalPrice, ivaRate, ivaAmount, totalWithIVA,
+        iibbAmount, grandTotal: totalWithIVA + iibbAmount,
+        isVolumePricing, isCustomPrice: false,
       };
     },
-    [rules, globalMargin, profile?.id, exchangeRate.rate]
+    [rules, globalMargin, profile?.id, exchangeRate.rate, customPrices]
   );
 
-  /**
-   * Build the product rows array expected by generateQuotePDF.
-   * Use this wherever a PDF is exported so prices are always consistent
-   * with the cart calculation.
-   */
   const toPDFProducts = useCallback(
     (
       items: Array<{ product: Product; quantity: number; margin?: number }>,
@@ -105,15 +118,14 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
     ) => {
       return items.map(({ product, quantity, margin: overrideMargin }) => {
         const base = computePrice(product, quantity);
-        const actualMargin  = overrideMargin ?? base.margin;
-        const cost          = getUnitPrice(product, quantity);
-        const effectiveCost = getEffectiveCostPrice(product, quantity);
-        const unitPrice     = effectiveCost * (1 + actualMargin / 100);
-        const totalPriceRaw = unitPrice * quantity;
-        const ivaRate = product.iva_rate ?? 21;
-        const ivaAmountRaw = totalPriceRaw * (ivaRate / 100);
+        const actualMargin   = overrideMargin ?? base.margin;
+        const cost           = getUnitPrice(product, quantity);
+        const effectiveCost  = getEffectiveCostPrice(product, quantity);
+        const unitPrice      = base.isCustomPrice ? base.unitPrice : effectiveCost * (1 + actualMargin / 100);
+        const totalPriceRaw  = unitPrice * quantity;
+        const ivaRate        = product.iva_rate ?? 21;
+        const ivaAmountRaw   = totalPriceRaw * (ivaRate / 100);
         const totalWithIVARaw = totalPriceRaw + ivaAmountRaw;
-
         return {
           name:         product.name,
           quantity,
@@ -131,5 +143,5 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
     [computePrice]
   );
 
-  return { computePrice, toPDFProducts, rules };
+  return { computePrice, toPDFProducts, rules, customPrices };
 }
