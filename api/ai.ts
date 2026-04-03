@@ -370,6 +370,90 @@ Respondé SOLO con JSON minificado sin markdown:
   return json({ ok: true, draft });
 }
 
+// ── generate_copy ─────────────────────────────────────────────────────────
+
+const COPY_HEADLINES_BY_CATEGORY: Record<string, string[]> = {
+  Monitores:    ["Monitores para tu Empresa", "Pantallas Profesionales B2B", "Monitores al Mejor Precio", "Stock Disponible Ya", "Calidad Corporativa"],
+  Notebooks:    ["Notebooks para Empresas", "Laptops Corporativas B2B", "Equipá tu Equipo de Trabajo", "Stock Disponible Ya", "Precios Mayoristas IT"],
+  Servidores:   ["Servidores para Empresas", "Infraestructura IT Segura", "Servidores al Por Mayor", "Stock Disponible Ya", "Rendimiento Profesional"],
+  Networking:   ["Redes para tu Empresa", "Switches y Routers B2B", "Conectividad Profesional", "Stock Disponible Ya", "Networking Mayorista"],
+  Almacenamiento: ["Storage Profesional B2B", "Discos y NVMe Mayorista", "Almacenamiento Corporativo", "Stock Disponible Ya", "Precios Mayoristas IT"],
+  Periféricos:  ["Periféricos para Oficina", "Teclados y Mouses B2B", "Equipamiento Completo", "Stock Disponible Ya", "Precios Mayoristas IT"],
+};
+
+const COPY_DESCS_BY_SEGMENT: Record<string, string[]> = {
+  "Empresas corporativas": [
+    "Equipá tu empresa con tecnología mayorista. Portal B2B con precios exclusivos y entrega rápida.",
+    "Tecnología corporativa con precios preferenciales. Registrate en el portal B2B de Bartez.",
+  ],
+  "Resellers": [
+    "Precios mayoristas para revendedores. Catálogo completo con stock disponible en Argentina.",
+    "Márgenes competitivos para resellers. Accedé al portal B2B de Bartez y comprá al por mayor.",
+  ],
+  "Integradores IT": [
+    "Equipamiento para proyectos IT. Precios mayoristas con stock y entrega en todo el país.",
+    "Soluciones tecnológicas para integradores. Portal B2B con catálogo de +14.000 productos.",
+  ],
+  "PyMEs": [
+    "Tecnología para PyMEs al mejor precio. Portal B2B de Bartez con precios mayoristas.",
+    "Equipá tu PyME con tecnología de calidad. Precios accesibles y stock disponible ya.",
+  ],
+};
+
+async function generateCopyWithGemini(category: string, segment: string, count: number): Promise<Record<string, string>[] | null> {
+  const prompt = `Generá ${count} variante(s) de copy para Google Ads B2B en Argentina para Bartez, distribuidora mayorista de tecnología.
+
+Categoría: ${category}
+Segmento: ${segment}
+
+Por variante generá: headline1, headline2, headline3 (máx 30 chars c/u), description1, description2 (máx 90 chars c/u). Español rioplatense. Sin exclamaciones. Foco B2B.
+
+Respondé SOLO con JSON array sin markdown:
+[{"headline1":"...","headline2":"...","headline3":"...","description1":"...","description2":"..."}]`;
+
+  const rawText = await callGemini(prompt);
+  if (!rawText) return null;
+  try {
+    const cleaned = rawText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const match = cleaned.match(/\[[\s\S]*\]/);
+    if (!match) return null;
+    return JSON.parse(match[0]) as Record<string, string>[];
+  } catch { return null; }
+}
+
+function buildTemplateCopies(category: string, segment: string, count: number): Record<string, string>[] {
+  const headlines = COPY_HEADLINES_BY_CATEGORY[category] ?? COPY_HEADLINES_BY_CATEGORY.Notebooks;
+  const descs = COPY_DESCS_BY_SEGMENT[segment] ?? COPY_DESCS_BY_SEGMENT["Empresas corporativas"];
+  return Array.from({ length: count }, (_, i) => ({
+    headline1: headlines[0],
+    headline2: headlines[1 + (i % 2)],
+    headline3: headlines[3 + (i % 2)],
+    description1: descs[0],
+    description2: descs[1],
+  }));
+}
+
+async function handleGenerateCopy(body: Record<string, unknown>, userId: string) {
+  const category = String(body.category ?? "Notebooks");
+  const segment  = String(body.segment  ?? "Empresas corporativas");
+  const count    = Math.min(5, Math.max(1, Number(body.count ?? 3)));
+
+  let copies = await generateCopyWithGemini(category, segment, count);
+  const aiModel = copies ? "gemini-2.0-flash" : "template-v1";
+  if (!copies) copies = buildTemplateCopies(category, segment, count);
+
+  // Persist to ad_copies table
+  const rows = copies.map(c => ({ ...c, category, segment, created_by: userId, status: "draft", ai_model: aiModel }));
+  const res = await fetch(`${SB_URL()}/rest/v1/ad_copies`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${SB_KEY()}`, apikey: SB_KEY(), "Content-Type": "application/json", Prefer: "return=representation" },
+    body: JSON.stringify(rows),
+  });
+  if (!res.ok) return json({ ok: false, error: "No se pudieron guardar los copies" }, 500);
+  const saved = await res.json() as Record<string, unknown>[];
+  return json({ ok: true, copies: saved });
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────
 
 export default async function handler(request: Request): Promise<Response> {
@@ -385,6 +469,14 @@ export default async function handler(request: Request): Promise<Response> {
   const action = String(body.action ?? "");
 
   if (action === "enrich_content") return handleEnrichContent(body);
+
+  if (action === "generate_copy") {
+    const user = await getAuthUser(request);
+    if (!user) return json({ ok: false, error: "Unauthorized" }, 401);
+    const profile = await getProfile(user.id);
+    if (!profile || !["admin", "vendedor"].includes(profile.role)) return json({ ok: false, error: "Permisos insuficientes" }, 403);
+    return handleGenerateCopy(body, user.id);
+  }
 
   if (action === "generate_campaign") {
     const user = await getAuthUser(request);

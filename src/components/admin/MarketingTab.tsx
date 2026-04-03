@@ -984,18 +984,18 @@ function CopiesSection({ isDark }: { isDark: boolean }) {
     setGenerating(true);
     setGenError(null);
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ad-copy-generator`,
-        {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            "Content-Type":  "application/json",
-          },
-          body: JSON.stringify({ category, segment, count }),
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${session?.access_token ?? ""}`,
+          "Content-Type": "application/json",
         },
-      );
-      const data = await res.json() as { ok: boolean; copies?: AdCopy[]; error?: string };
+        body: JSON.stringify({ action: "generate_copy", category, segment, count }),
+      });
+      const text = await res.text();
+      let data: { ok: boolean; copies?: AdCopy[]; error?: string };
+      try { data = JSON.parse(text); } catch { data = { ok: false, error: "Error del servidor" }; }
       if (!data.ok) {
         setGenError(data.error ?? "Error al generar copies");
       } else {
