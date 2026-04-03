@@ -7,13 +7,10 @@ import SectionHeading from "@/components/SectionHeading";
 import EnterpriseCTA from "@/components/EnterpriseCTA";
 import CorporateClients from "@/components/CorporateClients";
 import IndustriesServed from "@/components/IndustriesServed";
-import ClientTestimonials from "@/components/ClientTestimonials";
 import WorkMethodology from "@/components/WorkMethodology";
 import FeaturedProducts from "@/components/FeaturedProducts";
 import HeroContactForm from "@/components/HeroContactForm";
 import ProductCounter from "@/components/ProductCounter";
-import CaseStudies from "@/components/CaseStudies";
-import ClientLogos from "@/components/ClientLogos";
 import ITSavingsCalculator from "@/components/ITSavingsCalculator";
 import FAQSection from "@/components/FAQSection";
 import WhatsAppFloat from "@/components/WhatsAppFloat";
@@ -65,11 +62,17 @@ const Index = () => {
       {/* Hero */}
       <section className="relative overflow-hidden min-h-[85vh] flex items-center">
         <div className="absolute inset-0">
-          <img src={heroBg} alt="" className="h-full w-full object-cover opacity-25" loading="eager" />
-          <div className="absolute inset-0 bg-gradient-to-b from-background/30 via-background/70 to-background" />
+          <video
+            autoPlay muted loop playsInline
+            className="h-full w-full object-cover opacity-20"
+            poster={heroBg}
+          >
+            <source src="https://www.pexels.com/download/video/7140931/" type="video/mp4" />
+          </video>
+          <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/75 to-background" />
           <div className="absolute inset-0 hero-radial" />
         </div>
-        <div className="absolute inset-0 hero-grid opacity-30" />
+        <div className="absolute inset-0 hero-grid opacity-20" />
 
         <div className="relative container mx-auto px-4 py-28 md:py-36 lg:py-44 lg:px-8">
           <motion.div initial="hidden" animate="visible" className="max-w-3xl">
@@ -140,9 +143,6 @@ const Index = () => {
           </motion.div>
         </div>
       </section>
-
-      {/* Client Logos */}
-      <ClientLogos />
 
       {/* Stats + Brands */}
       <section className="relative">
@@ -224,9 +224,6 @@ const Index = () => {
       {/* Featured Products */}
       <FeaturedProducts />
 
-      {/* Case Studies */}
-      <CaseStudies />
-
       {/* Work Methodology */}
       <section className="relative">
         <div className="section-divider" />
@@ -296,9 +293,6 @@ const Index = () => {
 
       {/* Industries Served */}
       <IndustriesServed />
-
-      {/* Client Testimonials */}
-      <ClientTestimonials />
 
       {/* IT Savings Calculator */}
       <ITSavingsCalculator />
