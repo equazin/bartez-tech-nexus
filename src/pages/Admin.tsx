@@ -1247,7 +1247,9 @@ async function handleCreateClient() {
       if (order && client) {
         void whatsappNotifications.notifyOrderShipped(order, client);
       }
+      sendOrderStatusEmail(orderId, "order_shipped");
     }
+    if (newStatus === "delivered") sendOrderStatusEmail(orderId, "order_delivered");
   }
 
   const lowStockCount = products.filter((p) => p.stock <= 3 && p.active !== false).length;

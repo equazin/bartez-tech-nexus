@@ -151,12 +151,14 @@ const Index = () => {
               <p className="text-center text-[11px] uppercase tracking-[0.2em] text-muted-foreground/50 font-semibold mb-6">
                 Distribuidores autorizados
               </p>
-              <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
-                {["Dell", "HP", "Lenovo", "Cisco", "Microsoft", "Intel", "AMD", "Fortinet", "Ubiquiti"].map((brand) => (
-                  <span key={brand} className="text-sm font-bold uppercase tracking-[0.15em] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors">
-                    {brand}
-                  </span>
-                ))}
+              <div className="overflow-hidden relative">
+                <div className="flex animate-[marquee_25s_linear_infinite] w-max gap-x-14">
+                  {["Dell", "HP", "Lenovo", "Cisco", "Microsoft", "Intel", "AMD", "Fortinet", "Ubiquiti", "Dell", "HP", "Lenovo", "Cisco", "Microsoft", "Intel", "AMD", "Fortinet", "Ubiquiti"].map((brand, i) => (
+                    <span key={i} className="text-sm font-bold uppercase tracking-[0.15em] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors whitespace-nowrap">
+                      {brand}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -379,6 +381,36 @@ const Index = () => {
           </div>
         </div>
         <div className="section-divider" />
+      </section>
+
+      {/* B2B Portal Access CTA */}
+      <section className="py-20 lg:py-28">
+        <div className="container mx-auto px-4 lg:px-8">
+          <div className="max-w-4xl mx-auto rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/20 p-10 lg:p-14 text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-primary mb-5">
+              Portal Exclusivo para Clientes
+            </span>
+            <h2 className="font-display text-2xl lg:text-3xl font-bold text-foreground mb-3">
+              ¿Ya es cliente? Acceda a su{" "}
+              <span className="text-gradient">Portal B2B</span>
+            </h2>
+            <p className="text-sm text-muted-foreground max-w-xl mx-auto mb-8 leading-relaxed">
+              Consulte precios en tiempo real, gestione sus pedidos, descargue facturas y solicite cotizaciones desde un solo lugar — disponible las 24 horas.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-4">
+              <Link to="/login">
+                <Button className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 h-11 px-8 text-sm">
+                  Ingresar al Portal B2B <ArrowRight size={14} className="ml-2" />
+                </Button>
+              </Link>
+              <a href="https://wa.me/5493415104902?text=Hola%2C%20quiero%20ser%20cliente%20B2B." target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-11 px-8 text-sm">
+                  Solicitar acceso
+                </Button>
+              </a>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* Main Enterprise CTA */}
