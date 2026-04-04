@@ -7,6 +7,7 @@ import type { Product } from "@/models/products";
 import type { UserProfile } from "@/lib/supabase";
 import { useCurrency } from "@/context/CurrencyContext";
 import { supabase } from "@/lib/supabase";
+import type { PriceAgreement } from "@/hooks/usePriceAgreements";
 
 export interface PriceResult {
   /** Costo base del proveedor (sin multiplicador) — para mostrar al admin */
@@ -33,10 +34,11 @@ export interface PriceResult {
 }
 
 interface CustomPrice { product_id: number; custom_price: number; currency: string }
+interface AgreementItem { product_id: number; fixed_price_usd: number | null; margin_pct: number | null }
 
 /**
  * Single source-of-truth pricing hook.
- * Priority: client_custom_prices > pricing_rules > default_margin
+ * Priority: client_custom_prices > price_agreement_items > price_agreement (margin) > pricing_rules > default_margin
  */
 export function usePricing(profile: UserProfile | null, baseMarginOverride?: number) {
   const { rules } = usePricingRules();
@@ -44,6 +46,10 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
   const globalMargin = baseMarginOverride ?? profile?.default_margin ?? 20;
 
   const [customPrices, setCustomPrices] = useState<Record<number, CustomPrice>>({});
+
+  // Active price agreement for this client
+  const [activeAgreement, setActiveAgreement] = useState<PriceAgreement | null>(null);
+  const [agreementItems, setAgreementItems] = useState<Record<number, AgreementItem>>({});
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -56,6 +62,43 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
         const map: Record<number, CustomPrice> = {};
         for (const row of data as CustomPrice[]) map[row.product_id] = row;
         setCustomPrices(map);
+      });
+  }, [profile?.id]);
+
+  // Load active price agreement via RPC, then load its per-SKU items
+  useEffect(() => {
+    if (!profile?.id) { setActiveAgreement(null); setAgreementItems({}); return; }
+    supabase
+      .rpc("get_active_price_agreement", { p_client_id: profile.id })
+      .then(({ data }) => {
+        if (!data || (data as unknown[]).length === 0) { setActiveAgreement(null); setAgreementItems({}); return; }
+        const row = (data as Record<string, unknown>[])[0];
+        setActiveAgreement({
+          id: Number(row.agreement_id),
+          client_id: profile.id,
+          name: String(row.name ?? ""),
+          margin_pct: row.margin_pct != null ? Number(row.margin_pct) : null,
+          discount_pct: Number(row.discount_pct ?? 0),
+          price_list: (row.price_list as PriceAgreement["price_list"]) ?? "mayorista",
+          valid_from: String(row.valid_from ?? ""),
+          valid_until: row.valid_until != null ? String(row.valid_until) : null,
+          active: true,
+          notes: null,
+          created_at: "",
+          updated_at: "",
+        });
+
+        // Load per-SKU overrides
+        supabase
+          .from("price_agreement_items")
+          .select("product_id, fixed_price_usd, margin_pct")
+          .eq("agreement_id", Number(row.agreement_id))
+          .then(({ data: items }) => {
+            if (!items) return;
+            const map: Record<number, AgreementItem> = {};
+            for (const item of items as AgreementItem[]) map[item.product_id] = item;
+            setAgreementItems(map);
+          });
       });
   }, [profile?.id]);
 
@@ -85,15 +128,44 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
         };
       }
 
-      // ── Priority 2: pricing rules + default margin ─────────────────────────
+      // ── Priority 1.5: per-SKU agreement item fixed price ──────────────────
+      const agItem = agreementItems[product.id];
+      if (agItem?.fixed_price_usd != null) {
+        const unitPriceARS = agItem.fixed_price_usd * exchangeRate.rate;
+        const totalPrice   = unitPriceARS * quantity;
+        const ivaAmount    = totalPrice * (ivaRate / 100);
+        const totalWithIVA = totalPrice + ivaAmount;
+        const province = (profile as any)?.provincia || (profile as any)?.iibb_province;
+        const iibbAmount = province
+          ? calculatePerception(totalPrice, province as ProvinceCode, (profile as any)?.iibb_aliquot)
+          : 0;
+        return {
+          cost: unitPriceARS, effectiveCost: unitPriceARS, margin: 0,
+          unitPrice: unitPriceARS, totalPrice, ivaRate, ivaAmount, totalWithIVA,
+          iibbAmount, grandTotal: totalWithIVA + iibbAmount,
+          isVolumePricing: false, isCustomPrice: true,
+        };
+      }
+
+      // ── Priority 2: pricing rules + agreement margin OR default margin ─────
       const cost_base          = getUnitPrice(product, quantity);
       const effective_cost_base = getEffectiveCostPrice(product, quantity);
+
+      // Agreement margin: per-item override > agreement-level override > default
+      const agreementMargin = agItem?.margin_pct != null
+        ? agItem.margin_pct
+        : activeAgreement?.margin_pct ?? null;
+      const baseMarginForProduct = agreementMargin ?? globalMargin;
+
       const { margin, isVolumePricing } = resolveMarginWithContext(
-        product, rules, globalMargin, profile?.id, quantity
+        product, rules, baseMarginForProduct, profile?.id, quantity
       );
-      const unitPrice    = (cost_base !== undefined && cost_base !== null)
+
+      // Apply extra agreement discount on top
+      const discountMultiplier = activeAgreement ? (1 - (activeAgreement.discount_pct / 100)) : 1;
+      const unitPrice    = ((cost_base !== undefined && cost_base !== null)
         ? effective_cost_base * (1 + margin / 100)
-        : (product.unit_price ?? 0);
+        : (product.unit_price ?? 0)) * discountMultiplier;
       const totalPrice   = unitPrice * quantity;
       const ivaAmount    = totalPrice * (ivaRate / 100);
       const totalWithIVA = totalPrice + ivaAmount;
@@ -105,10 +177,10 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
         cost: cost_base ?? 0, effectiveCost: effective_cost_base ?? 0, margin,
         unitPrice, totalPrice, ivaRate, ivaAmount, totalWithIVA,
         iibbAmount, grandTotal: totalWithIVA + iibbAmount,
-        isVolumePricing, isCustomPrice: false,
+        isVolumePricing, isCustomPrice: activeAgreement != null,
       };
     },
-    [rules, globalMargin, profile?.id, exchangeRate.rate, customPrices]
+    [rules, globalMargin, profile?.id, exchangeRate.rate, customPrices, activeAgreement, agreementItems]
   );
 
   const toPDFProducts = useCallback(
@@ -143,5 +215,5 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
     [computePrice]
   );
 
-  return { computePrice, toPDFProducts, rules, customPrices };
+  return { computePrice, toPDFProducts, rules, customPrices, activeAgreement };
 }

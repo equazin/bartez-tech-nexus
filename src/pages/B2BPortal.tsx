@@ -13,7 +13,7 @@ import {
   LogOut, ShoppingCart, Search, LayoutGrid, List, Package,
   ClipboardList, ShieldCheck, AlertTriangle, CheckCircle2,
   Star, Sun, Moon, FileText, Table2, Zap, RotateCcw, Truck,
-  Briefcase, Sparkles, Users, MessageSquare, Shield,
+  Briefcase, Sparkles, Users, MessageSquare, Shield, BadgeCheck,
 } from "lucide-react";
 import { usePricing } from "@/hooks/usePricing";
 import { exportCatalogCSV } from "@/lib/exportCsv";
@@ -103,7 +103,7 @@ export default function B2BPortal() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { profile: authProfile, user, isAdmin, signOut } = useAuth();
   const { activeProfile: profile, isImpersonating, stopImpersonation } = useImpersonate();
-  const { computePrice } = usePricing(profile);
+  const { computePrice, activeAgreement } = usePricing(profile);
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [catalogContext, setCatalogContext] = useState<CatalogContext>("default");
@@ -416,6 +416,19 @@ export default function B2BPortal() {
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {/* Active price agreement banner */}
+      {activeAgreement && !isAdmin && (
+        <div className={`flex items-center gap-2 px-4 md:px-6 py-1.5 text-[11px] font-semibold ${dk("bg-emerald-950/40 border-b border-emerald-800/30 text-emerald-400", "bg-emerald-50 border-b border-emerald-200 text-emerald-700")}`}>
+          <BadgeCheck size={12} />
+          Acuerdo de precio activo: <span className="font-bold">{activeAgreement.name}</span>
+          {activeAgreement.margin_pct != null && <span className="opacity-70">· Margen {activeAgreement.margin_pct}%</span>}
+          {activeAgreement.discount_pct > 0 && <span className="opacity-70">· Descuento adicional -{activeAgreement.discount_pct}%</span>}
+          {activeAgreement.valid_until && (
+            <span className="ml-auto opacity-60">Vigente hasta {new Date(activeAgreement.valid_until).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })}</span>
+          )}
         </div>
       )}
 
