@@ -189,7 +189,22 @@ function LegacyStatusBadge({ status }: { status: string }) {
   );
 }
 
-type Tab = "dashboard" | "products" | "imports" | "categories" | "opportunities" | "pos" | "seller_mode" | "orders" | "kanban" | "clients" | "users_permissions" | "approvals" | "documents" | "support" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "supplier_sync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders" | "images" | "marketing" | "rma" | "price_agreements" | "webhooks" | "serials";
+type Tab = "dashboard" | "products" | "imports" | "categories" | "opportunities" | "pos" | "seller_mode" | "orders" | "kanban" | "clients" | "users_permissions" | "approvals" | "documents" | "support" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "supplier_sync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders" | "images" | "marketing" | "rma" | "price_agreements" | "webhooks" | "serials" | "business_alerts";
+type ModuleId = "top" | "catalogo" | "pedidos" | "clientes" | "finanzas" | "sistema";
+
+const TAB_TO_MODULE: Record<Tab, ModuleId> = {
+  dashboard: "top",
+  products: "catalogo", imports: "catalogo", categories: "catalogo", images: "catalogo",
+  opportunities: "catalogo", pos: "catalogo", seller_mode: "catalogo",
+  orders: "pedidos", kanban: "pedidos", approvals: "pedidos", quotes_admin: "pedidos",
+  clients: "clientes", users_permissions: "clientes", credit: "clientes",
+  business_alerts: "clientes", documents: "clientes", support: "clientes",
+  invoices: "finanzas", reports: "finanzas",
+  suppliers: "sistema", brands: "sistema", pricing: "sistema", supplier_sync: "sistema",
+  stock: "sistema", serials: "sistema", movements: "sistema", purchase_orders: "sistema",
+  rma: "sistema", price_agreements: "sistema", marketing: "sistema",
+  webhooks: "sistema", activity: "sistema",
+};
 
 
 
@@ -309,6 +324,17 @@ const Admin = () => {
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [loadingClients, setLoadingClients] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+  const [activeModule, setActiveModule] = useState<ModuleId>("top");
+
+  function navigateTab(tab: Tab) {
+    setActiveTab(tab);
+    setActiveModule(TAB_TO_MODULE[tab as Tab] ?? "top");
+  }
+
+  function navigateModule(moduleId: ModuleId) {
+    setActiveModule(moduleId);
+  }
+
   const [productFilterCategory, setProductFilterCategory] = useState("all");
   const [productFilterBrand, setProductFilterBrand] = useState("all");
   const [productFilterStatus, setProductFilterStatus] = useState("all");
@@ -1381,78 +1407,43 @@ async function handleCreateClient() {
   }
 
   function SidebarContent({ mobile = false }: { mobile?: boolean }) {
+    const activeGroup = sidebarGroups.find((g) => g.id === activeModule);
+    const visibleItems = activeGroup ? activeGroup.items.filter(canSeeItem) : [];
+
     return (
-      <nav className="flex flex-col h-full overflow-y-auto py-3 gap-0.5">
-        {sidebarGroups.map((group) => {
-          const visibleItems = group.items.filter(canSeeItem);
-          if (visibleItems.length === 0) return null;
-          const isGroupCollapsed = collapsedGroups.has(group.id);
-          const GIcon = group.icon;
-          const hasActiveBadge = visibleItems.some((i) => i.badge && i.badge > 0);
-
+      <nav className="flex flex-col h-full overflow-y-auto py-3 gap-0.5 px-2">
+        {visibleItems.map(({ id, label, icon: Icon, badge }) => {
+          const active = activeTab === id;
           return (
-            <div key={group.id} className="px-2">
-              {/* Group header — hidden for headerless groups (label === "") */}
-              {(!sidebarCollapsed || mobile) && group.label !== "" && (
-                <button
-                  onClick={() => toggleGroup(group.id)}
-                  className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition mb-0.5 ${dk("text-[#444] hover:text-[#666]","text-[#c4c4c4] hover:text-[#a3a3a3]")}`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <GIcon size={11} />
-                    {group.label}
-                    {hasActiveBadge && <span className="h-1.5 w-1.5 rounded-full bg-[#2D9F6A]" />}
-                  </div>
-                  <span className={`transition-transform ${isGroupCollapsed ? "" : "rotate-180"}`}>
-                    ▾
-                  </span>
-                </button>
+            <button
+              key={id}
+              onClick={() => { navigateTab(id); if (mobile) setMobileSidebarOpen(false); }}
+              title={sidebarCollapsed && !mobile ? label : undefined}
+              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition relative ${
+                active
+                  ? dk("bg-[#1a2e22] text-[#2D9F6A] font-semibold","bg-[#f0faf5] text-[#1a7a50] font-semibold")
+                  : dk("text-[#737373] hover:text-white hover:bg-[#181818]","text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")
+              }`}
+            >
+              <Icon size={14} className={active ? "text-[#2D9F6A]" : ""} />
+              {(!sidebarCollapsed || mobile) && (
+                <>
+                  <span className="flex-1 text-left truncate">{label}</span>
+                  {badge !== undefined && badge > 0 && (
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                      id === "orders"
+                        ? "bg-[#2D9F6A] text-white"
+                        : dk("bg-[#222] text-[#525252]","bg-[#e8e8e8] text-[#737373]")
+                    }`}>
+                      {badge}
+                    </span>
+                  )}
+                </>
               )}
-
-              {/* Group items */}
-              {(!isGroupCollapsed || sidebarCollapsed) && (
-                <div className={`space-y-0.5 ${sidebarCollapsed && !mobile ? "mb-2" : "mb-1"}`}>
-                  {visibleItems.map(({ id, label, icon: Icon, badge }) => {
-                    const active = activeTab === id;
-                    return (
-                      <button
-                        key={id}
-                        onClick={() => { setActiveTab(id); if (mobile) setMobileSidebarOpen(false); }}
-                        title={sidebarCollapsed && !mobile ? label : undefined}
-                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition ${
-                          active
-                            ? dk("bg-[#1a2e22] text-[#2D9F6A] font-semibold","bg-[#f0faf5] text-[#1a7a50] font-semibold")
-                            : dk("text-[#737373] hover:text-white hover:bg-[#181818]","text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")
-                        }`}
-                      >
-                        <Icon size={14} className={active ? "text-[#2D9F6A]" : ""} />
-                        {(!sidebarCollapsed || mobile) && (
-                          <>
-                            <span className="flex-1 text-left truncate">{label}</span>
-                            {badge !== undefined && badge > 0 && (
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
-                                id === "orders"
-                                  ? "bg-[#2D9F6A] text-white"
-                                  : dk("bg-[#222] text-[#525252]","bg-[#e8e8e8] text-[#737373]")
-                              }`}>
-                                {badge}
-                              </span>
-                            )}
-                          </>
-                        )}
-                        {sidebarCollapsed && !mobile && badge !== undefined && badge > 0 && (
-                          <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[#2D9F6A]" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+              {sidebarCollapsed && !mobile && badge !== undefined && badge > 0 && (
+                <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[#2D9F6A]" />
               )}
-
-              {(!sidebarCollapsed || mobile) && group.label !== "" && (
-                <div className={`h-px mx-2 my-1 ${dk("bg-[#1f1f1f]","bg-[#f0f0f0]")}`} />
-              )}
-            </div>
+            </button>
           );
         })}
       </nav>
@@ -1488,7 +1479,7 @@ async function handleCreateClient() {
         <div className="ml-auto flex items-center gap-1.5">
           {/* Quick-access: Marketing */}
           <button
-            onClick={() => setActiveTab("marketing")}
+            onClick={() => navigateTab("marketing")}
             title="Marketing B2B"
             className={`hidden sm:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition ${
               activeTab === "marketing"
@@ -1526,7 +1517,7 @@ async function handleCreateClient() {
             invoices={invoiceSearchItems}
             quotes={quoteSearchItems}
             payments={paymentSearchItems}
-            onNavigate={(tab) => setActiveTab(tab as Tab)}
+            onNavigate={(tab) => navigateTab(tab as Tab)}
           />
           <button
             onClick={() => {
@@ -1557,6 +1548,34 @@ async function handleCreateClient() {
           </button>
         </div>
       </header>
+
+      {/* MODULE NAV BAR */}
+      <div className={`hidden md:flex items-center gap-0.5 px-4 border-b ${dk("bg-[#0d0d0d] border-[#1a1a1a]","bg-white border-[#e5e5e5]")}`}>
+        {sidebarGroups.map((group) => {
+          const GIcon = group.icon;
+          const label = group.id === "top" ? "Dashboard" : group.label;
+          const isActive = activeModule === group.id;
+          const hasVisibleItems = group.items.some(canSeeItem);
+          if (!hasVisibleItems) return null;
+          return (
+            <button
+              key={group.id}
+              onClick={() => {
+                navigateModule(group.id as ModuleId);
+                if (group.id === "top") navigateTab("dashboard");
+              }}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border-b-2 transition -mb-px ${
+                isActive
+                  ? "border-[#2D9F6A] text-[#2D9F6A]"
+                  : dk("border-transparent text-[#737373] hover:text-white hover:border-[#333]","border-transparent text-[#737373] hover:text-[#171717] hover:border-[#ccc]")
+              }`}
+            >
+              <GIcon size={13} />
+              {label}
+            </button>
+          );
+        })}
+      </div>
 
       {/* BODY: sidebar + content */}
       <div className="flex flex-1 overflow-hidden">
@@ -1621,7 +1640,7 @@ async function handleCreateClient() {
               }))} 
               orders={orders} 
               isDark={isDark} 
-              onNavigate={(tab) => setActiveTab(tab as Tab)} 
+              onNavigate={(tab) => navigateTab(tab as Tab)} 
             />
             <SalesDashboard orders={orders} clients={clients} isDark={isDark} onRefreshOrders={fetchOrders} />
           </div>
@@ -1647,7 +1666,7 @@ async function handleCreateClient() {
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <button
-                  onClick={() => setActiveTab("imports")}
+                  onClick={() => navigateTab("imports")}
                   className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#2D9F6A] hover:bg-[#25835A] text-white font-semibold transition"
                 >
                   <Plus size={12} /> Agregar / Importar
@@ -2666,7 +2685,7 @@ async function handleCreateClient() {
             approverLabel={session?.user.email ?? "Admin"}
             onApproveOrder={(orderId, payload) => updateOrderStatus(orderId, "approved", payload)}
             onRejectOrder={(orderId, payload) => updateOrderStatus(orderId, "rejected", payload)}
-            onOpenTab={(tab) => setActiveTab(tab as Tab)}
+            onOpenTab={(tab) => navigateTab(tab as Tab)}
           />
         )}
 
@@ -2699,7 +2718,7 @@ async function handleCreateClient() {
             isDark={isDark}
             orders={orders}
             clients={clients}
-            onOpenTab={(tab) => setActiveTab(tab as Tab)}
+            onOpenTab={(tab) => navigateTab(tab as Tab)}
           />
         )}
 
