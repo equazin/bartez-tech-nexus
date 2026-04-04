@@ -53,14 +53,30 @@ export function useOrders() {
     if (!user) return;
     setLoading(true);
     try {
+      // Fetch orders with normalized items joined (fallback to JSONB if items not present)
       const { data, error } = await supabase
         .from("orders")
-        .select("*")
+        .select(`
+          *,
+          order_items (
+            product_id, name, sku, quantity,
+            cost_price, unit_price, total_price, margin, iva_rate
+          )
+        `)
         .eq("client_id", user.id)
         .order("created_at", { ascending: false });
 
       if (!error && data) {
-        setOrders(data as PortalOrder[]);
+        // Merge: prefer order_items rows when available, fall back to JSONB products
+        const merged = (data as (PortalOrder & { order_items?: PortalOrderProduct[] })[]).map((order) => {
+          const normalizedItems = order.order_items;
+          if (normalizedItems && normalizedItems.length > 0) {
+            return { ...order, products: normalizedItems };
+          }
+          // Fallback: keep existing JSONB products array
+          return order;
+        });
+        setOrders(merged as PortalOrder[]);
       }
     } catch {
       // Silencioso — tabla puede no existir todavía
@@ -82,15 +98,29 @@ export function useOrders() {
 
       const ids = children.map(c => c.id);
 
-      // 2. Get orders for those children
+      // 2. Get orders for those children with normalized items
       const { data, error } = await supabase
         .from("orders")
-        .select("*")
+        .select(`
+          *,
+          order_items (
+            product_id, name, sku, quantity,
+            cost_price, unit_price, total_price, margin, iva_rate
+          )
+        `)
         .in("client_id", ids)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return (data || []) as PortalOrder[];
+
+      const merged = ((data || []) as (PortalOrder & { order_items?: PortalOrderProduct[] })[]).map((order) => {
+        const normalizedItems = order.order_items;
+        if (normalizedItems && normalizedItems.length > 0) {
+          return { ...order, products: normalizedItems };
+        }
+        return order;
+      });
+      return merged as PortalOrder[];
     } catch (err) {
       console.error("Error fetching managed orders:", err);
       return [];
