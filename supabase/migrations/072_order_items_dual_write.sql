@@ -9,6 +9,14 @@
 -- Idempotent: safe to run multiple times.
 -- ─────────────────────────────────────────────────────────────────────────────
 
+-- Drop ALL overloaded versions so CREATE OR REPLACE doesn't fail on ambiguity
+DROP FUNCTION IF EXISTS reserve_stock_and_create_order(uuid, jsonb, numeric, text, text, numeric, text, text, text, numeric, text, uuid, numeric);
+DROP FUNCTION IF EXISTS reserve_stock_and_create_order(uuid, jsonb, numeric, text, text, numeric, text, text, text, numeric, text, text, uuid, numeric);
+DROP FUNCTION IF EXISTS reserve_stock_and_create_order(uuid, jsonb, numeric, text, text, numeric, text, text, text, numeric, text);
+DROP FUNCTION IF EXISTS reserve_stock_and_create_order(uuid, jsonb, numeric, text, text, numeric, text, text, text, numeric);
+DROP FUNCTION IF EXISTS reserve_stock_and_create_order(uuid, jsonb, numeric, text);
+DROP FUNCTION IF EXISTS reserve_stock_and_create_order(uuid, jsonb, numeric);
+
 CREATE OR REPLACE FUNCTION reserve_stock_and_create_order(
   p_client_id              uuid,
   p_products               jsonb,
