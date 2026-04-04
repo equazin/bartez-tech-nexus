@@ -149,7 +149,7 @@ export function CatalogSection({
             <span className="font-bold">{displayProducts.length}</span>
             {totalCount > 0 && <span> de <span className="font-bold">{totalCount}</span></span>}
             {` producto${displayProducts.length !== 1 ? "s" : ""}`}
-            {search && <> para "<span className="text-gray-400">{search}</span>"</>}
+            {search && <> para "<span className={dk("text-[#737373]", "text-[#525252]")}>{search}</span>"</>}
           </p>
         </div>
       )}
@@ -184,9 +184,9 @@ export function CatalogSection({
           </div>
         )
       ) : displayProducts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-gray-600">
+        <div className={`flex flex-col items-center justify-center py-24 ${dk("text-gray-600", "text-gray-500")}`}>
           <Search size={36} className="mb-3 opacity-20" />
-          <p className="text-sm font-medium text-gray-500">No se encontraron productos</p>
+          <p className={`text-sm font-medium ${dk("text-gray-500", "text-gray-600")}`}>No se encontraron productos</p>
           {(search || hasActiveFilters) && (
             <button onClick={clearFilters} className="mt-3 text-xs text-[#2D9F6A] hover:underline">
               Limpiar filtros
@@ -292,7 +292,7 @@ export function CatalogSection({
 
       {productsLoading && products.length > 0 && (
         <div className="flex justify-center mt-6 mb-12">
-          <div className="flex items-center gap-2 text-gray-500 text-xs font-medium">
+          <div className={`flex items-center gap-2 text-xs font-medium ${dk("text-gray-500", "text-gray-600")}`}>
             <Loader2 size={14} className="animate-spin text-[#2D9F6A]" />
             Cargando más...
           </div>

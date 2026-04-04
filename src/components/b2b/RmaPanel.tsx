@@ -107,7 +107,7 @@ function NewRmaForm({ orders, isDark, dk, onSubmit, onCancel }: NewRmaFormProps)
     <form onSubmit={handleSubmit} className={`border rounded-2xl p-5 space-y-4 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
       <div className="flex items-center justify-between">
         <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Nueva solicitud de devolución</h3>
-        <button type="button" onClick={onCancel} className="p-1.5 text-gray-500 hover:text-gray-300 rounded-lg hover:bg-white/5 transition">
+        <button type="button" onClick={onCancel} className={`p-1.5 rounded-lg transition text-gray-500 ${dk("hover:text-gray-300 hover:bg-white/5", "hover:text-gray-700 hover:bg-black/5")}`}>
           <X size={14} />
         </button>
       </div>
@@ -118,7 +118,7 @@ function NewRmaForm({ orders, isDark, dk, onSubmit, onCancel }: NewRmaFormProps)
           Pedido
         </label>
         {deliveredOrders.length === 0 ? (
-          <p className="text-xs text-gray-500">No tenés pedidos entregados todavía.</p>
+          <p className={`text-xs ${dk("text-gray-500", "text-gray-600")}`}>No tenés pedidos entregados todavía.</p>
         ) : (
           <select
             value={orderId}
@@ -276,9 +276,9 @@ export function RmaPanel({ clientId, orders, isDark }: RmaPanelProps) {
         </div>
       ) : rmas.length === 0 ? (
         <div className={`border rounded-xl py-20 text-center ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
-          <RotateCcw size={32} className="mx-auto mb-3 text-gray-500/30" />
-          <p className="text-sm font-medium text-gray-500">No tenés solicitudes de devolución</p>
-          <p className="text-xs text-gray-600 mt-1">Si recibiste un producto con problemas, podés iniciar una solicitud arriba.</p>
+          <RotateCcw size={32} className={`mx-auto mb-3 ${dk("text-gray-500/30", "text-gray-400/40")}`} />
+          <p className={`text-sm font-medium ${dk("text-gray-500", "text-gray-600")}`}>No tenés solicitudes de devolución</p>
+          <p className={`text-xs mt-1 ${dk("text-gray-600", "text-gray-500")}`}>Si recibiste un producto con problemas, podés iniciar una solicitud arriba.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -292,7 +292,7 @@ export function RmaPanel({ clientId, orders, isDark }: RmaPanelProps) {
                     </span>
                     <RmaStatusBadge status={rma.status} />
                   </div>
-                  <p className="text-[11px] text-gray-500 mt-0.5">
+                  <p className={`text-[11px] mt-0.5 ${dk("text-gray-500", "text-gray-600")}`}>
                     {REASON_LABELS[rma.reason]}
                     {" · "}
                     {new Date(rma.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })}
@@ -309,9 +309,9 @@ export function RmaPanel({ clientId, orders, isDark }: RmaPanelProps) {
               <div className="space-y-1 mb-3">
                 {rma.items.map((item, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs">
-                    <Package size={11} className="text-gray-500 shrink-0" />
+                    <Package size={11} className={`shrink-0 ${dk("text-gray-500", "text-gray-400")}`} />
                     <span className={dk("text-gray-300", "text-[#525252]")}>{item.name}</span>
-                    <span className="text-gray-600">×{item.quantity}</span>
+                    <span className={dk("text-gray-600", "text-gray-500")}>×{item.quantity}</span>
                   </div>
                 ))}
               </div>
@@ -322,7 +322,7 @@ export function RmaPanel({ clientId, orders, isDark }: RmaPanelProps) {
 
               {rma.resolution_notes && (
                 <div className={`mt-3 p-3 rounded-lg text-xs ${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-[#f9f9f9] border-[#e5e5e5]")} border`}>
-                  <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">Respuesta del equipo</p>
+                  <p className={`text-[10px] uppercase font-bold mb-1 ${dk("text-gray-500", "text-gray-600")}`}>Respuesta del equipo</p>
                   <p className={dk("text-gray-300", "text-[#525252]")}>{rma.resolution_notes}</p>
                 </div>
               )}

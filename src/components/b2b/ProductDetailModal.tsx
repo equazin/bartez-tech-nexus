@@ -139,7 +139,7 @@ export function ProductDetailModal({
                 </span>
               )}
               {availableStock > 0 && (
-                <span className="text-[11px] text-gray-600">{availableStock} disponibles</span>
+                <span className={`text-[11px] ${dk("text-gray-600", "text-gray-500")}`}>{availableStock} disponibles</span>
               )}
               {p.stock_min > 0 && (
                 <span className="text-[11px] text-gray-700">mín. {p.stock_min}</span>
@@ -197,7 +197,7 @@ export function ProductDetailModal({
             {/* Price tiers */}
             {p.price_tiers && p.price_tiers.length > 0 && (
               <div className="mb-4">
-                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Precio por volumen</p>
+                <p className={`text-[11px] font-semibold uppercase tracking-wider mb-1.5 ${dk("text-gray-500", "text-gray-600")}`}>Precio por volumen</p>
                 <div className={`rounded-xl border ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")} overflow-hidden`}>
                   <div className={`grid grid-cols-3 text-[10px] font-bold uppercase tracking-wide ${dk("bg-[#0d0d0d] text-[#525252]", "bg-[#f5f5f5] text-[#a3a3a3]")} px-3 py-1.5`}>
                     <span>Cantidad</span>
@@ -236,7 +236,7 @@ export function ProductDetailModal({
             {/* Description */}
             {p.description && (
               <div className="mb-4">
-                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Descripción</p>
+                <p className={`text-[11px] font-semibold uppercase tracking-wider mb-1.5 ${dk("text-gray-500", "text-gray-600")}`}>Descripción</p>
                 <p className={`text-sm ${dk("text-gray-400", "text-[#525252]")} leading-relaxed whitespace-pre-line`}>{p.description}</p>
               </div>
             )}
@@ -244,7 +244,7 @@ export function ProductDetailModal({
             {/* Specs */}
             {publicSpecs.length > 0 && (
               <div className="mb-4">
-                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Especificaciones</p>
+                <p className={`text-[11px] font-semibold uppercase tracking-wider mb-1.5 ${dk("text-gray-500", "text-gray-600")}`}>Especificaciones</p>
                 <div className={`rounded-xl border ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")} overflow-hidden`}>
                   {publicSpecs.map((spec, i) => (
                     <div key={spec.key} className={`flex text-xs ${i % 2 === 0 ? dk("bg-[#0d0d0d]", "bg-[#f9f9f9]") : dk("bg-[#0a0a0a]", "bg-white")}`}>
@@ -259,7 +259,7 @@ export function ProductDetailModal({
             {/* Tags */}
             {p.tags && p.tags.length > 0 && (
               <div className="mb-4">
-                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Tags</p>
+                <p className={`text-[11px] font-semibold uppercase tracking-wider mb-1.5 ${dk("text-gray-500", "text-gray-600")}`}>Tags</p>
                 <div className="flex flex-wrap gap-1.5">
                   {p.tags.map((t: string) => (
                     <span key={t} className={`text-[11px] px-2 py-0.5 rounded-full ${dk("bg-[#1c1c1c] text-[#a3a3a3] border-[#262626]", "bg-[#f0f0f0] text-[#525252] border-[#e5e5e5]")} border font-medium`}>

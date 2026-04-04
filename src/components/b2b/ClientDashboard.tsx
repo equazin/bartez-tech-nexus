@@ -92,10 +92,10 @@ const PARTNER_LEVEL_LABEL: Record<PartnerLevel, string> = {
 };
 
 const PARTNER_LEVEL_COLOR: Record<PartnerLevel, string> = {
-  cliente:  "bg-emerald-500/10 text-emerald-400",
-  silver:   "bg-gray-500/10 text-gray-300",
-  gold:     "bg-yellow-500/10 text-yellow-400",
-  platinum: "bg-purple-500/10 text-purple-400",
+  cliente:  "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  silver:   "bg-gray-500/10 text-gray-600 dark:text-gray-300",
+  gold:     "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
+  platinum: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
 };
 
 const ALERT_ICON_MAP: Record<string, typeof AlertCircle> = {
@@ -282,7 +282,7 @@ export function ClientDashboard({
              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest ${PARTNER_LEVEL_COLOR[(profile.partner_level as PartnerLevel) ?? "cliente"]}`}>
                Partner Nivel {PARTNER_LEVEL_LABEL[(profile.partner_level as PartnerLevel) ?? "cliente"]}
              </span>
-             <span className="w-1 h-1 rounded-full bg-white/20" />
+             <span className={`w-1 h-1 rounded-full ${dk("bg-white/20", "bg-black/20")}`} />
              <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">ID: BTZ-{profile.id.slice(0,6).toUpperCase()}</span>
           </div>
           <h2 className={`text-3xl font-display font-black tracking-tighter ${dk("text-white", "text-[#171717]")}`}>
@@ -294,7 +294,7 @@ export function ClientDashboard({
         </div>
         
         <div className="flex items-center gap-3">
-           <Button onClick={() => onGoTo("catalog")} variant="outline" className={`h-11 rounded-2xl gap-2 font-bold px-5 border-white/5 ${dk("bg-white/5 hover:bg-white/10", "bg-gray-100/50 hover:bg-gray-200/50")}`}>
+           <Button onClick={() => onGoTo("catalog")} variant="outline" className={`h-11 rounded-2xl gap-2 font-bold px-5 ${dk("border-white/5 bg-white/5 hover:bg-white/10", "border-black/10 bg-gray-100/50 hover:bg-gray-200/50")}`}>
               <Download size={16} /> Lista de Precios
            </Button>
            <Button onClick={() => onGoTo("catalog")} className="h-11 rounded-2xl gap-2 font-bold px-6 bg-gradient-primary shadow-lg shadow-primary/20">
@@ -363,7 +363,7 @@ export function ClientDashboard({
                         {onCreateProject && (
                           <button
                             onClick={() => setShowCreateProject(true)}
-                            className="flex-shrink-0 px-4 py-3 rounded-2xl border border-dashed border-white/10 text-muted-foreground hover:border-primary/30 hover:text-primary transition text-xs"
+                            className={`flex-shrink-0 px-4 py-3 rounded-2xl border border-dashed text-muted-foreground hover:border-primary/30 hover:text-primary transition text-xs ${dk("border-white/10", "border-black/10")}`}
                           >
                             <Plus size={12} className="mx-auto mb-1" />
                             <span className="whitespace-nowrap">Nuevo</span>
@@ -375,7 +375,7 @@ export function ClientDashboard({
                  {showCreateProject && onCreateProject && (
                    <div className="mt-3 flex gap-2 items-center relative z-10">
                      <input
-                       className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs placeholder:text-muted-foreground"
+                       className={`flex-1 rounded-xl border px-3 py-1.5 text-xs placeholder:text-muted-foreground ${dk("border-white/10 bg-white/5", "border-black/10 bg-black/5")}`}
                        placeholder="Nombre del proyecto"
                        value={newProjectName}
                        onChange={e => setNewProjectName(e.target.value)}
@@ -394,7 +394,7 @@ export function ClientDashboard({
                        autoFocus
                      />
                      <select
-                       className="rounded-xl border border-white/10 bg-white/5 px-2 py-1.5 text-xs"
+                       className={`rounded-xl border px-2 py-1.5 text-xs ${dk("border-white/10 bg-white/5", "border-black/10 bg-black/5")}`}
                        value={newProjectColor}
                        onChange={e => setNewProjectColor(e.target.value)}
                      >
@@ -419,7 +419,7 @@ export function ClientDashboard({
                      >
                        {creatingProject ? "..." : "Crear"}
                      </Button>
-                     <button onClick={() => setShowCreateProject(false)} className="text-muted-foreground hover:text-white text-xs">✕</button>
+                     <button onClick={() => setShowCreateProject(false)} className={`text-muted-foreground text-xs ${dk("hover:text-white", "hover:text-[#171717]")}`}>✕</button>
                    </div>
                  )}
               </div>
@@ -463,7 +463,7 @@ export function ClientDashboard({
                      : "5491100000000";
                    const waUrl = `https://wa.me/${waNumber}`;
                    return (
-                     <a href={waUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-white/5 p-3 rounded-2xl group hover:bg-white/10 transition cursor-pointer">
+                     <a href={waUrl} target="_blank" rel="noopener noreferrer" className={`flex items-center gap-3 p-3 rounded-2xl group transition cursor-pointer ${dk("bg-white/5 hover:bg-white/10", "bg-black/5 hover:bg-black/10")}`}>
                         <img src={`https://i.pravatar.cc/150?u=${sellerName}`} alt={sellerName} className="w-10 h-10 rounded-full border border-primary/30" />
                         <div className="flex-1 min-w-0">
                            <p className="text-xs font-bold truncate">{sellerName}</p>
@@ -623,7 +623,7 @@ export function ClientDashboard({
               </p>
               
               {/* [LOGÍSTICA] Tracking Dinámico */}
-              <div className="pt-2 border-t border-white/5">
+              <div className={`pt-2 border-t ${dk("border-white/5", "border-black/5")}`}>
                 {lastOrder.status === "dispatched" || lastOrder.status === "delivered" ? (
                   <button 
                     onClick={async () => {

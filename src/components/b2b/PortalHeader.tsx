@@ -79,7 +79,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
         />
         {search && (
           <button onClick={() => setSearch("")}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-300 transition p-0.5">
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-600 dark:hover:text-gray-300 transition p-0.5">
             <X size={12} />
           </button>
         )}
