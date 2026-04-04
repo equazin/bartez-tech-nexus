@@ -32,6 +32,8 @@ import { whatsappNotifications } from "@/lib/api/whatsappNotifications";
 import type { KanbanStatus, KanbanOrder } from "../components/admin/OrderKanban";
 import { MarketingTab } from "@/components/admin/MarketingTab";
 import { B2BInsights } from "@/components/admin/B2BInsights";
+import { AdminLayout } from "@/components/admin/layout/AdminLayout";
+import { TAB_TO_MODULE, type Tab, type ModuleId, type NavItem } from "@/components/admin/layout/adminNavConfig";
 
 // Lazy loaded tabs
 const SalesDashboard = lazy(() => import("@/components/admin/SalesDashboard").then(m => ({ default: m.SalesDashboard })));
@@ -189,22 +191,7 @@ function LegacyStatusBadge({ status }: { status: string }) {
   );
 }
 
-type Tab = "dashboard" | "products" | "imports" | "categories" | "opportunities" | "pos" | "seller_mode" | "orders" | "kanban" | "clients" | "users_permissions" | "approvals" | "documents" | "support" | "suppliers" | "brands" | "pricing" | "reports" | "activity" | "supplier_sync" | "stock" | "invoices" | "movements" | "credit" | "quotes_admin" | "purchase_orders" | "images" | "marketing" | "rma" | "price_agreements" | "webhooks" | "serials" | "business_alerts";
-type ModuleId = "top" | "catalogo" | "pedidos" | "clientes" | "finanzas" | "sistema";
-
-const TAB_TO_MODULE: Record<Tab, ModuleId> = {
-  dashboard: "top",
-  products: "catalogo", imports: "catalogo", categories: "catalogo", images: "catalogo",
-  opportunities: "catalogo", pos: "catalogo", seller_mode: "catalogo",
-  orders: "pedidos", kanban: "pedidos", approvals: "pedidos", quotes_admin: "pedidos",
-  clients: "clientes", users_permissions: "clientes", credit: "clientes",
-  business_alerts: "clientes", documents: "clientes", support: "clientes",
-  invoices: "finanzas", reports: "finanzas",
-  suppliers: "sistema", brands: "sistema", pricing: "sistema", supplier_sync: "sistema",
-  stock: "sistema", serials: "sistema", movements: "sistema", purchase_orders: "sistema",
-  rma: "sistema", price_agreements: "sistema", marketing: "sistema",
-  webhooks: "sistema", activity: "sistema",
-};
+// Tab, ModuleId, TAB_TO_MODULE are now in @/components/admin/layout/adminNavConfig
 
 
 
@@ -1285,93 +1272,12 @@ async function handleCreateClient() {
 
 
 
-  // -- Sidebar groups ----------------------------------------------------------
-  type SidebarGroup = {
-    id: string;
-    label: string;
-    icon: LucideIcon;
-    items: { id: Tab; label: string; icon: LucideIcon; badge?: number; adminOnly?: boolean; manageProducts?: boolean; manageOrders?: boolean }[];
-  };
-
-  const sidebarGroups: SidebarGroup[] = [
-    {
-      id: "top", label: "", icon: LayoutDashboard,
-      items: [
-        { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-      ],
-    },
-    {
-      id: "catalogo", label: "Catálogo", icon: Package,
-      items: [
-        { id: "products",      label: "Productos",     icon: Package,    badge: products.length, manageProducts: true },
-        { id: "imports",       label: "Importaciones", icon: Download,   manageProducts: true },
-        { id: "categories",    label: "Categorías",    icon: Tag,        manageProducts: true },
-        { id: "images",        label: "Imágenes",      icon: Image,      manageProducts: true },
-        { id: "opportunities", label: "Oportunidades", icon: Flame,      manageProducts: true },
-        { id: "pos",           label: "POS",           icon: Truck,      manageProducts: true },
-        { id: "seller_mode",   label: "Modo Vendedor", icon: DollarSign, manageProducts: true },
-      ],
-    },
-    {
-      id: "pedidos", label: "Pedidos", icon: ClipboardList,
-      items: [
-        { id: "orders",       label: "Pedidos",      icon: ClipboardList, badge: pendingOrders || undefined, manageOrders: true },
-        { id: "kanban",       label: "Kanban",       icon: Layers,        manageOrders: true },
-        { id: "approvals",    label: "Aprobaciones", icon: CheckCircle2,  manageOrders: true },
-        { id: "quotes_admin", label: "Cotizaciones", icon: MessageSquare, adminOnly: true },
-      ],
-    },
-    {
-      id: "clientes", label: "Clientes", icon: Users,
-      items: [
-        { id: "clients",           label: "Clientes",      icon: Users,      badge: clients.length, adminOnly: true },
-        { id: "users_permissions", label: "Accesos",       icon: UserPlus,   adminOnly: true },
-        { id: "credit",            label: "Crédito",       icon: CreditCard, adminOnly: true },
-        { id: "business_alerts",   label: "Alertas B2B",  icon: Bell,       adminOnly: true },
-      ],
-    },
-    {
-      id: "finanzas", label: "Finanzas", icon: FileText,
-      items: [
-        { id: "invoices",  label: "Facturas",   icon: FileText,  adminOnly: true },
-        { id: "documents", label: "Documentos", icon: FileText,  adminOnly: true },
-        { id: "reports",   label: "Reportes",   icon: BarChart2, adminOnly: true, badge: lowStockCount || undefined },
-      ],
-    },
-    {
-      id: "sistema", label: "Sistema", icon: Activity,
-      items: [
-        { id: "suppliers",       label: "Proveedores",    icon: Building2,    adminOnly: true },
-        { id: "brands",          label: "Marcas",         icon: Bookmark,     adminOnly: true },
-        { id: "pricing",         label: "Precios",        icon: Tag,          adminOnly: true },
-        { id: "supplier_sync",   label: "Sync",           icon: Wifi,         adminOnly: true },
-
-        { id: "stock",           label: "Stock",          icon: Layers,       adminOnly: true },
-        { id: "serials",         label: "Números Serie",  icon: ShieldCheck,  adminOnly: true },
-        { id: "movements",       label: "Movimientos",    icon: History,      adminOnly: true },
-        { id: "purchase_orders",  label: "Órdenes Compra",   icon: ShoppingBag,  adminOnly: true },
-        { id: "rma",              label: "Devoluciones",     icon: RotateCcw,    adminOnly: true },
-        { id: "price_agreements", label: "Acuerdos Precio",  icon: Handshake,    adminOnly: true },
-        { id: "support",          label: "Soporte",          icon: LifeBuoy,     adminOnly: true },
-        { id: "marketing",       label: "Marketing",      icon: Ticket,       adminOnly: true },
-        { id: "webhooks",        label: "Webhooks",       icon: Globe,        adminOnly: true },
-        { id: "activity",        label: "Actividad",      icon: Activity,     adminOnly: true },
-      ],
-    },
-  ];
-
+  // -- Sidebar state -----------------------------------------------------------
   const SIDEBAR_COLLAPSE_KEY = "admin_sidebar_collapsed";
-  const SIDEBAR_GROUPS_KEY   = "admin_sidebar_groups";
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() =>
     localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === "true"
   );
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem(SIDEBAR_GROUPS_KEY);
-      return saved ? new Set(JSON.parse(saved)) : new Set<string>();
-    } catch { return new Set<string>(); }
-  });
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   function toggleSidebar() {
@@ -1380,20 +1286,19 @@ async function handleCreateClient() {
     localStorage.setItem(SIDEBAR_COLLAPSE_KEY, String(next));
   }
 
-  function toggleGroup(gid: string) {
-    setCollapsedGroups((prev) => {
-      const next = toggleSetValue(prev, gid);
-      localStorage.setItem(SIDEBAR_GROUPS_KEY, JSON.stringify([...next]));
-      return next;
-    });
-  }
-
-  function canSeeItem(item: SidebarGroup["items"][number]) {
+  function canSeeItem(item: NavItem) {
     if (item.adminOnly) return isAdmin;
     if (item.manageProducts) return canManageProducts;
     if (item.manageOrders) return canManageOrders;
     return true;
   }
+
+  const navBadges: Partial<Record<Tab, number>> = {
+    products:  products.length || undefined,
+    orders:    pendingOrders   || undefined,
+    clients:   clients.length  || undefined,
+    reports:   lowStockCount   || undefined,
+  };
 
   async function handleExportAdminCatalogPdf() {
     await exportCatalogPdf(products, formatPrice, currency);
@@ -1406,226 +1311,44 @@ async function handleCreateClient() {
     await exportRemitoPdf(selectedOrder, clientName, formatPrice);
   }
 
-  function SidebarContent({ mobile = false }: { mobile?: boolean }) {
-    const activeGroup = sidebarGroups.find((g) => g.id === activeModule);
-    const visibleItems = activeGroup ? activeGroup.items.filter(canSeeItem) : [];
-
-    return (
-      <nav className="flex flex-col h-full overflow-y-auto py-3 gap-0.5 px-2">
-        {visibleItems.map(({ id, label, icon: Icon, badge }) => {
-          const active = activeTab === id;
-          return (
-            <button
-              key={id}
-              onClick={() => { navigateTab(id); if (mobile) setMobileSidebarOpen(false); }}
-              title={sidebarCollapsed && !mobile ? label : undefined}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition relative ${
-                active
-                  ? dk("bg-[#1a2e22] text-[#2D9F6A] font-semibold","bg-[#f0faf5] text-[#1a7a50] font-semibold")
-                  : dk("text-[#737373] hover:text-white hover:bg-[#181818]","text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")
-              }`}
-            >
-              <Icon size={14} className={active ? "text-[#2D9F6A]" : ""} />
-              {(!sidebarCollapsed || mobile) && (
-                <>
-                  <span className="flex-1 text-left truncate">{label}</span>
-                  {badge !== undefined && badge > 0 && (
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
-                      id === "orders"
-                        ? "bg-[#2D9F6A] text-white"
-                        : dk("bg-[#222] text-[#525252]","bg-[#e8e8e8] text-[#737373]")
-                    }`}>
-                      {badge}
-                    </span>
-                  )}
-                </>
-              )}
-              {sidebarCollapsed && !mobile && badge !== undefined && badge > 0 && (
-                <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[#2D9F6A]" />
-              )}
-            </button>
-          );
-        })}
-      </nav>
-    );
-  }
-
   return (
-    <div className={`flex min-h-screen flex-col ${dk("bg-[#0a0a0a]", "bg-[#f0f0f0]")}`}>
-
-      {/* TOPBAR */}
-      <header className={`flex items-center gap-2 px-3 md:px-4 py-2.5 border-b z-30 relative ${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-white border-[#e5e5e5]")}`}>
-        {/* Mobile hamburger */}
-        <button
-          onClick={() => setMobileSidebarOpen((o) => !o)}
-          className={`md:hidden p-2 rounded-lg transition ${dk("text-[#525252] hover:text-white hover:bg-[#1c1c1c]","text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
-        >
-          <LayoutDashboard size={16} />
-        </button>
-
-        <div className="flex items-center gap-2">
-          <img src="/icon.png" alt="Bartez" className="h-7 w-7 object-contain" />
-          <div className="hidden sm:block">
-            <span className={`font-bold text-sm leading-none ${dk("text-white", "text-[#171717]")}`}>Panel Admin</span>
-            <span className="block text-[10px] text-[#2D9F6A] leading-none mt-0.5">Bartez Tecnología</span>
-          </div>
-        </div>
-
-        {/* Active tab breadcrumb */}
-        <span className={`text-xs font-semibold hidden md:block ml-2 ${dk("text-[#525252]","text-[#a3a3a3]")}`}>
-          / {sidebarGroups.flatMap((g) => g.items).find((i) => i.id === activeTab)?.label ?? ""}
-        </span>
-
-        <div className="ml-auto flex items-center gap-1.5">
-          {/* Quick-access: Marketing */}
-          <button
-            onClick={() => navigateTab("marketing")}
-            title="Marketing B2B"
-            className={`hidden sm:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition ${
-              activeTab === "marketing"
-                ? "bg-[#2D9F6A]/15 border-[#2D9F6A]/40 text-[#2D9F6A]"
-                : dk("border-[#1f1f1f] text-[#525252] hover:text-white hover:bg-[#1c1c1c]", "border-[#e5e5e5] text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")
-            }`}
-          >
-            <Ticket size={12} /> <span className="hidden lg:inline font-semibold">Marketing</span>
-          </button>
-
-          <div className={`hidden sm:flex items-center rounded-lg border p-0.5 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-[#f8f8f8]")}`}>
-            {(["USD", "ARS"] as const).map((option) => {
-              const active = currency === option;
-              return (
-                <button
-                  key={option}
-                  onClick={() => setCurrency(option)}
-                  className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition ${
-                    active
-                      ? "bg-[#2D9F6A] text-white"
-                      : dk("text-[#737373] hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-white")
-                  }`}
-                  title={`Ver importes principales en ${option}`}
-                >
-                  {option}
-                </button>
-              );
-            })}
-          </div>
-          <AdminSearch
-            isDark={isDark}
-            products={products}
-            clients={clients}
-            orders={orders}
-            invoices={invoiceSearchItems}
-            quotes={quoteSearchItems}
-            payments={paymentSearchItems}
-            onNavigate={(tab) => navigateTab(tab as Tab)}
-          />
-          <button
-            onClick={() => {
-              fetchProducts();
-              fetchOrders();
-              fetchClients();
-              fetchInvoiceSearchItems();
-              fetchQuoteSearchItems();
-              fetchPaymentSearchItems();
-            }}
-            className={`flex items-center gap-1.5 text-xs transition px-2.5 py-1.5 rounded-lg ${dk("text-[#737373] hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
-          >
-            <RefreshCw size={12} /> <span className="hidden sm:inline">Actualizar</span>
-          </button>
-          <NotificationBell isDark={isDark} />
-          <button
-            onClick={toggleTheme}
-            className={`p-1.5 rounded-lg transition ${dk("text-[#525252] hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
-            title={isDark ? "Tema claro" : "Tema oscuro"}
-          >
-            {isDark ? <Sun size={14} /> : <Moon size={14} />}
-          </button>
-          <button
-            onClick={handleLogout}
-            className={`flex items-center gap-1.5 text-xs transition px-2.5 py-1.5 rounded-lg ${dk("text-[#737373] hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
-          >
-            <LogOut size={12} /> <span className="hidden sm:inline">Salir</span>
-          </button>
-        </div>
-      </header>
-
-      {/* MODULE NAV BAR */}
-      <div className={`hidden md:flex items-center gap-0.5 px-4 border-b ${dk("bg-[#0d0d0d] border-[#1a1a1a]","bg-white border-[#e5e5e5]")}`}>
-        {sidebarGroups.map((group) => {
-          const GIcon = group.icon;
-          const label = group.id === "top" ? "Dashboard" : group.label;
-          const isActive = activeModule === group.id;
-          const hasVisibleItems = group.items.some(canSeeItem);
-          if (!hasVisibleItems) return null;
-          return (
-            <button
-              key={group.id}
-              onClick={() => {
-                navigateModule(group.id as ModuleId);
-                if (group.id === "top") navigateTab("dashboard");
-              }}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border-b-2 transition -mb-px ${
-                isActive
-                  ? "border-[#2D9F6A] text-[#2D9F6A]"
-                  : dk("border-transparent text-[#737373] hover:text-white hover:border-[#333]","border-transparent text-[#737373] hover:text-[#171717] hover:border-[#ccc]")
-              }`}
-            >
-              <GIcon size={13} />
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* BODY: sidebar + content */}
-      <div className="flex flex-1 overflow-hidden">
-
-        {/* Mobile overlay */}
-        {mobileSidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black/60 z-20 md:hidden"
-            onClick={() => setMobileSidebarOpen(false)}
-          />
-        )}
-
-        {/* SIDEBAR */}
-        <aside className={`
-          hidden md:flex flex-col shrink-0 border-r overflow-hidden transition-all duration-200
-          ${sidebarCollapsed ? "w-[52px]" : "w-[200px]"}
-          ${dk("bg-[#0d0d0d] border-[#1a1a1a]","bg-white border-[#e5e5e5]")}
-        `}>
-          <SidebarContent />
-          {/* Collapse toggle */}
-          <button
-            onClick={toggleSidebar}
-            className={`flex items-center justify-center py-3 border-t text-xs transition ${dk("border-[#1a1a1a] text-[#444] hover:text-white hover:bg-[#141414]","border-[#e5e5e5] text-[#c4c4c4] hover:text-[#171717] hover:bg-[#f5f5f5]")}`}
-            title={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
-          >
-            {sidebarCollapsed ? "→" : "←"}
-          </button>
-        </aside>
-
-        {/* Mobile drawer */}
-        <aside className={`
-          fixed left-0 top-0 h-full w-[220px] z-30 md:hidden flex flex-col border-r transition-transform duration-200
-          ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"}
-          ${dk("bg-[#0d0d0d] border-[#1a1a1a]","bg-white border-[#e5e5e5]")}
-        `}>
-          <div className={`flex items-center gap-2 px-4 py-3 border-b ${dk("border-[#1a1a1a]","border-[#e5e5e5]")}`}>
-            <img src="/icon.png" alt="Bartez" className="h-7 w-7 object-contain" />
-            <div>
-              <span className={`font-bold text-sm leading-none ${dk("text-white","text-[#171717]")}`}>Admin</span>
-              <span className="block text-[10px] text-[#2D9F6A]">Bartez</span>
-            </div>
-          </div>
-          <SidebarContent mobile />
-        </aside>
-
-      <main className="flex-1 p-4 md:p-5 overflow-y-auto min-w-0">
+    <AdminLayout
+      activeTab={activeTab}
+      activeModule={activeModule}
+      badges={navBadges}
+      sidebarCollapsed={sidebarCollapsed}
+      mobileSidebarOpen={mobileSidebarOpen}
+      isDark={isDark}
+      currency={currency}
+      searchData={{
+        products,
+        clients,
+        orders,
+        invoices: invoiceSearchItems,
+        quotes:   quoteSearchItems,
+        payments: paymentSearchItems,
+      }}
+      canSeeItem={canSeeItem}
+      onNavigateTab={navigateTab}
+      onNavigateModule={navigateModule}
+      onToggleSidebar={toggleSidebar}
+      onToggleMobileSidebar={() => setMobileSidebarOpen((o) => !o)}
+      onToggleTheme={toggleTheme}
+      onRefresh={() => {
+        fetchProducts();
+        fetchOrders();
+        fetchClients();
+        fetchInvoiceSearchItems();
+        fetchQuoteSearchItems();
+        fetchPaymentSearchItems();
+      }}
+      onLogout={handleLogout}
+      onSetCurrency={setCurrency}
+    >
       <ErrorBoundary section={activeTab}>
         <Suspense fallback={
           <div className="flex items-center justify-center min-h-[400px]">
-             <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#2D9F6A] border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#2D9F6A] border-t-transparent" />
           </div>
         }>
 
@@ -2804,8 +2527,6 @@ async function handleCreateClient() {
         )}
         </Suspense>
       </ErrorBoundary>
-      </main>
-      </div>{/* end body flex */}
 
       {/* -- Create order modal -- */}
       {showCreateOrder && (
@@ -2817,7 +2538,7 @@ async function handleCreateClient() {
           onCreated={fetchOrders}
         />
       )}
-    </div>
+    </AdminLayout>
   );
 };
 
