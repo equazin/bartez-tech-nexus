@@ -14,29 +14,16 @@ interface SearchData {
 
 interface AdminLayoutProps {
   children: ReactNode;
-
-  // Nav state
   activeTab: Tab;
   activeModule: ModuleId;
   badges: Partial<Record<Tab, number>>;
-
-  // Sidebar state
   sidebarCollapsed: boolean;
   mobileSidebarOpen: boolean;
-
-  // Theme
   isDark: boolean;
-
-  // Currency
   currency: "USD" | "ARS";
-
-  // Search data
+  currentUserLabel?: string;
   searchData: SearchData;
-
-  // Permissions
   canSeeItem: (item: NavItem) => boolean;
-
-  // Actions
   onNavigateTab: (tab: Tab) => void;
   onNavigateModule: (moduleId: ModuleId) => void;
   onToggleSidebar: () => void;
@@ -56,6 +43,7 @@ export function AdminLayout({
   mobileSidebarOpen,
   isDark,
   currency,
+  currentUserLabel,
   searchData,
   canSeeItem,
   onNavigateTab,
@@ -67,95 +55,76 @@ export function AdminLayout({
   onLogout,
   onSetCurrency,
 }: AdminLayoutProps) {
-  const dk = (d: string, l: string) => (isDark ? d : l);
-
   return (
-    <div className={`flex min-h-screen flex-col ${dk("bg-[#0a0a0a]", "bg-[#f0f0f0]")}`}>
-
-      {/* ── Topbar + Module nav (sticky) ─────────────────────────────────────── */}
-      <div className="sticky top-0 z-30">
-        <AdminTopbar
-          activeTab={activeTab}
-          activeModule={activeModule}
-          isDark={isDark}
-          currency={currency}
-          searchData={searchData}
-          canSeeItem={canSeeItem}
-          onNavigateTab={onNavigateTab}
-          onNavigateModule={onNavigateModule}
-          onToggleMobileSidebar={onToggleMobileSidebar}
-          onToggleTheme={onToggleTheme}
-          onRefresh={onRefresh}
-          onLogout={onLogout}
-          onSetCurrency={onSetCurrency}
-        />
-      </div>
-
-      {/* ── Body: sidebar + content ──────────────────────────────────────────── */}
-      <div className="flex flex-1 overflow-hidden">
-
-        {/* Mobile overlay */}
-        {mobileSidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black/60 z-20 md:hidden"
-            onClick={onToggleMobileSidebar}
-          />
-        )}
-
-        {/* Desktop sidebar (sticky) */}
-        <aside
-          className={`
-            hidden md:flex flex-col shrink-0 border-r overflow-hidden transition-all duration-200
-            sticky top-[var(--topbar-height,88px)] h-[calc(100vh-var(--topbar-height,88px))]
-            ${sidebarCollapsed ? "w-[52px]" : "w-[200px]"}
-            ${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-white border-[#e5e5e5]")}
-          `}
-        >
-          <AdminSidebar
+    <div className="dashboard-stage min-h-screen bg-background px-3 py-3 md:px-4 md:py-4">
+      <div className="dashboard-canvas flex min-h-[calc(100vh-1.5rem)] flex-col overflow-hidden">
+        <div className="sticky top-0 z-30">
+          <AdminTopbar
             activeTab={activeTab}
             activeModule={activeModule}
-            badges={badges}
+            currentUserLabel={currentUserLabel}
             isDark={isDark}
-            collapsed={sidebarCollapsed}
+            currency={currency}
+            searchData={searchData}
+            canSeeItem={canSeeItem}
             onNavigateTab={onNavigateTab}
-            onToggleCollapse={onToggleSidebar}
-            canSeeItem={canSeeItem}
+            onNavigateModule={onNavigateModule}
+            onToggleMobileSidebar={onToggleMobileSidebar}
+            onToggleTheme={onToggleTheme}
+            onRefresh={onRefresh}
+            onLogout={onLogout}
+            onSetCurrency={onSetCurrency}
           />
-        </aside>
+        </div>
 
-        {/* Mobile drawer */}
-        <aside
-          className={`
-            fixed left-0 top-0 h-full w-[220px] z-30 md:hidden flex flex-col border-r
-            transition-transform duration-200
-            ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"}
-            ${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-white border-[#e5e5e5]")}
-          `}
-        >
-          <div className={`flex items-center gap-2 px-4 py-3 border-b ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
-            <img src="/icon.png" alt="Bartez" className="h-7 w-7 object-contain" />
-            <div>
-              <span className={`font-bold text-sm leading-none ${dk("text-white", "text-[#171717]")}`}>Admin</span>
-              <span className="block text-[10px] text-[#2D9F6A]">Bartez</span>
-            </div>
-          </div>
-          <AdminSidebar
-            activeTab={activeTab}
-            activeModule={activeModule}
-            badges={badges}
-            isDark={isDark}
-            collapsed={false}
-            mobile
-            onNavigateTab={(tab) => { onNavigateTab(tab); onToggleMobileSidebar(); }}
-            onToggleCollapse={onToggleSidebar}
-            canSeeItem={canSeeItem}
-          />
-        </aside>
+        <div className="flex flex-1 overflow-hidden">
+          {mobileSidebarOpen && (
+            <div
+              className="fixed inset-0 z-20 bg-black/30 backdrop-blur-sm md:hidden"
+              onClick={onToggleMobileSidebar}
+            />
+          )}
 
-        {/* Main content (scrollable independently) */}
-        <main className="flex-1 p-4 md:p-5 overflow-y-auto min-w-0">
-          {children}
-        </main>
+          <aside
+            className={`hidden shrink-0 overflow-hidden border-r border-border/70 bg-card/65 transition-all duration-200 md:flex md:flex-col ${sidebarCollapsed ? "w-[82px]" : "w-[286px]"}`}
+          >
+            <AdminSidebar
+              activeTab={activeTab}
+              activeModule={activeModule}
+              badges={badges}
+              isDark={isDark}
+              collapsed={sidebarCollapsed}
+              onNavigateTab={onNavigateTab}
+              onNavigateModule={onNavigateModule}
+              onToggleCollapse={onToggleSidebar}
+              canSeeItem={canSeeItem}
+            />
+          </aside>
+
+          <aside
+            className={`fixed left-0 top-0 z-30 flex h-full w-[286px] flex-col border-r border-border/70 bg-card/95 transition-transform duration-200 md:hidden ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+          >
+            <AdminSidebar
+              activeTab={activeTab}
+              activeModule={activeModule}
+              badges={badges}
+              isDark={isDark}
+              collapsed={false}
+              mobile
+              onNavigateTab={(tab) => {
+                onNavigateTab(tab);
+                onToggleMobileSidebar();
+              }}
+              onNavigateModule={onNavigateModule}
+              onToggleCollapse={onToggleSidebar}
+              canSeeItem={canSeeItem}
+            />
+          </aside>
+
+          <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-transparent px-4 py-5 md:px-6 md:py-6 lg:px-7 lg:py-7">
+            <div className="mx-auto flex w-full max-w-[1760px] flex-col gap-6">{children}</div>
+          </main>
+        </div>
       </div>
     </div>
   );

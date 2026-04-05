@@ -37,8 +37,8 @@ interface DuplicateGroup {
 }
 
 function SortIcon({ field, active, dir }: { field: string; active: boolean; dir: SortDir }) {
-  if (!active) return <ArrowUpDown size={12} className="text-gray-600" />;
-  return dir === "asc" ? <ArrowUp size={12} className="text-[#2D9F6A]" /> : <ArrowDown size={12} className="text-[#2D9F6A]" />;
+  if (!active) return <ArrowUpDown size={12} className="text-muted-foreground" />;
+  return dir === "asc" ? <ArrowUp size={12} className="text-primary" /> : <ArrowDown size={12} className="text-primary" />;
 }
 
 function normalizeForMatch(value: string | null | undefined): string {

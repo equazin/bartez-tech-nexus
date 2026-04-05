@@ -25,14 +25,17 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
 function makeRule(overrides: Partial<PricingRule> = {}): PricingRule {
   return {
     id: "rule-1",
+    name: "Rule 1",
     condition_type: "category",
     condition_value: "notebooks",
     fixed_markup: null,
-    min_margin: null,
+    min_margin: 0,
     max_margin: null,
     priority: 1,
     active: true,
     quantity_breaks: [],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
     ...overrides,
   };
 }
@@ -134,8 +137,8 @@ describe("resolveMarginWithContext", () => {
       makeRule({
         fixed_markup: 20,
         quantity_breaks: [
-          { min: 1,  max: 9,  margin: 20 },
-          { min: 10, max: null, margin: 12 },
+          { min: 1, margin: 20 },
+          { min: 10, margin: 12 },
         ],
       }),
     ];
@@ -149,7 +152,7 @@ describe("resolveMarginWithContext", () => {
     const rules = [
       makeRule({
         fixed_markup: 20,
-        quantity_breaks: [{ min: 10, max: null, margin: 12 }],
+        quantity_breaks: [{ min: 10, margin: 12 }],
       }),
     ];
     const { margin, isVolumePricing } = resolveMarginWithContext(product, rules, 20, undefined, 5);

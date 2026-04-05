@@ -28,6 +28,10 @@ export interface ClientDetail {
   ciudad?: string;
   provincia?: string;
   notas_internas?: string;
+  partner_level?: "cliente" | "silver" | "gold" | "platinum";
+  assigned_seller_id?: string;
+  last_contact_at?: string;
+  last_contact_type?: "nota" | "llamada" | "reunion" | "seguimiento" | "alerta" | "pedido" | "cotizacion" | "ticket";
   // campos 017 – crédito
   payment_terms: number;          // días netos: 15/30/45/60/90/120
   credit_approved: boolean;
@@ -78,6 +82,40 @@ export interface ClientQuote {
   converted_to_order_id?: number;
 }
 
+export interface SupportTicket {
+  id: string;
+  client_id: string;
+  subject: string;
+  description: string;
+  status: "open" | "in_analysis" | "waiting_customer" | "resolved" | "closed";
+  priority: "low" | "medium" | "high" | "urgent";
+  category: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClientRma {
+  id: number;
+  client_id: string;
+  order_id: string;
+  rma_number: string;
+  status: "draft" | "submitted" | "reviewing" | "approved" | "rejected" | "resolved";
+  reason: "defective" | "wrong_item" | "damaged_in_transit" | "not_as_described" | "other";
+  description?: string;
+  items: Array<{
+    product_id: number;
+    name: string;
+    sku: string;
+    quantity: number;
+    unit_price: number;
+  }>;
+  resolution_type?: "refund" | "exchange" | "credit_note" | "repair";
+  resolution_notes?: string;
+  created_at: string;
+  updated_at: string;
+  resolved_at?: string;
+}
+
 // ── Queries ────────────────────────────────────────────────────────────────────
 
 /** Perfil completo del cliente (incluye campos 016 + 017). */
@@ -86,7 +124,7 @@ export async function fetchClientProfile(clientId: string): Promise<ClientDetail
     .from("profiles")
     .select(
       "id, company_name, contact_name, client_type, default_margin, role, phone, email, " +
-      "credit_limit, credit_used, estado, vendedor_id, precio_lista, " +
+      "credit_limit, credit_used, estado, vendedor_id, precio_lista, partner_level, assigned_seller_id, last_contact_at, last_contact_type, " +
       "razon_social, cuit, direccion, ciudad, provincia, notas_internas, " +
       "payment_terms, credit_approved, credit_approved_by, credit_approved_at, " +
       "credit_review_date, notas_credito, max_order_value"
@@ -179,6 +217,30 @@ export async function fetchClientNotes(clientId: string): Promise<ClientNote[]> 
     .limit(100);
   if (error) throw new Error(error.message);
   return (data ?? []) as ClientNote[];
+}
+
+/** Tickets de soporte del cliente. */
+export async function fetchClientSupportTickets(clientId: string, limit = 50): Promise<SupportTicket[]> {
+  const { data, error } = await supabase
+    .from("support_tickets")
+    .select("*")
+    .eq("client_id", clientId)
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as SupportTicket[];
+}
+
+/** RMAs del cliente. */
+export async function fetchClientRmas(clientId: string, limit = 30): Promise<ClientRma[]> {
+  const { data, error } = await supabase
+    .from("rma_requests")
+    .select("*")
+    .eq("client_id", clientId)
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ClientRma[];
 }
 
 /** Agregar nota CRM. */

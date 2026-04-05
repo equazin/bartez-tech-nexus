@@ -1,30 +1,42 @@
-import { X, Plus, Minus, Star } from "lucide-react";
-import type { Product } from "@/models/products";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Minus, Plus, Star, X } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { SmartCompatibility } from "@/components/b2b/SmartCompatibility";
+import { StockBadge } from "@/components/b2b/StockBadge";
 import type { PriceResult } from "@/hooks/usePricing";
 import { getAvailableStock } from "@/lib/pricing";
-import { getLugStock } from "@/lib/stockUtils";
-import { StockBadge } from "@/components/b2b/StockBadge";
-import { SmartCompatibility } from "@/components/b2b/SmartCompatibility";
+import { resolveProductImageUrl } from "@/lib/productImage";
+import type { Product } from "@/models/products";
 
-// ── Spec helpers ────────────────────────────────────────────────────────────
-
-const HIDDEN_SPEC_PREFIXES = [
-  "elit_", "air_", "supplier_", "preferred_supplier_",
-  "sync_", "internal_", "provider_",
-];
-
+const HIDDEN_SPEC_PREFIXES = ["elit_", "air_", "invid_", "supplier_", "preferred_supplier_", "sync_", "internal_", "provider_"];
 const HIDDEN_SPEC_TOKENS = [
-  "cost", "precio_costo", "precio_compra", "markup", "pvp",
-  "exchange", "cotizacion", "external_id", "uuid", "token",
-  "source", "last_update", "stock_cd", "stock_total",
-  "stock_deposito", "link",
+  "cost",
+  "precio_costo",
+  "precio_compra",
+  "markup",
+  "pvp",
+  "exchange",
+  "cotizacion",
+  "external_id",
+  "uuid",
+  "token",
+  "source",
+  "last_update",
+  "stock_cd",
+  "stock_total",
+  "stock_deposito",
+  "lug_stock",
+  "link",
 ];
 
 function isClientVisibleSpecKey(rawKey: string): boolean {
   const key = rawKey.trim().toLowerCase();
   if (!key) return false;
-  if (HIDDEN_SPEC_PREFIXES.some((p) => key.startsWith(p))) return false;
-  if (HIDDEN_SPEC_TOKENS.some((t) => key.includes(t))) return false;
+  if (HIDDEN_SPEC_PREFIXES.some((prefix) => key.startsWith(prefix))) return false;
+  if (HIDDEN_SPEC_TOKENS.some((token) => key.includes(token))) return false;
   return true;
 }
 
@@ -36,11 +48,68 @@ function formatSpecLabel(rawKey: string): string {
 function formatSpecValue(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (Array.isArray(value)) return value.map((item) => String(item ?? "")).join(", ");
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  if (typeof value === "object") return formatStructuredSpecValue(value as Record<string, unknown>);
+  return formatStructuredSpecValue(String(value));
 }
 
-// ── Component ────────────────────────────────────────────────────────────────
+function formatStructuredSpecValue(rawValue: string | Record<string, unknown>): string {
+  const value = typeof rawValue === "string" ? rawValue.trim() : rawValue;
+  if (!value) return "";
+
+  const parsedObject = typeof value === "string" ? tryParseStructuredSpec(value) : value;
+  if (parsedObject && typeof parsedObject === "object" && !Array.isArray(parsedObject)) {
+    return formatObjectSpecValue(parsedObject);
+  }
+
+  if (typeof value === "string") {
+    return stripHtml(value);
+  }
+
+  return JSON.stringify(value);
+}
+
+function tryParseStructuredSpec(value: string): Record<string, unknown> | null {
+  if (!(value.startsWith("{") && value.endsWith("}"))) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function formatObjectSpecValue(record: Record<string, unknown>): string {
+  const unit = typeof record.unit === "string" ? record.unit.trim() : "";
+
+  if ("value" in record && typeof record.value !== "object") {
+    return [String(record.value).trim(), unit].filter(Boolean).join(" ");
+  }
+
+  const orderedDimensionKeys = ["width", "height", "length", "depth"];
+  const dimensions = orderedDimensionKeys
+    .filter((key) => record[key] !== undefined && record[key] !== null && String(record[key]).trim())
+    .map((key) => String(record[key]).trim());
+
+  if (dimensions.length >= 2) {
+    return [dimensions.join(" x "), unit].filter(Boolean).join(" ");
+  }
+
+  return Object.entries(record)
+    .filter(([key, entryValue]) => key !== "unit" && entryValue !== null && entryValue !== undefined && String(entryValue).trim())
+    .map(([key, entryValue]) => `${formatSpecLabel(key)}: ${stripHtml(String(entryValue).trim())}`)
+    .join(" · ");
+}
+
+function stripHtml(value: string): string {
+  return value
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 export interface ProductDetailModalProps {
   product: Product;
@@ -49,17 +118,16 @@ export interface ProductDetailModalProps {
   formatPrice: (n: number) => string;
   formatARS: (n: number) => string;
   formatUSD: (n: number) => string;
-  currency: string;
+  currency: "ARS" | "USD";
   setCurrency: (c: "ARS" | "USD") => void;
   isDark: boolean;
-  dk: (dark: string, light: string) => string;
   onClose: () => void;
   onAddToCart: (p: Product) => void;
   onRemoveFromCart: (p: Product) => void;
 }
 
 export function ProductDetailModal({
-  product: p,
+  product,
   inCart,
   computePrice,
   formatPrice,
@@ -68,239 +136,364 @@ export function ProductDetailModal({
   currency,
   setCurrency,
   isDark,
-  dk,
   onClose,
   onAddToCart,
   onRemoveFromCart,
 }: ProductDetailModalProps) {
-  const priceInfo = computePrice(p, Math.max(inCart, 1));
-  const { unitPrice: finalPrice, ivaRate, ivaAmount, totalWithIVA: finalWithIVA } = priceInfo;
-  const availableStock = getAvailableStock(p);
+  const SPEC_PREVIEW_LIMIT = 20;
+  const SPEC_VIRTUALIZE_THRESHOLD = 80;
+  const SPEC_ROW_HEIGHT = 52;
+  const SPEC_OVERSCAN = 6;
+  const ANIMATION_MS = 140;
+  const priceInfo = computePrice(product, Math.max(inCart, 1));
+  const { unitPrice, ivaAmount, ivaRate, totalWithIVA } = priceInfo;
+  const availableStock = getAvailableStock(product);
   const outOfStock = availableStock === 0;
+  const [imageSrc, setImageSrc] = useState(() => resolveProductImageUrl(product.image));
+  const [isVisible, setIsVisible] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const [compatibilityReady, setCompatibilityReady] = useState(false);
+  const [compatibilityInView, setCompatibilityInView] = useState(true);
+  const [showAllSpecs, setShowAllSpecs] = useState(false);
+  const [specScrollTop, setSpecScrollTop] = useState(0);
+  const modalScrollRef = useRef<HTMLDivElement | null>(null);
+  const compatibilityRef = useRef<HTMLDivElement | null>(null);
 
-  const publicSpecs = p.specs
-    ? Object.entries(p.specs)
-        .filter(([key]) => isClientVisibleSpecKey(key))
-        .map(([key, value]) => ({
-          key,
-          label: formatSpecLabel(key),
-          value: formatSpecValue(value),
-        }))
-        .filter((entry) => entry.value.trim().length > 0)
-    : [];
+  const publicSpecs = useMemo(() => (
+    product.specs
+      ? Object.entries(product.specs)
+          .filter(([key]) => isClientVisibleSpecKey(key))
+          .map(([key, value]) => ({
+            key,
+            label: formatSpecLabel(key),
+            value: formatSpecValue(value),
+          }))
+          .filter((entry) => entry.value.trim().length > 0)
+      : []
+  ), [product.specs]);
+
+  const visibleSpecs = showAllSpecs ? publicSpecs : publicSpecs.slice(0, SPEC_PREVIEW_LIMIT);
+  const shouldVirtualizeSpecs = showAllSpecs && publicSpecs.length > SPEC_VIRTUALIZE_THRESHOLD;
+  const specViewportHeight = Math.min(publicSpecs.length, 7) * SPEC_ROW_HEIGHT;
+  const virtualStartIndex = shouldVirtualizeSpecs
+    ? Math.max(0, Math.floor(specScrollTop / SPEC_ROW_HEIGHT) - SPEC_OVERSCAN)
+    : 0;
+  const virtualEndIndex = shouldVirtualizeSpecs
+    ? Math.min(publicSpecs.length, Math.ceil((specScrollTop + specViewportHeight) / SPEC_ROW_HEIGHT) + SPEC_OVERSCAN)
+    : visibleSpecs.length;
+  const virtualSpecs = shouldVirtualizeSpecs
+    ? publicSpecs.slice(virtualStartIndex, virtualEndIndex)
+    : visibleSpecs;
+
+  useEffect(() => {
+    setImageSrc(resolveProductImageUrl(product.image));
+  }, [product.image]);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  useEffect(() => {
+    setShowAllSpecs(false);
+    setCompatibilityReady(false);
+    setCompatibilityInView(true);
+    setIsClosing(false);
+    setSpecScrollTop(0);
+
+    const raf = window.requestAnimationFrame(() => setIsVisible(true));
+    const timer = window.setTimeout(() => setCompatibilityReady(true), 180);
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(timer);
+    };
+  }, [product.id]);
+
+  useEffect(() => {
+    if (!compatibilityRef.current || !modalScrollRef.current) return undefined;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setCompatibilityInView(entry.isIntersecting || entry.intersectionRatio > 0.05);
+      },
+      {
+        root: modalScrollRef.current,
+        threshold: [0, 0.05, 0.2],
+      },
+    );
+
+    observer.observe(compatibilityRef.current);
+    return () => observer.disconnect();
+  }, [product.id, compatibilityReady]);
+
+  function handleRequestClose() {
+    if (isClosing) return;
+    setIsClosing(true);
+    setIsVisible(false);
+    window.setTimeout(() => onClose(), ANIMATION_MS);
+  }
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
-      onClick={onClose}
+      className={cn(
+        "fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-3 transition-opacity duration-150 md:p-4",
+        isVisible ? "opacity-100" : "opacity-0",
+      )}
+      onClick={handleRequestClose}
     >
       <div
-        className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl w-full max-w-lg shadow-2xl shadow-black/30 flex flex-col max-h-[90vh]`}
-        onClick={(e) => e.stopPropagation()}
+        className={cn(
+          "flex max-h-[88vh] w-full max-w-[960px] flex-col overflow-hidden rounded-[24px] border border-border/70 bg-card text-card-foreground shadow-2xl shadow-black/25 transition-transform duration-150 will-change-transform",
+          isVisible ? "translate-y-0 scale-100" : "translate-y-2 scale-[0.985]",
+        )}
+        onClick={(event) => event.stopPropagation()}
       >
-        {/* Header */}
-        <div className={`flex items-center justify-between px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")} shrink-0`}>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-xs ${dk("text-gray-500 bg-[#242424]", "text-[#737373] bg-[#f0f0f0]")} px-2 py-0.5 rounded-full font-medium`}>
-              {p.category}
-            </span>
-            {p.featured && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
-                <Star size={9} fill="currentColor" /> Destacado
-              </span>
-            )}
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/70 bg-card px-4 py-3 md:px-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="border-border/70 bg-surface text-muted-foreground">
+              {product.category}
+            </Badge>
+            {product.featured ? (
+              <Badge variant="outline" className="gap-1 border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <Star size={10} fill="currentColor" />
+                Destacado
+              </Badge>
+            ) : null}
           </div>
-          <button
-            onClick={onClose}
-            className={`${dk("text-gray-600 hover:text-white hover:bg-[#2a2a2a]", "text-[#a3a3a3] hover:text-[#171717] hover:bg-[#f0f0f0]")} transition p-1 rounded-lg shrink-0`}
-          >
+          <Button variant="ghost" size="icon" onClick={handleRequestClose}>
             <X size={16} />
-          </button>
+          </Button>
         </div>
 
-        {/* Scrollable body */}
-        <div className="overflow-y-auto flex-1">
-          {/* Image */}
-          <div className={`${dk("bg-[#0a0a0a]", "bg-[#f9f9f9]")} flex items-center justify-center h-52 px-8 shrink-0`}>
-            <img src={p.image} alt={p.name} className="max-h-40 max-w-full object-contain drop-shadow-xl" />
-          </div>
-
-          {/* Info */}
-          <div className="px-5 pt-4 pb-2">
-            <div className="flex items-start justify-between gap-3 mb-1">
-              <h2 className={`text-base font-extrabold ${dk("text-white", "text-[#171717]")} leading-tight`}>{p.name}</h2>
-              <StockBadge stock={p.stock} lugStock={getLugStock(p)} />
+        <div ref={modalScrollRef} className="flex-1 overflow-y-auto overscroll-contain">
+          <div className="grid gap-4 px-4 py-4 md:grid-cols-[240px_minmax(0,1fr)] md:px-5">
+            <div className="space-y-3">
+              <div className="flex h-48 items-center justify-center rounded-2xl border border-border/70 bg-surface/70 p-4 md:sticky md:top-4">
+                <img
+                  src={imageSrc}
+                  alt={product.name}
+                  onError={() => setImageSrc("/placeholder.png")}
+                  className="max-h-40 max-w-full object-contain drop-shadow-lg"
+                />
+              </div>
+              <div ref={compatibilityRef}>
+                {compatibilityReady ? (
+                  compatibilityInView ? (
+                    <SmartCompatibility productId={product.id} isDark={isDark} onAddToCart={onAddToCart} formatPrice={formatPrice} />
+                  ) : (
+                    <div className="flex min-h-24 items-center justify-center rounded-2xl border border-dashed border-border/60 bg-surface/30 px-4 py-3 text-center text-[11px] text-muted-foreground">
+                      Compatibilidad pausada hasta volver a esta seccion.
+                    </div>
+                  )
+                ) : (
+                  <div className="h-24 w-full animate-pulse rounded-2xl border border-border/50 bg-surface/50" />
+                )}
+              </div>
             </div>
 
-            <div className="flex items-center gap-3 mb-4">
-              {p.sku && (
-                <span className={`text-[11px] font-mono ${dk("text-[#525252] bg-[#171717] border-[#222]", "text-[#737373] bg-[#f0f0f0] border-[#e5e5e5]")} border px-2 py-0.5 rounded`}>
-                  SKU: {p.sku}
-                </span>
-              )}
-              {availableStock > 0 && (
-                <span className={`text-[11px] ${dk("text-gray-600", "text-gray-500")}`}>{availableStock} disponibles</span>
-              )}
-              {p.stock_min > 0 && (
-                <span className="text-[11px] text-gray-700">mín. {p.stock_min}</span>
-              )}
-            </div>
-
-            {/* Price breakdown */}
-            <div className={`${dk("bg-[#0d0d0d] border-[#1f1f1f]", "bg-[#f9f9f9] border-[#e5e5e5]")} border rounded-xl px-4 py-3 mb-4`}>
+            <div className="min-w-0 space-y-4">
               <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className={`text-[11px] ${dk("text-[#737373]", "text-[#a3a3a3]")}`}>Precio unitario</span>
-                    <span className="text-base font-extrabold text-[#2D9F6A] tabular-nums">{formatPrice(finalPrice)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className={`text-[11px] ${dk("text-[#737373]", "text-[#a3a3a3]")}`}>IVA ({ivaRate}%)</span>
-                    <span className={`text-sm font-semibold tabular-nums ${dk("text-[#a3a3a3]", "text-[#737373]")}`}>+ {formatPrice(ivaAmount)}</span>
-                  </div>
-                  <div className={`flex items-center justify-between pt-1.5 border-t ${dk("border-[#222]", "border-[#e5e5e5]")}`}>
-                    <span className={`text-[11px] font-semibold ${dk("text-white", "text-[#171717]")}`}>Precio final</span>
-                    <span className={`text-base font-extrabold tabular-nums ${dk("text-white", "text-[#171717]")}`}>{formatPrice(finalWithIVA)}</span>
-                  </div>
-                  <div className={`text-[10px] ${dk("text-[#525252]", "text-[#a3a3a3]")} font-mono`}>
-                    {currency === "USD" ? formatARS(finalWithIVA) : formatUSD(finalWithIVA)}
+                <div className="min-w-0 space-y-2">
+                  <h2 className="text-lg font-extrabold leading-tight text-foreground">{product.name}</h2>
+                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                    {product.sku ? (
+                      <Badge variant="outline" className="border-border/70 bg-card font-mono text-muted-foreground">
+                        SKU: {product.sku}
+                      </Badge>
+                    ) : null}
+                    {availableStock > 0 ? <span className="text-muted-foreground">{availableStock} disponibles</span> : null}
+                    {product.stock_min && product.stock_min > 0 ? <span className="text-muted-foreground">min. {product.stock_min}</span> : null}
                   </div>
                 </div>
-                {/* Currency toggle */}
-                <div className="text-right shrink-0">
-                  <div className={`text-[10px] ${dk("text-[#525252]", "text-[#a3a3a3]")} mb-1`}>Moneda</div>
-                  <div className={`flex items-center ${dk("bg-[#171717] border-[#262626]", "bg-[#f0f0f0] border-[#e5e5e5]")} border rounded-lg p-0.5 gap-0.5`}>
-                    {(["USD", "ARS"] as const).map((c) => (
-                      <button
-                        key={c}
-                        onClick={() => setCurrency(c)}
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${currency === c ? "bg-[#2D9F6A] text-white" : dk("text-[#525252] hover:text-[#a3a3a3]", "text-[#737373] hover:text-[#171717]")}`}
-                      >
-                        {c}
-                      </button>
+                <StockBadge stock={product.stock} />
+              </div>
+
+              <div className="rounded-2xl border border-border/70 bg-surface/70 p-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[11px] text-muted-foreground">Precio unitario</span>
+                      <span className="text-base font-extrabold tabular-nums text-primary">{formatPrice(unitPrice)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[11px] text-muted-foreground">IVA ({ivaRate}%)</span>
+                      <span className="text-sm font-semibold tabular-nums text-muted-foreground">+ {formatPrice(ivaAmount)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 border-t border-border/70 pt-2">
+                      <span className="text-[11px] font-semibold text-foreground">Precio final</span>
+                      <span className="text-base font-extrabold tabular-nums text-foreground">{formatPrice(totalWithIVA)}</span>
+                    </div>
+                    <div className="font-mono text-[10px] text-muted-foreground">
+                      {currency === "USD" ? formatARS(totalWithIVA) : formatUSD(totalWithIVA)}
+                    </div>
+                  </div>
+
+                  <div className="shrink-0">
+                    <div className="mb-1 text-[10px] text-muted-foreground">Moneda</div>
+                    <div className="flex items-center gap-1 rounded-lg border border-border/70 bg-card p-1">
+                      {(["USD", "ARS"] as const).map((value) => (
+                        <button
+                          key={value}
+                          onClick={() => setCurrency(value)}
+                          className={cn(
+                            "rounded-md px-2 py-1 text-[11px] font-bold transition",
+                            currency === value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                          )}
+                        >
+                          {value}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {product.price_tiers?.length ? (
+                <div className="space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Precio por volumen</p>
+                  <div className="overflow-hidden rounded-2xl border border-border/70">
+                    <div className="grid grid-cols-3 bg-surface px-3 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                      <span>Cantidad</span>
+                      <span className="text-center">Precio unit.</span>
+                      <span className="text-right">Ahorro</span>
+                    </div>
+                    {product.price_tiers.map((tier, index) => {
+                      const costBase = product.cost_price ?? tier.price;
+                      const saving = costBase > 0 ? ((costBase - tier.price) / costBase) * 100 : 0;
+                      const isActiveTier = inCart >= tier.min && (tier.max === null || inCart <= tier.max);
+
+                      return (
+                        <div
+                          key={`${tier.min}-${tier.max ?? "plus"}`}
+                          className={cn(
+                            "grid grid-cols-3 px-3 py-2 text-xs",
+                            isActiveTier
+                              ? "bg-primary/10 text-primary"
+                              : index % 2 === 0
+                                ? "bg-card text-foreground"
+                                : "bg-surface/60 text-foreground",
+                          )}
+                        >
+                          <span className="font-medium">
+                            {tier.min}
+                            {tier.max ? `-${tier.max}` : "+"} u.
+                            {isActiveTier ? <span className="ml-1 text-[9px] font-bold uppercase">actual</span> : null}
+                          </span>
+                          <span className="text-center font-bold tabular-nums">{formatPrice(tier.price)}</span>
+                          <span className="text-right text-[10px]">
+                            {saving > 0 ? <span className="font-semibold text-emerald-600 dark:text-emerald-400">-{saving.toFixed(0)}%</span> : "-"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {product.description ? (
+                <div className="space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Descripcion</p>
+                  <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{product.description}</p>
+                </div>
+              ) : null}
+
+              {publicSpecs.length ? (
+                <div className="space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Especificaciones</p>
+                  {shouldVirtualizeSpecs ? (
+                    <div
+                      className="overflow-y-auto overscroll-contain rounded-2xl border border-border/70"
+                      style={{ maxHeight: `${specViewportHeight}px` }}
+                      onScroll={(event) => setSpecScrollTop(event.currentTarget.scrollTop)}
+                    >
+                      <div className="relative" style={{ height: `${publicSpecs.length * SPEC_ROW_HEIGHT}px` }}>
+                        {virtualSpecs.map((spec, index) => {
+                          const actualIndex = virtualStartIndex + index;
+                          return (
+                            <div
+                              key={spec.key}
+                              className={cn(
+                                "absolute inset-x-0 grid text-xs md:grid-cols-[220px_minmax(0,1fr)]",
+                                actualIndex % 2 === 0 ? "bg-surface/60" : "bg-card",
+                              )}
+                              style={{
+                                height: `${SPEC_ROW_HEIGHT}px`,
+                                transform: `translateY(${actualIndex * SPEC_ROW_HEIGHT}px)`,
+                              }}
+                            >
+                              <span className="flex items-center px-3 py-2 font-medium text-muted-foreground">{spec.label}</span>
+                              <span
+                                className="line-clamp-2 flex items-center break-words px-3 py-2 text-foreground"
+                                title={spec.value}
+                              >
+                                {spec.value}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden rounded-2xl border border-border/70">
+                      {visibleSpecs.map((spec, index) => (
+                        <div key={spec.key} className={cn("grid text-xs md:grid-cols-[220px_minmax(0,1fr)]", index % 2 === 0 ? "bg-surface/60" : "bg-card")}>
+                          <span className="px-3 py-2 font-medium text-muted-foreground">{spec.label}</span>
+                          <span className="break-words px-3 py-2 text-foreground">{spec.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {publicSpecs.length > SPEC_PREVIEW_LIMIT ? (
+                    <Button
+                      variant="toolbar"
+                      size="sm"
+                      onClick={() => setShowAllSpecs((prev) => !prev)}
+                    >
+                      {showAllSpecs ? "Ver menos" : `Ver todas (${publicSpecs.length})`}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {product.tags?.length ? (
+                <div className="space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Tags</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {product.tags.map((tag) => (
+                      <Badge key={tag} variant="outline" className="border-border/70 bg-surface text-muted-foreground">
+                        {tag}
+                      </Badge>
                     ))}
                   </div>
                 </div>
-              </div>
+              ) : null}
             </div>
-
-            {/* AI Compatibility (Phase 4.1) */}
-            <div className="mb-4">
-              <SmartCompatibility 
-                productId={p.id} 
-                isDark={isDark} 
-                onAddToCart={onAddToCart}
-                formatPrice={formatPrice}
-              />
-            </div>
-
-            {/* Price tiers */}
-            {p.price_tiers && p.price_tiers.length > 0 && (
-              <div className="mb-4">
-                <p className={`text-[11px] font-semibold uppercase tracking-wider mb-1.5 ${dk("text-gray-500", "text-gray-600")}`}>Precio por volumen</p>
-                <div className={`rounded-xl border ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")} overflow-hidden`}>
-                  <div className={`grid grid-cols-3 text-[10px] font-bold uppercase tracking-wide ${dk("bg-[#0d0d0d] text-[#525252]", "bg-[#f5f5f5] text-[#a3a3a3]")} px-3 py-1.5`}>
-                    <span>Cantidad</span>
-                    <span className="text-center">Precio unit.</span>
-                    <span className="text-right">Ahorro</span>
-                  </div>
-                  {p.price_tiers.map((tier, i) => {
-                    const saving = ((p.cost_price - tier.price) / p.cost_price * 100);
-                    const isActive = inCart >= tier.min && (tier.max === null || inCart <= tier.max);
-                    return (
-                      <div
-                        key={i}
-                        className={`grid grid-cols-3 text-xs px-3 py-2 ${
-                          isActive
-                            ? dk("bg-[#2D9F6A]/10 text-[#2D9F6A]", "bg-[#2D9F6A]/8 text-[#1a7a50]")
-                            : i % 2 === 0
-                              ? dk("bg-[#0d0d0d] text-gray-400", "bg-[#f9f9f9] text-[#525252]")
-                              : dk("bg-[#0a0a0a] text-gray-400", "bg-white text-[#525252]")
-                        }`}
-                      >
-                        <span className="font-medium">
-                          {tier.min}{tier.max ? `–${tier.max}` : "+"} u.
-                          {isActive && <span className="ml-1 text-[9px] font-bold uppercase">◀ actual</span>}
-                        </span>
-                        <span className="text-center font-bold tabular-nums">{formatPrice(tier.price)}</span>
-                        <span className="text-right text-[10px]">
-                          {saving > 0 ? <span className="text-green-400 font-semibold">-{saving.toFixed(0)}%</span> : "—"}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Description */}
-            {p.description && (
-              <div className="mb-4">
-                <p className={`text-[11px] font-semibold uppercase tracking-wider mb-1.5 ${dk("text-gray-500", "text-gray-600")}`}>Descripción</p>
-                <p className={`text-sm ${dk("text-gray-400", "text-[#525252]")} leading-relaxed whitespace-pre-line`}>{p.description}</p>
-              </div>
-            )}
-
-            {/* Specs */}
-            {publicSpecs.length > 0 && (
-              <div className="mb-4">
-                <p className={`text-[11px] font-semibold uppercase tracking-wider mb-1.5 ${dk("text-gray-500", "text-gray-600")}`}>Especificaciones</p>
-                <div className={`rounded-xl border ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")} overflow-hidden`}>
-                  {publicSpecs.map((spec, i) => (
-                    <div key={spec.key} className={`flex text-xs ${i % 2 === 0 ? dk("bg-[#0d0d0d]", "bg-[#f9f9f9]") : dk("bg-[#0a0a0a]", "bg-white")}`}>
-                      <span className={`${dk("text-gray-500", "text-[#737373]")} px-3 py-2 w-2/5 shrink-0 font-medium`}>{spec.label}</span>
-                      <span className={`${dk("text-gray-300", "text-[#525252]")} px-3 py-2 flex-1`}>{spec.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Tags */}
-            {p.tags && p.tags.length > 0 && (
-              <div className="mb-4">
-                <p className={`text-[11px] font-semibold uppercase tracking-wider mb-1.5 ${dk("text-gray-500", "text-gray-600")}`}>Tags</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {p.tags.map((t: string) => (
-                    <span key={t} className={`text-[11px] px-2 py-0.5 rounded-full ${dk("bg-[#1c1c1c] text-[#a3a3a3] border-[#262626]", "bg-[#f0f0f0] text-[#525252] border-[#e5e5e5]")} border font-medium`}>
-                      {t}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
-        {/* Footer — cart controls */}
-        <div className={`px-5 py-4 border-t ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")} shrink-0`}>
+        <div className="sticky bottom-0 z-10 border-t border-border/70 bg-card px-4 py-3 md:px-5">
           {outOfStock ? (
-            <div className={`w-full ${dk("bg-[#1c1c1c] text-[#525252] border-[#222]", "bg-[#f5f5f5] text-[#737373] border-[#e5e5e5]")} font-medium h-11 rounded-xl text-sm flex items-center justify-center border`}>
+            <div className="flex h-11 w-full items-center justify-center rounded-xl border border-border/70 bg-surface text-sm font-medium text-muted-foreground">
               Sin stock disponible
             </div>
           ) : inCart > 0 ? (
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => onRemoveFromCart(p)}
-                className={`h-11 w-11 ${dk("bg-[#1c1c1c] hover:bg-[#252525] text-white border-[#262626]", "bg-[#f5f5f5] hover:bg-[#ebebeb] text-[#171717] border-[#e5e5e5]")} rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center border`}
-              >
+              <Button variant="toolbar" size="icon" className="h-11 w-11" onClick={() => onRemoveFromCart(product)}>
                 <Minus size={16} />
-              </button>
-              <span className={`flex-1 text-center ${dk("text-white", "text-[#171717]")} font-extrabold text-xl`}>{inCart}</span>
-              <button
-                onClick={() => onAddToCart(p)}
-                className="h-11 w-11 bg-[#2D9F6A] hover:bg-[#25835A] text-white rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center"
-              >
+              </Button>
+              <span className="flex-1 text-center text-xl font-extrabold text-foreground">{inCart}</span>
+              <Button size="icon" className="h-11 w-11" onClick={() => onAddToCart(product)}>
                 <Plus size={16} />
-              </button>
+              </Button>
             </div>
           ) : (
-            <button
-              onClick={() => onAddToCart(p)}
-              className="w-full bg-[#2D9F6A] hover:bg-[#25835A] text-white font-bold h-11 rounded-xl text-sm transition-all active:scale-[0.98]"
-            >
+            <Button className="h-11 w-full text-sm font-semibold" onClick={() => onAddToCart(product)}>
               Agregar al carrito
-            </button>
+            </Button>
           )}
         </div>
       </div>

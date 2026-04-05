@@ -16,7 +16,7 @@ export interface WhatsAppCartData {
 export function generateWhatsAppCartUrl(data: WhatsAppCartData): string {
   const cleanPhone = data.phone.replace(/\D/g, "");
   
-  let itemLines = data.items.map(i => 
+  const itemLines = data.items.map(i => 
     `• ${i.quantity}x ${i.name} (${i.currency} ${i.unitPrice.toLocaleString("es-AR")})`
   ).join("\n");
 

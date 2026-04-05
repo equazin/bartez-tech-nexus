@@ -2,8 +2,18 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useCurrency } from "@/context/CurrencyContext";
 import {
-  FileText, CheckCircle2, Clock, Send, DollarSign,
-  AlertTriangle, XCircle, ChevronDown, Plus, RefreshCw, X, type LucideIcon,
+  FileText,
+  CheckCircle2,
+  Clock,
+  Send,
+  DollarSign,
+  AlertTriangle,
+  XCircle,
+  ChevronDown,
+  Plus,
+  RefreshCw,
+  X,
+  type LucideIcon,
 } from "lucide-react";
 import {
   fetchInvoices,
@@ -19,6 +29,11 @@ import {
   formatMoneyInPreferredCurrency,
   getEffectiveInvoiceAmounts,
 } from "@/lib/money";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SurfaceCard } from "@/components/ui/surface-card";
+import { cn } from "@/lib/utils";
 
 interface Props { isDark?: boolean }
 
@@ -47,24 +62,24 @@ interface InvoiceOrderRef {
 }
 
 const STATUS_MAP: Record<InvoiceStatus, { label: string; icon: LucideIcon; cls: string }> = {
-  draft:     { label: "Borrador",   icon: Clock,         cls: "bg-gray-500/15 text-gray-400 border-gray-500/30" },
-  sent:      { label: "Enviada",    icon: Send,          cls: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
-  paid:      { label: "Pagada",     icon: CheckCircle2,  cls: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
-  overdue:   { label: "Vencida",    icon: AlertTriangle, cls: "bg-red-500/15 text-red-400 border-red-500/30" },
-  cancelled: { label: "Cancelada",  icon: XCircle,       cls: "bg-gray-500/15 text-gray-400 border-gray-400/30" },
+  draft: { label: "Borrador", icon: Clock, cls: "bg-muted text-muted-foreground" },
+  sent: { label: "Enviada", icon: Send, cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+  paid: { label: "Pagada", icon: CheckCircle2, cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+  overdue: { label: "Vencida", icon: AlertTriangle, cls: "bg-red-500/10 text-red-600 dark:text-red-400" },
+  cancelled: { label: "Cancelada", icon: XCircle, cls: "bg-muted text-muted-foreground" },
 };
 
 function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
   const { label, icon: Icon, cls } = STATUS_MAP[status] ?? STATUS_MAP.draft;
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${cls}`}>
-      <Icon size={10} /> {label}
-    </span>
+    <Badge variant="outline" className={cn("gap-1 border-border/70 text-[11px] font-semibold", cls)}>
+      <Icon size={10} />
+      {label}
+    </Badge>
   );
 }
 
-export function InvoicesTab({ isDark = true }: Props) {
-  const dk = (d: string, l: string) => (isDark ? d : l);
+export function InvoicesTab({ isDark: _isDark = true }: Props) {
   const { exchangeRate, currency, setCurrency } = useCurrency();
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -90,9 +105,7 @@ export function InvoicesTab({ isDark = true }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     let data = await fetchInvoices(filterStatus !== "all" ? { status: filterStatus } : {});
-    const legacyInvoices = data.filter((invoice) =>
-      invoice.currency === "ARS" && (!invoice.exchange_rate || invoice.exchange_rate <= 0)
-    );
+    const legacyInvoices = data.filter((invoice) => invoice.currency === "ARS" && (!invoice.exchange_rate || invoice.exchange_rate <= 0));
 
     if (legacyInvoices.length > 0) {
       await Promise.allSettled(
@@ -100,8 +113,8 @@ export function InvoicesTab({ isDark = true }: Props) {
           repairInvoice(invoice.id, {
             currency: "ARS",
             exchangeRate: exchangeRate.rate,
-          })
-        )
+          }),
+        ),
       );
       data = await fetchInvoices(filterStatus !== "all" ? { status: filterStatus } : {});
     }
@@ -115,14 +128,13 @@ export function InvoicesTab({ isDark = true }: Props) {
   }, [load]);
 
   useEffect(() => {
-    supabase.from("profiles").select("id, company_name, contact_name")
-      .then(({ data }) => {
-        const map: Record<string, string> = {};
-        ((data as ProfileRow[] | null) ?? []).forEach((profile) => {
-          map[profile.id] = profile.company_name || profile.contact_name || profile.id;
-        });
-        setClientMap(map);
+    supabase.from("profiles").select("id, company_name, contact_name").then(({ data }) => {
+      const map: Record<string, string> = {};
+      ((data as ProfileRow[] | null) ?? []).forEach((profile) => {
+        map[profile.id] = profile.company_name || profile.contact_name || profile.id;
       });
+      setClientMap(map);
+    });
   }, []);
 
   async function openCreate() {
@@ -178,12 +190,12 @@ export function InvoicesTab({ isDark = true }: Props) {
       (((profilesResult.data as ProfileRow[] | null) ?? []).map((profile) => [
         profile.id,
         profile.company_name || profile.contact_name || profile.id,
-      ]))
+      ])),
     );
     const invoicedOrderIds = new Set(
       (((invoicesResult.data as InvoiceOrderRef[] | null) ?? [])
         .map((invoice) => invoice.order_id)
-        .filter((orderId): orderId is number => typeof orderId === "number"))
+        .filter((orderId): orderId is number => typeof orderId === "number")),
     );
 
     setOrders(
@@ -194,14 +206,14 @@ export function InvoicesTab({ isDark = true }: Props) {
           order_number: order.order_number ?? `#${String(order.id).slice(-6)}`,
           client_name: profilesById.get(order.client_id) ?? order.client_id,
           total: order.total ?? 0,
-        }))
+        })),
     );
     setLoadingOrders(false);
   }
 
   async function handleCreate() {
     if (!createForm.orderId) {
-      setCreateError("Seleccioná un pedido.");
+      setCreateError("Selecciona un pedido.");
       return;
     }
 
@@ -211,9 +223,7 @@ export function InvoicesTab({ isDark = true }: Props) {
       await createInvoiceFromOrder(Number(createForm.orderId), {
         dueDays: createForm.dueDays,
         currency: createForm.currency,
-        exchangeRate: createForm.currency === "ARS" && createForm.exchangeRate
-          ? Number(createForm.exchangeRate)
-          : undefined,
+        exchangeRate: createForm.currency === "ARS" && createForm.exchangeRate ? Number(createForm.exchangeRate) : undefined,
       });
       setShowCreate(false);
       await load();
@@ -225,233 +235,227 @@ export function InvoicesTab({ isDark = true }: Props) {
   }
 
   async function handleMarkPaid(invoiceId: string) {
-    setActionLoading(invoiceId + "-paid");
+    setActionLoading(`${invoiceId}-paid`);
     await markInvoicePaid(invoiceId);
     setActionLoading(null);
     await load();
   }
 
   async function handleSend(invoiceId: string) {
-    setActionLoading(invoiceId + "-send");
+    setActionLoading(`${invoiceId}-send`);
     await sendInvoice(invoiceId);
     setActionLoading(null);
     await load();
   }
 
-  const fmt = (amount: number, selectedCurrency: "ARS" | "USD") =>
-    formatMoneyAmount(amount, selectedCurrency, 0);
-
   const orderPreviewTotal = (amountUsd: number) => {
     if (createForm.currency === "ARS" && createForm.exchangeRate.trim()) {
-      return fmt(amountUsd * Number(createForm.exchangeRate), "ARS");
+      return formatMoneyAmount(amountUsd * Number(createForm.exchangeRate), "ARS", 0);
     }
-    return fmt(amountUsd, "USD");
+    return formatMoneyAmount(amountUsd, "USD", 0);
   };
 
   const selectedInvoice = invoices.find((invoice) => invoice.id === selectedId);
 
   return (
-    <div className="space-y-5 max-w-6xl">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className={`text-base font-bold ${dk("text-white", "text-[#171717]")}`}>Facturación</h2>
-          <p className="text-xs text-gray-500 mt-0.5">{invoices.length} facturas</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className={`flex items-center rounded-lg border p-0.5 ${dk("border-[#262626] bg-[#111]", "border-[#e5e5e5] bg-[#f8f8f8]")}`}>
-            {(["USD", "ARS"] as const).map((option) => (
-              <button
-                key={option}
-                onClick={() => setCurrency(option)}
-                className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition ${
-                  currency === option
-                    ? "bg-[#2D9F6A] text-white"
-                    : dk("text-gray-400 hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-white")
-                }`}
-              >
-                {option}
-              </button>
-            ))}
+    <div className="space-y-4">
+      <SurfaceCard tone="default" padding="md" className="rounded-[24px] border-border/70">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="space-y-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Finanzas</p>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Facturacion</h2>
+              <p className="text-sm text-muted-foreground">{invoices.length} facturas activas en el circuito financiero.</p>
+            </div>
           </div>
-          <select
-            value={filterStatus}
-            onChange={(event) => setFilterStatus(event.target.value as InvoiceStatus | "all")}
-            className={`border rounded-lg px-2 py-1.5 text-xs outline-none ${dk("bg-[#111] border-[#2a2a2a] text-gray-300", "bg-white border-[#e5e5e5] text-[#525252]")}`}
-          >
-            <option value="all">Todos los estados</option>
-            {(Object.keys(STATUS_MAP) as InvoiceStatus[]).map((status) => (
-              <option key={status} value={status}>{STATUS_MAP[status].label}</option>
-            ))}
-          </select>
-          <button
-            onClick={() => void load()}
-            className={`p-2 rounded-lg transition ${dk("text-gray-500 hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
-          >
-            <RefreshCw size={13} />
-          </button>
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-1.5 text-xs bg-[#2D9F6A] hover:bg-[#25875a] text-white px-3 py-2 rounded-lg transition"
-          >
-            <Plus size={12} /> Nueva factura
-          </button>
-        </div>
-      </div>
 
-      <div className="flex gap-4">
-        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center rounded-2xl border border-border/70 bg-card p-1">
+              {(["USD", "ARS"] as const).map((option) => (
+                <Button key={option} variant={currency === option ? "soft" : "ghost"} size="sm" onClick={() => setCurrency(option)}>
+                  {option}
+                </Button>
+              ))}
+            </div>
+
+            <select
+              value={filterStatus}
+              onChange={(event) => setFilterStatus(event.target.value as InvoiceStatus | "all")}
+              className="h-10 rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary/40"
+            >
+              <option value="all">Todos los estados</option>
+              {(Object.keys(STATUS_MAP) as InvoiceStatus[]).map((status) => (
+                <option key={status} value={status}>{STATUS_MAP[status].label}</option>
+              ))}
+            </select>
+
+            <Button variant="toolbar" size="icon" className="h-10 w-10 rounded-xl" onClick={() => void load()}>
+              <RefreshCw size={14} />
+            </Button>
+            <Button size="sm" className="h-10 rounded-xl px-4" onClick={openCreate}>
+              <Plus size={12} />
+              Nueva factura
+            </Button>
+          </div>
+        </div>
+      </SurfaceCard>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0">
           {loading ? (
             <div className="space-y-2">
               {Array.from({ length: 5 }).map((_, index) => (
-                <div key={index} className={`h-16 rounded-xl animate-pulse ${dk("bg-[#111]", "bg-white")}`} />
+                <div key={index} className="h-16 animate-pulse rounded-2xl bg-card" />
               ))}
             </div>
           ) : invoices.length === 0 ? (
-            <div className={`border rounded-xl py-16 text-center text-sm text-gray-500 ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")}`}>
-              No hay facturas.
-            </div>
+            <EmptyState title="Sin facturas" description="No hay facturas para los filtros actuales." icon={<FileText size={22} />} />
           ) : (
-            <div className={`border rounded-xl overflow-hidden ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")}`}>
+            <SurfaceCard tone="default" padding="none" className="overflow-hidden rounded-[24px] border-border/70">
               {invoices.map((invoice, index) => {
                 const effective = getEffectiveInvoiceAmounts(invoice, exchangeRate.rate);
-                const clientName = invoice.client_snapshot?.company_name
-                  || clientMap[invoice.client_id]
-                  || invoice.client_id.slice(0, 8);
+                const clientName = invoice.client_snapshot?.company_name || clientMap[invoice.client_id] || invoice.client_id.slice(0, 8);
                 const isSelected = selectedId === invoice.id;
 
                 return (
-                  <div
+                  <button
                     key={invoice.id}
+                    type="button"
                     onClick={() => setSelectedId(isSelected ? null : invoice.id)}
-                    className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition ${index > 0 ? `border-t ${dk("border-[#1a1a1a]", "border-[#f0f0f0]")}` : ""} ${
-                      isSelected
-                        ? dk("bg-[#111]", "bg-[#f0faf5]")
-                        : dk("hover:bg-[#0f0f0f]", "hover:bg-[#fafafa]")
-                    }`}
+                    className={cn(
+                      "flex w-full items-center gap-3 px-4 py-3 text-left transition",
+                      index > 0 && "border-t border-border/70",
+                      isSelected ? "bg-secondary/60" : "bg-card hover:bg-secondary/50",
+                    )}
                   >
-                    <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${dk("bg-[#1a1a1a]", "bg-[#f0f0f0]")}`}>
-                      <FileText size={13} className="text-[#2D9F6A]" />
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
+                      <FileText size={13} />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs font-bold font-mono ${dk("text-white", "text-[#171717]")}`}>{invoice.invoice_number}</span>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-semibold text-foreground">{invoice.invoice_number}</span>
                         <InvoiceStatusBadge status={invoice.status} />
                       </div>
-                      <p className="text-[11px] text-gray-500 truncate">{clientName}</p>
+                      <p className="truncate text-[11px] text-muted-foreground">{clientName}</p>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className={`text-xs font-bold ${dk("text-white", "text-[#171717]")}`}>
+
+                    <div className="shrink-0 text-right">
+                      <p className="text-xs font-bold text-foreground">
                         {formatMoneyInPreferredCurrency(effective.total, effective.currency, currency, exchangeRate.rate, 0)}
                       </p>
-                      {invoice.due_date && (
-                        <p className="text-[11px] text-gray-500">
-                          Vence {new Date(invoice.due_date).toLocaleDateString("es-AR")}
-                        </p>
-                      )}
+                      {invoice.due_date ? (
+                        <p className="text-[10px] text-muted-foreground">Vence {new Date(invoice.due_date).toLocaleDateString("es-AR")}</p>
+                      ) : null}
                     </div>
-                    <ChevronDown size={13} className={`text-gray-500 shrink-0 transition-transform ${isSelected ? "rotate-180" : ""}`} />
-                  </div>
+
+                    <ChevronDown size={13} className={cn("shrink-0 text-muted-foreground transition-transform", isSelected && "rotate-180")} />
+                  </button>
                 );
               })}
-            </div>
+            </SurfaceCard>
           )}
         </div>
 
-        {selectedInvoice && (() => {
+        {selectedInvoice ? (() => {
           const effective = getEffectiveInvoiceAmounts(selectedInvoice, exchangeRate.rate);
           const detailRows = [
-            { label: "Cliente", value: selectedInvoice.client_snapshot?.company_name || clientMap[selectedInvoice.client_id] || "—" },
-            { label: "Contacto", value: selectedInvoice.client_snapshot?.contact_name || "—" },
-            { label: "Moneda de emisión", value: effective.currency },
-            { label: "Visualización", value: currency },
+            { label: "Cliente", value: selectedInvoice.client_snapshot?.company_name || clientMap[selectedInvoice.client_id] || "-" },
+            { label: "Contacto", value: selectedInvoice.client_snapshot?.contact_name || "-" },
+            { label: "Moneda de emision", value: effective.currency },
+            { label: "Visualizacion", value: currency },
             { label: "Subtotal", value: formatMoneyInPreferredCurrency(effective.subtotal, effective.currency, currency, exchangeRate.rate, 0) },
             { label: "IVA", value: formatMoneyInPreferredCurrency(effective.ivaTotal, effective.currency, currency, exchangeRate.rate, 0) },
             { label: "Total", value: formatMoneyInPreferredCurrency(effective.total, effective.currency, currency, exchangeRate.rate, 0), bold: true },
             { label: "Original", value: formatMoneyAmount(effective.total, effective.currency, 0) },
-            { label: "Vencimiento", value: selectedInvoice.due_date ? new Date(selectedInvoice.due_date).toLocaleDateString("es-AR") : "—" },
-            { label: "Pagada", value: selectedInvoice.paid_at ? new Date(selectedInvoice.paid_at).toLocaleDateString("es-AR") : "—" },
+            { label: "Vencimiento", value: selectedInvoice.due_date ? new Date(selectedInvoice.due_date).toLocaleDateString("es-AR") : "-" },
+            { label: "Pagada", value: selectedInvoice.paid_at ? new Date(selectedInvoice.paid_at).toLocaleDateString("es-AR") : "-" },
             { label: "Creada", value: new Date(selectedInvoice.created_at).toLocaleDateString("es-AR") },
           ];
 
           return (
-            <div className={`w-72 shrink-0 border rounded-xl p-4 space-y-3 self-start ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")}`}>
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className={`text-xs font-bold font-mono ${dk("text-white", "text-[#171717]")}`}>{selectedInvoice.invoice_number}</p>
+            <SurfaceCard tone="default" padding="md" className="h-fit space-y-4 rounded-[24px] border-border/70">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-foreground">{selectedInvoice.invoice_number}</p>
                   <InvoiceStatusBadge status={selectedInvoice.status} />
                 </div>
-                <button onClick={() => setSelectedId(null)} className="text-gray-500 hover:text-gray-300 transition">
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={() => setSelectedId(null)}>
                   <X size={14} />
-                </button>
+                </Button>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {detailRows.map(({ label, value, bold }) => (
-                  <div key={label} className="flex justify-between gap-2">
-                    <span className="text-[11px] text-gray-500">{label}</span>
-                    <span className={`text-[11px] text-right ${bold ? `font-bold ${dk("text-white", "text-[#171717]")}` : dk("text-gray-300", "text-[#525252]")}`}>
-                      {value}
-                    </span>
+                  <div key={label} className="flex items-start justify-between gap-3">
+                    <span className="text-[11px] text-muted-foreground">{label}</span>
+                    <span className={cn("text-[11px] text-right text-foreground", bold && "font-semibold")}>{value}</span>
                   </div>
                 ))}
               </div>
 
-              {effective.isLegacyPreview && (
-                <p className="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-                  Factura legacy normalizada con la cotización actual para corregir moneda e IVA.
-                </p>
-              )}
+              {effective.isLegacyPreview ? (
+                <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                  Factura legacy normalizada con la cotizacion actual para corregir moneda e IVA.
+                </div>
+              ) : null}
 
-              {selectedInvoice.notes && (
-                <p className={`text-[11px] italic ${dk("text-gray-500", "text-[#737373]")}`}>{selectedInvoice.notes}</p>
-              )}
+              {selectedInvoice.notes ? (
+                <p className="text-xs italic text-muted-foreground">{selectedInvoice.notes}</p>
+              ) : null}
 
-              <div className="space-y-1.5 pt-1">
-                {selectedInvoice.status === "draft" && (
-                  <button
+              <div className="space-y-2 pt-1">
+                {selectedInvoice.status === "draft" ? (
+                  <Button
+                    className="w-full"
                     onClick={() => void handleSend(selectedInvoice.id)}
-                    disabled={actionLoading === selectedInvoice.id + "-send"}
-                    className="w-full flex items-center justify-center gap-1.5 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-3 py-2 rounded-lg transition"
+                    disabled={actionLoading === `${selectedInvoice.id}-send`}
                   >
-                    <Send size={11} /> Marcar como enviada
-                  </button>
-                )}
-                {(selectedInvoice.status === "sent" || selectedInvoice.status === "overdue") && (
-                  <button
+                    <Send size={12} />
+                    Marcar como enviada
+                  </Button>
+                ) : null}
+                {(selectedInvoice.status === "sent" || selectedInvoice.status === "overdue") ? (
+                  <Button
+                    className="w-full"
                     onClick={() => void handleMarkPaid(selectedInvoice.id)}
-                    disabled={actionLoading === selectedInvoice.id + "-paid"}
-                    className="w-full flex items-center justify-center gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-2 rounded-lg transition"
+                    disabled={actionLoading === `${selectedInvoice.id}-paid`}
                   >
-                    <DollarSign size={11} /> Marcar como pagada
-                  </button>
-                )}
+                    <DollarSign size={12} />
+                    Marcar como pagada
+                  </Button>
+                ) : null}
               </div>
-            </div>
+            </SurfaceCard>
           );
-        })()}
+        })() : null}
       </div>
 
-      {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className={`border rounded-2xl w-full max-w-md shadow-2xl ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
-            <div className={`flex items-center justify-between px-6 py-4 border-b ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
-              <h3 className={`font-bold text-sm ${dk("text-white", "text-[#171717]")}`}>Nueva Factura desde Pedido</h3>
-              <button onClick={() => setShowCreate(false)} className="text-gray-500 hover:text-gray-300 transition">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="px-6 py-5 space-y-4">
+      {showCreate ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
+          <SurfaceCard tone="default" padding="none" className="w-full max-w-md overflow-hidden rounded-[28px] border-border/70 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border/70 px-6 py-4">
               <div>
-                <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Pedido *</label>
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Finanzas</p>
+                <h3 className="text-sm font-semibold text-foreground">Nueva factura desde pedido</h3>
+              </div>
+              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl" onClick={() => setShowCreate(false)}>
+                <X size={16} />
+              </Button>
+            </div>
+
+            <div className="space-y-4 px-6 py-5">
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">Pedido *</label>
                 {loadingOrders ? (
-                  <div className="text-xs text-gray-500">Cargando pedidos...</div>
+                  <div className="text-xs text-muted-foreground">Cargando pedidos...</div>
                 ) : (
                   <select
                     value={createForm.orderId}
                     onChange={(event) => setCreateForm((prev) => ({ ...prev, orderId: event.target.value }))}
-                    className={`w-full border rounded-lg px-3 py-2 text-xs outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717]")}`}
+                    className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none focus:border-primary/40"
                   >
-                    <option value="">Seleccioná un pedido...</option>
+                    <option value="">Selecciona un pedido...</option>
                     {orders.map((order) => (
                       <option key={order.id} value={order.id}>
                         {order.order_number} - {order.client_name} - {orderPreviewTotal(order.total)}
@@ -463,16 +467,16 @@ export function InvoicesTab({ isDark = true }: Props) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Vence en (días)</label>
+                  <label className="mb-1 block text-xs text-muted-foreground">Vence en (dias)</label>
                   <input
                     type="number"
                     value={createForm.dueDays}
                     onChange={(event) => setCreateForm((prev) => ({ ...prev, dueDays: Number(event.target.value) }))}
-                    className={`w-full border rounded-lg px-3 py-2 text-xs outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717]")}`}
+                    className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none focus:border-primary/40"
                   />
                 </div>
                 <div>
-                  <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Moneda</label>
+                  <label className="mb-1 block text-xs text-muted-foreground">Moneda</label>
                   <select
                     value={createForm.currency}
                     onChange={(event) => {
@@ -480,55 +484,51 @@ export function InvoicesTab({ isDark = true }: Props) {
                       setCreateForm((prev) => ({
                         ...prev,
                         currency: nextCurrency,
-                        exchangeRate: nextCurrency === "ARS"
-                          ? (prev.exchangeRate || String(exchangeRate.rate))
-                          : "",
+                        exchangeRate: nextCurrency === "ARS" ? (prev.exchangeRate || String(exchangeRate.rate)) : "",
                       }));
                     }}
-                    className={`w-full border rounded-lg px-3 py-2 text-xs outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717]")}`}
+                    className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none focus:border-primary/40"
                   >
                     <option value="ARS">ARS</option>
                     <option value="USD">USD</option>
                   </select>
                 </div>
-                {createForm.currency === "ARS" && (
+                {createForm.currency === "ARS" ? (
                   <div className="col-span-2">
-                    <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Tipo de cambio (ARS por USD)</label>
+                    <label className="mb-1 block text-xs text-muted-foreground">Tipo de cambio (ARS por USD)</label>
                     <input
                       type="number"
                       value={createForm.exchangeRate}
                       onChange={(event) => setCreateForm((prev) => ({ ...prev, exchangeRate: event.target.value }))}
                       placeholder={`Ej: ${Math.round(exchangeRate.rate)}`}
-                      className={`w-full border rounded-lg px-3 py-2 text-xs outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717]")}`}
+                      className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/40"
                     />
                   </div>
-                )}
+                ) : null}
               </div>
 
-              <div className={`rounded-lg border px-3 py-2 text-xs ${dk("border-[#1f1f1f] bg-[#0d0d0d] text-gray-400", "border-[#e5e5e5] bg-[#fafafa] text-[#525252]")}`}>
-                Moneda principal actual: <span className="font-semibold">{currency}</span> ·
-                Cotización: <span className="font-semibold"> {exchangeRate.rate.toLocaleString("es-AR")} ARS/USD</span>
+              <div className="rounded-2xl border border-border/70 bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                Moneda principal actual: <span className="font-semibold text-foreground">{currency}</span> ? Cotizacion: <span className="font-semibold text-foreground">{exchangeRate.rate.toLocaleString("es-AR")} ARS/USD</span>
               </div>
 
-              {createError && (
-                <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{createError}</p>
-              )}
+              {createError ? (
+                <div className="rounded-2xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">{createError}</div>
+              ) : null}
             </div>
-            <div className={`flex justify-end gap-2 px-6 py-4 border-t ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
-              <button onClick={() => setShowCreate(false)} className="text-xs text-gray-500 hover:text-gray-300 px-3 py-2 transition">
-                Cancelar
-              </button>
-              <button
+
+            <div className="flex justify-end gap-2 border-t border-border/70 px-6 py-4">
+              <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancelar</Button>
+              <Button
                 onClick={() => void handleCreate()}
                 disabled={creating || !createForm.orderId || (createForm.currency === "ARS" && !createForm.exchangeRate.trim())}
-                className="flex items-center gap-1.5 text-xs bg-[#2D9F6A] hover:bg-[#25875a] disabled:opacity-50 text-white px-4 py-2 rounded-lg transition"
               >
-                <FileText size={11} /> {creating ? "Creando..." : "Crear factura"}
-              </button>
+                <FileText size={11} />
+                {creating ? "Creando..." : "Crear factura"}
+              </Button>
             </div>
-          </div>
+          </SurfaceCard>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

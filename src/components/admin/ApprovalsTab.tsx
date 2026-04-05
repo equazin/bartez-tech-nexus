@@ -351,11 +351,11 @@ export function ApprovalsTab({
   }, [approvalNotes, auditLogs, clientMap]);
 
   return (
-    <div className="space-y-5 max-w-6xl">
+    <div className="space-y-4">
 
       {/* ── Aprobaciones Corporativas (pending_approval) ── */}
       {(corporateLoading || corporatePending.length > 0) && (
-        <div className={`rounded-2xl border p-5 ${dk("bg-amber-500/5 border-amber-500/20", "bg-amber-50 border-amber-200")}`}>
+        <div className={`rounded-[24px] border p-5 shadow-sm ${dk("bg-amber-500/5 border-amber-500/20", "bg-amber-50 border-amber-200")}`}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-amber-400">
               <ShieldAlert size={16} />
@@ -374,7 +374,7 @@ export function ApprovalsTab({
           ) : (
             <div className="space-y-3">
               {corporatePending.map(order => (
-                <div key={String(order.id)} className={`rounded-xl border p-4 ${dk("bg-[#111] border-[#2a2a2a]", "bg-white border-[#e5e5e5]")}`}>
+                <div key={String(order.id)} className={`rounded-[22px] border p-4 shadow-sm ${dk("bg-[#111] border-[#2a2a2a]", "bg-white border-[#e5e5e5]")}`}>
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div>
                       <p className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>
@@ -416,7 +416,7 @@ export function ApprovalsTab({
 
       {/* ── Solicitudes de Registro Pendientes ── */}
       {pendingAccounts.length > 0 && (
-        <div className={`rounded-2xl border p-5 ${dk("bg-blue-500/5 border-blue-500/20", "bg-blue-50 border-blue-200")}`}>
+        <div className={`rounded-[24px] border p-5 shadow-sm ${dk("bg-blue-500/5 border-blue-500/20", "bg-blue-50 border-blue-200")}`}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-blue-400">
               <UserPlus size={16} />
@@ -425,7 +425,7 @@ export function ApprovalsTab({
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {pendingAccounts.map((account) => (
-              <div key={account.id} className={`rounded-xl border p-4 shadow-sm ${dk("bg-[#0d0d0d] border-white/5", "bg-white border-black/5")}`}>
+              <div key={account.id} className={`rounded-[22px] border p-4 shadow-sm ${dk("bg-[#0d0d0d] border-white/5", "bg-white border-black/5")}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[10px] font-black bg-primary/10 text-primary px-2 py-0.5 rounded-full uppercase">Onboarding VIP</span>
                   <span className="text-[10px] text-gray-500">{account.created_at ? new Date(account.created_at).toLocaleDateString() : ""}</span>
@@ -508,7 +508,7 @@ export function ApprovalsTab({
           { label: "Facturas vencidas", value: String(overdueInvoices.length), accent: overdueInvoices.length > 0 ? "text-red-400" : "text-emerald-400" },
           { label: "Trazas recientes", value: String(timelineItems.length), accent: "text-blue-400" },
         ].map((card) => (
-          <div key={card.label} className={`border rounded-xl px-4 py-3 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
+          <div key={card.label} className={`border rounded-[22px] px-4 py-3 shadow-sm ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
             <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{card.label}</p>
             <p className={`text-lg font-bold ${card.accent}`}>{card.value}</p>
           </div>
@@ -516,7 +516,7 @@ export function ApprovalsTab({
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <section className={`border rounded-2xl p-5 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
+        <section className={`border rounded-[24px] p-5 shadow-sm ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
           <div className="flex items-center gap-2 mb-4">
             <ShieldAlert size={15} className="text-amber-400" />
             <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Reglas de aprobación</h3>
@@ -554,7 +554,7 @@ export function ApprovalsTab({
           </button>
         </section>
 
-        <section className={`border rounded-2xl p-5 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
+        <section className={`border rounded-[24px] p-5 shadow-sm ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
           <div className="flex items-center gap-2 mb-4">
             <MessageSquare size={15} className="text-blue-400" />
             <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Trazabilidad</h3>
@@ -578,7 +578,7 @@ export function ApprovalsTab({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <section className={`border rounded-2xl overflow-hidden ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
+        <section className={`border rounded-[24px] overflow-hidden shadow-sm ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
           <div className={`px-4 py-3 border-b flex items-center justify-between ${dk("border-[#1a1a1a]", "border-[#f0f0f0]")}`}>
             <div className="flex items-center gap-2">
               <ClipboardList size={14} className="text-[#2D9F6A]" />
@@ -634,7 +634,7 @@ export function ApprovalsTab({
           )}
         </section>
 
-        <section className={`border rounded-2xl overflow-hidden ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
+        <section className={`border rounded-[24px] overflow-hidden shadow-sm ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
           <div className={`px-4 py-3 border-b flex items-center justify-between ${dk("border-[#1a1a1a]", "border-[#f0f0f0]")}`}>
             <div className="flex items-center gap-2">
               <MessageSquare size={14} className="text-blue-400" />
@@ -689,7 +689,7 @@ export function ApprovalsTab({
           )}
         </section>
 
-        <section className={`border rounded-2xl overflow-hidden ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
+        <section className={`border rounded-[24px] overflow-hidden shadow-sm ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
           <div className={`px-4 py-3 border-b flex items-center justify-between ${dk("border-[#1a1a1a]", "border-[#f0f0f0]")}`}>
             <div className="flex items-center gap-2">
               <FileText size={14} className="text-amber-400" />

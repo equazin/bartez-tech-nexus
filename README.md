@@ -85,3 +85,18 @@ npm run check
 
 - El package manager oficial del repo es `npm`
 - Las variables server-side deben vivir en Vercel/entorno local, no en el cliente
+
+## Reglas UI y theming
+
+- No hardcodear colores en componentes de negocio. Usar tokens Tailwind del tema: `bg-background`, `bg-card`, `bg-surface`, `text-foreground`, `text-muted-foreground`, `border-border/70`.
+- Contenedores principales: usar `SurfaceCard` para cards, paneles internos y bloques expandibles. Evitar repetir `div rounded-xl border p-*`.
+- Acciones:
+  - `Button variant="default"` para CTA principal.
+  - `Button variant="soft"` para tabs activas o acciones secundarias destacadas.
+  - `Button variant="toolbar"` para filtros, toggles y utilidades de header.
+  - `Button variant="outline"` para acciones neutrales o destructivas suaves.
+- Estados vacios: usar `EmptyState` en tablas y listados. No dejar textos sueltos centrados sin estructura.
+- Estados de dominio: usar `Badge` con variantes y clases basadas en tokens (`success`, `warning`, `danger`, `muted`), no spans con colores hex.
+- Filas expandibles y tablas custom: hover con `hover:bg-secondary/50`, fila activa con `bg-secondary/60`, separadores con `border-border/70`.
+- Inputs y selects: `bg-card` + `border-border/70` + `focus:border-primary/40`. No usar helpers `dk()` ni clases condicionadas con hex.
+- Si un modulo nuevo necesita layout de dashboard, partir desde el shell admin existente y reutilizar la misma escala de espaciado (`gap-3`, `gap-4`, `rounded-xl`, `rounded-2xl`).

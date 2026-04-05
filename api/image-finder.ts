@@ -287,7 +287,7 @@ async function searchSerper(query: string): Promise<ImageResult[]> {
       .filter((img) => img.imageUrl && !isBlocked(img.imageUrl))
       .slice(0, 5)
       .map((img) => ({
-        url: img.imageUrl,
+        url: img.imageUrl || "",
         source: "serper",
         score: 0,
         width: img.imageWidth,

@@ -2,6 +2,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { defineConfig, loadEnv, type PluginOption } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import createUserHandler from "./api/create-user";
+import manageUserHandler from "./api/manage-user";
 
 const AIR_BASE = "https://api.air-intra.com/v2";
 const ELIT_BASE = "https://clientes.elit.com.ar/v1/api";
@@ -29,6 +31,28 @@ async function readRequestBody(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+function attachVercelCompat(res: ServerResponse) {
+  const target = res as ServerResponse & {
+    status: (code: number) => typeof target;
+    json: (payload: unknown) => typeof target;
+  };
+
+  target.status = (code: number) => {
+    target.statusCode = code;
+    return target;
+  };
+
+  target.json = (payload: unknown) => {
+    if (!target.getHeader("Content-Type")) {
+      target.setHeader("Content-Type", "application/json");
+    }
+    target.end(JSON.stringify(payload));
+    return target;
+  };
+
+  return target;
+}
+
 function sendJson(res: ServerResponse, status: number, payload: unknown) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
@@ -52,6 +76,32 @@ function devApiProxyPlugin(env: Record<string, string>): PluginOption {
       server.middlewares.use(async (req, res, next) => {
         const requestUrl = req.url ? new URL(req.url, "http://localhost") : null;
         const pathname = requestUrl?.pathname ?? "";
+
+        if (pathname === "/api/create-user" || pathname === "/api/manage-user") {
+          try {
+            const rawBody = await readRequestBody(req);
+            const parsedBody = rawBody ? JSON.parse(rawBody) : {};
+            const vercelReq = req as IncomingMessage & {
+              body?: unknown;
+              query?: Record<string, string>;
+            };
+
+            vercelReq.body = parsedBody;
+            vercelReq.query = Object.fromEntries(requestUrl?.searchParams.entries() ?? []);
+
+            const vercelRes = attachVercelCompat(res);
+            if (pathname === "/api/create-user") {
+              await createUserHandler(vercelReq as never, vercelRes as never);
+            } else {
+              await manageUserHandler(vercelReq as never, vercelRes as never);
+            }
+            return;
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            sendJson(res, 500, { ok: false, error: message });
+            return;
+          }
+        }
 
         if (pathname !== "/api/air-proxy" && pathname !== "/api/elit-proxy") {
           next();
@@ -156,6 +206,24 @@ function devApiProxyPlugin(env: Record<string, string>): PluginOption {
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
+
+  // Make Vercel-style handlers work under `vite dev` by exposing loaded env vars
+  // through process.env before the in-process API handlers execute.
+  for (const key of [
+    "VITE_SUPABASE_URL",
+    "SUPABASE_URL",
+    "VITE_SUPABASE_ANON_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "AIR_API_TOKEN",
+    "AIR_TOKEN",
+    "VITE_AIR_TOKEN",
+    "ELIT_API_USER_ID",
+    "ELIT_API_TOKEN",
+  ]) {
+    if (env[key]) {
+      process.env[key] = env[key];
+    }
+  }
 
   return {
     server: {

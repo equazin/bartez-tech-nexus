@@ -120,9 +120,9 @@ const BLOCKED_URL_PATTERNS = [
   /logo/i,
   /banner/i,
   /sprite/i,
-  /icon[\-_]/i,
+  /icon[-_]/i,
   /placeholder/i,
-  /no[\-_]?image/i,
+  /no[-_]?image/i,
   /\?w=\d{1,2}&/,  // tiny thumbnails
   /\/thumb\//i,
 ];

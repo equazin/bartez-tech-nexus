@@ -10,6 +10,7 @@ import { generateQuotePdfOnDemand } from "@/lib/quotePdfClient";
 import { getAvailableStock } from "@/lib/pricing";
 import { resolveMarginWithContext } from "@/lib/pricingEngine";
 import { usePricing } from "@/hooks/usePricing";
+import { useAppTheme } from "@/hooks/useAppTheme";
 import { estimateShipping, type ShippingEstimate } from "@/lib/shipping";
 import { getFavoriteProducts, toggleFavoriteProduct } from "@/lib/favoriteProducts";
 import { convertMoneyAmount, formatMoneyInPreferredCurrency } from "@/lib/money";
@@ -119,11 +120,8 @@ export default function CartPage() {
     setSavedDraftAt(readCheckoutDraft(userId)?.savedAt ?? null);
   }, [userId]);
 
-  // -- Theme (read-only from B2BPortal preference) ------------------------------
-  const [theme] = useState<"dark" | "light">(() =>
-    localStorage.getItem("b2b_theme") === "light" ? "light" : "dark"
-  );
-  const isDark = theme === "dark";
+  // -- Theme --------------------------------------------------------------------
+  const { isDark } = useAppTheme();
   const dk = (d: string, l: string) => (isDark ? d : l);
 
   // -- Reseller mode ------------------------------------------------------------
@@ -789,10 +787,11 @@ export default function CartPage() {
 
   // -- Render --------------------------------------------------------------------
   return (
-    <div className={`min-h-screen ${dk("bg-[#0a0a0a] text-white", "bg-[#f5f5f5] text-[#171717]")}`}>
+    <div className="dashboard-stage min-h-screen bg-background px-2 py-2 md:px-4 md:py-4">
+      <div className="dashboard-canvas min-h-[calc(100vh-1rem)] overflow-hidden">
 
       {/* -- Header ----------------------------------------------------------- */}
-      <header className={`sticky top-0 z-10 ${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-white border-[#e5e5e5]")} border-b px-4 md:px-6 py-3 flex items-center gap-3`}>
+      <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-border/70 bg-card/90 px-4 py-3 backdrop-blur md:px-6">
         <button
           onClick={() => navigate("/b2b-portal")}
           className={`flex items-center gap-1.5 text-sm transition ${dk("text-gray-500 hover:text-white", "text-gray-500 hover:text-[#171717]")}`}
@@ -823,7 +822,7 @@ export default function CartPage() {
       </header>
 
       {/* -- Body ------------------------------------------------------------- */}
-      <div className="max-w-screen-xl mx-auto px-4 md:px-6 py-6 flex flex-col lg:flex-row gap-6">
+      <div className="mx-auto flex max-w-[1680px] flex-col gap-6 px-4 py-6 md:px-6 lg:flex-row">
 
         {/* -- LEFT COLUMN --------------------------------------------------- */}
         <div className="flex-1 min-w-0 flex flex-col gap-5">
@@ -1911,6 +1910,9 @@ export default function CartPage() {
         </aside>
 
       </div>
+      </div>
     </div>
   );
 }
+
+

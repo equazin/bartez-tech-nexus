@@ -157,6 +157,43 @@ export function usePortalCatalog({
     return isPosCategoryValue(product.category);
   }, [posCategoryNames]);
 
+  const posCategoryValues = useMemo(() => {
+    if (dbCats.length === 0) return [] as string[];
+    const byId = new Map(dbCats.map((cat) => [cat.id, cat]));
+    const posRoots = dbCats.filter((cat) => {
+      const nameNorm = normalizePortalText(cat.name);
+      const slugNorm = normalizePortalText(cat.slug);
+      return slugNorm === "pos" || nameNorm.includes("punto de venta") || hasWord(nameNorm, "pos");
+    });
+
+    const out = new Set<string>();
+    for (const root of posRoots) {
+      const stack = [root.id];
+      while (stack.length > 0) {
+        const currentId = stack.pop()!;
+        const current = byId.get(currentId);
+        if (!current) continue;
+        out.add(current.name);
+        for (const child of dbCats) {
+          if (child.parent_id === currentId) stack.push(child.id);
+        }
+      }
+    }
+    return Array.from(out);
+  }, [dbCats]);
+
+  const queryCategory = useMemo(() => {
+    if (categoryFilter !== "all") {
+      return parentChildrenMap[categoryFilter] || categoryFilter;
+    }
+
+    if (catalogContext === "pos" && posCategoryValues.length > 0) {
+      return posCategoryValues;
+    }
+
+    return "all";
+  }, [catalogContext, categoryFilter, parentChildrenMap, posCategoryValues]);
+
   // ── Products fetch ────────────────────────────────────────────────────────
   const {
     products,
@@ -166,7 +203,7 @@ export function usePortalCatalog({
     loadMore,
     error: productsError,
   } = useProducts({
-    category: categoryFilter !== "all" ? (parentChildrenMap[categoryFilter] || categoryFilter) : "all",
+    category: queryCategory,
     brand: brandFilter,
     search: "", // search is managed outside and passed as prop in portal header
     minPrice: minPrice ? Number(minPrice) : undefined,

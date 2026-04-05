@@ -1,18 +1,43 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import {
-  FileText, Send, CheckCircle2, XCircle, AlertTriangle,
-  RefreshCw, ChevronDown, ChevronUp, Eye, ArrowRight, X,
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  FileText,
+  RefreshCw,
+  Send,
+  XCircle,
 } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SurfaceCard } from "@/components/ui/surface-card";
+import { cn } from "@/lib/utils";
 import type { QuoteStatus } from "@/models/quote";
 
-interface Props { isDark?: boolean }
+interface Props {
+  isDark?: boolean;
+}
+
+interface QuoteItemRow {
+  id?: number | string;
+  name?: string;
+  product_name?: string;
+  quantity?: number;
+  totalWithIVA?: number;
+  total_price?: number;
+}
 
 interface AdminQuote {
   id: number;
   client_id: string;
   client_name: string;
-  items: any[];
+  items: QuoteItemRow[];
   subtotal: number;
   iva_total: number;
   total: number;
@@ -22,38 +47,42 @@ interface AdminQuote {
   expires_at: string | null;
   converted_to_order_id: number | null;
   created_at: string;
-  // joined
   company_name?: string;
   contact_name?: string;
   client_email?: string;
 }
 
-const STATUS_CONFIG: Record<QuoteStatus, { label: string; icon: any; cls: string }> = {
-  draft:    { label: "Borrador",   icon: FileText,      cls: "bg-gray-500/15 text-gray-400 border-gray-500/30" },
-  sent:     { label: "Enviada",    icon: Send,          cls: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
-  viewed:   { label: "Vista",      icon: Eye,           cls: "bg-purple-500/15 text-purple-400 border-purple-500/30" },
-  approved: { label: "Aprobada",   icon: CheckCircle2,  cls: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
-  rejected: { label: "Rechazada",  icon: XCircle,       cls: "bg-red-500/15 text-red-400 border-red-500/30" },
-  expired:  { label: "Vencida",    icon: AlertTriangle, cls: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
-  // from migration 014 (quotes v2)
-  converted: { label: "Convertida", icon: ArrowRight,   cls: "bg-teal-500/15 text-teal-400 border-teal-500/30" },
-} as any;
+type StatusConfig = {
+  label: string;
+  icon: typeof FileText;
+  className: string;
+};
 
-function QuoteStatusBadge({ status }: { status: string }) {
-  const cfg = (STATUS_CONFIG as any)[status] ?? STATUS_CONFIG.draft;
-  const Icon = cfg.icon;
+const STATUS_CONFIG: Record<QuoteStatus, StatusConfig> = {
+  draft: { label: "Borrador", icon: FileText, className: "bg-muted text-muted-foreground" },
+  sent: { label: "Enviada", icon: Send, className: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+  viewed: { label: "Vista", icon: Eye, className: "bg-violet-500/10 text-violet-600 dark:text-violet-400" },
+  approved: { label: "Aprobada", icon: CheckCircle2, className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+  rejected: { label: "Rechazada", icon: XCircle, className: "bg-red-500/10 text-red-600 dark:text-red-400" },
+  converted: { label: "Convertida", icon: ArrowRight, className: "bg-teal-500/10 text-teal-600 dark:text-teal-400" },
+  expired: { label: "Vencida", icon: AlertTriangle, className: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+};
+
+function QuoteStatusBadge({ status }: { status: QuoteStatus }) {
+  const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.draft;
+  const Icon = config.icon;
+
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${cfg.cls}`}>
-      <Icon size={10} /> {cfg.label}
-    </span>
+    <Badge variant="outline" className={cn("gap-1 border-border/70 text-[11px] font-semibold", config.className)}>
+      <Icon size={10} />
+      {config.label}
+    </Badge>
   );
 }
 
-export function QuotesAdminTab({ isDark = true }: Props) {
-  const dk = (d: string, l: string) => (isDark ? d : l);
-
-  const [quotes, setQuotes]         = useState<AdminQuote[]>([]);
-  const [loading, setLoading]       = useState(true);
+export function QuotesAdminTab({ isDark: _isDark = true }: Props) {
+  const [quotes, setQuotes] = useState<AdminQuote[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterClient, setFilterClient] = useState("all");
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -63,60 +92,85 @@ export function QuotesAdminTab({ isDark = true }: Props) {
 
   const load = useCallback(async () => {
     setLoading(true);
+
     let query = supabase
       .from("quotes")
       .select("*, profiles(company_name, contact_name, email)")
       .order("created_at", { ascending: false })
       .limit(200);
-    if (filterStatus !== "all") query = query.eq("status", filterStatus);
-    if (filterClient !== "all") query = query.eq("client_id", filterClient);
+
+    if (filterStatus !== "all") {
+      query = query.eq("status", filterStatus);
+    }
+
+    if (filterClient !== "all") {
+      query = query.eq("client_id", filterClient);
+    }
 
     const { data } = await query;
+
     setQuotes(
-      (data ?? []).map((q: any) => ({
-        ...q,
-        iva_total:    q.iva_total ?? 0,
-        company_name: q.profiles?.company_name,
-        contact_name: q.profiles?.contact_name,
-        client_email: q.profiles?.email,
-      }))
+      ((data ?? []) as Array<AdminQuote & { profiles?: { company_name?: string; contact_name?: string; email?: string } | null }>).map((quote) => ({
+        ...quote,
+        iva_total: quote.iva_total ?? 0,
+        items: Array.isArray(quote.items) ? quote.items : [],
+        company_name: quote.profiles?.company_name,
+        contact_name: quote.profiles?.contact_name,
+        client_email: quote.profiles?.email,
+      })),
     );
+
     setLoading(false);
-  }, [filterStatus, filterClient]);
+  }, [filterClient, filterStatus]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-  // Unique clients from loaded quotes for filter
-  const uniqueClients = Array.from(
-    new Map(
-      quotes.map((q) => [q.client_id, q.company_name || q.contact_name || q.client_id])
-    ).entries()
+  const uniqueClients = useMemo(
+    () =>
+      Array.from(new Map(quotes.map((quote) => [quote.client_id, quote.company_name || quote.contact_name || quote.client_id])).entries()),
+    [quotes],
+  );
+
+  const statusCounts = useMemo(
+    () =>
+      quotes.reduce<Record<string, number>>((accumulator, quote) => {
+        accumulator[quote.status] = (accumulator[quote.status] ?? 0) + 1;
+        return accumulator;
+      }, {}),
+    [quotes],
   );
 
   async function convertToOrder(quote: AdminQuote) {
     setConverting(quote.id);
-    setConvertError((p) => ({ ...p, [quote.id]: "" }));
-    const { data, error } = await supabase.rpc("convert_quote_to_order", {
-      p_quote_id:  String(quote.id),
+    setConvertError((prev) => ({ ...prev, [quote.id]: "" }));
+
+    const { error } = await supabase.rpc("convert_quote_to_order", {
+      p_quote_id: String(quote.id),
       p_client_id: quote.client_id,
     });
+
     if (error) {
-      setConvertError((p) => ({ ...p, [quote.id]: error.message }));
+      setConvertError((prev) => ({ ...prev, [quote.id]: error.message }));
     } else {
-      load();
+      await load();
     }
+
     setConverting(null);
   }
 
-  async function updateStatus(quoteId: number, status: string) {
+  async function updateStatus(quoteId: number, status: QuoteStatus) {
     setUpdatingStatus(quoteId);
+
     await supabase.from("quotes").update({ status }).eq("id", quoteId);
-    setQuotes((prev) => prev.map((q) => q.id === quoteId ? { ...q, status: status as QuoteStatus } : q));
+
+    setQuotes((prev) => prev.map((quote) => (quote.id === quoteId ? { ...quote, status } : quote)));
     setUpdatingStatus(null);
 
-    // Fire email notification when approving or rejecting (non-blocking)
     if (status === "approved" || status === "rejected") {
-      const quote = quotes.find((q) => q.id === quoteId);
+      const quote = quotes.find((item) => item.id === quoteId);
+
       if (quote?.client_email) {
         void fetch("/api/email", {
           method: "POST",
@@ -131,214 +185,244 @@ export function QuotesAdminTab({ isDark = true }: Props) {
             products: [],
             total: quote.total,
           }),
-        }).catch(() => {/* non-critical */});
+        }).catch(() => {
+          // Non-critical notification failure.
+        });
       }
     }
   }
 
-  const fmt = (n: number, cur: "USD" | "ARS") =>
-    new Intl.NumberFormat("es-AR", { style: "currency", currency: cur, maximumFractionDigits: 0 }).format(n);
+  const formatMoney = (amount: number, currency: "USD" | "ARS") =>
+    new Intl.NumberFormat("es-AR", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    }).format(amount);
 
-  const isExpired = (q: AdminQuote) =>
-    q.expires_at ? new Date(q.expires_at) < new Date() : false;
-
-  // Status counts
-  const statusCounts = quotes.reduce<Record<string, number>>((acc, q) => {
-    acc[q.status] = (acc[q.status] ?? 0) + 1;
-    return acc;
-  }, {});
+  const isExpired = (quote: AdminQuote) => (quote.expires_at ? new Date(quote.expires_at) < new Date() : false);
 
   return (
-    <div className="space-y-5 max-w-6xl">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className={`text-base font-bold ${dk("text-white", "text-[#171717]")}`}>Cotizaciones</h2>
-          <p className="text-xs text-gray-500 mt-0.5">{quotes.length} cotizaciones</p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className={`border rounded-lg px-2 py-1.5 text-xs outline-none ${dk("bg-[#111] border-[#2a2a2a] text-gray-300", "bg-white border-[#e5e5e5] text-[#525252]")}`}
-          >
-            <option value="all">Todos los estados</option>
-            {Object.keys(STATUS_CONFIG).map((s) => (
-              <option key={s} value={s}>
-                {(STATUS_CONFIG as any)[s]?.label ?? s}{statusCounts[s] ? ` (${statusCounts[s]})` : ""}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filterClient}
-            onChange={(e) => setFilterClient(e.target.value)}
-            className={`border rounded-lg px-2 py-1.5 text-xs outline-none ${dk("bg-[#111] border-[#2a2a2a] text-gray-300", "bg-white border-[#e5e5e5] text-[#525252]")}`}
-          >
-            <option value="all">Todos los clientes</option>
-            {uniqueClients.map(([id, name]) => (
-              <option key={id} value={id}>{name}</option>
-            ))}
-          </select>
-          <button
-            onClick={load}
-            className={`p-2 rounded-lg transition ${dk("text-gray-500 hover:text-white hover:bg-[#1c1c1c]", "text-[#737373] hover:text-[#171717] hover:bg-[#e8e8e8]")}`}
-          >
-            <RefreshCw size={13} />
-          </button>
-        </div>
-      </div>
+    <div className="space-y-4">
+      <SurfaceCard tone="default" padding="md" className="rounded-[24px] border-border/70">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="space-y-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Ventas</p>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Cotizaciones</h2>
+              <p className="text-sm text-muted-foreground">{quotes.length} cotizaciones administradas desde ventas.</p>
+            </div>
+          </div>
 
-      {/* Status summary */}
-      <div className="flex gap-2 flex-wrap">
-        {Object.entries(STATUS_CONFIG).filter(([s]) => statusCounts[s]).map(([s, cfg]) => (
-          <button
-            key={s}
-            onClick={() => setFilterStatus(filterStatus === s ? "all" : s)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition ${
-              filterStatus === s ? cfg.cls + " border-current" : dk("border-[#1f1f1f] text-gray-500 hover:border-[#2e2e2e]", "border-[#e5e5e5] text-[#737373] hover:border-[#d4d4d4]")
-            }`}
-          >
-            <cfg.icon size={10} /> {cfg.label} ({statusCounts[s]})
-          </button>
-        ))}
-      </div>
+          <div className="grid gap-2 sm:grid-cols-[180px_220px_auto]">
+            <select
+              value={filterStatus}
+              onChange={(event) => setFilterStatus(event.target.value)}
+              className="h-10 rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary/40"
+            >
+              <option value="all">Todos los estados</option>
+              {Object.entries(STATUS_CONFIG).map(([status, config]) => (
+                <option key={status} value={status}>
+                  {config.label}
+                  {statusCounts[status] ? ` (${statusCounts[status]})` : ""}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={filterClient}
+              onChange={(event) => setFilterClient(event.target.value)}
+              className="h-10 rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary/40"
+            >
+              <option value="all">Todos los clientes</option>
+              {uniqueClients.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+
+            <Button variant="toolbar" size="icon" className="h-10 w-10 rounded-xl" onClick={() => void load()}>
+              <RefreshCw size={14} />
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {Object.entries(STATUS_CONFIG)
+            .filter(([status]) => statusCounts[status])
+            .map(([status, config]) => {
+              const Icon = config.icon;
+              const isActive = filterStatus === status;
+
+              return (
+                <button
+                  key={status}
+                  onClick={() => setFilterStatus(isActive ? "all" : status)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition",
+                    isActive
+                      ? cn("border-primary/40 shadow-sm shadow-primary/10", config.className)
+                      : "border-border/70 bg-card text-muted-foreground hover:border-border hover:bg-secondary/70 hover:text-foreground",
+                  )}
+                >
+                  <Icon size={10} />
+                  {config.label} ({statusCounts[status]})
+                </button>
+              );
+            })}
+        </div>
+      </SurfaceCard>
 
       {loading ? (
         <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className={`h-16 rounded-xl animate-pulse ${dk("bg-[#111]", "bg-white")}`} />
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className="h-16 animate-pulse rounded-2xl bg-card" />
           ))}
         </div>
       ) : quotes.length === 0 ? (
-        <div className={`border rounded-xl py-16 text-center text-sm text-gray-500 ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")}`}>
-          Sin cotizaciones.
-        </div>
+        <EmptyState title="Sin cotizaciones" description="No hay cotizaciones para los filtros actuales." />
       ) : (
-        <div className={`border rounded-xl overflow-hidden ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")}`}>
-          {quotes.map((q, idx) => {
-            const isExpand = expandedId === q.id;
-            const clientLabel = q.company_name || q.contact_name || q.client_id.slice(0, 8);
-            const expired = isExpired(q);
+        <SurfaceCard tone="default" padding="none" className="overflow-hidden rounded-[24px] border-border/70">
+          {quotes.map((quote, index) => {
+            const isExpanded = expandedId === quote.id;
+            const clientLabel = quote.company_name || quote.contact_name || quote.client_id.slice(0, 8);
+            const expired = isExpired(quote);
 
             return (
-              <div key={q.id} className={idx > 0 ? `border-t ${dk("border-[#1a1a1a]", "border-[#f0f0f0]")}` : ""}>
-                {/* Quote row */}
-                <div
-                  onClick={() => setExpandedId(isExpand ? null : q.id)}
-                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition ${dk("hover:bg-[#0f0f0f]", "hover:bg-[#fafafa]")} ${isExpand ? dk("bg-[#0f0f0f]", "bg-[#fafafa]") : ""}`}
+              <div key={quote.id} className={cn(index > 0 && "border-t border-border/70")}>
+                <button
+                  type="button"
+                  onClick={() => setExpandedId(isExpanded ? null : quote.id)}
+                  className={cn(
+                    "flex w-full items-center gap-3 px-4 py-3 text-left transition",
+                    isExpanded ? "bg-secondary/60" : "bg-card hover:bg-secondary/50",
+                  )}
                 >
-                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${dk("bg-[#1a1a1a]", "bg-[#f0f0f0]")}`}>
-                    <FileText size={13} className="text-[#2D9F6A]" />
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
+                    <FileText size={13} />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-xs font-semibold ${dk("text-gray-300", "text-[#525252]")}`}>{clientLabel}</span>
-                      <QuoteStatusBadge status={q.status} />
-                      {q.version && q.version > 1 && (
-                        <span className="text-[10px] text-gray-500">v{q.version}</span>
-                      )}
-                      {expired && q.status !== "expired" && (
-                        <span className="text-[10px] text-amber-400">· vencida</span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-gray-500">
-                      {new Date(q.created_at).toLocaleDateString("es-AR")}
-                      {q.expires_at && ` · vence ${new Date(q.expires_at).toLocaleDateString("es-AR")}`}
-                      {` · ${q.items?.length ?? 0} ítems`}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className={`text-xs font-bold ${dk("text-white", "text-[#171717]")}`}>
-                      {fmt(q.total, q.currency)}
-                    </p>
-                    <p className="text-[10px] text-gray-500">{q.currency}</p>
-                  </div>
-                  {isExpand ? <ChevronUp size={13} className="text-gray-500 shrink-0" /> : <ChevronDown size={13} className="text-gray-500 shrink-0" />}
-                </div>
 
-                {/* Expanded detail */}
-                {isExpand && (
-                  <div className={`border-t px-4 py-4 space-y-4 ${dk("border-[#1a1a1a] bg-[#080808]", "border-[#f0f0f0] bg-[#fafafa]")}`}>
-                    {/* Items */}
-                    {q.items && q.items.length > 0 && (
-                      <div className="space-y-1">
-                        <p className={`text-[10px] font-bold uppercase tracking-wider ${dk("text-gray-500", "text-[#a3a3a3]")}`}>Ítems</p>
-                        {q.items.map((item: any, i: number) => (
-                          <div key={i} className="flex items-center justify-between gap-2 py-1">
-                            <span className={`text-xs ${dk("text-gray-300", "text-[#525252]")}`}>
-                              {item.name ?? item.product_name ?? "—"} × {item.quantity}
-                            </span>
-                            <span className={`text-xs font-mono ${dk("text-gray-400", "text-[#737373]")}`}>
-                              {fmt(item.totalWithIVA ?? item.total_price ?? 0, q.currency)}
-                            </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-semibold text-foreground">{clientLabel}</span>
+                      <QuoteStatusBadge status={quote.status} />
+                      {quote.version > 1 ? <span className="text-[10px] text-muted-foreground">v{quote.version}</span> : null}
+                      {expired && quote.status !== "expired" ? (
+                        <span className="text-[10px] font-medium text-amber-500 dark:text-amber-400">Vencida</span>
+                      ) : null}
+                    </div>
+
+                    <p className="text-[11px] text-muted-foreground">
+                      {new Date(quote.created_at).toLocaleDateString("es-AR")}
+                      {quote.expires_at ? ` · vence ${new Date(quote.expires_at).toLocaleDateString("es-AR")}` : ""}
+                      {` · ${quote.items?.length ?? 0} items`}
+                    </p>
+                  </div>
+
+                  <div className="shrink-0 text-right">
+                    <p className="text-xs font-bold text-foreground">{formatMoney(quote.total, quote.currency)}</p>
+                    <p className="text-[10px] text-muted-foreground">{quote.currency}</p>
+                  </div>
+
+                  {isExpanded ? (
+                    <ChevronUp size={13} className="shrink-0 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown size={13} className="shrink-0 text-muted-foreground" />
+                  )}
+                </button>
+
+                {isExpanded ? (
+                  <div className="space-y-4 border-t border-border/70 bg-surface/60 px-4 py-4">
+                    {quote.items.length > 0 ? (
+                      <SurfaceCard tone="subtle" padding="sm" className="rounded-2xl">
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Items</p>
+
+                          {quote.items.map((item, itemIndex) => (
+                            <div key={item.id ?? `${quote.id}-${itemIndex}`} className="flex items-center justify-between gap-3 py-1">
+                              <span className="text-xs text-foreground">
+                                {item.name ?? item.product_name ?? "Sin descripcion"} x {item.quantity ?? 0}
+                              </span>
+                              <span className="text-xs font-mono text-muted-foreground">
+                                {formatMoney(item.totalWithIVA ?? item.total_price ?? 0, quote.currency)}
+                              </span>
+                            </div>
+                          ))}
+
+                          <div className="flex items-center justify-between border-t border-border/70 pt-2 text-xs font-semibold text-foreground">
+                            <span>Total</span>
+                            <span>{formatMoney(quote.total, quote.currency)}</span>
                           </div>
-                        ))}
-                        <div className={`flex justify-between pt-1 border-t ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")}`}>
-                          <span className={`text-xs font-bold ${dk("text-white", "text-[#171717]")}`}>Total</span>
-                          <span className={`text-xs font-bold ${dk("text-white", "text-[#171717]")}`}>{fmt(q.total, q.currency)}</span>
                         </div>
+                      </SurfaceCard>
+                    ) : null}
+
+                    {convertError[quote.id] ? (
+                      <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                        {convertError[quote.id]}
                       </div>
-                    )}
+                    ) : null}
 
-                    {/* Error */}
-                    {convertError[q.id] && (
-                      <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                        {convertError[q.id]}
-                      </p>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {quote.status === "draft" ? (
+                        <Button
+                          size="sm"
+                          onClick={() => void updateStatus(quote.id, "sent")}
+                          disabled={updatingStatus === quote.id}
+                        >
+                          <Send size={12} />
+                          Marcar enviada
+                        </Button>
+                      ) : null}
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {/* Status transitions */}
-                      {q.status === "draft" && (
-                        <button
-                          onClick={() => updateStatus(q.id, "sent")}
-                          disabled={updatingStatus === q.id}
-                          className="flex items-center gap-1 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg transition"
+                      {["draft", "sent", "viewed"].includes(quote.status) ? (
+                        <Button
+                          size="sm"
+                          onClick={() => void updateStatus(quote.id, "approved")}
+                          disabled={updatingStatus === quote.id}
                         >
-                          <Send size={11} /> Marcar enviada
-                        </button>
-                      )}
-                      {(q.status === "draft" || q.status === "sent" || q.status === "viewed") && (
-                        <button
-                          onClick={() => updateStatus(q.id, "approved")}
-                          disabled={updatingStatus === q.id}
-                          className="flex items-center gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg transition"
+                          <CheckCircle2 size={12} />
+                          Aprobar
+                        </Button>
+                      ) : null}
+
+                      {!["rejected", "expired", "converted"].includes(quote.status) ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void updateStatus(quote.id, "rejected")}
+                          disabled={updatingStatus === quote.id}
                         >
-                          <CheckCircle2 size={11} /> Aprobar
-                        </button>
-                      )}
-                      {!["rejected", "expired", "converted"].includes(q.status) && (
-                        <button
-                          onClick={() => updateStatus(q.id, "rejected")}
-                          disabled={updatingStatus === q.id}
-                          className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border transition ${dk("border-[#2a2a2a] text-gray-500 hover:text-red-400 hover:border-red-400/30", "border-[#e5e5e5] text-[#737373] hover:text-red-500 hover:border-red-400/30")}`}
+                          <XCircle size={12} />
+                          Rechazar
+                        </Button>
+                      ) : null}
+
+                      {["sent", "approved"].includes(quote.status) && !quote.converted_to_order_id ? (
+                        <Button
+                          size="sm"
+                          className="ml-auto"
+                          onClick={() => void convertToOrder(quote)}
+                          disabled={converting === quote.id}
                         >
-                          <XCircle size={11} /> Rechazar
-                        </button>
-                      )}
-                      {/* Convert to order */}
-                      {(q.status === "sent" || q.status === "approved") && !q.converted_to_order_id && (
-                        <button
-                          onClick={() => convertToOrder(q)}
-                          disabled={converting === q.id}
-                          className="flex items-center gap-1 text-xs bg-[#2D9F6A] hover:bg-[#25875a] disabled:opacity-50 text-white px-3 py-1.5 rounded-lg transition ml-auto"
-                        >
-                          <ArrowRight size={11} />
-                          {converting === q.id ? "Convirtiendo…" : "Convertir a pedido"}
-                        </button>
-                      )}
-                      {q.converted_to_order_id && (
-                        <span className="ml-auto text-[11px] text-teal-400 flex items-center gap-1">
-                          <CheckCircle2 size={11} /> Convertida → Pedido #{q.converted_to_order_id}
-                        </span>
-                      )}
+                          <ArrowRight size={12} />
+                          {converting === quote.id ? "Convirtiendo..." : "Convertir a pedido"}
+                        </Button>
+                      ) : null}
+
+                      {quote.converted_to_order_id ? (
+                        <Badge variant="outline" className="ml-auto gap-1 border-teal-500/20 bg-teal-500/10 text-teal-600 dark:text-teal-400">
+                          <CheckCircle2 size={11} />
+                          Pedido #{quote.converted_to_order_id}
+                        </Badge>
+                      ) : null}
                     </div>
                   </div>
-                )}
+                ) : null}
               </div>
             );
           })}
-        </div>
+        </SurfaceCard>
       )}
     </div>
   );

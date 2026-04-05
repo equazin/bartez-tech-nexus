@@ -1,17 +1,36 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import {
-  Package, ChevronDown, ChevronUp, Plus, Pencil, Trash2,
-  Save, X, Star, StarOff, AlertTriangle, Layers, MapPin, Building
+  AlertTriangle,
+  Building,
+  ChevronDown,
+  ChevronUp,
+  Layers,
+  MapPin,
+  Package,
+  Pencil,
+  Plus,
+  Save,
+  Star,
+  StarOff,
+  Trash2,
+  X,
 } from "lucide-react";
 
-interface Props { isDark?: boolean }
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SurfaceCard } from "@/components/ui/surface-card";
+import { cn } from "@/lib/utils";
+
+interface Props {
+  isDark?: boolean;
+}
 
 interface ProductRow {
   id: number;
   name: string;
   sku: string;
-  // from product_stock_summary view (left-joined)
   total_available: number | null;
   total_reserved: number | null;
   net_available: number | null;
@@ -67,7 +86,7 @@ const EMPTY_FORM = {
   supplier_id: "",
   cost_price: 0,
   stock_available: 0,
-  price_multiplier: 1.0,
+  price_multiplier: 1,
   lead_time_days: 0,
   external_id: "",
 };
@@ -85,9 +104,31 @@ interface WarehouseStock {
   stock_reserved: number;
 }
 
-export function StockTab({ isDark = true }: Props) {
-  const dk = (d: string, l: string) => (isDark ? d : l);
+function StockBadge({ net }: { net: number | null }) {
+  if (net === null) {
+    return <Badge variant="outline">Sin stock</Badge>;
+  }
 
+  if (net <= 0) {
+    return <Badge variant="outline" className="border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400">Agotado</Badge>;
+  }
+
+  if (net <= 3) {
+    return (
+      <Badge variant="outline" className="border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400">
+        {net} bajo
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge variant="outline" className="border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+      {net} disp.
+    </Badge>
+  );
+}
+
+export function StockTab({ isDark: _isDark = true }: Props) {
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -95,268 +136,316 @@ export function StockTab({ isDark = true }: Props) {
   const [sources, setSources] = useState<Record<number, SupplierSource[]>>({});
   const [loadingSources, setLoadingSources] = useState<number | null>(null);
   const [supplierOptions, setSupplierOptions] = useState<SupplierOption[]>([]);
-
-  // inline edit state
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<SupplierSource>>({});
-
-  // add form state
   const [showAddForm, setShowAddForm] = useState<number | null>(null);
   const [addForm, setAddForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
-  
-  const [viewMode, setViewMode] = useState<'suppliers' | 'warehouses'>('suppliers');
+  const [viewMode, setViewMode] = useState<"suppliers" | "warehouses">("suppliers");
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [whStocks, setWhStocks] = useState<Record<number, WarehouseStock[]>>({});
   const [loadingWh, setLoadingWh] = useState<number | null>(null);
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("products")
-      .select("id, name, sku")
-      .eq("active", true)
-      .order("name")
-      .limit(500);
 
-    if (!data) { setLoading(false); return; }
+    const { data } = await supabase.from("products").select("id, name, sku").eq("active", true).order("name").limit(500);
+
+    if (!data) {
+      setLoading(false);
+      return;
+    }
 
     const productRows = data as ProductBaseRow[];
-    const productIds = productRows.map((p) => p.id);
-    const { data: sumData } = await supabase
-      .from("product_stock_summary")
-      .select("*")
-      .in("product_id", productIds);
+    const productIds = productRows.map((product) => product.id);
 
-    const sumMap: Record<number, ProductStockSummaryRow> = {};
-    (sumData as ProductStockSummaryRow[] | null ?? []).forEach((s) => { sumMap[s.product_id] = s; });
+    const { data: summaryData } = await supabase.from("product_stock_summary").select("*").in("product_id", productIds);
+
+    const summaryMap: Record<number, ProductStockSummaryRow> = {};
+    (summaryData as ProductStockSummaryRow[] | null | undefined)?.forEach((summary) => {
+      summaryMap[summary.product_id] = summary;
+    });
 
     setProducts(
-      productRows.map((p) => ({
-        ...p,
-        total_available: sumMap[p.id]?.total_available ?? null,
-        total_reserved:  sumMap[p.id]?.total_reserved  ?? null,
-        net_available:   sumMap[p.id]?.net_available   ?? null,
-        best_cost:       sumMap[p.id]?.best_cost        ?? null,
-        supplier_count:  sumMap[p.id]?.supplier_count   ?? null,
-      }))
+      productRows.map((product) => ({
+        ...product,
+        total_available: summaryMap[product.id]?.total_available ?? null,
+        total_reserved: summaryMap[product.id]?.total_reserved ?? null,
+        net_available: summaryMap[product.id]?.net_available ?? null,
+        best_cost: summaryMap[product.id]?.best_cost ?? null,
+        supplier_count: summaryMap[product.id]?.supplier_count ?? null,
+      })),
     );
+
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchProducts(); }, [fetchProducts]);
+  const fetchSupplierSources = useCallback(async (productId: number) => {
+    setLoadingSources(productId);
 
-  useEffect(() => {
-    supabase.from("suppliers").select("id, name").eq("active", true).order("name")
-      .then(({ data }) => setSupplierOptions((data ?? []) as SupplierOption[]));
-      
-    supabase.from("warehouses").select("id, name, location").eq("is_active", true).order("name")
-      .then(({ data }) => setWarehouses((data ?? []) as Warehouse[]));
-  }, []);
-
-  async function toggleExpand(productId: number) {
-    if (expandedId === productId) { setExpandedId(null); return; }
-    setExpandedId(productId);
-    
-    if (viewMode === 'suppliers') {
-      if (sources[productId]) return;
-      setLoadingSources(productId);
-      const { data } = await supabase
-        .from("product_suppliers")
-        .select("*, suppliers(name)")
-        .eq("product_id", productId)
-        .order("is_preferred", { ascending: false })
-        .order("cost_price", { ascending: true });
-      setSources((prev) => ({
-        ...prev,
-        [productId]: ((data as ProductSupplierQueryRow[] | null) ?? []).map((r) => ({
-          ...r,
-          supplier_name: r.suppliers?.name ?? "—",
-        })),
-      }));
-      setLoadingSources(null);
-    } else {
-      if (whStocks[productId]) return;
-      setLoadingWh(productId);
-      const { data } = await supabase
-        .from("product_stocks")
-        .select("*, warehouses(name, location)")
-        .eq("product_id", productId);
-      
-      setWhStocks((prev) => ({
-        ...prev,
-        [productId]: ((data as any[] | null) ?? []).map((r) => ({
-          warehouse_id: r.warehouse_id,
-          warehouse_name: r.warehouses?.name || "Desconocido",
-          stock: r.stock,
-          stock_reserved: r.stock_reserved
-        }))
-      }));
-      setLoadingWh(null);
-    }
-  }
-
-  async function refreshSources(productId: number) {
     const { data } = await supabase
       .from("product_suppliers")
       .select("*, suppliers(name)")
       .eq("product_id", productId)
       .order("is_preferred", { ascending: false })
       .order("cost_price", { ascending: true });
+
     setSources((prev) => ({
       ...prev,
-      [productId]: ((data as ProductSupplierQueryRow[] | null) ?? []).map((r) => ({
-        ...r,
-        supplier_name: r.suppliers?.name ?? "—",
+      [productId]: ((data as ProductSupplierQueryRow[] | null) ?? []).map((row) => ({
+        ...row,
+        supplier_name: row.suppliers?.name ?? "-",
       })),
     }));
-    fetchProducts();
+
+    setLoadingSources(null);
+  }, []);
+
+  const fetchWarehouseStock = useCallback(async (productId: number) => {
+    setLoadingWh(productId);
+
+    const { data } = await supabase.from("product_stocks").select("*, warehouses(name, location)").eq("product_id", productId);
+
+    setWhStocks((prev) => ({
+      ...prev,
+      [productId]: ((data as Array<{ warehouse_id: string; stock: number; stock_reserved: number; warehouses?: { name?: string } | null }> | null) ?? []).map(
+        (row) => ({
+          warehouse_id: row.warehouse_id,
+          warehouse_name: row.warehouses?.name || "Desconocido",
+          stock: row.stock,
+          stock_reserved: row.stock_reserved,
+        }),
+      ),
+    }));
+
+    setLoadingWh(null);
+  }, []);
+
+  useEffect(() => {
+    void fetchProducts();
+  }, [fetchProducts]);
+
+  useEffect(() => {
+    void supabase
+      .from("suppliers")
+      .select("id, name")
+      .eq("active", true)
+      .order("name")
+      .then(({ data }) => setSupplierOptions((data ?? []) as SupplierOption[]));
+
+    void supabase
+      .from("warehouses")
+      .select("id, name, location")
+      .eq("is_active", true)
+      .order("name")
+      .then(({ data }) => setWarehouses((data ?? []) as Warehouse[]));
+  }, []);
+
+  useEffect(() => {
+    if (!expandedId) {
+      return;
+    }
+
+    if (viewMode === "suppliers" && !sources[expandedId]) {
+      void fetchSupplierSources(expandedId);
+    }
+
+    if (viewMode === "warehouses" && !whStocks[expandedId]) {
+      void fetchWarehouseStock(expandedId);
+    }
+  }, [expandedId, fetchSupplierSources, fetchWarehouseStock, sources, viewMode, whStocks]);
+
+  async function toggleExpand(productId: number) {
+    if (expandedId === productId) {
+      setExpandedId(null);
+      return;
+    }
+
+    setExpandedId(productId);
+  }
+
+  async function refreshSources(productId: number) {
+    await fetchSupplierSources(productId);
+    await fetchProducts();
   }
 
   async function setPreferred(sourceId: string, productId: number) {
     await supabase.from("product_suppliers").update({ is_preferred: false }).eq("product_id", productId);
     await supabase.from("product_suppliers").update({ is_preferred: true }).eq("id", sourceId);
-    refreshSources(productId);
+    await refreshSources(productId);
   }
 
   async function saveEdit(sourceId: string, productId: number) {
     setSaving(true);
-    await supabase.from("product_suppliers").update({
-      cost_price:       editForm.cost_price,
-      stock_available:  editForm.stock_available,
-      price_multiplier: editForm.price_multiplier,
-      lead_time_days:   editForm.lead_time_days,
-      external_id:      editForm.external_id || null,
-    }).eq("id", sourceId);
+
+    await supabase
+      .from("product_suppliers")
+      .update({
+        cost_price: editForm.cost_price,
+        stock_available: editForm.stock_available,
+        price_multiplier: editForm.price_multiplier,
+        lead_time_days: editForm.lead_time_days,
+        external_id: editForm.external_id || null,
+      })
+      .eq("id", sourceId);
+
     setEditingRow(null);
     setSaving(false);
-    refreshSources(productId);
+    await refreshSources(productId);
   }
 
   async function removeSource(sourceId: string, productId: number) {
-    if (!confirm("¿Eliminar este proveedor del producto?")) return;
+    if (!confirm("Eliminar este proveedor del producto?")) {
+      return;
+    }
+
     await supabase.from("product_suppliers").delete().eq("id", sourceId);
-    refreshSources(productId);
+    await refreshSources(productId);
   }
 
   async function addSource(productId: number) {
-    if (!addForm.supplier_id) return;
+    if (!addForm.supplier_id) {
+      return;
+    }
+
     setSaving(true);
+
     await supabase.from("product_suppliers").insert({
-      product_id:       productId,
-      supplier_id:      addForm.supplier_id,
-      cost_price:       Number(addForm.cost_price),
-      stock_available:  Number(addForm.stock_available),
+      product_id: productId,
+      supplier_id: addForm.supplier_id,
+      cost_price: Number(addForm.cost_price),
+      stock_available: Number(addForm.stock_available),
       price_multiplier: Number(addForm.price_multiplier),
-      lead_time_days:   Number(addForm.lead_time_days),
-      external_id:      addForm.external_id || null,
+      lead_time_days: Number(addForm.lead_time_days),
+      external_id: addForm.external_id || null,
     });
+
     setAddForm(EMPTY_FORM);
     setShowAddForm(null);
     setSaving(false);
-    refreshSources(productId);
+    await refreshSources(productId);
   }
 
-  const filtered = products.filter((p) =>
-    !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku?.toLowerCase().includes(search.toLowerCase())
+  const filteredProducts = useMemo(
+    () =>
+      products.filter(
+        (product) =>
+          !search ||
+          product.name.toLowerCase().includes(search.toLowerCase()) ||
+          product.sku?.toLowerCase().includes(search.toLowerCase()),
+      ),
+    [products, search],
   );
 
-  const stockBadge = (net: number | null) => {
-    if (net === null) return <span className="text-[11px] text-gray-500">Sin stock</span>;
-    if (net <= 0)     return <span className="text-[11px] font-semibold text-red-400">Agotado</span>;
-    if (net <= 3)     return <span className="text-[11px] font-semibold text-yellow-400">{net} bajo</span>;
-    return <span className="text-[11px] font-semibold text-emerald-400">{net} disp.</span>;
-  };
-
   return (
-    <div className="space-y-5 max-w-6xl">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className={`text-base font-bold ${dk("text-white", "text-[#171717]")}`}>Gestión de Stock</h2>
-          <div className="flex items-center gap-4 mt-1">
-            <button 
-              onClick={() => setViewMode('suppliers')}
-              className={`text-xs font-bold transition-colors ${viewMode === 'suppliers' ? 'text-[#2D9F6A]' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-              Por Proveedor
-            </button>
-            <button 
-              onClick={() => setViewMode('warehouses')}
-              className={`text-xs font-bold transition-colors ${viewMode === 'warehouses' ? 'text-[#2D9F6A]' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-              Por Depósito
-            </button>
+    <div className="space-y-4">
+      <SurfaceCard tone="default" padding="md" className="rounded-[24px] border-border/70">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="space-y-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Productos</p>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Gestion de stock</h2>
+              <p className="text-sm text-muted-foreground">{products.length} productos ? {warehouses.length} depositos activos.</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 rounded-2xl border border-border/70 bg-card p-1">
+              <Button variant={viewMode === "suppliers" ? "soft" : "ghost"} size="sm" onClick={() => setViewMode("suppliers")}>
+                Por proveedor
+              </Button>
+              <Button variant={viewMode === "warehouses" ? "soft" : "ghost"} size="sm" onClick={() => setViewMode("warehouses")}>
+                Por deposito
+              </Button>
+            </div>
+
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar producto o SKU..."
+              className="h-10 w-56 rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary/40"
+            />
           </div>
         </div>
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar producto o SKU…"
-          className={`border rounded-lg px-3 py-2 text-xs outline-none w-56 transition ${dk("bg-[#111] border-[#2a2a2a] text-gray-300 placeholder:text-[#444] focus:border-[#3a3a3a]", "bg-white border-[#e5e5e5] text-[#525252] placeholder:text-[#b4b4b4] focus:border-[#d4d4d4]")}`}
-        />
-      </div>
+      </SurfaceCard>
 
       {loading ? (
+
         <div className="space-y-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className={`h-14 rounded-xl animate-pulse ${dk("bg-[#111]", "bg-white")}`} />
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="h-14 animate-pulse rounded-2xl bg-card" />
           ))}
         </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-500 text-sm">
-          {search ? "Sin resultados." : "No hay productos."}
-        </div>
+      ) : filteredProducts.length === 0 ? (
+        <EmptyState
+          title={search ? "Sin resultados" : "Sin productos"}
+          description={search ? "No hay coincidencias para la busqueda actual." : "No se encontraron productos activos para administrar stock."}
+          icon={<Package size={22} />}
+        />
       ) : (
-        <div className={`border rounded-xl overflow-hidden ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")}`}>
-          {filtered.map((product, idx) => {
+        <div className="overflow-hidden rounded-xl border border-border/70">
+          {filteredProducts.map((product, index) => {
             const isExpanded = expandedId === product.id;
             const productSources = sources[product.id] ?? [];
+            const warehouseStocks = whStocks[product.id] ?? [];
 
             return (
-              <div key={product.id} className={idx > 0 ? `border-t ${dk("border-[#1a1a1a]", "border-[#f0f0f0]")}` : ""}>
-                {/* Product row */}
-                <div
-                  onClick={() => toggleExpand(product.id)}
-                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition ${dk("hover:bg-[#111]", "hover:bg-[#fafafa]")} ${isExpanded ? dk("bg-[#111]", "bg-[#fafafa]") : ""}`}
+              <div key={product.id} className={cn(index > 0 && "border-t border-border/70")}>
+                <button
+                  type="button"
+                  onClick={() => void toggleExpand(product.id)}
+                  className={cn(
+                    "flex w-full items-center gap-3 px-4 py-3 text-left transition",
+                    isExpanded ? "bg-secondary/60" : "bg-card hover:bg-secondary/50",
+                  )}
                 >
-                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${dk("bg-[#1a1a1a]", "bg-[#f0f0f0]")}`}>
-                    <Package size={14} className="text-[#2D9F6A]" />
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
+                    <Package size={14} />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-semibold truncate ${dk("text-white", "text-[#171717]")}`}>{product.name}</p>
-                    <p className="text-[10px] text-gray-500 font-mono">{product.sku}</p>
-                  </div>
-                  <div className="flex items-center gap-4 shrink-0">
-                    {product.supplier_count !== null && (
-                      <div className="flex items-center gap-1">
-                        <Layers size={11} className="text-gray-500" />
-                        <span className="text-[11px] text-gray-500">{product.supplier_count} prov.</span>
-                      </div>
-                    )}
-                    {product.net_available !== null && product.net_available <= 3 && (
-                      <AlertTriangle size={12} className="text-yellow-400" />
-                    )}
-                    <div className="w-20 text-right">{stockBadge(product.net_available)}</div>
-                    {isExpanded ? (
-                      <ChevronUp size={14} className="text-gray-500" />
-                    ) : (
-                      <ChevronDown size={14} className="text-gray-500" />
-                    )}
-                  </div>
-                </div>
 
-                {/* Expanded content */}
-                {isExpanded && viewMode === 'suppliers' && (
-                  <div className={`border-t px-4 py-3 space-y-3 ${dk("border-[#1a1a1a] bg-[#080808]", "border-[#f0f0f0] bg-[#fafafa]")}`}>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold text-foreground">{product.name}</p>
+                    <p className="text-[10px] font-mono text-muted-foreground">{product.sku}</p>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-4">
+                    {product.supplier_count !== null ? (
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <Layers size={11} />
+                        <span className="text-[11px]">{product.supplier_count} prov.</span>
+                      </div>
+                    ) : null}
+
+                    {product.net_available !== null && product.net_available <= 3 ? (
+                      <AlertTriangle size={12} className="text-amber-500 dark:text-amber-400" />
+                    ) : null}
+
+                    <div className="w-24 text-right">
+                      <StockBadge net={product.net_available} />
+                    </div>
+
+                    {isExpanded ? (
+                      <ChevronUp size={14} className="text-muted-foreground" />
+                    ) : (
+                      <ChevronDown size={14} className="text-muted-foreground" />
+                    )}
+                  </div>
+                </button>
+
+                {isExpanded && viewMode === "suppliers" ? (
+                  <div className="space-y-3 border-t border-border/70 bg-surface/60 px-4 py-3">
                     {loadingSources === product.id ? (
-                      <div className="text-xs text-gray-500 py-2">Cargando fuentes…</div>
+                      <div className="text-xs text-muted-foreground">Cargando proveedores...</div>
                     ) : productSources.length === 0 ? (
-                      <div className="text-xs text-gray-500 py-2">Sin proveedores asignados.</div>
+                      <EmptyState
+                        className="rounded-2xl py-10"
+                        title="Sin proveedores asignados"
+                        description="Agrega una fuente para habilitar costos, stock y prioridad comercial."
+                        icon={<Layers size={20} />}
+                      />
                     ) : (
                       <div className="space-y-2">
-                        {/* Table header */}
-                        <div className="grid grid-cols-[1fr_110px_80px_80px_70px_70px_90px] gap-2 text-[10px] font-bold uppercase tracking-wider text-gray-500 pb-1">
+                        <div className="grid grid-cols-[1fr_110px_80px_80px_70px_70px_110px] gap-2 pb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
                           <span>Proveedor</span>
                           <span>Costo</span>
                           <span>Stock</span>
@@ -366,205 +455,255 @@ export function StockTab({ isDark = true }: Props) {
                           <span className="text-right">Acciones</span>
                         </div>
 
-                        {productSources.map((src) => (
-                          <div key={src.id} className={`rounded-lg border px-3 py-2 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")} ${src.is_preferred ? dk("border-[#2D9F6A]/40", "border-[#2D9F6A]/30") : ""}`}>
-                            {editingRow === src.id ? (
-                              // Edit mode
-                              <div className="space-y-2">
+                        {productSources.map((source) => (
+                          <SurfaceCard
+                            key={source.id}
+                            tone="subtle"
+                            padding="sm"
+                            className={cn(
+                              "rounded-2xl border-border/70",
+                              source.is_preferred && "border-primary/30 bg-primary/5",
+                            )}
+                          >
+                            {editingRow === source.id ? (
+                              <div className="space-y-3">
                                 <div className="grid grid-cols-2 gap-2">
-                                  {([
-                                    { label: "Costo", key: "cost_price", type: "number" },
-                                    { label: "Stock disponible", key: "stock_available", type: "number" },
-                                    { label: "Multiplicador", key: "price_multiplier", type: "number" },
-                                    { label: "Plazo (días)", key: "lead_time_days", type: "number" },
-                                  ] as const satisfies ReadonlyArray<{ label: string; key: EditableSupplierField; type: string }>).map(({ label, key, type }) => (
+                                  {(
+                                    [
+                                      { label: "Costo", key: "cost_price", type: "number" },
+                                      { label: "Stock disponible", key: "stock_available", type: "number" },
+                                      { label: "Multiplicador", key: "price_multiplier", type: "number" },
+                                      { label: "Plazo (dias)", key: "lead_time_days", type: "number" },
+                                    ] as const
+                                  ).map(({ label, key, type }) => (
                                     <div key={key}>
-                                      <label className={`text-[10px] mb-0.5 block ${dk("text-gray-500", "text-[#737373]")}`}>{label}</label>
+                                      <label className="mb-1 block text-[10px] text-muted-foreground">{label}</label>
                                       <input
                                         type={type}
                                         value={editForm[key] ?? ""}
-                                        onChange={(e) => setEditForm((p) => ({ ...p, [key]: Number(e.target.value) }))}
-                                        className={`w-full border rounded px-2 py-1 text-xs outline-none ${dk("bg-[#0d0d0d] border-[#2a2a2a] text-white", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717]")}`}
+                                        onChange={(event) =>
+                                          setEditForm((prev) => ({
+                                            ...prev,
+                                            [key]: Number(event.target.value),
+                                          }))
+                                        }
+                                        className="w-full rounded-lg border border-border/70 bg-card px-2 py-1 text-xs text-foreground outline-none focus:border-primary/40"
                                       />
                                     </div>
                                   ))}
+
                                   <div className="col-span-2">
-                                    <label className={`text-[10px] mb-0.5 block ${dk("text-gray-500", "text-[#737373]")}`}>Código externo</label>
+                                    <label className="mb-1 block text-[10px] text-muted-foreground">Codigo externo</label>
                                     <input
                                       value={editForm.external_id ?? ""}
-                                      onChange={(e) => setEditForm((p) => ({ ...p, external_id: e.target.value }))}
-                                      className={`w-full border rounded px-2 py-1 text-xs outline-none ${dk("bg-[#0d0d0d] border-[#2a2a2a] text-white", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717]")}`}
+                                      onChange={(event) =>
+                                        setEditForm((prev) => ({
+                                          ...prev,
+                                          external_id: event.target.value,
+                                        }))
+                                      }
+                                      className="w-full rounded-lg border border-border/70 bg-card px-2 py-1 text-xs text-foreground outline-none focus:border-primary/40"
                                     />
                                   </div>
                                 </div>
-                                <div className="flex gap-2 justify-end">
-                                  <button onClick={() => setEditingRow(null)} className="text-xs text-gray-500 hover:text-gray-300 px-2 py-1 transition">
+
+                                <div className="flex justify-end gap-2">
+                                  <Button variant="ghost" size="sm" onClick={() => setEditingRow(null)}>
                                     <X size={12} />
-                                  </button>
-                                  <button
-                                    onClick={() => saveEdit(src.id, product.id)}
-                                    disabled={saving}
-                                    className="flex items-center gap-1 text-xs bg-[#2D9F6A] hover:bg-[#25875a] text-white px-3 py-1 rounded-lg transition"
-                                  >
-                                    <Save size={11} /> Guardar
-                                  </button>
+                                    Cancelar
+                                  </Button>
+                                  <Button size="sm" onClick={() => void saveEdit(source.id, product.id)} disabled={saving}>
+                                    <Save size={12} />
+                                    Guardar
+                                  </Button>
                                 </div>
                               </div>
                             ) : (
-                              // View mode
-                              <div className="grid grid-cols-[1fr_110px_80px_80px_70px_70px_90px] gap-2 items-center">
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  {src.is_preferred && <Star size={11} className="text-[#2D9F6A] shrink-0" />}
-                                  <span className={`text-xs truncate ${dk("text-gray-300", "text-[#525252]")}`}>{src.supplier_name}</span>
-                                  {!src.active && <span className="text-[10px] text-red-400 shrink-0">(inactivo)</span>}
+                              <div className="grid grid-cols-[1fr_110px_80px_80px_70px_70px_110px] items-center gap-2">
+                                <div className="flex min-w-0 items-center gap-1.5">
+                                  {source.is_preferred ? <Star size={11} className="shrink-0 text-primary" /> : null}
+                                  <span className="truncate text-xs text-foreground">{source.supplier_name}</span>
+                                  {!source.active ? (
+                                    <span className="shrink-0 text-[10px] text-destructive">(inactivo)</span>
+                                  ) : null}
                                 </div>
-                                <div className={`text-xs font-mono ${dk("text-gray-300", "text-[#525252]")}`}>
-                                  <p>${src.cost_price.toLocaleString("es-AR")} USD</p>
-                                  {src.source_cost_price != null && (
-                                    <p className={`text-[10px] ${dk("text-gray-500", "text-[#737373]")}`}>
-                                      Fuente: {src.source_currency ?? "USD"} {src.source_cost_price.toLocaleString("es-AR")}
+
+                                <div className="text-xs font-mono text-foreground">
+                                  <p>${source.cost_price.toLocaleString("es-AR")} USD</p>
+                                  {source.source_cost_price != null ? (
+                                    <p className="text-[10px] text-muted-foreground">
+                                      Fuente: {source.source_currency ?? "USD"} {source.source_cost_price.toLocaleString("es-AR")}
                                     </p>
-                                  )}
+                                  ) : null}
                                 </div>
-                                <span className={`text-xs font-mono ${dk("text-gray-300", "text-[#525252]")}`}>{src.stock_available}</span>
-                                <span className={`text-xs font-mono ${dk("text-gray-300", "text-[#525252]")}`}>{src.stock_reserved}</span>
-                                <span className={`text-xs font-mono ${dk("text-gray-400", "text-[#737373]")}`}>×{src.price_multiplier}</span>
-                                <span className={`text-xs ${dk("text-gray-400", "text-[#737373]")}`}>{src.lead_time_days}d</span>
-                                <div className="flex items-center gap-1.5 justify-end">
-                                  {!src.is_preferred && (
-                                    <button
-                                      onClick={() => setPreferred(src.id, product.id)}
-                                      title="Marcar como preferido"
-                                      className="text-gray-500 hover:text-[#2D9F6A] transition"
-                                    >
+
+                                <span className="text-xs font-mono text-foreground">{source.stock_available}</span>
+                                <span className="text-xs font-mono text-foreground">{source.stock_reserved}</span>
+                                <span className="text-xs font-mono text-muted-foreground">x{source.price_multiplier}</span>
+                                <span className="text-xs text-muted-foreground">{source.lead_time_days}d</span>
+
+                                <div className="flex items-center justify-end gap-1">
+                                  {!source.is_preferred ? (
+                                    <Button variant="ghost" size="sm" title="Marcar como preferido" onClick={() => void setPreferred(source.id, product.id)}>
                                       <StarOff size={12} />
-                                    </button>
-                                  )}
-                                  <button
-                                    onClick={() => { setEditingRow(src.id); setEditForm(src); }}
-                                    className="text-gray-500 hover:text-blue-400 transition"
+                                    </Button>
+                                  ) : null}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setEditingRow(source.id);
+                                      setEditForm(source);
+                                    }}
                                   >
                                     <Pencil size={12} />
-                                  </button>
-                                  <button
-                                    onClick={() => removeSource(src.id, product.id)}
-                                    className="text-gray-500 hover:text-red-400 transition"
-                                  >
+                                  </Button>
+                                  <Button variant="ghost" size="sm" onClick={() => void removeSource(source.id, product.id)}>
                                     <Trash2 size={12} />
-                                  </button>
+                                  </Button>
                                 </div>
                               </div>
                             )}
-                          </div>
+                          </SurfaceCard>
                         ))}
                       </div>
                     )}
 
-                    {/* Add supplier form */}
                     {showAddForm === product.id ? (
-                      <div className={`border rounded-lg px-3 py-3 space-y-2 ${dk("border-[#2a2a2a] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
-                        <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>Agregar proveedor</p>
+                      <SurfaceCard tone="subtle" padding="sm" className="space-y-3 rounded-2xl border-border/70">
+                        <p className="text-xs font-semibold text-foreground">Agregar proveedor</p>
+
                         <div className="grid grid-cols-2 gap-2">
                           <div className="col-span-2">
-                            <label className={`text-[10px] mb-0.5 block ${dk("text-gray-500", "text-[#737373]")}`}>Proveedor *</label>
+                            <label className="mb-1 block text-[10px] text-muted-foreground">Proveedor *</label>
                             <select
                               value={addForm.supplier_id}
-                              onChange={(e) => setAddForm((p) => ({ ...p, supplier_id: e.target.value }))}
-                              className={`w-full border rounded px-2 py-1.5 text-xs outline-none ${dk("bg-[#0d0d0d] border-[#2a2a2a] text-white", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717]")}`}
+                              onChange={(event) =>
+                                setAddForm((prev) => ({
+                                  ...prev,
+                                  supplier_id: event.target.value,
+                                }))
+                              }
+                              className="w-full rounded-lg border border-border/70 bg-card px-2 py-1.5 text-xs text-foreground outline-none focus:border-primary/40"
                             >
-                              <option value="">Seleccionar…</option>
-                              {supplierOptions.map((s) => (
-                                <option key={s.id} value={s.id}>{s.name}</option>
+                              <option value="">Seleccionar...</option>
+                              {supplierOptions.map((supplier) => (
+                                <option key={supplier.id} value={supplier.id}>
+                                  {supplier.name}
+                                </option>
                               ))}
                             </select>
                           </div>
-                          {([
-                            { label: "Costo", key: "cost_price" },
-                            { label: "Stock disponible", key: "stock_available" },
-                            { label: "Multiplicador", key: "price_multiplier" },
-                            { label: "Plazo (días)", key: "lead_time_days" },
-                          ] as const satisfies ReadonlyArray<{ label: string; key: keyof typeof EMPTY_FORM }>).map(({ label, key }) => (
+
+                          {(
+                            [
+                              { label: "Costo", key: "cost_price" },
+                              { label: "Stock disponible", key: "stock_available" },
+                              { label: "Multiplicador", key: "price_multiplier" },
+                              { label: "Plazo (dias)", key: "lead_time_days" },
+                            ] as const
+                          ).map(({ label, key }) => (
                             <div key={key}>
-                              <label className={`text-[10px] mb-0.5 block ${dk("text-gray-500", "text-[#737373]")}`}>{label}</label>
+                              <label className="mb-1 block text-[10px] text-muted-foreground">{label}</label>
                               <input
                                 type="number"
                                 value={addForm[key]}
-                                onChange={(e) => setAddForm((p) => ({ ...p, [key]: Number(e.target.value) }))}
-                                className={`w-full border rounded px-2 py-1 text-xs outline-none ${dk("bg-[#0d0d0d] border-[#2a2a2a] text-white", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717]")}`}
+                                onChange={(event) =>
+                                  setAddForm((prev) => ({
+                                    ...prev,
+                                    [key]: Number(event.target.value),
+                                  }))
+                                }
+                                className="w-full rounded-lg border border-border/70 bg-card px-2 py-1 text-xs text-foreground outline-none focus:border-primary/40"
                               />
                             </div>
                           ))}
+
                           <div className="col-span-2">
-                            <label className={`text-[10px] mb-0.5 block ${dk("text-gray-500", "text-[#737373]")}`}>Código externo (SKU proveedor)</label>
+                            <label className="mb-1 block text-[10px] text-muted-foreground">Codigo externo</label>
                             <input
                               value={addForm.external_id}
-                              onChange={(e) => setAddForm((p) => ({ ...p, external_id: e.target.value }))}
-                              className={`w-full border rounded px-2 py-1 text-xs outline-none ${dk("bg-[#0d0d0d] border-[#2a2a2a] text-white", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717]")}`}
+                              onChange={(event) =>
+                                setAddForm((prev) => ({
+                                  ...prev,
+                                  external_id: event.target.value,
+                                }))
+                              }
                               placeholder="SKU-123"
+                              className="w-full rounded-lg border border-border/70 bg-card px-2 py-1 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/40"
                             />
                           </div>
                         </div>
-                        <div className="flex gap-2 justify-end">
-                          <button onClick={() => setShowAddForm(null)} className="text-xs text-gray-500 hover:text-gray-300 px-2 py-1 transition">
+
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => setShowAddForm(null)}>
                             Cancelar
-                          </button>
-                          <button
-                            onClick={() => addSource(product.id)}
-                            disabled={saving || !addForm.supplier_id}
-                            className="flex items-center gap-1 text-xs bg-[#2D9F6A] hover:bg-[#25875a] disabled:opacity-50 text-white px-3 py-1.5 rounded-lg transition"
-                          >
-                            <Plus size={11} /> Agregar
-                          </button>
+                          </Button>
+                          <Button size="sm" onClick={() => void addSource(product.id)} disabled={saving || !addForm.supplier_id}>
+                            <Plus size={12} />
+                            Agregar
+                          </Button>
                         </div>
-                      </div>
+                      </SurfaceCard>
                     ) : (
-                      <button
-                        onClick={() => { setShowAddForm(product.id); setAddForm(EMPTY_FORM); }}
-                        className={`flex items-center gap-1.5 text-xs transition px-3 py-1.5 rounded-lg border ${dk("border-[#2a2a2a] text-gray-500 hover:text-white hover:border-[#3a3a3a]", "border-[#e5e5e5] text-[#737373] hover:text-[#171717] hover:border-[#d4d4d4]")}`}
+                      <Button
+                        variant="toolbar"
+                        size="sm"
+                        onClick={() => {
+                          setShowAddForm(product.id);
+                          setAddForm(EMPTY_FORM);
+                        }}
                       >
-                        <Plus size={12} /> Agregar proveedor
-                      </button>
+                        <Plus size={12} />
+                        Agregar proveedor
+                      </Button>
                     )}
                   </div>
-                )}
+                ) : null}
 
-                {/* Expanded warehouse stock */}
-                {isExpanded && viewMode === 'warehouses' && (
-                  <div className={`border-t px-4 py-3 space-y-3 ${dk("border-[#1a1a1a] bg-[#080808]", "border-[#f0f0f0] bg-[#fafafa]")}`}>
+                {isExpanded && viewMode === "warehouses" ? (
+                  <div className="space-y-3 border-t border-border/70 bg-surface/60 px-4 py-3">
                     {loadingWh === product.id ? (
-                      <div className="text-xs text-gray-500 py-2">Cargando depósitos…</div>
-                    ) : (whStocks[product.id] ?? []).length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-6 text-gray-600">
-                        <MapPin size={24} className="mb-2 opacity-20" />
-                        <p className="text-xs">No hay stock registrado en depósitos físicos.</p>
-                        <p className="text-[10px] text-gray-700">El stock se sincronizará desde proveedores.</p>
-                      </div>
+                      <div className="text-xs text-muted-foreground">Cargando depositos...</div>
+                    ) : warehouseStocks.length === 0 ? (
+                      <EmptyState
+                        className="rounded-2xl py-10"
+                        title="Sin stock en depositos"
+                        description="El inventario fisico aparecera aqui cuando existan registros en product_stocks."
+                        icon={<MapPin size={20} />}
+                      />
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {(whStocks[product.id] ?? []).map((wh) => (
-                          <div key={wh.warehouse_id} className={`p-3 rounded-xl border ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
-                            <div className="flex items-center gap-2 mb-2">
-                              <Building size={12} className="text-[#2D9F6A]" />
-                              <span className="text-xs font-bold">{wh.warehouse_name}</span>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                        {warehouseStocks.map((warehouse) => (
+                          <SurfaceCard key={warehouse.warehouse_id} tone="subtle" padding="sm" className="rounded-2xl">
+                            <div className="mb-3 flex items-center gap-2">
+                              <Building size={12} className="text-primary" />
+                              <span className="text-xs font-semibold text-foreground">{warehouse.warehouse_name}</span>
                             </div>
-                            <div className="flex justify-between items-end">
+
+                            <div className="flex items-end justify-between gap-4">
                               <div>
-                                <p className="text-[10px] text-gray-500 uppercase font-bold">Disponible</p>
-                                <p className="text-lg font-extrabold tabular-nums text-[#2D9F6A]">{wh.stock}</p>
+                                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Disponible</p>
+                                <p className="text-lg font-extrabold tabular-nums text-primary">{warehouse.stock}</p>
                               </div>
                               <div className="text-right">
-                                <p className="text-[10px] text-gray-500 uppercase font-bold">Reservado</p>
-                                <p className={`text-sm font-bold tabular-nums ${wh.stock_reserved > 0 ? 'text-amber-400' : 'text-gray-500'}`}>
-                                  {wh.stock_reserved}
+                                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Reservado</p>
+                                <p
+                                  className={cn(
+                                    "text-sm font-bold tabular-nums",
+                                    warehouse.stock_reserved > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground",
+                                  )}
+                                >
+                                  {warehouse.stock_reserved}
                                 </p>
                               </div>
                             </div>
-                          </div>
+                          </SurfaceCard>
                         ))}
                       </div>
                     )}
                   </div>
-                )}
+                ) : null}
               </div>
             );
           })}

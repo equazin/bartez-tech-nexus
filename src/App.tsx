@@ -9,6 +9,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-route
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ImpersonateProvider } from "@/context/ImpersonateContext";
 import { CurrencyProvider } from "@/context/CurrencyContext";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { refreshUTMs, track, getOrCreateSession } from "@/lib/marketingTracker";
 
 const Index = lazy(() => import("./pages/Index"));
@@ -80,44 +81,46 @@ const RequireAdmin = ({ children }: { children: JSX.Element }) => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <ImpersonateProvider>
-            <CurrencyProvider>
-              <ErrorBoundary>
-              <RouteTracker />
-              <Suspense fallback={<RouteLoading />}>
-                <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/tecnologia" element={<Products />} />
-                  <Route path="/productos" element={<Products />} />
-                  <Route path="/soluciones-corporativas" element={<CorporateSolutions />} />
-                  <Route path="/servicios-it" element={<ITServices />} />
-                  <Route path="/partnership" element={<B2BSolutions />} />
-                  <Route path="/empresas" element={<B2BSolutions />} />
-                  <Route path="/soluciones-por-industria" element={<IndustrySolutions />} />
-                  <Route path="/nosotros" element={<About />} />
-                  <Route path="/contacto" element={<Contact />} />
-                  <Route path="/evaluacion-tecnologica" element={<QuoteRequest />} />
-                  <Route path="/cotizacion" element={<QuoteRequest />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/registrarse" element={<Register />} />
-                  <Route path="/b2b-portal" element={<RequireAuth><B2BPortal /></RequireAuth>} />
-                  <Route path="/cart" element={<RequireAuth><CartPage /></RequireAuth>} />
-                  <Route path="/admin" element={<RequireAdmin><Admin /></RequireAdmin>} />
-                  <Route path="/clientes/:id" element={<RequireAdmin><CustomerView /></RequireAdmin>} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </Suspense>
-              </ErrorBoundary>
-            </CurrencyProvider>
-          </ImpersonateProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
+    <ThemeProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <ImpersonateProvider>
+              <CurrencyProvider>
+                <ErrorBoundary>
+                <RouteTracker />
+                <Suspense fallback={<RouteLoading />}>
+                  <Routes>
+                    <Route path="/" element={<Index />} />
+                    <Route path="/tecnologia" element={<Products />} />
+                    <Route path="/productos" element={<Products />} />
+                    <Route path="/soluciones-corporativas" element={<CorporateSolutions />} />
+                    <Route path="/servicios-it" element={<ITServices />} />
+                    <Route path="/partnership" element={<B2BSolutions />} />
+                    <Route path="/empresas" element={<B2BSolutions />} />
+                    <Route path="/soluciones-por-industria" element={<IndustrySolutions />} />
+                    <Route path="/nosotros" element={<About />} />
+                    <Route path="/contacto" element={<Contact />} />
+                    <Route path="/evaluacion-tecnologica" element={<QuoteRequest />} />
+                    <Route path="/cotizacion" element={<QuoteRequest />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/registrarse" element={<Register />} />
+                    <Route path="/b2b-portal" element={<RequireAuth><B2BPortal /></RequireAuth>} />
+                    <Route path="/cart" element={<RequireAuth><CartPage /></RequireAuth>} />
+                    <Route path="/admin" element={<RequireAdmin><Admin /></RequireAdmin>} />
+                    <Route path="/clientes/:id" element={<RequireAdmin><CustomerView /></RequireAdmin>} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </Suspense>
+                </ErrorBoundary>
+              </CurrencyProvider>
+            </ImpersonateProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

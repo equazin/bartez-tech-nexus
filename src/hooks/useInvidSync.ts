@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { syncInvidCatalog, type SyncProgress } from "@/lib/api/invidSync";
+import { syncInvidCatalog, syncSelectedInvidProducts, type SyncProgress } from "@/lib/api/invidSync";
 import {
   getSupplierSyncSnapshot,
   saveSupplierSyncSnapshot,
@@ -69,7 +69,6 @@ export function useInvidSync(userId?: string) {
 
   const runSelectedCatalogSync = useCallback(
     async (articles: import("@/lib/api/invidApi").InvidArticle[], options?: { forceCreateExternalIds?: string[] }) => {
-      const { syncSelectedInvidProducts } = await import("@/lib/api/invidSync");
       setRunning(true);
       try {
         await syncSelectedInvidProducts(articles, options, userId);

@@ -45,6 +45,7 @@ const SPEC_PRIORITY = [
 const HIDDEN_SPEC_PREFIXES = [
   "elit_",
   "air_",
+  "invid_",
   "supplier_",
   "preferred_supplier_",
   "sync_",

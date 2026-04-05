@@ -22,18 +22,20 @@ interface Props {
   products: Product[];
   isDark?: boolean;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: () => void | Promise<void>;
+  initialClientId?: string;
 }
 
-export function CreateOrderModal({ clients, products, isDark = true, onClose, onCreated }: Props) {
+export function CreateOrderModal({ clients, products, isDark = true, onClose, onCreated, initialClientId }: Props) {
   const dk = (d: string, l: string) => isDark ? d : l;
-  const [clientId, setClientId] = useState("");
+  const [clientId, setClientId] = useState(initialClientId ?? "");
   const [lines, setLines] = useState<LineItem[]>([]);
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<"pending" | "approved">("pending");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [productSearch, setProductSearch] = useState("");
+  const lockClient = Boolean(initialClientId);
 
   const filteredProducts = useMemo(() => {
     const term = productSearch.toLowerCase();
@@ -101,6 +103,14 @@ export function CreateOrderModal({ clients, products, isDark = true, onClose, on
 
     if (dbErr) { setError(dbErr.message); setSaving(false); return; }
 
+    await supabase
+      .from("profiles")
+      .update({
+        last_contact_at: new Date().toISOString(),
+        last_contact_type: "pedido",
+      })
+      .eq("id", clientId);
+
     logActivity({
       user_id:     null,
       action:      "place_order",
@@ -109,7 +119,7 @@ export function CreateOrderModal({ clients, products, isDark = true, onClose, on
       metadata:    { order_number: orderNumber, total, created_by: "admin" },
     });
 
-    onCreated();
+    await onCreated();
     onClose();
   }
 
@@ -133,7 +143,7 @@ export function CreateOrderModal({ clients, products, isDark = true, onClose, on
           <div className="grid grid-cols-2 gap-3">
             <div>
               <p className={labelCls}>Cliente *</p>
-              <select value={clientId} onChange={(e) => setClientId(e.target.value)} className={inputCls}>
+              <select value={clientId} onChange={(e) => setClientId(e.target.value)} className={inputCls} disabled={lockClient}>
                 <option value="">Seleccionar cliente…</option>
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>{c.company_name || c.contact_name}</option>

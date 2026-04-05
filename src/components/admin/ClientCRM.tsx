@@ -1,13 +1,32 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { CreateOrderModal } from "@/components/admin/CreateOrderModal";
+import { CreateQuoteModal } from "@/components/admin/CreateQuoteModal";
 import { Quote, QuoteStatus } from "@/models/quote";
 import { useCurrency } from "@/context/CurrencyContext";
 import { CLIENT_TYPE_MARGINS, ClientType, supabase } from "@/lib/supabase";
 import {
   addClientNote,
-  fetchClientProfile, fetchClientInvoices, fetchAccountMovements, fetchClientNotes, updateClientProfile,
-  type ClientDetail as ClientDetailData, type AccountMovement, type ClientNote,
+  fetchClientProfile, fetchClientInvoices, fetchAccountMovements, fetchClientNotes, fetchClientSupportTickets,
+  fetchClientRmas, updateClientProfile,
+  type ClientDetail as ClientDetailData, type AccountMovement, type ClientNote, type SupportTicket, type ClientRma,
 } from "@/lib/api/clientDetail";
 import type { Invoice } from "@/lib/api/invoices";
+import { Client360Header } from "@/components/admin/client360/Client360Header";
+import { ClientActionRail } from "@/components/admin/client360/ClientActionRail";
+import { ClientBusinessPanel } from "@/components/admin/client360/ClientBusinessPanel";
+import { ClientIdentityRail } from "@/components/admin/client360/ClientIdentityRail";
+import type {
+  Client360Alert,
+  Client360Metric,
+  Client360Tag,
+  ExecutiveOption,
+  PriorityAction,
+  ProductInsight,
+  SupportSummary,
+  TimelineItem,
+} from "@/components/admin/client360/types";
+import { SurfaceCard } from "@/components/ui/surface-card";
+import type { Product } from "@/models/products";
 import {
   Users, Search, UserPlus, ChevronRight, Mail,
   Percent, ShoppingBag, FileText, CheckCircle2, XCircle, Clock, MessageSquare,
@@ -31,6 +50,8 @@ export interface ClientProfile {
   phone?: string;
   active?: boolean;
   email?: string;
+  partner_level?: "cliente" | "silver" | "gold" | "platinum";
+  assigned_seller_id?: string;
 }
 
 interface SupabaseOrder {
@@ -46,11 +67,15 @@ interface SupabaseOrder {
 export interface ClientCRMProps {
   clients: ClientProfile[];
   orders: SupabaseOrder[];
+  products: Product[];
   loading: boolean;
   isDark: boolean;
+  selectedClientId?: string | null;
   onSave: (id: string, changes: { client_type?: ClientType; default_margin?: number }) => Promise<void>;
   onNewClient: () => void;
+  onNewSeller?: () => void;
   onRefreshClients?: () => void;
+  onRefreshOrders?: () => Promise<void> | void;
 }
 
 // -- Helpers -------------------------------------------------------------------
@@ -114,6 +139,27 @@ function fmtDate(iso: string) {
   });
 }
 
+function fmtRelativeDate(iso?: string | null) {
+  if (!iso) return "Sin registro";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "Sin registro";
+  const diffMs = Date.now() - then;
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffHours < 1) return "hace menos de 1 hora";
+  if (diffHours < 24) return `hace ${diffHours} hora${diffHours === 1 ? "" : "s"}`;
+  if (diffDays < 30) return `hace ${diffDays} dia${diffDays === 1 ? "" : "s"}`;
+  const diffMonths = Math.floor(diffDays / 30);
+  return `hace ${diffMonths} mes${diffMonths === 1 ? "" : "es"}`;
+}
+
+function diffDaysFromNow(iso?: string | null) {
+  if (!iso) return Number.POSITIVE_INFINITY;
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return Number.POSITIVE_INFINITY;
+  return Math.floor((Date.now() - then) / (1000 * 60 * 60 * 24));
+}
+
 // -- Status badge --------------------------------------------------------------
 function StatusBadge<T extends string>({ status, map }: { status: T; map: Record<T, StatusConfig> | Record<string, StatusConfig> }) {
   const statusMap = map as Record<string, StatusConfig>;
@@ -146,7 +192,7 @@ function ClientListItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition group ${
+      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition group ${
         isActive
           ? "bg-[#2D9F6A]/10 border border-[#2D9F6A]/20"
           : `border border-transparent ${dk("hover:bg-[#141414] hover:border-[#1f1f1f]", "hover:bg-[#f5f5f5] hover:border-[#e5e5e5]")}`
@@ -154,12 +200,12 @@ function ClientListItem({
     >
       <Avatar client={client} size="sm" />
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-semibold truncate leading-tight ${
+        <p className={`text-[13px] font-semibold truncate leading-tight ${
           isActive ? dk("text-white", "text-[#171717]") : dk("text-[#d4d4d4] group-hover:text-white", "text-[#404040] group-hover:text-[#171717]")
         }`}>
           {client.company_name || client.contact_name || "-"}
         </p>
-        <p className="text-[10px] text-[#525252] truncate mt-0.5">
+        <p className="text-[9px] text-[#525252] truncate mt-0.5">
           {CLIENT_TYPE_LABELS[client.client_type]}  -  {client.default_margin}% margen
         </p>
       </div>
@@ -203,13 +249,15 @@ const DETAIL_TABS: Array<{ id: DetailTab; label: string; icon: LucideIcon }> = [
 
 // -- Detail panel --------------------------------------------------------------
 function ClientDetail({
-  client, orders, isDark, onSave, onBack,
+  client, orders, products, isDark, onSave, onBack, onRefreshOrders,
 }: {
   client: ClientProfile;
   orders: SupabaseOrder[];
+  products: Product[];
   isDark: boolean;
   onSave: (id: string, changes: { client_type?: ClientType; default_margin?: number }) => Promise<void>;
   onBack: () => void;
+  onRefreshOrders?: () => Promise<void> | void;
 }) {
   const dk = (d: string, l: string) => isDark ? d : l;
   const { formatPrice } = useCurrency();
@@ -224,16 +272,30 @@ function ClientDetail({
   const [editAssignedSeller, setEditAssignedSeller] = useState<string>(
     ((client as unknown as Record<string, unknown>).assigned_seller_id as string) ?? ""
   );
-  const [sellers, setSellers] = useState<Array<{ id: string; contact_name: string }>>([]);
+  const [sellers, setSellers] = useState<ExecutiveOption[]>([]);
+  const [savingExecutive, setSavingExecutive] = useState(false);
+  const [showCreateOrder, setShowCreateOrder] = useState(false);
+  const [showCreateQuote, setShowCreateQuote] = useState(false);
+  const noteTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     supabase
       .from("profiles")
-      .select("id, contact_name")
-      .in("role", ["admin", "vendedor"])
+      .select("id, contact_name, role, email, active")
+      .in("role", ["sales", "vendedor"])
+      .eq("active", true)
       .order("contact_name")
       .then(({ data }) => {
-        if (data) setSellers(data as Array<{ id: string; contact_name: string }>);
+        if (data) {
+          setSellers(
+            (data as Array<{ id: string; contact_name: string; role?: string; email?: string | null }>).map((seller) => ({
+              id: seller.id,
+              name: seller.contact_name || "Sin nombre",
+              role: "Sales",
+              email: seller.email ?? null,
+            })),
+          );
+        }
       });
   }, []);
   const { isAdmin, isSeller } = useAuth();
@@ -248,10 +310,21 @@ function ClientDetail({
   const [movements,  setMovements]  = useState<AccountMovement[]>([]);
   const [invoices,   setInvoices]   = useState<Invoice[]>([]);
   const [notes,      setNotes]      = useState<ClientNote[]>([]);
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [rmaRequests, setRmaRequests] = useState<ClientRma[]>([]);
   const [noteBody,   setNoteBody]   = useState("");
   const [noteType,   setNoteType]   = useState<ClientNote["tipo"]>("nota");
   const [savingNote, setSavingNote] = useState(false);
   const [tabLoading, setTabLoading] = useState(false);
+
+  async function loadQuotes() {
+    const { data } = await supabase
+      .from("quotes")
+      .select("*")
+      .eq("client_id", client.id)
+      .order("created_at", { ascending: false });
+    if (data) setQuotes(data as Quote[]);
+  }
 
   // reset tabs when client changes
   useEffect(() => {
@@ -260,17 +333,17 @@ function ClientDetail({
     setMovements([]);
     setInvoices([]);
     setNotes([]);
+    setSupportTickets([]);
+    setRmaRequests([]);
     setNoteBody("");
     setNoteType("nota");
+    setEditPartnerLevel(client.partner_level ?? "cliente");
+    setEditAssignedSeller(client.assigned_seller_id ?? "");
+    setEditing(false);
   }, [client.id]);
 
   useEffect(() => {
-    supabase
-      .from("quotes")
-      .select("*")
-      .eq("client_id", client.id)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => { if (data) setQuotes(data as Quote[]); });
+    void loadQuotes();
 
     supabase
       .from("activity_logs")
@@ -286,22 +359,32 @@ function ClientDetail({
     const shouldFetchMovements = force || movements.length === 0;
     const shouldFetchInvoices = force || invoices.length === 0;
     const shouldFetchNotes = force || notes.length === 0;
+    const shouldFetchSupport = force || supportTickets.length === 0;
+    const shouldFetchRmas = force || rmaRequests.length === 0;
 
-    if (!shouldFetchProfile && !shouldFetchMovements && !shouldFetchInvoices && !shouldFetchNotes) return;
+    if (!shouldFetchProfile && !shouldFetchMovements && !shouldFetchInvoices && !shouldFetchNotes && !shouldFetchSupport && !shouldFetchRmas) return;
 
     setTabLoading(true);
     try {
-      const [profileData, movementData, invoiceData, noteData] = await Promise.all([
+      const [profileData, movementData, invoiceData, noteData, supportData, rmaData] = await Promise.all([
         shouldFetchProfile ? fetchClientProfile(client.id).catch(() => null) : Promise.resolve(extProfile),
         shouldFetchMovements ? fetchAccountMovements(client.id).catch(() => []) : Promise.resolve(movements),
         shouldFetchInvoices ? fetchClientInvoices(client.id).catch(() => []) : Promise.resolve(invoices),
         shouldFetchNotes ? fetchClientNotes(client.id).catch(() => []) : Promise.resolve(notes),
+        shouldFetchSupport ? fetchClientSupportTickets(client.id).catch(() => []) : Promise.resolve(supportTickets),
+        shouldFetchRmas ? fetchClientRmas(client.id).catch(() => []) : Promise.resolve(rmaRequests),
       ]);
 
       if (profileData) setExtProfile(profileData);
+      if (profileData) {
+        setEditPartnerLevel(profileData.partner_level ?? "cliente");
+        setEditAssignedSeller(profileData.assigned_seller_id ?? "");
+      }
       setMovements(movementData);
       setInvoices(invoiceData);
       setNotes(noteData);
+      setSupportTickets(supportData);
+      setRmaRequests(rmaData);
     } finally {
       setTabLoading(false);
     }
@@ -313,18 +396,26 @@ function ClientDetail({
     async function preloadOverview() {
       setTabLoading(true);
       try {
-        const [profileData, movementData, invoiceData, noteData] = await Promise.all([
+        const [profileData, movementData, invoiceData, noteData, supportData, rmaData] = await Promise.all([
           fetchClientProfile(client.id).catch(() => null),
           fetchAccountMovements(client.id).catch(() => []),
           fetchClientInvoices(client.id).catch(() => []),
           fetchClientNotes(client.id).catch(() => []),
+          fetchClientSupportTickets(client.id).catch(() => []),
+          fetchClientRmas(client.id).catch(() => []),
         ]);
 
         if (cancelled) return;
-        if (profileData) setExtProfile(profileData);
+        if (profileData) {
+          setExtProfile(profileData);
+          setEditPartnerLevel(profileData.partner_level ?? "cliente");
+          setEditAssignedSeller(profileData.assigned_seller_id ?? "");
+        }
         setMovements(movementData);
         setInvoices(invoiceData);
         setNotes(noteData);
+        setSupportTickets(supportData);
+        setRmaRequests(rmaData);
       } finally {
         if (!cancelled) setTabLoading(false);
       }
@@ -428,6 +519,11 @@ function ClientDetail({
         assigned_seller_id: editAssignedSeller || null,
       })
       .eq("id", client.id);
+    setExtProfile((prev) => (
+      prev
+        ? { ...prev, partner_level: editPartnerLevel, assigned_seller_id: editAssignedSeller || undefined }
+        : prev
+    ));
     setSaving(false);
     setEditing(false);
   }
@@ -454,6 +550,11 @@ function ClientDetail({
     try {
       await addClientNote(client.id, trimmed, noteType);
       setNotes(await fetchClientNotes(client.id));
+      try {
+        setExtProfile(await fetchClientProfile(client.id));
+      } catch {
+        // ignore profile refresh error
+      }
       setNoteBody("");
       setNoteType("nota");
     } finally {
@@ -461,171 +562,586 @@ function ClientDetail({
     }
   }
 
+  async function handleSaveExecutive() {
+    setSavingExecutive(true);
+    try {
+      await supabase
+        .from("profiles")
+        .update({ assigned_seller_id: editAssignedSeller || null })
+        .eq("id", client.id);
+      setExtProfile((prev) => (prev ? { ...prev, assigned_seller_id: editAssignedSeller || undefined } : prev));
+    } finally {
+      setSavingExecutive(false);
+    }
+  }
+
+  function focusNoteComposer(nextType?: ClientNote["tipo"]) {
+    setActiveTab("vista360");
+    if (nextType) setNoteType(nextType);
+    requestAnimationFrame(() => {
+      noteTextareaRef.current?.focus();
+    });
+  }
+
+  function handleQuickCreateOrder() {
+    setShowCreateOrder(true);
+  }
+
+  function handleQuickCreateQuote() {
+    setShowCreateQuote(true);
+  }
+
+  const approvedOrders = useMemo(
+    () => clientOrders.filter((order) => order.status === "approved"),
+    [clientOrders],
+  );
+
+  const latestOrder = approvedOrders[0] ?? clientOrders[0] ?? null;
+  const firstOrder = approvedOrders[approvedOrders.length - 1] ?? clientOrders[clientOrders.length - 1] ?? null;
+
+  const monthlyVolume = useMemo(() => {
+    const limit = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    return approvedOrders
+      .filter((order) => new Date(order.created_at).getTime() >= limit)
+      .reduce((sum, order) => sum + order.total, 0);
+  }, [approvedOrders]);
+
+  const previousMonthlyVolume = useMemo(() => {
+    const now = Date.now();
+    const start = now - 60 * 24 * 60 * 60 * 1000;
+    const end = now - 30 * 24 * 60 * 60 * 1000;
+    return approvedOrders
+      .filter((order) => {
+        const createdAt = new Date(order.created_at).getTime();
+        return createdAt >= start && createdAt < end;
+      })
+      .reduce((sum, order) => sum + order.total, 0);
+  }, [approvedOrders]);
+
+  const purchaseVariation = previousMonthlyVolume > 0
+    ? ((monthlyVolume - previousMonthlyVolume) / previousMonthlyVolume) * 100
+    : monthlyVolume > 0 ? 100 : 0;
+  const averageTicket = approvedOrders.length > 0 ? totalSpent / approvedOrders.length : 0;
+  const creditUsagePct = extProfile?.credit_limit ? ((extProfile.credit_used ?? 0) / extProfile.credit_limit) * 100 : 0;
+  const daysSinceLastOrder = diffDaysFromNow(latestOrder?.created_at);
+
+  const productInsights = useMemo(() => {
+    const productMap = new Map<string, { quantity: number; revenue: number; lastOrderedAt: string; orders: number }>();
+    approvedOrders.forEach((order) => {
+      order.products?.forEach((product) => {
+        const key = product.name?.trim();
+        if (!key) return;
+        const current = productMap.get(key);
+        const revenue = product.total_price ?? 0;
+        if (!current) {
+          productMap.set(key, {
+            quantity: product.quantity,
+            revenue,
+            lastOrderedAt: order.created_at,
+            orders: 1,
+          });
+          return;
+        }
+        productMap.set(key, {
+          quantity: current.quantity + product.quantity,
+          revenue: current.revenue + revenue,
+          lastOrderedAt: new Date(order.created_at) > new Date(current.lastOrderedAt) ? order.created_at : current.lastOrderedAt,
+          orders: current.orders + 1,
+        });
+      });
+    });
+    return Array.from(productMap.entries()).map(([name, value]) => ({
+      name,
+      ...value,
+    }));
+  }, [approvedOrders]);
+
+  const frequentProducts: ProductInsight[] = productInsights
+    .sort((a, b) => b.quantity - a.quantity)
+    .slice(0, 5)
+    .map((product) => ({
+      name: product.name,
+      detail: `${product.quantity} unidades en ${product.orders} pedidos · ultima compra ${fmtRelativeDate(product.lastOrderedAt)}`,
+      value: formatPrice(product.revenue),
+    }));
+
+  const reorderSuggestions: ProductInsight[] = productInsights
+    .filter((product) => diffDaysFromNow(product.lastOrderedAt) >= 45)
+    .sort((a, b) => diffDaysFromNow(b.lastOrderedAt) - diffDaysFromNow(a.lastOrderedAt))
+    .slice(0, 4)
+    .map((product) => ({
+      name: product.name,
+      detail: `No compra hace ${diffDaysFromNow(product.lastOrderedAt)} dias · ${product.quantity} unidades historicas`,
+      value: formatPrice(product.revenue),
+    }));
+
+  const openQuotes = quotes.filter((quote) => ["draft", "sent", "viewed"].includes(quote.status));
+  const activeTickets = supportTickets.filter((ticket) => ["open", "in_analysis", "waiting_customer"].includes(ticket.status));
+  const activeRmas = rmaRequests.filter((rma) => ["submitted", "reviewing", "approved"].includes(rma.status));
+
+  const lastContactAt = extProfile?.last_contact_at;
+  const daysSinceLastContact = diffDaysFromNow(lastContactAt);
+  const currentExecutiveId = extProfile?.assigned_seller_id ?? client.assigned_seller_id ?? "";
+  const selectedExecutive = sellers.find((seller) => seller.id === (editAssignedSeller || currentExecutiveId)) ?? null;
+  const executiveName = selectedExecutive?.name ?? "Sin ejecutivo asignado";
+  const executiveDirty = (editAssignedSeller || "") !== (currentExecutiveId || "");
+  const currentPartnerLevel = extProfile?.partner_level ?? client.partner_level;
+
+  const commercialScore = useMemo(() => {
+    let score = 50;
+
+    if (client.client_type === "mayorista") score += 8;
+    if (client.client_type === "reseller") score += 5;
+    if (client.client_type === "empresa") score += 3;
+
+    if (currentPartnerLevel === "silver") score += 4;
+    if (currentPartnerLevel === "gold") score += 8;
+    if (currentPartnerLevel === "platinum") score += 12;
+
+    const segmentMarginTargets: Record<ClientType, { min: number; max: number }> = {
+      mayorista: { min: 7, max: 14 },
+      reseller: { min: 12, max: 24 },
+      empresa: { min: 10, max: 20 },
+    };
+    const target = segmentMarginTargets[client.client_type];
+    if (client.default_margin < target.min) score -= 8;
+    else if (client.default_margin > target.max) score -= 5;
+    else score += 6;
+
+    if (approvedOrders.length >= 3) score += 8;
+    if (monthlyVolume > 0) score += 6;
+    if (purchaseVariation >= 20) score += 8;
+    if (purchaseVariation <= -20) score -= 14;
+    if (daysSinceLastOrder >= 60) score -= 16;
+    if (daysSinceLastOrder >= 90) score -= 8;
+
+    if (overdueInvoices.length > 0) score -= Math.min(28, overdueInvoices.length * 10);
+    if (creditUsagePct >= 90) score -= 18;
+    else if (creditUsagePct >= 75) score -= 10;
+    else if (creditUsagePct <= 45) score += 5;
+
+    if (openDebt > 0 && overdueInvoices.length === 0) score -= 4;
+    if (activeTickets.length > 0) score -= Math.min(10, activeTickets.length * 3);
+    if (activeRmas.length > 0) score -= Math.min(8, activeRmas.length * 3);
+    if (daysSinceLastContact >= 21) score -= 10;
+    else if (daysSinceLastContact <= 7) score += 5;
+
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }, [
+    activeRmas.length,
+    activeTickets.length,
+    approvedOrders.length,
+    client.client_type,
+    client.default_margin,
+    creditUsagePct,
+    currentPartnerLevel,
+    daysSinceLastContact,
+    daysSinceLastOrder,
+    monthlyVolume,
+    openDebt,
+    overdueInvoices.length,
+    purchaseVariation,
+  ]);
+
+  const commercialScoreBand = commercialScore >= 80
+    ? { label: "Score alto", tone: "success" as const }
+    : commercialScore >= 60
+      ? { label: "Score estable", tone: "outline" as const }
+      : commercialScore >= 40
+        ? { label: "Score en observacion", tone: "warning" as const }
+        : { label: "Score critico", tone: "destructive" as const };
+
+  const commercialStatus = useMemo(() => {
+    if (commercialScore < 40 || overdueInvoices.length > 0 || creditUsagePct >= 85 || daysSinceLastOrder >= 75 || purchaseVariation <= -35) {
+      return { label: "Riesgo", tone: "destructive" as const };
+    }
+    if (commercialScore >= 75 || openQuotes.length > 0 || purchaseVariation >= 20 || (approvedOrders.length === 0 && quotes.length > 0)) {
+      return { label: "Oportunidad", tone: "warning" as const };
+    }
+    return { label: "Activo", tone: "success" as const };
+  }, [approvedOrders.length, commercialScore, creditUsagePct, daysSinceLastOrder, openQuotes.length, overdueInvoices.length, purchaseVariation, quotes.length]);
+
+  const clientTags: Client360Tag[] = [
+    ...(currentPartnerLevel && currentPartnerLevel !== "cliente"
+      ? [{ label: currentPartnerLevel.toUpperCase(), tone: "outline" as const }]
+      : []),
+    ...(commercialStatus.label === "Riesgo" ? [{ label: "Riesgo", tone: "destructive" as const }] : []),
+    ...(commercialStatus.label === "Oportunidad" ? [{ label: "Oportunidad", tone: "warning" as const }] : []),
+    [{ label: `${commercialScore}/100`, tone: commercialScoreBand.tone }],
+    ...(firstOrder && diffDaysFromNow(firstOrder.created_at) <= 45 ? [{ label: "Nuevo", tone: "success" as const }] : []),
+    ...(!currentExecutiveId ? [{ label: "Sin responsable", tone: "muted" as const }] : []),
+  ].flat();
+
+  const businessMetrics: Client360Metric[] = [
+    {
+      id: "credit-available",
+      label: "Credito disponible",
+      value: formatPrice(availableCredit),
+      detail: extProfile ? `${Math.max(0, 100 - creditUsagePct).toFixed(0)}% del limite libre` : "Cargando perfil financiero",
+    },
+    {
+      id: "credit-used",
+      label: "Credito usado",
+      value: formatPrice(extProfile?.credit_used ?? 0),
+      detail: extProfile ? `${creditUsagePct.toFixed(0)}% utilizado` : "Sin datos de credito",
+    },
+    {
+      id: "last-order",
+      label: "Ultimo pedido",
+      value: latestOrder ? formatPrice(latestOrder.total) : "Sin pedidos",
+      detail: latestOrder ? `${fmtRelativeDate(latestOrder.created_at)} · ${latestOrder.status}` : "La cuenta aun no compra",
+    },
+    {
+      id: "monthly-volume",
+      label: "Volumen 30 dias",
+      value: formatPrice(monthlyVolume),
+      detail: previousMonthlyVolume > 0 ? `Periodo previo ${formatPrice(previousMonthlyVolume)}` : "Sin base comparativa",
+    },
+    {
+      id: "purchase-variation",
+      label: "Variacion compra",
+      value: `${purchaseVariation >= 0 ? "+" : ""}${purchaseVariation.toFixed(0)}%`,
+      detail: daysSinceLastOrder < Number.POSITIVE_INFINITY ? `Ultima compra hace ${daysSinceLastOrder} dias` : "Sin compras registradas",
+    },
+    {
+      id: "avg-ticket",
+      label: "Ticket promedio",
+      value: averageTicket > 0 ? formatPrice(averageTicket) : "Sin ticket",
+      detail: approvedOrders.length > 0 ? `${approvedOrders.length} pedidos aprobados` : "Sin pedidos aprobados",
+    },
+  ];
+
+  const businessAlerts: Client360Alert[] = [
+    {
+      title: commercialStatus.label,
+      description:
+        commercialStatus.label === "Riesgo"
+          ? "La cuenta necesita accion comercial inmediata por caida de compra, deuda vencida o uso alto de credito."
+          : commercialStatus.label === "Oportunidad"
+            ? "Hay señales para empujar cierre o crecimiento: cotizaciones abiertas, actividad reciente o mejora de consumo."
+            : "La cuenta compra con ritmo estable y no muestra alertas criticas inmediatas.",
+      tone: commercialStatus.tone,
+    },
+    {
+      title: overdueInvoices.length > 0 ? "Alerta de cobranza" : "Estado financiero",
+      description:
+        overdueInvoices.length > 0
+          ? `${overdueInvoices.length} factura(s) vencida(s). Proximo vencimiento ${nextDueDate ? fmtDate(nextDueDate) : "sin fecha"}.`
+          : `Limite ${formatPrice(extProfile?.credit_limit ?? 0)} · usado ${formatPrice(extProfile?.credit_used ?? 0)} · disponible ${formatPrice(availableCredit)}.`,
+      tone: overdueInvoices.length > 0 ? "destructive" : "outline",
+    },
+    {
+      title: purchaseVariation <= -20 ? "Caida de compras" : purchaseVariation >= 20 ? "Cliente en crecimiento" : "Compra estable",
+      description:
+        purchaseVariation <= -20
+          ? `El volumen de los ultimos 30 dias cae ${Math.abs(purchaseVariation).toFixed(0)}% respecto al periodo anterior.`
+          : purchaseVariation >= 20
+            ? `La cuenta crece ${purchaseVariation.toFixed(0)}% y conviene trabajar expansion de mix o recompra.`
+            : "La variacion de compra se mantiene en rango normal para la cuenta.",
+      tone: purchaseVariation <= -20 ? "warning" : purchaseVariation >= 20 ? "success" : "muted",
+    },
+    {
+      title: activeTickets.length > 0 || activeRmas.length > 0 ? "Soporte abierto" : "Sin friccion operativa",
+      description:
+        activeTickets.length > 0 || activeRmas.length > 0
+          ? `${activeTickets.length} ticket(s) activos y ${activeRmas.length} RMA(s) en curso pueden impactar la renovacion o recompra.`
+          : "No hay tickets ni RMAs abiertos que comprometan el vinculo comercial.",
+      tone: activeTickets.length > 0 || activeRmas.length > 0 ? "warning" : "success",
+    },
+  ];
+
+  const priorityActions: PriorityAction[] = [
+    ...(!currentExecutiveId ? [{
+      title: "Asignar ejecutivo",
+      description: "La cuenta no tiene responsable visible. Definilo para ordenar seguimiento y ownership comercial.",
+      tone: "warning" as const,
+    }] : []),
+    ...(overdueInvoices.length > 0 ? [{
+      title: "Resolver deuda vencida",
+      description: `${overdueInvoices.length} factura(s) vencida(s) pueden bloquear compra y erosionar margen de negociacion.`,
+      tone: "destructive" as const,
+    }] : []),
+    ...(creditUsagePct >= 85 ? [{
+      title: "Revisar limite de credito",
+      description: `El cliente consumio ${creditUsagePct.toFixed(0)}% del limite disponible.`,
+      tone: "warning" as const,
+    }] : []),
+    ...(openQuotes.length > 0 ? [{
+      title: "Empujar cotizacion abierta",
+      description: `${openQuotes.length} cotizacion(es) en curso necesitan follow-up para cierre.`,
+      tone: "success" as const,
+    }] : []),
+    ...(daysSinceLastContact >= 14 ? [{
+      title: "Registrar contacto comercial",
+      description: `No hay interaccion visible hace ${daysSinceLastContact} dias. Conviene retomar contacto.`,
+      tone: "warning" as const,
+    }] : []),
+    ...(reorderSuggestions.length > 0 ? [{
+      title: "Ofrecer recompra sugerida",
+      description: `${reorderSuggestions.length} SKU(s) muestran ventana de recompra o reposicion comercial.`,
+      tone: "outline" as const,
+    }] : []),
+  ].slice(0, 5);
+
+  const supportSummary: SupportSummary = useMemo(() => {
+    const priorityRank = { urgent: 0, high: 1, medium: 2, low: 3 } as const;
+    const slaTargets = { urgent: 4, high: 8, medium: 24, low: 48 } as const;
+    const sortedActive = [...activeTickets].sort((a, b) => {
+      const rankDiff = priorityRank[a.priority] - priorityRank[b.priority];
+      if (rankDiff !== 0) return rankDiff;
+      return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+    });
+    const critical = sortedActive[0];
+    if (!critical) {
+      return {
+        openTickets: 0,
+        activeRmas: activeRmas.length,
+        slaLabel: "Sin casos abiertos",
+        slaTone: "success",
+      };
+    }
+    const elapsedHours = (Date.now() - new Date(critical.updated_at).getTime()) / (1000 * 60 * 60);
+    const target = slaTargets[critical.priority];
+    const healthy = elapsedHours <= target;
+    return {
+      openTickets: activeTickets.length,
+      activeRmas: activeRmas.length,
+      slaLabel: healthy ? `En SLA · ${critical.priority}` : `Comprometido · ${critical.priority}`,
+      slaTone: healthy ? "success" : elapsedHours <= target * 1.5 ? "warning" : "destructive",
+      latestSubject: critical.subject,
+      latestUpdatedLabel: `Actualizado ${fmtRelativeDate(critical.updated_at)}`,
+    };
+  }, [activeRmas.length, activeTickets]);
+
+  const timelineItems: TimelineItem[] = useMemo(() => {
+    const items: TimelineItem[] = [
+      ...clientOrders.map((order) => ({
+        id: `order-${order.id}`,
+        kind: "pedido" as const,
+        title: `${order.status === "approved" ? "Pedido aprobado" : "Pedido registrado"} ${order.order_number || `#${String(order.id).slice(-6).toUpperCase()}`}`,
+        detail: `${order.products?.length ?? 0} producto(s) · ${formatPrice(order.total)}`,
+        at: order.created_at,
+        relative: fmtRelativeDate(order.created_at),
+        tone: (order.status === "approved" ? "success" : "outline") as TimelineItem["tone"],
+      })),
+      ...quotes.map((quote) => ({
+        id: `quote-${quote.id}`,
+        kind: "cotizacion" as const,
+        title: `Cotizacion ${quote.status} COT-${String(quote.id).padStart(4, "0")}`,
+        detail: `${quote.currency} · ${formatPrice(quote.total)}`,
+        at: quote.updated_at ?? quote.created_at,
+        relative: fmtRelativeDate(quote.updated_at ?? quote.created_at),
+        tone: (
+          quote.status === "approved" || quote.status === "converted"
+            ? "success"
+            : quote.status === "rejected" || quote.status === "expired"
+              ? "destructive"
+              : "warning"
+        ) as TimelineItem["tone"],
+      })),
+      ...notes.map((note) => ({
+        id: `note-${note.id}`,
+        kind: "nota" as const,
+        title: `${note.tipo.charAt(0).toUpperCase()}${note.tipo.slice(1)} registrada`,
+        detail: note.body,
+        at: note.created_at,
+        relative: fmtRelativeDate(note.created_at),
+        tone: (note.tipo === "alerta" ? "warning" : "outline") as TimelineItem["tone"],
+      })),
+      ...activityLogs.map((log) => ({
+        id: `activity-${log.id}`,
+        kind: "actividad" as const,
+        title: (ACTION_CONFIG[log.action]?.label ?? log.action).replace(/^\w/, (char) => char.toUpperCase()),
+        detail: typeof log.metadata?.name === "string" ? log.metadata.name : "Interaccion registrada en la cuenta",
+        at: log.created_at,
+        relative: fmtRelativeDate(log.created_at),
+        tone: "muted" as const,
+      })),
+      ...supportTickets.map((ticket) => ({
+        id: `ticket-${ticket.id}`,
+        kind: "ticket" as const,
+        title: `Ticket ${ticket.status}: ${ticket.subject}`,
+        detail: `${ticket.priority} · ${ticket.category}`,
+        at: ticket.updated_at,
+        relative: fmtRelativeDate(ticket.updated_at),
+        tone: (ticket.status === "resolved" || ticket.status === "closed" ? "success" : "warning") as TimelineItem["tone"],
+      })),
+      ...rmaRequests.map((rma) => ({
+        id: `rma-${rma.id}`,
+        kind: "rma" as const,
+        title: `RMA ${rma.status}: ${rma.rma_number}`,
+        detail: rma.description || "Solicitud de postventa",
+        at: rma.updated_at,
+        relative: fmtRelativeDate(rma.updated_at),
+        tone: (rma.status === "resolved" ? "success" : rma.status === "rejected" ? "destructive" : "warning") as TimelineItem["tone"],
+      })),
+    ];
+    return items
+      .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+      .slice(0, 12);
+  }, [activityLogs, clientOrders, formatPrice, notes, quotes, rmaRequests, supportTickets]);
+
+  const identityFields = [
+    { label: "Empresa", value: client.company_name || "Sin empresa" },
+    { label: "Contacto principal", value: client.contact_name || "Sin contacto" },
+    { label: "Estado de cuenta", value: extProfile?.estado || (client.active === false ? "inactivo" : "activo") },
+    { label: "Razon social", value: extProfile?.razon_social || "No registrada" },
+    { label: "CUIT", value: extProfile?.cuit || "No registrado" },
+    { label: "Condiciones comerciales", value: extProfile ? `${extProfile.precio_lista || "standard"} · ${extProfile.payment_terms || 0} dias` : `${CLIENT_TYPE_LABELS[client.client_type]} · ${client.default_margin}%` },
+  ];
+
+  const locationLabel = [extProfile?.direccion, extProfile?.ciudad, extProfile?.provincia].filter(Boolean).join(" · ") || undefined;
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-2 pb-2">
 
-      {/* Header */}
-      <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-5`}>
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div className="flex items-center gap-3">
-            <button onClick={onBack} className={`md:hidden transition p-1 ${dk("text-[#737373] hover:text-white", "text-[#737373] hover:text-[#171717]")}`}>
-              <ArrowLeft size={16} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3">
+          <button onClick={onBack} className={`md:hidden transition p-1 ${dk("text-[#737373] hover:text-white", "text-[#737373] hover:text-[#171717]")}`}>
+            <ArrowLeft size={16} />
+          </button>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Cliente seleccionado</p>
+            <p className={`text-[13px] font-medium ${dk("text-white", "text-[#171717]")}`}>{client.company_name || client.contact_name || "Sin empresa"}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {(isAdmin || isSeller) && (
+            <button
+              onClick={() => isCurrentImpersonated ? stopImpersonation() : startImpersonation(client.id)}
+              className={`flex items-center gap-1.5 text-[11px] font-bold transition px-2.5 py-1.5 rounded-lg border ${
+                isCurrentImpersonated
+                  ? "bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20"
+                  : "bg-[#2D9F6A]/10 border-[#2D9F6A]/20 text-[#2D9F6A] hover:bg-[#2D9F6A]/20"
+              }`}
+            >
+              {isCurrentImpersonated ? <LogOut size={11} /> : <LogIn size={11} />}
+              {isCurrentImpersonated ? "Detener soporte" : "Acceder como cliente"}
             </button>
-            <Avatar client={client} size="lg" />
-            <div>
-              <h2 className={`text-base font-bold leading-tight ${dk("text-white", "text-[#171717]")}`}>
-                {client.company_name || "Sin empresa"}
-              </h2>
-              <p className="text-xs text-[#737373] mt-0.5">{client.contact_name || "-"}</p>
-              {client.phone && (
-                <p className="text-xs text-[#525252] mt-0.5 font-mono">{client.phone}</p>
-              )}
-              <div className="flex items-center gap-2 mt-1.5">
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${CLIENT_TYPE_STYLES[client.client_type]}`}>
-                  {CLIENT_TYPE_LABELS[client.client_type]}
-                </span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
-                  client.role === "admin"
-                    ? "bg-[#2D9F6A]/15 text-[#2D9F6A] border-[#2D9F6A]/30"
-                    : dk("bg-[#1f1f1f] text-[#525252] border-[#2a2a2a]", "bg-[#f0f0f0] text-[#737373] border-[#e0e0e0]")
-                }`}>
-                  {client.role === "admin" ? "Admin" : "Cliente"}
-                </span>
-              </div>
-            </div>
-          </div>
-
-            <div className="flex items-center gap-2">
-              {(isAdmin || isSeller) && (
-                <button
-                  onClick={() => isCurrentImpersonated ? stopImpersonation() : startImpersonation(client.id)}
-                  className={`flex items-center gap-1.5 text-xs font-bold transition px-3 py-1.5 rounded-lg border ${
-                    isCurrentImpersonated
-                      ? "bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20"
-                      : "bg-[#2D9F6A]/10 border-[#2D9F6A]/20 text-[#2D9F6A] hover:bg-[#2D9F6A]/20"
-                  }`}
-                >
-                  {isCurrentImpersonated ? <LogOut size={11} /> : <LogIn size={11} />}
-                  {isCurrentImpersonated ? "Detener soporte" : "Acceder como cliente"}
-                </button>
-              )}
-              {!editing && (
-                <button
-                  onClick={() => { setEditing(true); setEditType(client.client_type); setEditMargin(String(client.default_margin)); }}
-                  className={`flex items-center gap-1.5 text-xs transition px-3 py-1.5 rounded-lg ${
-                    dk("text-[#737373] hover:text-white border border-[#1f1f1f] hover:border-[#2a2a2a]",
-                       "text-[#737373] hover:text-[#171717] border border-[#e5e5e5] hover:border-[#d4d4d4]")
-                  }`}
-                >
-                  <Pencil size={11} /> Editar
-                </button>
-              )}
-            </div>
+          )}
+          {!editing && (
+            <button
+              onClick={() => { setEditing(true); setEditType(client.client_type); setEditMargin(String(client.default_margin)); }}
+              className={`flex items-center gap-1.5 text-[11px] transition px-2.5 py-1.5 rounded-lg ${
+                dk("text-[#737373] hover:text-white border border-[#1f1f1f] hover:border-[#2a2a2a]",
+                   "text-[#737373] hover:text-[#171717] border border-[#e5e5e5] hover:border-[#d4d4d4]")
+              }`}
+            >
+              <Pencil size={11} /> Editar datos
+            </button>
+          )}
         </div>
-
-        <div className="flex flex-wrap gap-4 text-xs text-[#737373]">
-          <span className="flex items-center gap-1.5">
-            <Mail size={11} className="text-[#525252]" />
-            ID: {client.id.slice(0, 12)}...
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Percent size={11} className="text-[#525252]" />
-            Margen: <strong className="text-[#2D9F6A]">{client.default_margin}%</strong>
-          </span>
-        </div>
-
-        {editing && (
-          <div className={`mt-4 pt-4 border-t ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
-            <div className="flex flex-wrap gap-4 items-end">
-              <div>
-                <label className="text-[10px] text-gray-500 mb-1 block font-semibold uppercase tracking-widest">Tipo de cliente</label>
-                <div className="flex gap-1.5">
-                  {(Object.keys(CLIENT_TYPE_LABELS) as ClientType[]).map((t) => (
-                    <button
-                      key={t} type="button"
-                      onClick={() => handleTypeChange(t)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
-                        editType === t
-                          ? "bg-[#2D9F6A] border-[#2D9F6A] text-white"
-                          : dk("bg-[#141414] border-[#262626] text-[#737373] hover:border-[#404040]",
-                               "bg-[#f0f0f0] border-[#d4d4d4] text-[#737373] hover:border-[#999]")
-                      }`}
-                    >
-                      {CLIENT_TYPE_LABELS[t]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="text-[10px] text-gray-500 mb-1 block font-semibold uppercase tracking-widest">Margen %</label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="number" min="0" max="100"
-                    value={editMargin}
-                    onChange={(e) => setEditMargin(e.target.value)}
-                    className={`w-20 border rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[#2D9F6A] text-center font-mono transition ${
-                      dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")
-                    }`}
-                  />
-                  <span className="text-sm text-[#737373]">%</span>
-                </div>
-              </div>
-              <div>
-                <label className="text-[10px] text-gray-500 mb-1 block font-semibold uppercase tracking-widest">Nivel Partner</label>
-                <select
-                  value={editPartnerLevel}
-                  onChange={e => setEditPartnerLevel(e.target.value as PartnerLevel)}
-                  className={`border rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[#2D9F6A] transition ${
-                    dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")
-                  }`}
-                >
-                  <option value="cliente">Cliente</option>
-                  <option value="silver">Silver</option>
-                  <option value="gold">Gold</option>
-                  <option value="platinum">Platinum</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] text-gray-500 mb-1 block font-semibold uppercase tracking-widest">Vendedor asignado</label>
-                <select
-                  value={editAssignedSeller}
-                  onChange={e => setEditAssignedSeller(e.target.value)}
-                  className={`border rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[#2D9F6A] transition ${
-                    dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")
-                  }`}
-                >
-                  <option value="">Sin asignar</option>
-                  {sellers.map(s => (
-                    <option key={s.id} value={s.id}>{s.contact_name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleSave} disabled={saving}
-                  className="flex items-center gap-1.5 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-xs font-bold px-3 py-1.5 rounded-lg transition disabled:opacity-50"
-                >
-                  <Save size={12} /> {saving ? "Guardando..." : "Guardar"}
-                </button>
-                <button
-                  onClick={() => setEditing(false)}
-                  className={`text-xs transition px-3 py-1.5 rounded-lg ${dk("text-[#737373] hover:text-white hover:bg-[#1a1a1a]", "text-[#737373] hover:text-[#171717] hover:bg-[#f0f0f0]")}`}
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
+      <Client360Header
+        accountName={client.company_name || "Sin empresa"}
+        contactName={client.contact_name || "Sin contacto principal"}
+        segmentLabel={CLIENT_TYPE_LABELS[client.client_type]}
+        marginLabel={`${client.default_margin}%`}
+        scoreLabel={`${commercialScore}/100`}
+        scoreTone={commercialScoreBand.tone}
+        lastContactLabel={fmtRelativeDate(lastContactAt)}
+        commercialStatusLabel={commercialStatus.label}
+        commercialStatusTone={commercialStatus.tone}
+        tags={clientTags}
+        executiveOptions={sellers}
+        selectedExecutiveId={editAssignedSeller}
+        onExecutiveChange={setEditAssignedSeller}
+        onSaveExecutive={() => void handleSaveExecutive()}
+        executiveDirty={executiveDirty}
+        savingExecutive={savingExecutive}
+        onQuickCreateOrder={handleQuickCreateOrder}
+        onQuickCreateQuote={handleQuickCreateQuote}
+        onQuickAddNote={() => focusNoteComposer("nota")}
+        onQuickRegisterContact={() => focusNoteComposer("llamada")}
+      />
+
+      {editing && (
+        <SurfaceCard tone="subtle" padding="lg" className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Ajustes comerciales</p>
+              <h3 className="font-display text-2xl font-semibold tracking-tight text-foreground">Datos editables de la cuenta</h3>
+            </div>
+          </div>
+          <div className="grid gap-3 xl:grid-cols-4">
+            <div className="space-y-2 xl:col-span-2">
+              <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Tipo de cliente</label>
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(CLIENT_TYPE_LABELS) as ClientType[]).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => handleTypeChange(t)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
+                      editType === t
+                        ? "bg-[#2D9F6A] border-[#2D9F6A] text-white"
+                        : dk("bg-[#141414] border-[#262626] text-[#737373] hover:border-[#404040]",
+                             "bg-[#f0f0f0] border-[#d4d4d4] text-[#737373] hover:border-[#999]")
+                    }`}
+                  >
+                    {CLIENT_TYPE_LABELS[t]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Margen %</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={editMargin}
+                  onChange={(e) => setEditMargin(e.target.value)}
+                  className={`w-24 border rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[#2D9F6A] text-center font-mono transition ${
+                    dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")
+                  }`}
+                />
+                <span className="text-sm text-[#737373]">%</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Nivel partner</label>
+              <select
+                value={editPartnerLevel}
+                onChange={(e) => setEditPartnerLevel(e.target.value as PartnerLevel)}
+                className={`border rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[#2D9F6A] transition ${
+                  dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")
+                }`}
+              >
+                <option value="cliente">Cliente</option>
+                <option value="silver">Silver</option>
+                <option value="gold">Gold</option>
+                <option value="platinum">Platinum</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-1.5 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-xs font-bold px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+            >
+              <Save size={12} /> {saving ? "Guardando..." : "Guardar cambios"}
+            </button>
+            <button
+              onClick={() => setEditing(false)}
+              className={`text-xs transition px-3 py-1.5 rounded-lg ${dk("text-[#737373] hover:text-white hover:bg-[#1a1a1a]", "text-[#737373] hover:text-[#171717] hover:bg-[#f0f0f0]")}`}
+            >
+              Cancelar
+            </button>
+          </div>
+        </SurfaceCard>
+      )}
+
       {/* Tab nav */}
-      <div className={`flex gap-0.5 p-1 rounded-xl border ${dk("bg-[#0d0d0d] border-[#1f1f1f]", "bg-[#f5f5f5] border-[#e5e5e5]")}`}>
+      <div className={`flex gap-0.5 p-0.5 rounded-xl border ${dk("bg-[#0d0d0d] border-[#1f1f1f]", "bg-[#f5f5f5] border-[#e5e5e5]")}`}>
         {DETAIL_TABS.map(({ id: tid, label, icon: Icon }) => (
           <button
             key={tid}
             onClick={() => loadTab(tid)}
-            className={`flex-1 flex items-center justify-center gap-1.5 text-[11px] py-1.5 rounded-lg transition font-medium ${
+            className={`flex-1 flex items-center justify-center gap-1.5 text-[10px] py-1.5 rounded-lg transition font-medium ${
               activeTab === tid
                 ? "bg-[#2D9F6A] text-white"
                 : dk("text-[#737373] hover:text-white hover:bg-[#1a1a1a]", "text-[#737373] hover:text-[#171717] hover:bg-white")
@@ -638,205 +1154,45 @@ function ClientDetail({
       </div>
 
       {activeTab === "vista360" && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-            <StatPill icon={ShoppingBag} label="Compras" value={formatPrice(totalSpent)} accent="bg-[#2D9F6A]/15 text-[#2D9F6A]" isDark={isDark} />
-            <StatPill icon={CreditCard} label="Deuda abierta" value={formatPrice(openDebt)} accent="bg-red-500/15 text-red-400" isDark={isDark} />
-            <StatPill icon={Shield} label="Credito disponible" value={formatPrice(availableCredit)} accent="bg-blue-500/15 text-blue-400" isDark={isDark} />
-            <StatPill icon={AlertTriangle} label="Facturas vencidas" value={String(overdueInvoices.length)} accent="bg-amber-500/15 text-amber-400" isDark={isDark} />
-          </div>
-
-          <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-            <div className="space-y-4">
-              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-5`}>
-                <div className="flex items-center gap-2 mb-4">
-                  <Shield size={14} className="text-[#2D9F6A]" />
-                  <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Estado comercial</h3>
-                </div>
-                {tabLoading && !extProfile ? (
-                  <div className="py-8 text-center text-xs text-[#525252]">Cargando...</div>
-                ) : (
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    {[
-                      ["Estado", extProfile?.estado ?? "activo"],
-                      ["Dias netos", extProfile ? `${extProfile.payment_terms || 0} dias` : "-"],
-                      ["Limite de credito", extProfile ? formatPrice(extProfile.credit_limit || 0) : "-"],
-                      ["Credito usado", extProfile ? formatPrice(extProfile.credit_used || 0) : "-"],
-                      ["Max. por pedido", extProfile ? formatPrice(extProfile.max_order_value || 0) : "-"],
-                      ["Revision", extProfile?.credit_review_date ? fmtDate(extProfile.credit_review_date) : "Sin fecha"],
-                    ].map(([label, value]) => (
-                      <div key={label} className={`rounded-xl border px-4 py-3 ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
-                        <p className="text-[10px] uppercase tracking-widest text-[#525252] font-semibold">{label}</p>
-                        <p className={`text-sm font-semibold mt-1 ${dk("text-white", "text-[#171717]")}`}>{value}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl p-5`}>
-                <div className="flex items-center gap-2 mb-4">
-                  <Users size={14} className="text-blue-400" />
-                  <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Contactos y datos</h3>
-                </div>
-                <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                  {[
-                    ["Empresa", client.company_name || "Sin empresa"],
-                    ["Contacto", client.contact_name || "Sin nombre"],
-                    ["Email", client.email || extProfile?.email || "Sin email"],
-                    ["Telefono", client.phone || extProfile?.phone || "Sin telefono"],
-                    ["Razon social", extProfile?.razon_social || "No registrada"],
-                    ["CUIT", extProfile?.cuit || "No registrado"],
-                    ["Direccion", [extProfile?.direccion, extProfile?.ciudad, extProfile?.provincia].filter(Boolean).join(", ") || "Sin direccion"],
-                    ["Condiciones", extProfile ? `${extProfile.precio_lista || "standard"}  -  ${extProfile.payment_terms || 0} dias` : `${client.client_type}  -  ${client.default_margin}%`],
-                  ].map(([label, value]) => (
-                    <div key={label} className={`rounded-xl border px-4 py-3 ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
-                      <p className="text-[10px] uppercase tracking-widest text-[#525252] font-semibold">{label}</p>
-                      <p className={`text-sm mt-1 ${dk("text-[#d4d4d4]", "text-[#404040]")}`}>{value}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
-                <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
-                  <FileText size={13} className="text-amber-400" />
-                  <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Documentos vinculados</h3>
-                  <span className="ml-auto text-xs text-[#525252]">{recentDocuments.length} recientes</span>
-                </div>
-                {recentDocuments.length === 0 ? (
-                  <div className="py-10 text-center text-xs text-[#525252]">Todavia no hay documentos.</div>
-                ) : (
-                  <div className={`divide-y ${dk("divide-[#141414]", "divide-[#f0f0f0]")}`}>
-                    {recentDocuments.map((doc) => (
-                      <div key={doc.id} className="px-5 py-3 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>{doc.code}</p>
-                          <p className="text-[10px] text-[#525252] mt-0.5">{doc.type}  -  {fmtDate(doc.date)}  -  {doc.status}</p>
-                        </div>
-                        <span className="text-sm font-bold text-[#2D9F6A] shrink-0">{formatPrice(doc.amount)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
-                <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
-                  <BarChart2 size={13} className="text-purple-400" />
-                  <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Deuda y cuenta</h3>
-                </div>
-                <div className="px-5 py-4 space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className={`rounded-xl border px-4 py-3 ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
-                      <p className="text-[10px] uppercase tracking-widest text-[#525252] font-semibold">Saldo abierto</p>
-                      <p className="text-sm font-bold text-red-400 mt-1">{formatPrice(openDebt)}</p>
-                    </div>
-                    <div className={`rounded-xl border px-4 py-3 ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
-                      <p className="text-[10px] uppercase tracking-widest text-[#525252] font-semibold">Proximo pago</p>
-                      <p className={`text-sm font-semibold mt-1 ${dk("text-white", "text-[#171717]")}`}>{nextDueDate ? fmtDate(nextDueDate) : "Sin vencimientos"}</p>
-                    </div>
-                  </div>
-                  {movements.length === 0 ? (
-                    <p className="text-xs text-[#525252]">Sin movimientos registrados.</p>
-                  ) : (
-                    movements.slice(0, 5).map((movement) => (
-                      <div key={movement.id} className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className={`text-xs font-medium ${dk("text-[#d4d4d4]", "text-[#404040]")}`}>{movement.descripcion || movement.tipo}</p>
-                          <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(movement.fecha)}  -  {movement.tipo}</p>
-                        </div>
-                        <span className={`text-xs font-bold shrink-0 ${movement.monto >= 0 ? "text-red-400" : "text-emerald-400"}`}>
-                          {movement.monto >= 0 ? "+" : ""}{formatPrice(movement.monto)}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
-                <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
-                  <MessageSquare size={13} className="text-[#2D9F6A]" />
-                  <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Notas CRM</h3>
-                </div>
-                <div className="px-5 py-4 space-y-3">
-                  <div className="flex gap-2">
-                    <select
-                      value={noteType}
-                      onChange={(event) => setNoteType(event.target.value as ClientNote["tipo"])}
-                      className={`rounded-lg border px-3 py-2 text-sm outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-[#fafafa] border-[#ececec] text-[#171717]")}`}
-                    >
-                      <option value="nota">Nota</option>
-                      <option value="llamada">Llamada</option>
-                      <option value="reunion">Reunion</option>
-                      <option value="alerta">Alerta</option>
-                      <option value="seguimiento">Seguimiento</option>
-                    </select>
-                    <button
-                      onClick={() => void handleAddNote()}
-                      disabled={savingNote || !noteBody.trim()}
-                      className="shrink-0 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-xs font-bold px-3 py-2 rounded-lg transition disabled:opacity-50"
-                    >
-                      {savingNote ? "Guardando..." : "Agregar nota"}
-                    </button>
-                  </div>
-                  <textarea
-                    rows={3}
-                    value={noteBody}
-                    onChange={(event) => setNoteBody(event.target.value)}
-                    placeholder="Seguimiento comercial, acuerdos, riesgo, devoluciones..."
-                    className={`w-full rounded-lg border px-3 py-2 text-sm outline-none resize-none ${dk("bg-[#0d0d0d] border-[#262626] text-white placeholder:text-[#404040]", "bg-[#fafafa] border-[#ececec] text-[#171717] placeholder:text-[#a3a3a3]")}`}
-                  />
-                  <div className="space-y-2">
-                    {notes.length === 0 ? (
-                      <p className="text-xs text-[#525252]">Sin notas todavia.</p>
-                    ) : (
-                      notes.slice(0, 6).map((note) => (
-                        <div key={note.id} className={`rounded-xl border px-3 py-3 ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-[10px] uppercase tracking-widest text-[#2D9F6A] font-semibold">{note.tipo}</span>
-                            <span className="text-[10px] text-[#525252]">{fmtDate(note.created_at)}</span>
-                          </div>
-                          <p className={`text-sm mt-2 ${dk("text-[#d4d4d4]", "text-[#404040]")}`}>{note.body}</p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-2xl overflow-hidden`}>
-                <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${dk("border-[#1a1a1a]", "border-[#e8e8e8]")}`}>
-                  <Activity size={13} className="text-amber-400" />
-                  <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Actividad reciente</h3>
-                </div>
-                <div className="px-5 py-4 space-y-3">
-                  {activityLogs.length === 0 ? (
-                    <p className="text-xs text-[#525252]">Sin actividad registrada.</p>
-                  ) : (
-                    activityLogs.slice(0, 6).map((log) => {
-                      const cfg = ACTION_CONFIG[log.action] ?? { label: log.action, icon: Activity, color: "text-gray-400" };
-                      const Icon = cfg.icon;
-                      return (
-                        <div key={log.id} className="flex items-start gap-3">
-                          <div className={`mt-0.5 shrink-0 h-6 w-6 rounded-lg flex items-center justify-center ${dk("bg-[#1a1a1a]", "bg-[#f5f5f5]")}`}>
-                            <Icon size={12} className={cfg.color} />
-                          </div>
-                          <div className="min-w-0">
-                            <p className={`text-xs font-medium ${dk("text-[#d4d4d4]", "text-[#404040]")}`}>{cfg.label}</p>
-                            <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(log.created_at)}</p>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+        <div className="grid gap-2 xl:grid-cols-[252px_minmax(0,1fr)_320px] 2xl:grid-cols-[268px_minmax(0,1fr)_336px]">
+          <ClientIdentityRail
+            accountName={client.company_name || "Sin empresa"}
+            contactName={client.contact_name || "Sin contacto"}
+            executiveName={executiveName}
+            tags={clientTags}
+            email={client.email || extProfile?.email}
+            phone={client.phone || extProfile?.phone}
+            location={locationLabel}
+            fields={identityFields}
+          />
+          <ClientBusinessPanel
+            metrics={businessMetrics}
+            alerts={businessAlerts}
+            reorderSuggestions={reorderSuggestions}
+            frequentProducts={frequentProducts}
+          />
+          <ClientActionRail
+            executiveName={executiveName}
+            priorities={priorityActions}
+            supportSummary={supportSummary}
+            tickets={activeTickets.slice(0, 3).map((ticket) => ({
+              id: ticket.id,
+              subject: ticket.subject,
+              status: ticket.status,
+              priority: ticket.priority,
+              updated_at: fmtRelativeDate(ticket.updated_at),
+            }))}
+            rmas={activeRmas.slice(0, 3)}
+            noteType={noteType}
+            noteBody={noteBody}
+            onNoteTypeChange={setNoteType}
+            onNoteBodyChange={setNoteBody}
+            onAddNote={() => void handleAddNote()}
+            savingNote={savingNote}
+            notes={notes}
+            timelineItems={timelineItems}
+            noteTextareaRef={noteTextareaRef}
+          />
         </div>
       )}
 
@@ -1030,6 +1386,34 @@ function ClientDetail({
             <DatosPanel profile={extProfile} isDark={isDark} clientEmail={client.email} onRefresh={async () => { setExtProfile(await fetchClientProfile(client.id)); }} />
           )}
         </div>
+      )}
+
+      {showCreateOrder && (
+        <CreateOrderModal
+          clients={[client]}
+          products={products}
+          initialClientId={client.id}
+          isDark={isDark}
+          onClose={() => setShowCreateOrder(false)}
+          onCreated={async () => {
+            await onRefreshOrders?.();
+            await loadOverviewData(true);
+          }}
+        />
+      )}
+
+      {showCreateQuote && (
+        <CreateQuoteModal
+          clients={[client]}
+          products={products}
+          initialClientId={client.id}
+          isDark={isDark}
+          onClose={() => setShowCreateQuote(false)}
+          onCreated={async () => {
+            await loadQuotes();
+            await loadOverviewData(true);
+          }}
+        />
       )}
 
     </div>
@@ -1426,7 +1810,7 @@ function DatosPanel({
 }
 
 // -- Main component ------------------------------------------------------------
-export function ClientCRM({ clients, orders, loading, isDark, onSave, onNewClient, onRefreshClients }: ClientCRMProps) {
+export function ClientCRM({ clients, orders, products, loading, isDark, selectedClientId, onSave, onNewClient, onNewSeller, onRefreshClients, onRefreshOrders }: ClientCRMProps) {
   const dk = (d: string, l: string) => isDark ? d : l;
   const [search, setSearch]       = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -1434,6 +1818,18 @@ export function ClientCRM({ clients, orders, loading, isDark, onSave, onNewClien
   const [activating, setActivating] = useState<string | null>(null);
 
   const inactiveCount = useMemo(() => clients.filter((c) => c.active === false).length, [clients]);
+
+  useEffect(() => {
+    if (selectedClientId && clients.some((client) => client.id === selectedClientId)) {
+      setSelectedId(selectedClientId);
+    }
+  }, [clients, selectedClientId]);
+
+  useEffect(() => {
+    if (selectedId && !clients.some((client) => client.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [clients, selectedId]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -1471,7 +1867,7 @@ export function ClientCRM({ clients, orders, loading, isDark, onSave, onNewClien
 
   if (loading) {
     return (
-      <div className="space-y-2 max-w-5xl">
+      <div className="w-full space-y-2">
         {Array.from({ length: 5 }).map((_, i) => (
           <div key={i} className={`h-16 ${dk("bg-[#111] border-[#1a1a1a]", "bg-[#f0f0f0] border-[#e5e5e5]")} rounded-xl animate-pulse border`} />
         ))}
@@ -1480,21 +1876,33 @@ export function ClientCRM({ clients, orders, loading, isDark, onSave, onNewClien
   }
 
   return (
-    <div className="flex gap-4 max-w-6xl h-[calc(100vh-130px)]">
+    <div className="flex h-[calc(100vh-104px)] w-full gap-2 overflow-hidden px-3 pb-3 xl:px-4">
 
       {/* -- LEFT: Client list -- */}
-      <div className={`flex flex-col gap-3 ${selected ? "hidden md:flex w-72 shrink-0" : "flex w-full md:w-72 md:shrink-0"}`}>
+      <div className={`flex h-full flex-col gap-2 ${selected ? "hidden md:flex w-[272px] shrink-0" : "flex w-full md:w-[272px] md:shrink-0"}`}>
 
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-[#525252] font-semibold">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[11px] text-[#525252] font-semibold">
             {filtered.length} cliente{filtered.length !== 1 ? "s" : ""}
           </p>
-          <button
-            onClick={onNewClient}
-            className="flex items-center gap-1.5 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-xs font-bold px-3 py-1.5 rounded-lg transition"
-          >
-            <UserPlus size={12} /> Nuevo
-          </button>
+          <div className="flex items-center gap-1.5">
+            {onNewSeller ? (
+              <button
+                onClick={onNewSeller}
+                className={`flex items-center gap-1.5 border px-2.5 py-1.5 text-[11px] font-semibold rounded-lg transition ${
+                  dk("border-[#1f1f1f] bg-[#111] text-[#d4d4d4] hover:bg-[#161616]", "border-[#e5e5e5] bg-white text-[#404040] hover:bg-[#fafafa]")
+                }`}
+              >
+                <UserPlus size={11} /> Vendedor
+              </button>
+            ) : null}
+            <button
+              onClick={onNewClient}
+              className="flex items-center gap-1.5 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition"
+            >
+              <UserPlus size={11} /> Cliente
+            </button>
+          </div>
         </div>
 
         {/* Status filter */}
@@ -1524,7 +1932,7 @@ export function ClientCRM({ clients, orders, loading, isDark, onSave, onNewClien
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar cliente..."
-            className={`w-full border rounded-xl pl-8 pr-3 py-2 text-sm placeholder:text-[#525252] outline-none focus:border-[#2D9F6A]/40 transition ${
+            className={`w-full border rounded-xl pl-8 pr-3 py-2 text-[13px] placeholder:text-[#525252] outline-none focus:border-[#2D9F6A]/40 transition ${
               dk("bg-[#111] border-[#1f1f1f] text-white", "bg-white border-[#e5e5e5] text-[#171717]")
             }`}
           />
@@ -1572,14 +1980,16 @@ export function ClientCRM({ clients, orders, loading, isDark, onSave, onNewClien
       </div>
 
       {/* -- RIGHT: Detail panel -- */}
-      <div className={`flex-1 overflow-y-auto ${selected ? "flex flex-col" : "hidden md:flex md:flex-col"}`}>
+      <div className={`min-w-0 flex-1 overflow-y-auto pr-1 ${selected ? "flex h-full flex-col" : "hidden md:flex md:h-full md:flex-col"}`}>
         {selected ? (
           <ClientDetail
             client={selected}
             orders={orders}
+            products={products}
             isDark={isDark}
             onSave={onSave}
             onBack={() => setSelectedId(null)}
+            onRefreshOrders={onRefreshOrders}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-[#525252] gap-3">

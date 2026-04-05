@@ -10,14 +10,15 @@ import {
 
 export type Tab =
   | "dashboard"
-  | "products" | "imports" | "categories" | "images" | "opportunities" | "pos" | "seller_mode"
+  | "products" | "imports" | "categories" | "images" | "opportunities" | "pos"
   | "orders" | "kanban" | "approvals" | "quotes_admin"
+  | "seller_mode" | "seller_management" | "seller_portfolio" | "seller_targets" | "seller_activity"
   | "clients" | "users_permissions" | "credit" | "business_alerts" | "documents" | "support"
   | "invoices" | "reports"
   | "suppliers" | "brands" | "pricing" | "supplier_sync" | "stock" | "serials"
   | "movements" | "purchase_orders" | "rma" | "price_agreements" | "marketing" | "webhooks" | "activity";
 
-export type ModuleId = "top" | "catalogo" | "pedidos" | "clientes" | "finanzas" | "sistema";
+export type ModuleId = "top" | "catalogo" | "pedidos" | "vendedores" | "clientes" | "finanzas" | "sistema";
 
 export interface NavItem {
   id: Tab;
@@ -57,7 +58,6 @@ export const NAV_MODULES: NavModule[] = [
       { id: "images",        label: "Imágenes",      icon: Image,      manageProducts: true },
       { id: "opportunities", label: "Oportunidades", icon: Flame,      manageProducts: true },
       { id: "pos",           label: "POS",           icon: Truck,      manageProducts: true },
-      { id: "seller_mode",   label: "Modo Vendedor", icon: DollarSign, manageProducts: true },
     ],
   },
   {
@@ -69,6 +69,18 @@ export const NAV_MODULES: NavModule[] = [
       { id: "kanban",       label: "Kanban",       icon: Layers,        manageOrders: true },
       { id: "approvals",    label: "Aprobaciones", icon: CheckCircle2,  manageOrders: true },
       { id: "quotes_admin", label: "Cotizaciones", icon: MessageSquare, adminOnly: true },
+    ],
+  },
+  {
+    id: "vendedores",
+    label: "Vendedores",
+    icon: DollarSign,
+    items: [
+      { id: "seller_management", label: "Gestion",      icon: UserPlus,   adminOnly: true },
+      { id: "seller_mode",      label: "Vendedor 360", icon: DollarSign, adminOnly: true },
+      { id: "seller_portfolio", label: "Cartera",      icon: Users,      adminOnly: true },
+      { id: "seller_targets",   label: "Objetivos",    icon: BarChart2,  adminOnly: true },
+      { id: "seller_activity",  label: "Seguimiento",  icon: Activity,   adminOnly: true },
     ],
   },
   {

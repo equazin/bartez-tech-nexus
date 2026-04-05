@@ -7,9 +7,12 @@ import {
   ShieldAlert,
   Clock,
   User,
-  AlertCircle
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SurfaceCard } from "@/components/ui/surface-card";
+import { cn } from "@/lib/utils";
 
 interface ClientRow {
   id: string;
@@ -23,8 +26,8 @@ interface TicketRow {
   order_id?: string | number;
   subject: string;
   description: string;
-  status: 'open' | 'in_analysis' | 'waiting_customer' | 'resolved' | 'closed';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
+  status: "open" | "in_analysis" | "waiting_customer" | "resolved" | "closed";
+  priority: "low" | "medium" | "high" | "urgent";
   category: string;
   created_at: string;
   updated_at: string;
@@ -35,34 +38,48 @@ interface SupportTabProps {
   clients: ClientRow[];
 }
 
-const STATUS_LABELS: Record<TicketRow['status'], string> = {
+const STATUS_LABELS: Record<TicketRow["status"], string> = {
   open: "Abierto",
-  in_analysis: "En análisis",
+  in_analysis: "En analisis",
   waiting_customer: "Esperando cliente",
   resolved: "Resuelto",
   closed: "Cerrado",
 };
 
-const PRIORITY_LABELS: Record<TicketRow['priority'], string> = {
+const PRIORITY_LABELS: Record<TicketRow["priority"], string> = {
   low: "Baja",
   medium: "Media",
   high: "Alta",
   urgent: "Urgente",
 };
 
-export function SupportTab({ isDark = true, clients }: SupportTabProps) {
-  const dk = (d: string, l: string) => (isDark ? d : l);
+const PRIORITY_STYLES: Record<TicketRow["priority"], string> = {
+  low: "bg-muted text-muted-foreground",
+  medium: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  high: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  urgent: "bg-red-500/10 text-red-600 dark:text-red-400",
+};
+
+const STATUS_STYLES: Record<TicketRow["status"], string> = {
+  open: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  in_analysis: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+  waiting_customer: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+  resolved: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  closed: "bg-muted text-muted-foreground",
+};
+
+export function SupportTab({ isDark: _isDark = true, clients }: SupportTabProps) {
   const [query, setQuery] = useState("");
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [selectedClientId, setSelectedClientId] = useState("");
   const [category, setCategory] = useState("RECLAMO");
-  const [status, setStatus] = useState<TicketRow['status']>("open");
-  const [priority, setPriority] = useState<TicketRow['priority']>("medium");
+  const [status, setStatus] = useState<TicketRow["status"]>("open");
+  const [priority, setPriority] = useState<TicketRow["priority"]>("medium");
   const [orderId, setOrderId] = useState("");
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<TicketRow['status'] | "ALL">("ALL");
+  const [statusFilter, setStatusFilter] = useState<TicketRow["status"] | "ALL">("ALL");
 
   const clientMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -73,11 +90,7 @@ export function SupportTab({ isDark = true, clients }: SupportTabProps) {
   }, [clients]);
 
   async function load() {
-    const { data } = await supabase
-      .from("support_tickets")
-      .select("*")
-      .order("updated_at", { ascending: false })
-      .limit(200);
+    const { data } = await supabase.from("support_tickets").select("*").order("updated_at", { ascending: false }).limit(200);
     setTickets((data as TicketRow[] | null) ?? []);
   }
 
@@ -110,7 +123,7 @@ export function SupportTab({ isDark = true, clients }: SupportTabProps) {
     }
   }
 
-  async function updateTicketStatus(ticketId: string, nextStatus: TicketRow['status']) {
+  async function updateTicketStatus(ticketId: string, nextStatus: TicketRow["status"]) {
     const { error } = await supabase
       .from("support_tickets")
       .update({ status: nextStatus, updated_at: new Date().toISOString() })
@@ -123,13 +136,7 @@ export function SupportTab({ isDark = true, clients }: SupportTabProps) {
     return tickets.filter((item) => {
       if (statusFilter !== "ALL" && item.status !== statusFilter) return false;
       if (!normalized) return true;
-      return [
-        clientMap[item.client_id] || item.client_id,
-        item.subject,
-        item.description,
-        item.category,
-        String(item.order_id || ""),
-      ]
+      return [clientMap[item.client_id] || item.client_id, item.subject, item.description, item.category, String(item.order_id || "")]
         .join(" ")
         .toLowerCase()
         .includes(normalized);
@@ -141,37 +148,49 @@ export function SupportTab({ isDark = true, clients }: SupportTabProps) {
     const urgent = tickets.filter((item) => item.priority === "urgent");
     const rma = tickets.filter((item) => item.category === "RMA");
     return [
-      { label: "Casos activos", value: String(active.length), accent: "text-[#2D9F6A]" },
-      { label: "Urgentes", value: String(urgent.length), accent: urgent.length > 0 ? "text-red-400" : "text-gray-400" },
-      { label: "RMA / devoluciones", value: String(rma.length), accent: "text-amber-400" },
-      { label: "Resueltos", value: String(tickets.filter(t => t.status === 'resolved').length), accent: "text-blue-400" },
+      { label: "Casos activos", value: String(active.length), accent: "text-primary" },
+      { label: "Urgentes", value: String(urgent.length), accent: urgent.length > 0 ? "text-red-500 dark:text-red-400" : "text-muted-foreground" },
+      { label: "RMA / devoluciones", value: String(rma.length), accent: "text-amber-600 dark:text-amber-400" },
+      { label: "Resueltos", value: String(tickets.filter((ticket) => ticket.status === "resolved").length), accent: "text-blue-600 dark:text-blue-400" },
     ];
   }, [tickets]);
 
   return (
-    <div className="space-y-4 max-w-6xl">
-      <div>
-        <h2 className={`text-base font-bold ${dk("text-white", "text-[#171717]")}`}>Postventa y Soporte Oficial</h2>
-        <p className="text-xs text-gray-500 mt-0.5">Gestión centralizada de tickets, RMA y reclamos técnicos (Phase 5.1).</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {metrics.map((metric) => (
-          <div key={metric.label} className={`border rounded-xl px-4 py-3 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1 font-bold">{metric.label}</p>
-            <p className={`text-lg font-bold ${metric.accent}`}>{metric.value}</p>
+    <div className="space-y-4">
+      <SurfaceCard tone="default" padding="md" className="rounded-[24px] border-border/70">
+        <div className="space-y-4 xl:flex xl:items-start xl:justify-between xl:gap-6 xl:space-y-0">
+          <div className="space-y-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Clientes</p>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Postventa y soporte</h2>
+              <p className="text-sm text-muted-foreground">Gestion centralizada de tickets, RMA y reclamos tecnicos.</p>
+            </div>
           </div>
-        ))}
-      </div>
 
-      <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
-        <div className={`border rounded-2xl p-5 space-y-3 h-fit ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
-          <div className="flex items-center gap-2 mb-2">
-            <Wrench size={15} className="text-[#2D9F6A]" />
-            <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Nuevo Ticket Interno</h3>
+          <div className="grid gap-3 sm:grid-cols-2 xl:w-[520px] xl:grid-cols-4">
+            {metrics.map((metric) => (
+              <div key={metric.label} className="rounded-2xl border border-border/70 bg-background px-4 py-3">
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{metric.label}</p>
+                <p className={cn("text-lg font-semibold", metric.accent)}>{metric.value}</p>
+              </div>
+            ))}
           </div>
-          
-          <select value={selectedClientId} onChange={(event) => setSelectedClientId(event.target.value)} className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#e5e5e5] text-[#171717]")}`}>
+        </div>
+      </SurfaceCard>
+
+      <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <SurfaceCard tone="default" padding="md" className="h-fit space-y-4 rounded-[24px] border-border/70">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Wrench size={15} />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Nuevo caso</p>
+              <h3 className="text-sm font-semibold text-foreground">Ticket interno</h3>
+            </div>
+          </div>
+
+          <select value={selectedClientId} onChange={(event) => setSelectedClientId(event.target.value)} className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none focus:border-primary/40">
             <option value="">Seleccionar cliente</option>
             {clients.map((client) => (
               <option key={client.id} value={client.id}>{client.company_name || client.contact_name}</option>
@@ -181,20 +200,20 @@ export function SupportTab({ isDark = true, clients }: SupportTabProps) {
           <input
             value={subject}
             onChange={(event) => setSubject(event.target.value)}
-            placeholder="Asunto (ej: Falla técnica Corsair)"
-            className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#e5e5e5] text-[#171717]")}`}
+            placeholder="Asunto"
+            className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/40"
           />
 
           <div className="grid grid-cols-2 gap-3">
-            <select value={category} onChange={(event) => setCategory(event.target.value)} className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#e5e5e5] text-[#171717]")}`}>
+            <select value={category} onChange={(event) => setCategory(event.target.value)} className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none focus:border-primary/40">
               <option value="RECLAMO">Reclamo</option>
-              <option value="DEVOLUCION">Devolución</option>
+              <option value="DEVOLUCION">Devolucion</option>
               <option value="RMA">RMA</option>
-              <option value="FACTURACION">Facturación</option>
-              <option value="LOGISTICA">Logística</option>
-              <option value="STOCKS">Duda Stock</option>
+              <option value="FACTURACION">Facturacion</option>
+              <option value="LOGISTICA">Logistica</option>
+              <option value="STOCKS">Duda stock</option>
             </select>
-            <select value={priority} onChange={(event) => setPriority(event.target.value as TicketRow['priority'])} className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#e5e5e5] text-[#171717]")}`}>
+            <select value={priority} onChange={(event) => setPriority(event.target.value as TicketRow["priority"])} className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none focus:border-primary/40">
               <option value="low">Baja</option>
               <option value="medium">Media</option>
               <option value="high">Alta</option>
@@ -203,9 +222,9 @@ export function SupportTab({ isDark = true, clients }: SupportTabProps) {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <select value={status} onChange={(event) => setStatus(event.target.value as TicketRow['status'])} className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#e5e5e5] text-[#171717]")}`}>
+            <select value={status} onChange={(event) => setStatus(event.target.value as TicketRow["status"])} className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none focus:border-primary/40">
               <option value="open">Abierto</option>
-              <option value="in_analysis">En análisis</option>
+              <option value="in_analysis">En analisis</option>
               <option value="waiting_customer">Esperando cliente</option>
               <option value="resolved">Resuelto</option>
               <option value="closed">Cerrado</option>
@@ -214,107 +233,102 @@ export function SupportTab({ isDark = true, clients }: SupportTabProps) {
               value={orderId}
               onChange={(event) => setOrderId(event.target.value)}
               placeholder="Orden vinculada"
-              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#e5e5e5] text-[#171717]")}`}
+              className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/40"
             />
           </div>
 
-          <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={5} placeholder="Detalle técnico de la falla o situación..." className={`w-full rounded-lg border px-3 py-2 text-sm outline-none resize-none ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#e5e5e5] text-[#171717]")}`} />
-          
-          <button onClick={() => void createTicket()} disabled={saving || !selectedClientId || !description.trim() || !subject.trim()} className="w-full inline-flex items-center justify-center gap-2 bg-[#2D9F6A] hover:bg-[#25875a] disabled:opacity-50 text-white px-4 py-2.5 rounded-xl text-xs transition font-bold uppercase tracking-widest">
+          <textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            rows={5}
+            placeholder="Detalle tecnico de la falla o situacion..."
+            className="w-full rounded-2xl border border-border/70 bg-background px-3 py-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/40"
+          />
+
+          <Button className="w-full" onClick={() => void createTicket()} disabled={saving || !selectedClientId || !description.trim() || !subject.trim()}>
             <Save size={14} />
-            {saving ? "Generando..." : "Crear Ticket"}
-          </button>
-        </div>
+            {saving ? "Generando..." : "Crear ticket"}
+          </Button>
+        </SurfaceCard>
 
         <div className="space-y-3">
-          <div className="grid gap-3 md:grid-cols-[1fr_200px]">
-            <label className="relative block">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar por cliente, asunto o descripción..."
-                className={`w-full rounded-xl border pl-10 pr-4 py-2.5 text-sm outline-none ${dk("bg-[#111] border-[#1f1f1f] text-white", "bg-white border-[#e5e5e5] text-[#171717]")}`}
-              />
-            </label>
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as TicketRow['status'] | "ALL")} className={`rounded-xl border px-4 py-2.5 text-sm outline-none font-medium ${dk("bg-[#111] border-[#1f1f1f] text-white", "bg-white border-[#e5e5e5] text-[#171717]")}`}>
-              <option value="ALL">Todos los estados</option>
-              {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-          </div>
+          <SurfaceCard tone="default" padding="md" className="rounded-[24px] border-border/70">
+            <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+              <label className="relative block">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Buscar por cliente, asunto o descripcion..."
+                  className="h-10 w-full rounded-xl border border-border/70 bg-background pl-10 pr-4 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/40"
+                />
+              </label>
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as TicketRow["status"] | "ALL")} className="h-10 rounded-xl border border-border/70 bg-background px-4 text-sm text-foreground outline-none focus:border-primary/40">
+                <option value="ALL">Todos los estados</option>
+                {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </div>
+          </SurfaceCard>
 
-          <div className={`border rounded-2xl overflow-hidden shadow-sm ${dk("border-[#1f1f1f]", "border-[#e5e5e5]")}`}>
-            {filteredTickets.map((item) => (
-              <div key={item.id} className={`px-5 py-4 border-t first:border-t-0 hover:bg-black/5 transition ${dk("border-[#1a1a1a] bg-[#111]", "border-[#f0f0f0] bg-white")}`}>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className={`text-[9px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full ${item.priority === 'urgent' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-gray-500/10 text-gray-400 border border-gray-500/20'}`}>
-                         {PRIORITY_LABELS[item.priority]}
-                      </span>
-                      <span className={`text-[9px] font-bold uppercase text-[#2D9F6A] bg-[#2D9F6A]/10 px-2 py-0.5 rounded-full border border-[#2D9F6A]/20`}>
-                        {item.category}
-                      </span>
-                      <OrderStatusBadge status={item.status} />
-                    </div>
-                    <h4 className={`text-sm font-bold mt-2 ${dk("text-white", "text-[#171717]")}`}>{item.subject}</h4>
-                    <div className="flex items-center gap-3 mt-1 opacity-60">
-                       <span className="flex items-center gap-1 text-[10px]"><User size={10} /> {clientMap[item.client_id] || item.client_id}</span>
-                       <span className="flex items-center gap-1 text-[10px]"><Clock size={10} /> {new Date(item.created_at).toLocaleDateString("es-AR")}</span>
-                       {item.order_id && <span className="flex items-center gap-1 text-[10px] font-mono">ORD: {item.order_id}</span>}
+          <SurfaceCard tone="default" padding="none" className="overflow-hidden rounded-[24px] border-border/70">
+            {filteredTickets.length === 0 ? (
+              <EmptyState className="py-16" title="Sin tickets" description="No hay tickets activos con los filtros seleccionados." icon={<Ticket size={24} />} />
+            ) : (
+              filteredTickets.map((item, index) => (
+                <div key={item.id} className={cn("space-y-4 px-5 py-4", index > 0 && "border-t border-border/70")}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", PRIORITY_STYLES[item.priority])}>
+                          {PRIORITY_LABELS[item.priority]}
+                        </span>
+                        <span className="rounded-full border border-primary/15 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                          {item.category}
+                        </span>
+                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", STATUS_STYLES[item.status])}>
+                          {STATUS_LABELS[item.status]}
+                        </span>
+                      </div>
+                      <h4 className="text-sm font-semibold text-foreground">{item.subject}</h4>
+                      <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+                        <span className="flex items-center gap-1"><User size={10} /> {clientMap[item.client_id] || item.client_id}</span>
+                        <span className="flex items-center gap-1"><Clock size={10} /> {new Date(item.created_at).toLocaleDateString("es-AR")}</span>
+                        {item.order_id ? <span className="font-mono">ORD: {item.order_id}</span> : null}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <p className={`text-xs mt-3 leading-relaxed whitespace-pre-wrap ${dk("text-gray-400", "text-[#525252]")}`}>{item.description}</p>
-                
-                <div className="flex items-center gap-1.5 mt-4 pt-4 border-t border-dashed border-gray-800">
-                  {(["open", "in_analysis", "waiting_customer", "resolved", "closed"] as TicketRow['status'][]).map((st) => (
-                    <button
-                      key={st}
-                      onClick={() => void updateTicketStatus(item.id, st)}
-                      className={`text-[9px] font-bold uppercase px-3 py-1.5 rounded-lg border transition-all ${
-                        item.status === st
-                          ? "border-[#2D9F6A] text-white bg-[#2D9F6A]"
-                          : dk("border-[#262626] text-gray-500 hover:text-white hover:bg-[#1a1a1a]", "border-[#e5e5e5] text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")
-                      }`}
-                    >
-                      {STATUS_LABELS[st]}
-                    </button>
-                  ))}
+                  <p className="text-sm leading-relaxed text-muted-foreground">{item.description}</p>
+
+                  <div className="flex flex-wrap gap-1.5 border-t border-dashed border-border/70 pt-3">
+                    {(["open", "in_analysis", "waiting_customer", "resolved", "closed"] as TicketRow["status"][]).map((nextStatus) => (
+                      <Button
+                        key={nextStatus}
+                        variant={item.status === nextStatus ? "soft" : "ghost"}
+                        size="sm"
+                        onClick={() => void updateTicketStatus(item.id, nextStatus)}
+                      >
+                        {STATUS_LABELS[nextStatus]}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
-            {filteredTickets.length === 0 && (
-              <div className="px-5 py-20 text-center">
-                <Ticket size={32} className="mx-auto mb-4 text-gray-500/20" />
-                <p className="text-sm text-gray-500">No hay tickets activos con los filtros seleccionados.</p>
-              </div>
+              ))
             )}
-          </div>
+          </SurfaceCard>
 
-          <div className="rounded-xl border border-[#2D9F6A]/20 bg-[#2D9F6A]/5 px-4 py-3 flex items-start gap-2">
-            <ShieldAlert size={14} className="text-[#2D9F6A] mt-0.5 shrink-0" />
-            <p className="text-[10px] text-[#2D9F6A]/70 leading-normal">
-              <strong>Control de Calidad:</strong> Todos los cambios en los tickets se notifican automáticamente al cliente vía portal B2B. Los tickets marcados como 'Resuelto' permiten al cliente cerrarlos definitivamente.
-            </p>
-          </div>
+          <SurfaceCard tone="subtle" padding="md" className="rounded-[24px] border border-primary/15 bg-primary/5">
+            <div className="flex items-start gap-2 text-primary">
+              <ShieldAlert size={14} className="mt-0.5 shrink-0" />
+              <p className="text-xs leading-relaxed">
+                <strong>Control de calidad:</strong> todos los cambios en tickets se notifican automaticamente al cliente via portal B2B. Los tickets resueltos pueden cerrarse luego desde el portal.
+              </p>
+            </div>
+          </SurfaceCard>
         </div>
       </div>
     </div>
   );
-}
-
-function OrderStatusBadge({ status }: { status: TicketRow['status'] }) {
-  const map: Record<TicketRow['status'], { label: string; className: string }> = {
-    open: { label: "ABIERTO", className: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
-    in_analysis: { label: "ANÁLISIS", className: "bg-orange-500/10 text-orange-400 border-orange-500/20" },
-    waiting_customer: { label: "ESPERANDO", className: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
-    resolved: { label: "RESUELTO", className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
-    closed: { label: "CERRADO", className: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20" },
-  };
-  const { label, className } = map[status];
-  return <span className={`text-[9px] font-black tracking-widest px-2 py-0.5 rounded border ${className}`}>{label}</span>;
 }

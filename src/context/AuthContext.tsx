@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const role = profile?.role ?? "client";
   const normalizedRole = role === "cliente" ? "client" : role;
   const isAdmin = normalizedRole === "admin";
-  const isSeller = normalizedRole === "vendedor";
+  const isSeller = normalizedRole === "vendedor" || normalizedRole === "sales";
 
   return (
     <AuthContext.Provider

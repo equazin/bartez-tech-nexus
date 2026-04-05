@@ -204,8 +204,8 @@ export function B2BInsights({ clients, orders, isDark, onNavigate }: InsightProp
           </div>
           <p className="text-[11px] text-[#525252] mb-4">Clientes con mayor volumen de compra trimestral.</p>
           <div className="space-y-3">
-            {powerSellers.map(({ client, volume }) => (
-              <div key={client?.id} className={`flex items-center justify-between p-3 rounded-xl border ${dk("bg-[#0a0a0a] border-[#1a1a1a]", "bg-[#fafafa] border-[#f0f0f0]")}`}>
+            {powerSellers.map(({ client, volume }, index) => (
+              <div key={`${client?.id ?? "unknown"}-${index}`} className={`flex items-center justify-between p-3 rounded-xl border ${dk("bg-[#0a0a0a] border-[#1a1a1a]", "bg-[#fafafa] border-[#f0f0f0]")}`}>
                 <div className="min-w-0">
                   <p className={`text-xs font-bold truncate ${dk("text-white", "text-[#171717]")}`}>{client?.company_name || "---"}</p>
                   <p className="text-[10px] text-emerald-400 font-bold">$ {volume.toLocaleString("es-AR")}</p>

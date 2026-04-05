@@ -1,16 +1,17 @@
-import { useRef, useCallback, memo } from "react";
+import { useCallback } from "react";
 import { List, useListRef } from "react-window";
 import { AutoSizer } from "react-virtualized-auto-sizer";
 import type { Product } from "@/models/products";
 import type { PriceResult } from "@/hooks/usePricing";
 import { ProductItem } from "@/components/b2b/ProductItem";
 
-const ITEM_HEIGHT = 80;
+const ITEM_HEIGHT = 112;
 
-interface RowProps {
-  index: number;
-  style: React.CSSProperties;
-  // injected via rowProps spread
+const SizedAutoSizer = AutoSizer as unknown as React.ComponentType<{
+  children: (size: { height: number; width: number }) => React.ReactNode;
+}>;
+
+interface RowDataProps {
   products: Product[];
   cart: Record<number, number>;
   favoriteProductIds: number[];
@@ -20,19 +21,21 @@ interface RowProps {
   latestPurchaseUnitPrice: Record<number, number>;
   computePrice: (p: Product, qty: number) => PriceResult;
   formatPrice: (n: number) => string;
-  handleAddToCart: (p: Product) => void;
+  handleAddQty: (p: Product, qty: number) => void;
   onRemoveFromCart: (p: Product) => void;
   handleToggleFavorite: (id: number) => void;
   toggleCompare: (id: number) => void;
   setSelectedProduct: (p: Product | null) => void;
-  setBrandFilter: (brand: string) => void;
   isPosProduct: (p: Product) => boolean;
-  dk: (dark: string, light: string) => string;
-  // ariaAttributes injected by react-window v2
+}
+
+interface RowProps extends RowDataProps {
+  index: number;
+  style: React.CSSProperties;
   ariaAttributes?: Record<string, unknown>;
 }
 
-const Row = memo(function Row({
+function Row({
   index,
   style,
   products,
@@ -44,14 +47,12 @@ const Row = memo(function Row({
   latestPurchaseUnitPrice,
   computePrice,
   formatPrice,
-  handleAddToCart,
+  handleAddQty,
   onRemoveFromCart,
   handleToggleFavorite,
   toggleCompare,
   setSelectedProduct,
-  setBrandFilter,
   isPosProduct,
-  dk,
   ariaAttributes,
 }: RowProps) {
   const product = products[index];
@@ -69,14 +70,12 @@ const Row = memo(function Row({
         isCompared={compareList.includes(product.id)}
         finalPrice={price.unitPrice}
         formatPrice={formatPrice}
-        onAddToCart={handleAddToCart}
+        onAddQty={handleAddQty}
         onRemoveFromCart={onRemoveFromCart}
         onToggleFavorite={handleToggleFavorite}
         onToggleCompare={toggleCompare}
         onSelect={setSelectedProduct}
-        onFilterBrand={setBrandFilter}
         isPosProduct={isPosProduct}
-        dk={dk}
         wasAdded={addedIds.has(product.id)}
         purchaseHistoryCount={purchaseHistory[product.id]}
         lastPurchaseUnitPriceDelta={
@@ -87,7 +86,7 @@ const Row = memo(function Row({
       />
     </div>
   );
-});
+}
 
 export interface VirtualizedProductListProps {
   products: Product[];
@@ -99,14 +98,12 @@ export interface VirtualizedProductListProps {
   latestPurchaseUnitPrice: Record<number, number>;
   computePrice: (p: Product, qty: number) => PriceResult;
   formatPrice: (n: number) => string;
-  handleAddToCart: (p: Product) => void;
+  handleAddQty: (p: Product, qty: number) => void;
   onRemoveFromCart: (p: Product) => void;
   handleToggleFavorite: (id: number) => void;
   toggleCompare: (id: number) => void;
   setSelectedProduct: (p: Product | null) => void;
-  setBrandFilter: (brand: string) => void;
   isPosProduct: (p: Product) => boolean;
-  dk: (dark: string, light: string) => string;
   onLoadMore?: () => void;
   hasMore?: boolean;
 }
@@ -129,28 +126,28 @@ export function VirtualizedProductList({
   );
 
   // rowProps spread is passed to each row component by react-window v2
-  const rowData = {
+  const rowData: RowDataProps = {
     products,
     ...rowProps,
   };
 
   return (
     <div style={{ height: "calc(100vh - 320px)", minHeight: 400 }}>
-      <AutoSizer>
+      <SizedAutoSizer>
         {({ height, width }: { height: number; width: number }) => (
           <List
             listRef={listRef}
             defaultHeight={height}
-            rowComponent={Row}
+            rowComponent={Row as never}
             rowCount={products.length}
             rowHeight={ITEM_HEIGHT}
-            rowProps={rowData}
+            rowProps={rowData as never}
             onRowsRendered={onRowsRendered}
             overscanCount={5}
             style={{ height, width }}
           />
         )}
-      </AutoSizer>
+      </SizedAutoSizer>
     </div>
   );
 }

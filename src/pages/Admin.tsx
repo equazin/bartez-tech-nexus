@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import { CLIENT_TYPE_MARGINS, ClientType } from "@/lib/supabase";
 import { Product } from "@/models/products";
@@ -34,10 +34,13 @@ import { MarketingTab } from "@/components/admin/MarketingTab";
 import { B2BInsights } from "@/components/admin/B2BInsights";
 import { AdminLayout } from "@/components/admin/layout/AdminLayout";
 import { TAB_TO_MODULE, type Tab, type ModuleId, type NavItem } from "@/components/admin/layout/adminNavConfig";
+import { useAppTheme } from "@/hooks/useAppTheme";
 
 // Lazy loaded tabs
 const SalesDashboard = lazy(() => import("@/components/admin/SalesDashboard").then(m => ({ default: m.SalesDashboard })));
 const ClientCRM = lazy(() => import("@/components/admin/ClientCRM").then(m => ({ default: m.ClientCRM })));
+const SellerCRM = lazy(() => import("@/components/admin/SellerCRM").then(m => ({ default: m.SellerCRM })));
+const SellerManagementTab = lazy(() => import("@/components/admin/SellerManagementTab").then(m => ({ default: m.SellerManagementTab })));
 const OrderKanban = lazy(() => import("@/components/admin/OrderKanban"));
 const SuppliersTab = lazy(() => import("@/components/admin/SuppliersTab").then(m => ({ default: m.SuppliersTab })));
 const BrandsTab = lazy(() => import("@/components/admin/BrandsTab").then(m => ({ default: m.BrandsTab })));
@@ -93,6 +96,11 @@ interface ClientProfile {
   phone?: string;
   active?: boolean;
   email?: string;
+  partner_level?: "cliente" | "silver" | "gold" | "platinum";
+  assigned_seller_id?: string;
+  monthly_target?: number;
+  last_contact_at?: string;
+  last_contact_type?: "nota" | "llamada" | "reunion" | "seguimiento" | "alerta" | "pedido" | "cotizacion" | "ticket";
 }
 
 function slugifyCategoryName(value: string) {
@@ -173,6 +181,16 @@ function normalizePhoneForSupabase(rawPhone: string): string {
   return digits;
 }
 
+async function readApiResponse(response: Response): Promise<{ ok?: boolean; error?: string }> {
+  const raw = await response.text();
+  if (!raw) return { ok: response.ok, error: response.ok ? undefined : "Respuesta vacia del servidor." };
+  try {
+    return JSON.parse(raw) as { ok?: boolean; error?: string };
+  } catch {
+    return { ok: response.ok, error: raw };
+  }
+}
+
 function LegacyStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; icon: LucideIcon; className: string }> = {
     pending:    { label: "En revisión", icon: Clock,        className: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" },
@@ -199,17 +217,7 @@ const Admin = () => {
   const { signOut, session, isAdmin, canManageProducts, canManageOrders } = useAuth();
   const navigate = useNavigate();
   const { exchangeRate, setExchangeRate, fetchExchangeRate, formatPrice, formatARS, formatUSD, currency, setCurrency } = useCurrency();
-
-  const ADMIN_THEME_KEY = "admin_theme";
-  const [theme, setTheme] = useState<"dark" | "light">(() =>
-    localStorage.getItem(ADMIN_THEME_KEY) === "light" ? "light" : "dark"
-  );
-  const isDark = theme === "dark";
-  const toggleTheme = () => {
-    const next = isDark ? "light" : "dark";
-    setTheme(next);
-    localStorage.setItem(ADMIN_THEME_KEY, next);
-  };
+  const { isDark, toggleTheme } = useAppTheme();
   const dk = (d: string, l: string) => isDark ? d : l;
 
   const [editingRate, setEditingRate] = useState(false);
@@ -274,17 +282,27 @@ const Admin = () => {
   const [editingClients, setEditingClients] = useState<Record<string, Partial<ClientProfile>>>({});
   const [savingClient, setSavingClient] = useState<string | null>(null);
   const [showNewClient, setShowNewClient] = useState(false);
+  const [showNewSeller, setShowNewSeller] = useState(false);
   const [showCreateOrder, setShowCreateOrder] = useState(false);
   const [confirmZeroStock, setConfirmZeroStock] = useState(false);
   const [deletingZeroStock, setDeletingZeroStock] = useState(false);
   const [newClient, setNewClient] = useState({ email: "", password: "", phone: "", company_name: "", contact_name: "", client_type: "reseller" as ClientType, default_margin: 20, role: "client" as "client" | "cliente" | "admin" | "vendedor" });
   const [creatingClient, setCreatingClient] = useState(false);
   const [createError, setCreateError] = useState("");
+  const [newSeller, setNewSeller] = useState({ email: "", password: "", phone: "", company_name: "", contact_name: "" });
+  const [creatingSeller, setCreatingSeller] = useState(false);
+  const [sellerCreateError, setSellerCreateError] = useState("");
 
   function generatePassword() {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$";
     const pwd = Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
     setNewClient((p) => ({ ...p, password: pwd }));
+  }
+
+  function generateSellerPassword() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$";
+    const pwd = Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+    setNewSeller((p) => ({ ...p, password: pwd }));
   }
 
   function downloadSampleCSV() {
@@ -312,11 +330,21 @@ const Admin = () => {
   const [loadingClients, setLoadingClients] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [activeModule, setActiveModule] = useState<ModuleId>("top");
+  const [crmSelectedClientId, setCrmSelectedClientId] = useState<string | null>(null);
 
   function navigateTab(tab: Tab) {
     setActiveTab(tab);
     setActiveModule(TAB_TO_MODULE[tab as Tab] ?? "top");
   }
+
+  const customerProfiles = useMemo(
+    () => clients.filter((client) => !["admin", "vendedor", "sales"].includes(client.role)),
+    [clients],
+  );
+  const sellerProfiles = useMemo(
+    () => clients.filter((client) => ["vendedor", "sales"].includes(client.role)),
+    [clients],
+  );
 
   function navigateModule(moduleId: ModuleId) {
     setActiveModule(moduleId);
@@ -523,12 +551,41 @@ const Admin = () => {
 
   async function fetchClients() {
     setLoadingClients(true);
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, company_name, contact_name, client_type, default_margin, role, phone, active, email")
-      .order("company_name");
-    if (data) setClients(data as ClientProfile[]);
-    setLoadingClients(false);
+    const baseSelect = "id, company_name, contact_name, client_type, default_margin, role, phone, active, email, partner_level, assigned_seller_id, last_contact_at, last_contact_type";
+
+    try {
+      const primary = await supabase
+        .from("profiles")
+        .select(`${baseSelect}, monthly_target`)
+        .order("company_name");
+
+      let rows: ClientProfile[] | null = primary.data as ClientProfile[] | null;
+      let error = primary.error;
+
+      if (error?.message?.includes("monthly_target")) {
+        const fallback = await supabase
+          .from("profiles")
+          .select(baseSelect)
+          .order("company_name");
+
+        rows = (fallback.data as ClientProfile[] | null)?.map((profile) => ({
+          ...profile,
+          monthly_target: undefined,
+        })) ?? null;
+        error = fallback.error;
+      }
+
+      if (error) {
+        console.error("No se pudieron cargar los perfiles:", error.message);
+        return;
+      }
+
+      if (rows) {
+        setClients(rows);
+      }
+    } finally {
+      setLoadingClients(false);
+    }
   }
 
   async function fetchCategories() {
@@ -1071,12 +1128,12 @@ async function handleCreateClient() {
         contact_name: newClient.contact_name,
         client_type: newClient.client_type,
         default_margin: Number(newClient.default_margin) || 20,
-        role: newClient.role || "client",
+        role: "client",
         phone,
       }),
     });
 
-    const result = await response.json() as { ok: boolean; error?: string };
+    const result = await readApiResponse(response);
 
     if (!response.ok || !result.ok) {
       const msg = result.error ?? "Error al crear el usuario.";
@@ -1108,6 +1165,80 @@ async function handleCreateClient() {
     setCreateError("Error inesperado al crear el cliente.");
   } finally {
     setCreatingClient(false);
+  }
+}
+
+async function handleCreateSeller() {
+  try {
+    setSellerCreateError("");
+
+    const email = newSeller.email.trim().toLowerCase();
+    const password = newSeller.password;
+    const phone = normalizePhoneForSupabase(newSeller.phone.trim());
+
+    if (!email || !password || !newSeller.contact_name.trim()) {
+      setSellerCreateError("Nombre, email y contraseña son obligatorios.");
+      return;
+    }
+
+    if (phone && phone.replace(/\D/g, "").length < 10) {
+      setSellerCreateError("Si se ingresa un celular, debe incluir código de área y número.");
+      return;
+    }
+
+    setCreatingSeller(true);
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      setSellerCreateError("Sesión expirada. Volvé a iniciar sesión.");
+      return;
+    }
+
+    const response = await fetch("/api/create-user", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        email,
+        password,
+        company_name: newSeller.company_name || newSeller.contact_name,
+        contact_name: newSeller.contact_name,
+        client_type: "reseller",
+        default_margin: 0,
+        role: "sales",
+        phone,
+      }),
+    });
+
+    const result = await readApiResponse(response);
+
+    if (!response.ok || !result.ok) {
+      const msg = result.error ?? "Error al crear el vendedor.";
+      if (response.status === 409) {
+        setSellerCreateError("El email ya está registrado.");
+      } else {
+        setSellerCreateError(msg);
+      }
+      return;
+    }
+
+    setShowNewSeller(false);
+    setNewSeller({
+      email: "",
+      password: "",
+      phone: "",
+      company_name: "",
+      contact_name: "",
+    });
+
+    fetchClients();
+  } catch (err: unknown) {
+    console.error("Error inesperado:", err);
+    setSellerCreateError("Error inesperado al crear el vendedor.");
+  } finally {
+    setCreatingSeller(false);
   }
 }
   // -- Clientes --
@@ -1320,6 +1451,7 @@ async function handleCreateClient() {
       mobileSidebarOpen={mobileSidebarOpen}
       isDark={isDark}
       currency={currency}
+      currentUserLabel={session?.user?.email ?? "Administrador"}
       searchData={{
         products,
         clients,
@@ -1890,19 +2022,42 @@ async function handleCreateClient() {
           />
         )}
 
-        {/* -- MODO VENDEDOR -- */}
-        {activeTab === "seller_mode" && (
-          <div className="space-y-6">
-            <div className={`flex items-center gap-3 rounded-2xl px-5 py-4 border ${dk("bg-zinc-800/60 border-zinc-700/50", "bg-white border-zinc-200")}`}>
-              <DollarSign size={20} className={dk("text-emerald-400", "text-emerald-600")} />
-              <div>
-                <h2 className={`font-semibold text-sm ${dk("text-white", "text-zinc-900")}`}>Modo Vendedor</h2>
-                <p className={`text-xs mt-0.5 ${dk("text-zinc-400", "text-zinc-500")}`}>
-                  Creación rápida de cotizaciones y pedidos — próximamente.
-                </p>
-              </div>
-            </div>
-          </div>
+        {/* -- GESTION VENDEDORES -- */}
+        {activeTab === "seller_management" && (
+          <SellerManagementTab
+            sellers={sellerProfiles}
+            clients={customerProfiles}
+            orders={orders}
+            isDark={isDark}
+            onRefreshClients={fetchClients}
+          />
+        )}
+
+        {/* -- VENDEDORES -- */}
+        {(activeTab === "seller_mode" || activeTab === "seller_portfolio" || activeTab === "seller_targets" || activeTab === "seller_activity") && (
+          <SellerCRM
+            sellers={sellerProfiles}
+            clients={customerProfiles}
+            orders={orders}
+            products={products}
+            isDark={isDark}
+            view={
+              activeTab === "seller_portfolio"
+                ? "portfolio"
+                : activeTab === "seller_targets"
+                  ? "targets"
+                  : activeTab === "seller_activity"
+                    ? "activity"
+                    : "overview"
+            }
+            onRefreshOrders={fetchOrders}
+            onRefreshClients={fetchClients}
+            onNewSeller={() => navigateTab("seller_management")}
+            onOpenClient={(clientId) => {
+              setCrmSelectedClientId(clientId);
+              navigateTab("clients");
+            }}
+          />
         )}
 
         {/* -- PEDIDOS -- */}
@@ -2268,13 +2423,16 @@ async function handleCreateClient() {
         {activeTab === "clients" && (
           <>
           <ClientCRM
-            clients={clients}
+            clients={customerProfiles}
             orders={orders}
+            products={products}
             loading={loadingClients}
             isDark={isDark}
+            selectedClientId={crmSelectedClientId}
             onSave={saveClientFields}
             onNewClient={() => { setShowNewClient(true); setCreateError(""); }}
             onRefreshClients={fetchClients}
+            onRefreshOrders={fetchOrders}
           />
 
             {/* Modal nuevo cliente */}
@@ -2358,17 +2516,6 @@ async function handleCreateClient() {
                           onChange={(e) => setNewClient((p) => ({ ...p, default_margin: Number(e.target.value) }))}
                           className={`w-full border rounded-lg px-3 py-2 text-sm text-center outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4]")}`} />
                       </div>
-                      <div className="col-span-2">
-                        <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Rol</label>
-                        <select value={newClient.role}
-                          onChange={(e) => setNewClient((p) => ({ ...p, role: e.target.value as "client" | "cliente" | "admin" | "vendedor" }))}
-                          className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4]")}`}>
-                          <option value="client">Cliente</option>
-                          <option value="cliente">Cliente (ES)</option>
-                          <option value="vendedor">Vendedor</option>
-                          <option value="admin">Admin</option>
-                        </select>
-                      </div>
                     </div>
 
                     {createError && (
@@ -2381,6 +2528,82 @@ async function handleCreateClient() {
                       className="w-full bg-[#2D9F6A] hover:bg-[#25835A] text-white font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-50"
                     >
                       {creatingClient ? "Creando..." : "Crear Cliente"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showNewSeller && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+                <div className={`border rounded-2xl w-full max-w-md shadow-2xl shadow-black/60 ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
+                  <div className={`flex items-center justify-between px-6 py-4 border-b ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
+                    <h3 className={`font-bold ${dk("text-white", "text-[#171717]")}`}>Nuevo Vendedor</h3>
+                    <button onClick={() => setShowNewSeller(false)} className={`transition ${dk("text-gray-500 hover:text-white", "text-[#a3a3a3] hover:text-[#171717]")}`}>
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <div className="px-6 py-5 space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2">
+                        <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Nombre completo *</label>
+                        <input type="text" value={newSeller.contact_name}
+                          onChange={(e) => setNewSeller((p) => ({ ...p, contact_name: e.target.value }))}
+                          className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4]")}`}
+                          placeholder="Nico Benitez" />
+                      </div>
+                      <div className="col-span-2">
+                        <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Email *</label>
+                        <input type="email" value={newSeller.email}
+                          onChange={(e) => setNewSeller((p) => ({ ...p, email: e.target.value }))}
+                          className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4]")}`}
+                          placeholder="ventas@bartez.com" />
+                      </div>
+                      <div className="col-span-2">
+                        <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Contraseña *</label>
+                        <div className="flex gap-2">
+                          <input type="text" value={newSeller.password}
+                            onChange={(e) => setNewSeller((p) => ({ ...p, password: e.target.value }))}
+                            className={`flex-1 border rounded-lg px-3 py-2 text-sm font-mono outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040] placeholder:text-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4] placeholder:text-[#c4c4c4]")}`}
+                            placeholder="Mínimo 6 caracteres" />
+                          <button type="button" onClick={generateSellerPassword}
+                            className={`shrink-0 text-[#2D9F6A] text-xs font-bold px-3 rounded-lg border transition ${dk("bg-[#2a2a2a] hover:bg-[#333] border-[#333]", "bg-[#f0f0f0] hover:bg-[#e8e8e8] border-[#e5e5e5]")}`}>
+                            Generar
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Área / alias</label>
+                        <input type="text" value={newSeller.company_name}
+                          onChange={(e) => setNewSeller((p) => ({ ...p, company_name: e.target.value }))}
+                          className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4]")}`}
+                          placeholder="Equipo comercial" />
+                      </div>
+                      <div>
+                        <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Celular</label>
+                        <input
+                          type="tel"
+                          value={newSeller.phone}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, "");
+                            setNewSeller((p) => ({ ...p, phone: value }));
+                          }}
+                          placeholder="3411234567"
+                          className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4]")}`}
+                        />
+                      </div>
+                    </div>
+
+                    {sellerCreateError && (
+                      <p className="text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">{sellerCreateError}</p>
+                    )}
+
+                    <button
+                      onClick={handleCreateSeller}
+                      disabled={creatingSeller}
+                      className="w-full bg-[#2D9F6A] hover:bg-[#25835A] text-white font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-50"
+                    >
+                      {creatingSeller ? "Creando..." : "Crear Vendedor"}
                     </button>
                   </div>
                 </div>

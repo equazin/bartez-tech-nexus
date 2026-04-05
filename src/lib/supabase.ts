@@ -18,7 +18,7 @@ export const supabase = createClient(
   isSupabaseConfigured ? supabaseAnonKey : "placeholder"
 );
 
-export type UserRole = "client" | "cliente" | "admin" | "vendedor";
+export type UserRole = "client" | "cliente" | "admin" | "vendedor" | "sales";
 export type ClientType = "mayorista" | "reseller" | "empresa";
 
 export const CLIENT_TYPE_MARGINS: Record<ClientType, number> = {
@@ -58,4 +58,8 @@ export interface UserProfile {
   // Partner level + assigned seller (migration 069)
   partner_level?: "cliente" | "silver" | "gold" | "platinum";
   assigned_seller_id?: string;
+  monthly_target?: number;
+  // Client 360 persistence (migration 073)
+  last_contact_at?: string;
+  last_contact_type?: "nota" | "llamada" | "reunion" | "seguimiento" | "alerta" | "pedido" | "cotizacion" | "ticket";
 }

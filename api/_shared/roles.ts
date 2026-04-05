@@ -2,9 +2,9 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fail } from "./http.js";
 
-export type ApiRole = "admin" | "vendedor" | "cliente" | "client" | "anonymous";
+export type ApiRole = "admin" | "vendedor" | "sales" | "cliente" | "client" | "anonymous";
 
-const WRITE_ROLES: ApiRole[] = ["admin", "vendedor"];
+const WRITE_ROLES: ApiRole[] = ["admin", "vendedor", "sales"];
 
 export async function getRoleFromRequest(
   req: VercelRequest,
@@ -27,11 +27,12 @@ export async function getRoleFromRequest(
   const raw = String(profile?.role ?? "client").toLowerCase();
   if (raw === "admin") return "admin";
   if (raw === "vendedor") return "vendedor";
+  if (raw === "sales") return "sales";
   if (raw === "cliente") return "cliente";
   return "client";
 }
 
-export function normalizeRole(role: ApiRole): "admin" | "vendedor" | "cliente" | "anonymous" {
+export function normalizeRole(role: ApiRole): "admin" | "vendedor" | "sales" | "cliente" | "anonymous" {
   if (role === "client") return "cliente";
   return role;
 }
