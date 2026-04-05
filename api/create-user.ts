@@ -402,13 +402,20 @@ async function approveRegistration(adminClient: ReturnType<typeof getSupabaseAdm
     return { userId: String(existingProfile.id), alreadyCreated: true };
   }
 
-  if (!request.requested_password || request.requested_password.length < 6) {
-    throw new Error("La solicitud no tiene una contrasena valida para crear el acceso del cliente.");
-  }
+  // If no password was stored (legacy requests or schema fallback), generate a
+  // secure temporary one. The client will need to reset via "Forgot password".
+  const passwordToUse =
+    request.requested_password && request.requested_password.length >= 6
+      ? request.requested_password
+      : Array.from(crypto.getRandomValues(new Uint8Array(12)))
+          .map((b) => b.toString(36).padStart(2, "0"))
+          .join("")
+          .slice(0, 16);
+  const usedTempPassword = !request.requested_password || request.requested_password.length < 6;
 
   const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
     email: normalizedEmail,
-    password: request.requested_password,
+    password: passwordToUse,
     email_confirm: true,
     user_metadata: {
       company_name: request.company_name,
@@ -450,7 +457,7 @@ async function approveRegistration(adminClient: ReturnType<typeof getSupabaseAdm
     throw new Error(profileError.message);
   }
 
-  return { userId, alreadyCreated: false };
+  return { userId, alreadyCreated: false, usedTempPassword };
 }
 
 async function handleUpdateRegistrationRequest(req: VercelRequest, res: VercelResponse) {
@@ -479,11 +486,13 @@ async function handleUpdateRegistrationRequest(req: VercelRequest, res: VercelRe
     payload.notes = typeof notes === "string" ? notes : null;
   }
 
+  let usedTempPassword = false;
   if (status === "approved") {
     try {
       const approval = await approveRegistration(adminClient, request as RegistrationRow);
       payload.approved_user_id = approval.userId;
       payload.requested_password = null;
+      usedTempPassword = approval.usedTempPassword ?? false;
     } catch (error) {
       return fail(res, error instanceof Error ? error.message : "No se pudo aprobar la solicitud.", 409);
     }
@@ -495,7 +504,12 @@ async function handleUpdateRegistrationRequest(req: VercelRequest, res: VercelRe
     .eq("id", id);
 
   if (error) return fail(res, error.message, 500);
-  return ok(res, { id, status, approved_user_id: payload.approved_user_id ?? null });
+  return ok(res, {
+    id,
+    status,
+    approved_user_id: payload.approved_user_id ?? null,
+    used_temp_password: usedTempPassword,
+  });
 }
 
 async function handleCreateUser(req: VercelRequest, res: VercelResponse) {

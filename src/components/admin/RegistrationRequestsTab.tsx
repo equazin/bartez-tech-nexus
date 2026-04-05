@@ -136,11 +136,20 @@ export function RegistrationRequestsTab() {
         headers,
         body: JSON.stringify({ id, status, ...(notes ? { notes } : {}) }),
       });
-      const result = await readApiResult<{ id: string; status: RegistrationStatus; approved_user_id?: string | null }>(response);
+      const result = await readApiResult<{ id: string; status: RegistrationStatus; approved_user_id?: string | null; used_temp_password?: boolean }>(response);
+
       if (!response.ok || !result.ok) {
         toast.error(result.error ?? "No se pudo actualizar la solicitud.");
       } else {
-        toast.success(status === "approved" ? "Solicitud aprobada y cliente creado" : "Solicitud rechazada");
+        if (status === "approved") {
+          if (result.data?.used_temp_password) {
+            toast.success("Cliente creado con contraseña temporal — debe resetearla por email");
+          } else {
+            toast.success("Solicitud aprobada y cliente creado");
+          }
+        } else {
+          toast.success("Solicitud rechazada");
+        }
         await fetchRequests();
       }
     } catch (error) {
