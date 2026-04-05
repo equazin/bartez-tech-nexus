@@ -198,9 +198,7 @@ const Register = () => {
       >
         <div className="mb-10 text-center">
           <Link to="/" className="mb-6 inline-flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-primary p-2 shadow-lg shadow-primary/20">
-              <img src="/icon.png" alt="Bartez" className="h-full w-full object-contain brightness-0 invert" />
-            </div>
+            <img src="/android-chrome-512x512.png" alt="Bartez" className="h-16 w-16 rounded-2xl object-contain" />
             <div className="text-left">
               <span className="block font-display text-2xl font-black tracking-tight text-foreground">BARTEZ</span>
               <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Canal empresas</span>

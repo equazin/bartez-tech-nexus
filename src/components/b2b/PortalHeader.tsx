@@ -60,13 +60,11 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
       <div className="flex flex-wrap items-center gap-3">
         {/* ── Logo / Identity ────────────────────────────────────────── */}
         <div className="flex shrink-0 items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-primary shadow-lg shadow-primary/15">
-            <img
-              src="/icon.png"
-              alt="Bartez"
-              className="h-6 w-6 object-contain"
-            />
-          </div>
+          <img
+            src="/android-chrome-512x512.png"
+            alt="Bartez"
+            className="h-14 w-14 shrink-0 rounded-2xl object-contain"
+          />
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold tracking-tight text-foreground">Portal B2B</span>
