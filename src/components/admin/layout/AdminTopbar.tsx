@@ -55,7 +55,7 @@ export function AdminTopbar({
 
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-gradient-primary shadow-lg shadow-primary/15">
-            <img src="/icon.png" alt="Bartez" className="h-6 w-6 object-contain brightness-0 invert" />
+            <img src="/icon.png" alt="Bartez" className="h-6 w-6 object-contain" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">

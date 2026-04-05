@@ -64,7 +64,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
             <img
               src="/icon.png"
               alt="Bartez"
-              className="h-6 w-6 object-contain brightness-0 invert"
+              className="h-6 w-6 object-contain"
             />
           </div>
           <div className="space-y-0.5">
