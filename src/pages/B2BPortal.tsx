@@ -103,7 +103,7 @@ export default function B2BPortal() {
   const [viewModeByContext, setViewModeByContext] = useState<ViewModeByContext>(() => loadViewModeByContext());
   const [viewMode, setViewMode] = useState<ViewMode>(() => loadViewModeByContext().default);
   const [themeFlash, setThemeFlash] = useState(false);
-  const [themeSwitchReady, setThemeSwitchReady] = useState(false);
+  const [themeSwitchReady] = useState(true);
   const [compareList, setCompareList] = useState<number[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null);
