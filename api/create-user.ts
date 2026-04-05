@@ -26,6 +26,11 @@ type SellerRecord = { id: string; name: string; email: string };
 
 type AssignedExecutive = { id: string; email: string; name: string; role: string } | null;
 
+type RegistrationInsertResult = {
+  id: string;
+  assigned_to: string | null;
+};
+
 /**
  * GET   /api/create-user?cuit=XXXXXXXXXXX                      -> AFIP lookup
  * GET   /api/create-user?scope=registration-requests&status=* -> admin list registration requests
@@ -153,6 +158,83 @@ async function resolveAssignedExecutive(adminClient: ReturnType<typeof getSupaba
   return null;
 }
 
+async function insertRegistrationRequest(
+  adminClient: ReturnType<typeof getSupabaseAdmin>,
+  payload: {
+    cuit: string;
+    company_name: string;
+    contact_name: string;
+    email: string;
+    requested_password: string;
+    entity_type: string;
+    tax_status: string;
+    assigned_to: string | null;
+    assigned_seller_id: string | null;
+    status: "pending";
+  },
+): Promise<{ data: RegistrationInsertResult | null; error: { message: string } | null }> {
+  const attempts: Array<Record<string, unknown>> = [
+    payload,
+    {
+      cuit: payload.cuit,
+      company_name: payload.company_name,
+      contact_name: payload.contact_name,
+      email: payload.email,
+      entity_type: payload.entity_type,
+      tax_status: payload.tax_status,
+      assigned_to: payload.assigned_to,
+      status: payload.status,
+    },
+    {
+      cuit: payload.cuit,
+      company_name: payload.company_name,
+      contact_name: payload.contact_name,
+      email: payload.email,
+      entity_type: payload.entity_type,
+      tax_status: payload.tax_status,
+      status: payload.status,
+    },
+    {
+      cuit: payload.cuit,
+      company_name: payload.company_name,
+      contact_name: payload.contact_name,
+      email: payload.email,
+      status: payload.status,
+    },
+  ];
+
+  let lastError: { message: string } | null = null;
+
+  for (const attempt of attempts) {
+    const { data, error } = await adminClient
+      .from("b2b_registration_requests")
+      .insert(attempt)
+      .select("id, assigned_to")
+      .single();
+
+    if (!error && data) {
+      return { data: data as RegistrationInsertResult, error: null };
+    }
+
+    lastError = error ? { message: error.message } : { message: "Respuesta vacia al insertar solicitud." };
+
+    if (!error) {
+      continue;
+    }
+
+    const retryable =
+      /Could not find the .* column/i.test(error.message) ||
+      /schema cache/i.test(error.message) ||
+      /column .* does not exist/i.test(error.message);
+
+    if (!retryable) {
+      return { data: null, error: lastError };
+    }
+  }
+
+  return { data: null, error: lastError };
+}
+
 async function handleRegistrationRequest(req: VercelRequest, res: VercelResponse) {
   const { cuit, company_name, contact_name, email, password, entity_type, tax_status } =
     req.body as Record<string, unknown>;
@@ -177,35 +259,14 @@ async function handleRegistrationRequest(req: VercelRequest, res: VercelResponse
     contact_name: (contact_name as string).trim(),
     email: (email as string).trim().toLowerCase(),
     requested_password: password,
-    entity_type: entity_type ?? "empresa",
-    tax_status: tax_status ?? "responsable_inscripto",
+    entity_type: typeof entity_type === "string" ? entity_type : "empresa",
+    tax_status: typeof tax_status === "string" ? tax_status : "responsable_inscripto",
     assigned_to: assignedExecutive?.email ?? null,
     assigned_seller_id: assignedExecutive?.id ?? null,
     status: "pending" as const,
   };
 
-  let { data, error } = await adminClient
-    .from("b2b_registration_requests")
-    .insert(insertPayload)
-    .select("id, assigned_to")
-    .single();
-
-  if (error && /(requested_password|assigned_seller_id|approved_user_id)/i.test(error.message)) {
-    ({ data, error } = await adminClient
-      .from("b2b_registration_requests")
-      .insert({
-        cuit: insertPayload.cuit,
-        company_name: insertPayload.company_name,
-        contact_name: insertPayload.contact_name,
-        email: insertPayload.email,
-        entity_type: insertPayload.entity_type,
-        tax_status: insertPayload.tax_status,
-        assigned_to: insertPayload.assigned_to,
-        status: insertPayload.status,
-      })
-      .select("id, assigned_to")
-      .single());
-  }
+  const { data, error } = await insertRegistrationRequest(adminClient, insertPayload);
 
   if (error) {
     console.error("[registration-request] insert failed:", error.message);
