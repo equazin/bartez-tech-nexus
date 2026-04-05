@@ -203,7 +203,7 @@ export function SellerManagementTab({
 
       setSavingEdit(true);
       const headers = await withSessionHeaders();
-      const response = await fetch("/api/manage-user", {
+      const response = await fetch("/api/create-user", {
         method: "PATCH",
         headers,
         body: JSON.stringify({
@@ -236,7 +236,7 @@ export function SellerManagementTab({
     try {
       setTogglingId(seller.id);
       const headers = await withSessionHeaders();
-      await fetch("/api/manage-user", {
+      await fetch("/api/create-user", {
         method: "PATCH",
         headers,
         body: JSON.stringify({

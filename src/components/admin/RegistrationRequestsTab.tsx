@@ -99,7 +99,7 @@ export function RegistrationRequestsTab() {
     setErrorMessage(null);
     try {
       const headers = await withSessionHeaders();
-      const response = await fetch("/api/registration-requests?status=all", {
+      const response = await fetch("/api/create-user?scope=registration-requests&status=all", {
         method: "GET",
         headers,
       });
@@ -131,7 +131,7 @@ export function RegistrationRequestsTab() {
     setProcessing(id);
     try {
       const headers = await withSessionHeaders();
-      const response = await fetch("/api/registration-requests", {
+      const response = await fetch("/api/create-user?scope=registration-requests", {
         method: "PATCH",
         headers,
         body: JSON.stringify({ id, status, ...(notes ? { notes } : {}) }),
