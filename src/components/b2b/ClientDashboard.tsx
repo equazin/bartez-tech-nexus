@@ -1,36 +1,49 @@
-/**
- * ClientDashboard — Home del portal B2B
- * Muestra saldo, crédito, próximo vencimiento y último pedido en un pantallazo.
- */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  ShoppingCart, FileText, CreditCard, AlertTriangle,
-  CheckCircle2, Clock, Package, TrendingUp, ArrowRight,
-  CalendarClock, Wallet, ReceiptText, RefreshCw,
-} from "lucide-react";
-import type { PortalOrder } from "@/hooks/useOrders";
-import type { Invoice } from "@/lib/api/invoices";
-import type { UserProfile } from "@/lib/supabase";
-import { ShoppingBag, Truck, Bell, ChevronRight, Projector, MapPin } from "lucide-react";
-import { createShippingLabel, type CarrierId } from "@/lib/api/carriers";
-import { formatMoneyAmount, getEffectiveInvoiceAmounts, convertMoneyAmount } from "@/lib/money";
-import { useCurrency } from "@/context/CurrencyContext";
-import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { 
-  Plus, Download, Sparkles, MessageSquare, Briefcase, Zap, ShieldCheck, 
-  ArrowUpRight, Info, AlertCircle, Bookmark, FileStack
+  AlertCircle,
+  AlertTriangle,
+  ArrowRight,
+  CalendarClock,
+  Clock,
+  CreditCard,
+  FileText,
+  MessageSquare,
+  Package,
+  Plus,
+  ReceiptText,
+  ShoppingCart,
+  ShieldCheck,
+  Truck,
 } from "lucide-react";
 
-import type { Product } from "@/models/products";
-import { SmartSuggestions } from "./SmartSuggestions";
-import type { ClientProject } from "@/hooks/useClientProjects";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { MetricCard } from "@/components/ui/metric-card";
+import { SurfaceCard } from "@/components/ui/surface-card";
+import { useCurrency } from "@/context/CurrencyContext";
+import type { PriceAgreement } from "@/hooks/usePriceAgreements";
+import type { RmaRequest } from "@/hooks/useRma";
+import type { PortalOrder } from "@/hooks/useOrders";
 import type { BusinessAlert } from "@/hooks/useBusinessAlerts";
+import type { Invoice } from "@/lib/api/invoices";
+import { convertMoneyAmount, formatMoneyAmount, getEffectiveInvoiceAmounts } from "@/lib/money";
+import { supabase } from "@/lib/supabase";
+import type { UserProfile } from "@/lib/supabase";
+import type { Product } from "@/models/products";
+
 
 export interface AssignedSeller {
   id: string;
   name: string;
   phone?: string;
+}
+
+interface SupportTicketSummary {
+  id: string;
+  subject: string;
+  status: "open" | "in_analysis" | "tech_assigned" | "resolved" | "closed";
+  priority: "low" | "medium" | "high" | "critical";
+  updated_at: string;
 }
 
 interface ClientDashboardProps {
@@ -40,79 +53,55 @@ interface ClientDashboardProps {
   products: Product[];
   creditLimit: number;
   creditUsed: number;
-  isDark: boolean;
-  onGoTo: (tab: "catalog" | "orders" | "invoices" | "cuenta") => void;
+  onGoTo: (tab: "catalog" | "orders" | "invoices" | "cuenta" | "projects" | "support" | "rma" | "quotes") => void;
   onAddToCart: (product: Product, qty: number) => void;
-  // New dynamic props (optional for backward compat)
-  projects?: ClientProject[];
-  onCreateProject?: (name: string, color?: string) => Promise<void>;
   alerts?: BusinessAlert[];
   assignedSeller?: AssignedSeller | null;
+  activeAgreement?: PriceAgreement | null;
 }
-
-// ── Helpers ───────────────────────────────────────────────────
-
-const ORDER_STATUS_LABEL: Record<string, string> = {
-  pending:          "Pendiente",
-  pending_approval: "En revisión",
-  approved:         "Aprobado",
-  preparing:        "Preparando",
-  shipped:          "Enviado",
-  dispatched:       "Despachado",
-  delivered:        "Entregado",
-  rejected:         "Rechazado",
-};
-
-const ORDER_STATUS_COLOR: Record<string, string> = {
-  pending:          "text-amber-400 bg-amber-500/10 border-amber-500/20",
-  pending_approval: "text-blue-400 bg-blue-500/10 border-blue-500/20",
-  approved:         "text-[#2D9F6A] bg-[#2D9F6A]/10 border-[#2D9F6A]/20",
-  preparing:        "text-blue-400 bg-blue-500/10 border-blue-500/20",
-  shipped:          "text-purple-400 bg-purple-500/10 border-purple-500/20",
-  dispatched:       "text-purple-400 bg-purple-500/10 border-purple-500/20",
-  delivered:        "text-[#2D9F6A] bg-[#2D9F6A]/10 border-[#2D9F6A]/20",
-  rejected:         "text-red-400 bg-red-500/10 border-red-500/20",
-};
-
-function daysUntil(dateStr: string): number {
-  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86_400_000);
-}
-
-// ── Component ─────────────────────────────────────────────────
-
-// ── Partner level helpers ─────────────────────────────────────
 
 type PartnerLevel = "cliente" | "silver" | "gold" | "platinum";
 
 const PARTNER_LEVEL_LABEL: Record<PartnerLevel, string> = {
-  cliente:  "Cliente",
-  silver:   "Silver",
-  gold:     "Gold",
+  cliente: "Cliente",
+  silver: "Silver",
+  gold: "Gold",
   platinum: "Platinum",
 };
 
-const PARTNER_LEVEL_COLOR: Record<PartnerLevel, string> = {
-  cliente:  "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  silver:   "bg-gray-500/10 text-gray-600 dark:text-gray-300",
-  gold:     "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
-  platinum: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
+const ORDER_STATUS_LABEL: Record<string, string> = {
+  pending: "Pendiente",
+  pending_approval: "En revision",
+  approved: "Aprobado",
+  preparing: "Preparando",
+  shipped: "Enviado",
+  dispatched: "Despachado",
+  delivered: "Entregado",
+  rejected: "Rechazado",
 };
 
-const ALERT_ICON_MAP: Record<string, typeof AlertCircle> = {
-  invoice:   AlertCircle,
-  rma:       ShieldCheck,
-  promotion: Bookmark,
-  info:      Info,
-  warning:   AlertCircle,
+const ORDER_STATUS_CLASS: Record<string, string> = {
+  pending: "border-amber-500/20 bg-amber-500/10 text-amber-500",
+  pending_approval: "border-blue-500/20 bg-blue-500/10 text-blue-500",
+  approved: "border-primary/20 bg-primary/10 text-primary",
+  preparing: "border-blue-500/20 bg-blue-500/10 text-blue-500",
+  shipped: "border-violet-500/20 bg-violet-500/10 text-violet-500",
+  dispatched: "border-violet-500/20 bg-violet-500/10 text-violet-500",
+  delivered: "border-primary/20 bg-primary/10 text-primary",
+  rejected: "border-destructive/20 bg-destructive/10 text-destructive",
 };
 
 const ALERT_COLOR_MAP: Record<string, string> = {
-  invoice:   "text-amber-400",
-  rma:       "text-primary",
-  promotion: "text-blue-400",
-  info:      "text-sky-400",
-  warning:   "text-red-400",
+  invoice: "text-amber-500",
+  rma: "text-primary",
+  promotion: "text-blue-500",
+  info: "text-sky-500",
+  warning: "text-destructive",
 };
+
+function daysUntil(dateStr: string): number {
+  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
+}
 
 export function ClientDashboard({
   profile,
@@ -121,94 +110,109 @@ export function ClientDashboard({
   products,
   creditLimit,
   creditUsed,
-  isDark,
   onGoTo,
   onAddToCart,
-  projects = [],
-  onCreateProject,
   alerts = [],
   assignedSeller,
+  activeAgreement,
 }: ClientDashboardProps) {
-  const [showCreateProject, setShowCreateProject] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("");
-  const [newProjectColor, setNewProjectColor] = useState("blue");
-  const [creatingProject, setCreatingProject] = useState(false);
-  const dk = (d: string, l: string) => isDark ? d : l;
+  const [supportTickets, setSupportTickets] = useState<SupportTicketSummary[]>([]);
+  const [rmaRequests, setRmaRequests] = useState<RmaRequest[]>([]);
   const { currency, exchangeRate } = useCurrency();
 
-  // ── Derived data ──────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
 
-  const activeOrders = useMemo(() =>
-    orders.filter(o => !["delivered", "rejected"].includes(o.status)),
-    [orders]
-  );
+    async function loadServiceSignals() {
+      if (!profile.id) return;
 
+      const [ticketsResult, rmaResult] = await Promise.all([
+        supabase
+          .from("support_tickets")
+          .select("id, subject, status, priority, updated_at")
+          .eq("client_id", profile.id)
+          .order("updated_at", { ascending: false })
+          .limit(4),
+        supabase
+          .from("rma_requests")
+          .select("*")
+          .eq("client_id", profile.id)
+          .order("created_at", { ascending: false })
+          .limit(4),
+      ]);
+
+      if (cancelled) return;
+      setSupportTickets((ticketsResult.data ?? []) as SupportTicketSummary[]);
+      setRmaRequests((rmaResult.data ?? []) as RmaRequest[]);
+    }
+
+    void loadServiceSignals();
+    return () => {
+      cancelled = true;
+    };
+  }, [profile.id]);
+
+  const partnerLevel = (profile.partner_level as PartnerLevel) || "cliente";
+  const safePartnerLevel = PARTNER_LEVEL_LABEL[partnerLevel] ? partnerLevel : "cliente";
+  const greetingName = profile.contact_name?.split(" ")[0] || profile.company_name || "equipo";
+  const currentHour = new Date().getHours();
+  const greeting = currentHour < 12 ? "Buenos días" : currentHour < 20 ? "Buenas tardes" : "Buenas noches";
+
+  const activeOrders = useMemo(() => orders.filter((o) => !["delivered", "rejected"].includes(o.status)), [orders]);
   const lastOrder = orders[0] ?? null;
-
-  const pendingInvoices = useMemo(() =>
-    invoices.filter(i => ["sent", "overdue", "draft"].includes(i.status)),
-    [invoices]
+  const pendingInvoices = useMemo(() => invoices.filter((i) => ["sent", "overdue", "draft"].includes(i.status)), [invoices]);
+  const overdueInvoices = useMemo(
+    () => invoices.filter((i) => i.status === "overdue" || (i.status === "sent" && i.due_date && daysUntil(i.due_date) < 0)),
+    [invoices],
+  );
+  const dueInvoices = useMemo(
+    () =>
+      pendingInvoices
+        .filter((i) => i.due_date)
+        .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime()),
+    [pendingInvoices],
+  );
+  const pendingDebt = useMemo(
+    () =>
+      pendingInvoices.reduce((sum, i) => {
+        const effective = getEffectiveInvoiceAmounts(i, exchangeRate.rate);
+        return sum + convertMoneyAmount(effective.total, effective.currency, currency, exchangeRate.rate);
+      }, 0),
+    [currency, exchangeRate.rate, pendingInvoices],
   );
 
-  const overdueInvoices = useMemo(() =>
-    invoices.filter(i => i.status === "overdue" ||
-      (i.status === "sent" && i.due_date && daysUntil(i.due_date) < 0)),
-    [invoices]
+  const overdueDebt = useMemo(
+    () =>
+      overdueInvoices.reduce((sum, i) => {
+        const effective = getEffectiveInvoiceAmounts(i, exchangeRate.rate);
+        return sum + convertMoneyAmount(effective.total, effective.currency, currency, exchangeRate.rate);
+      }, 0),
+    [currency, exchangeRate.rate, overdueInvoices],
   );
 
-  const nextDueInvoice = useMemo(() => {
-    const upcoming = pendingInvoices
-      .filter(i => i.due_date)
-      .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime());
-    return upcoming[0] ?? null;
-  }, [pendingInvoices]);
-
-  const pendingDebt = useMemo(() =>
-    pendingInvoices.reduce((sum, inv) => {
-      const eff = getEffectiveInvoiceAmounts(inv, exchangeRate.rate);
-      return sum + convertMoneyAmount(eff.total, eff.currency, currency, exchangeRate.rate);
-    }, 0),
-    [pendingInvoices, currency, exchangeRate.rate]
-  );
-
-  const overdueDebt = useMemo(() =>
-    overdueInvoices.reduce((sum, inv) => {
-      const eff = getEffectiveInvoiceAmounts(inv, exchangeRate.rate);
-      return sum + convertMoneyAmount(eff.total, eff.currency, currency, exchangeRate.rate);
-    }, 0),
-    [overdueInvoices, currency, exchangeRate.rate]
-  );
-
-  // credit_limit and credit_used are stored in ARS — convert to display currency
-  const creditAvailableARS = creditLimit > 0 ? Math.max(0, creditLimit - creditUsed) : null;
-  const creditAvailable = creditAvailableARS !== null
-    ? convertMoneyAmount(creditAvailableARS, "ARS", currency, exchangeRate.rate)
-    : null;
   const creditPct = creditLimit > 0 ? Math.min(100, (creditUsed / creditLimit) * 100) : 0;
-
-  // ── Spending analytics ────────────────────────────────────────
+  const sellerName = assignedSeller?.name ?? "Bartez Soporte";
+  const sellerPhone = assignedSeller?.phone ? assignedSeller.phone.replace(/\D/g, "") : "5491100000000";
+  const sellerUrl = `https://wa.me/${sellerPhone}`;
 
   const spendingStats = useMemo(() => {
     const now = new Date();
     const yearStart = new Date(now.getFullYear(), 0, 1).getTime();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const delivered = orders.filter((o) => o.status === "delivered");
+    const ytd = delivered.filter((o) => new Date(o.created_at).getTime() >= yearStart);
+    const month = delivered.filter((o) => new Date(o.created_at).getTime() >= monthStart);
 
-    const delivered = orders.filter(o => o.status === "delivered");
-    const ytd   = delivered.filter(o => new Date(o.created_at).getTime() >= yearStart);
-    const month = delivered.filter(o => new Date(o.created_at).getTime() >= monthStart);
-
-    const ytdTotal   = ytd.reduce((s, o) => s + (o.total ?? 0), 0);
+    const ytdTotal = ytd.reduce((s, o) => s + (o.total ?? 0), 0);
     const monthTotal = month.reduce((s, o) => s + (o.total ?? 0), 0);
-    const avgOrder   = ytd.length > 0 ? ytdTotal / ytd.length : 0;
+    const avgOrder = ytd.length > 0 ? ytdTotal / ytd.length : 0;
 
-    // Last 6 months buckets for sparkline
     const buckets: number[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    for (let i = 5; i >= 0; i -= 1) {
+      const start = new Date(now.getFullYear(), now.getMonth() - i, 1).getTime();
       const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1).getTime();
-      const start = d.getTime();
       const total = delivered
-        .filter(o => {
+        .filter((o) => {
           const t = new Date(o.created_at).getTime();
           return t >= start && t < end;
         })
@@ -216,527 +220,541 @@ export function ClientDashboard({
       buckets.push(total);
     }
 
-    const maxBucket = Math.max(...buckets, 1);
-
-    return { ytdTotal, monthTotal, avgOrder, buckets, maxBucket, ytdCount: ytd.length };
+    return {
+      ytdTotal,
+      monthTotal,
+      avgOrder,
+      buckets,
+      maxBucket: Math.max(...buckets, 1),
+      ytdCount: ytd.length,
+    };
   }, [orders]);
 
-  // ── KPI Cards ─────────────────────────────────────────────────
+  const serviceInsights = useMemo(() => {
+    const activeTickets = supportTickets.filter((t) => !["resolved", "closed"].includes(t.status));
+    const activeRmas = rmaRequests.filter((r) => !["resolved", "rejected"].includes(r.status));
+    const maxPriority = activeTickets.reduce<SupportTicketSummary["priority"] | null>((cur, t) => {
+      const rank: Record<SupportTicketSummary["priority"], number> = { low: 0, medium: 1, high: 2, critical: 3 };
+      if (!cur) return t.priority;
+      return rank[t.priority] > rank[cur] ? t.priority : cur;
+    }, null);
+    const slaHours = maxPriority === "critical" ? 2 : maxPriority === "high" ? 4 : maxPriority === "medium" ? 8 : 24;
+
+    return {
+      activeTickets,
+      activeRmas,
+      recentTickets: supportTickets.slice(0, 3),
+      slaLabel: `${slaHours}h hábiles`,
+    };
+  }, [rmaRequests, supportTickets]);
+
+  // ── Max 3 action items, sorted by urgency ──────────────────────────────
+  const actionItems = useMemo(
+    () =>
+      [
+        creditPct >= 80
+          ? {
+              id: "credit",
+              label: "Revisar crédito disponible",
+              description: `La línea está al ${creditPct.toFixed(0)}% de uso.`,
+              tone: "warning" as const,
+              action: () => onGoTo("cuenta"),
+              cta: "Ver cuenta",
+            }
+          : null,
+        activeOrders.length > 0
+          ? {
+              id: "orders",
+              label: "Pedidos en curso",
+              description: `${activeOrders.length} pedido${activeOrders.length !== 1 ? "s" : ""} en operación.`,
+              tone: "info" as const,
+              action: () => onGoTo("orders"),
+              cta: "Ver pedidos",
+            }
+          : null,
+      ]
+        .filter(Boolean) as Array<{
+        id: string;
+        label: string;
+        description: string;
+        tone: "danger" | "info" | "warning" | "success";
+        action: () => void;
+        cta: string;
+      }>,
+    [activeOrders.length, creditPct, onGoTo],
+  );
+
+  const reorderCandidates = useMemo(() => {
+    const purchaseMap = new Map<number, { count: number; qty: number; product: Product }>();
+    orders.forEach((o) => {
+      o.products.forEach((item) => {
+        const product = products.find((p) => p.id === item.product_id);
+        if (!product) return;
+        const cur = purchaseMap.get(product.id) ?? { count: 0, qty: 0, product };
+        cur.count += 1;
+        cur.qty += item.quantity;
+        purchaseMap.set(product.id, cur);
+      });
+    });
+    return Array.from(purchaseMap.values())
+      .filter(({ product }) => (product.stock ?? 0) > 0)
+      .sort((a, b) => b.count - a.count || b.qty - a.qty)
+      .slice(0, 4)
+      .map(({ product, count, qty }) => ({
+        product,
+        count,
+        suggestedQty: Math.max(product.min_order_qty ?? 1, Math.ceil(qty / Math.max(count, 1))),
+      }));
+  }, [orders, products]);
+
+  const financialHealth = useMemo(() => {
+    if (profile.estado === "bloqueado") {
+      return { label: "Cuenta bloqueada", tone: "danger" as const, description: "Requiere intervención del equipo de cobranzas." };
+    }
+    if (overdueInvoices.length > 0 || creditPct >= 95) {
+      return {
+        label: "Riesgo alto",
+        tone: "warning" as const,
+        description: overdueInvoices.length > 0 ? `${overdueInvoices.length} factura${overdueInvoices.length !== 1 ? "s" : ""} vencida${overdueInvoices.length !== 1 ? "s" : ""}.` : "Línea de crédito casi agotada.",
+      };
+    }
+    if (creditPct >= 80 || pendingInvoices.length > 0) {
+      return { label: "Seguimiento activo", tone: "info" as const, description: "Monitorear crédito y vencimientos próximos." };
+    }
+    return { label: "Cuenta operativa", tone: "success" as const, description: "Sin alertas críticas." };
+  }, [creditPct, overdueInvoices.length, pendingInvoices.length, profile.estado]);
+
+  const promoAlerts = useMemo(() => alerts.filter((a) => a.type === "promotion").slice(0, 2), [alerts]);
+  const offerProducts = useMemo(
+    () => products.filter((p) => (p.offer_percent ?? 0) > 0 || p.special_price != null).slice(0, 3),
+    [products],
+  );
+  const hasPromoContent = promoAlerts.length > 0 || offerProducts.length > 0 || !!activeAgreement;
 
   const kpis = [
     {
       label: "Pedidos activos",
       value: String(activeOrders.length),
-      sub: activeOrders.length > 0 ? `Último: ${ORDER_STATUS_LABEL[activeOrders[0]?.status] ?? activeOrders[0]?.status}` : "Sin pedidos en curso",
-      icon: ShoppingCart,
-      accent: "text-[#2D9F6A]",
-      iconBg: "bg-[#2D9F6A]/10",
+      detail: activeOrders.length > 0 ? `${ORDER_STATUS_LABEL[activeOrders[0]?.status] ?? activeOrders[0]?.status}` : "Sin pedidos en curso",
+      icon: <ShoppingCart className="h-5 w-5" />,
       onClick: () => onGoTo("orders"),
     },
     {
       label: "Deuda pendiente",
       value: formatMoneyAmount(pendingDebt, currency, 0),
-      sub: `${pendingInvoices.length} factura${pendingInvoices.length !== 1 ? "s" : ""} por cobrar`,
-      icon: ReceiptText,
-      accent: pendingDebt > 0 ? "text-amber-400" : "text-[#2D9F6A]",
-      iconBg: pendingDebt > 0 ? "bg-amber-500/10" : "bg-[#2D9F6A]/10",
-      onClick: () => onGoTo("invoices"),
-    },
-    {
-      label: "Crédito disponible",
-      value: creditAvailable !== null ? formatMoneyAmount(creditAvailable, currency, 0) : "Sin límite",
-      sub: creditLimit > 0
-        ? `Usado: ${formatMoneyAmount(convertMoneyAmount(creditUsed, "ARS", currency, exchangeRate.rate), currency, 0)} de ${formatMoneyAmount(convertMoneyAmount(creditLimit, "ARS", currency, exchangeRate.rate), currency, 0)}`
-        : "Cuenta sin límite de crédito asignado",
-      icon: Wallet,
-      accent: creditAvailable !== null && creditPct > 80 ? "text-red-400" : "text-emerald-400",
-      iconBg: creditAvailable !== null && creditPct > 80 ? "bg-red-500/10" : "bg-emerald-500/10",
-      onClick: () => onGoTo("cuenta"),
-    },
-    {
-      label: "Próximo vencimiento",
-      value: nextDueInvoice?.due_date
-        ? new Date(nextDueInvoice.due_date).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })
-        : "Sin alertas",
-      sub: nextDueInvoice?.due_date
-        ? daysUntil(nextDueInvoice.due_date) <= 0
-          ? "Vence hoy o ya venció"
-          : `En ${daysUntil(nextDueInvoice.due_date)} día${daysUntil(nextDueInvoice.due_date) !== 1 ? "s" : ""}`
-        : "Todas las facturas al día",
-      icon: CalendarClock,
-      accent: nextDueInvoice?.due_date && daysUntil(nextDueInvoice.due_date) <= 3 ? "text-red-400" : "text-blue-400",
-      iconBg: nextDueInvoice?.due_date && daysUntil(nextDueInvoice.due_date) <= 3 ? "bg-red-500/10" : "bg-blue-500/10",
+      detail: `${pendingInvoices.length} factura${pendingInvoices.length !== 1 ? "s" : ""} por cobrar`,
+      icon: <ReceiptText className="h-5 w-5" />,
       onClick: () => onGoTo("invoices"),
     },
   ];
 
-  const currentTime = new Date().getHours();
-  const greeting = currentTime < 12 ? "Buenos días" : currentTime < 20 ? "Buenas tardes" : "Buenas noches";
+  // ── Tone helpers ────────────────────────────────────────────────────────
+  const actionToneClass = {
+    danger: "border-destructive/20 bg-destructive/5",
+    warning: "border-amber-500/20 bg-amber-500/5",
+    info: "border-blue-500/20 bg-blue-500/5",
+    success: "border-primary/20 bg-primary/5",
+  } as const;
 
   return (
-    <div className="space-y-8 max-w-6xl animate-in fade-in duration-700">
-      {/* Upper Banner: Greeting + Business Context */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div className="mx-auto max-w-6xl space-y-6 animate-in fade-in duration-500">
+
+      {/* ── HEADER ROW ────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-             <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest ${PARTNER_LEVEL_COLOR[(profile.partner_level as PartnerLevel) ?? "cliente"]}`}>
-               Partner Nivel {PARTNER_LEVEL_LABEL[(profile.partner_level as PartnerLevel) ?? "cliente"]}
-             </span>
-             <span className={`w-1 h-1 rounded-full ${dk("bg-white/20", "bg-black/20")}`} />
-             <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">ID: BTZ-{profile.id.slice(0,6).toUpperCase()}</span>
-          </div>
-          <h2 className={`text-3xl font-display font-black tracking-tighter ${dk("text-white", "text-[#171717]")}`}>
-            {greeting}, {profile.contact_name?.split(' ')[0] || profile.company_name}
-          </h2>
-          <p className="text-sm text-[#737373] mt-0.5 flex items-center gap-2">
-            Tu centro de mando tecnológico · {new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            {PARTNER_LEVEL_LABEL[safePartnerLevel]} · {new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
           </p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground">
+            {greeting}, {greetingName}
+          </h1>
         </div>
-        
         <div className="flex items-center gap-3">
-           <Button onClick={() => onGoTo("catalog")} variant="outline" className={`h-11 rounded-2xl gap-2 font-bold px-5 ${dk("border-white/5 bg-white/5 hover:bg-white/10", "border-black/10 bg-gray-100/50 hover:bg-gray-200/50")}`}>
-              <Download size={16} /> Lista de Precios
-           </Button>
-           <Button onClick={() => onGoTo("catalog")} className="h-11 rounded-2xl gap-2 font-bold px-6 bg-gradient-primary shadow-lg shadow-primary/20">
-              <Plus size={18} /> Nueva Compra
-           </Button>
+          <Button asChild variant="outline" className="h-auto gap-2.5 rounded-2xl px-3 py-2 text-left">
+            <a href={sellerUrl} target="_blank" rel="noopener noreferrer">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                {sellerName.charAt(0).toUpperCase()}
+              </div>
+              <span className="hidden sm:block">
+                <span className="block text-xs font-semibold text-foreground leading-tight">{sellerName}</span>
+                <span className="block text-[10px] text-primary leading-tight">WhatsApp</span>
+              </span>
+              <MessageSquare size={13} className="text-muted-foreground" />
+            </a>
+          </Button>
+          <Button
+            type="button"
+            className="gap-2 rounded-2xl bg-gradient-primary shadow-lg shadow-primary/20"
+            onClick={() => onGoTo("catalog")}
+          >
+            <Plus size={16} /> Nueva compra
+          </Button>
         </div>
       </div>
 
-      {/* IA Predictiva + Proyectos + Alertas */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-           <div className="space-y-6">
-              {orders.length > 0 && (
-                <SmartSuggestions
-                  orders={orders}
-                  products={products}
-                  onAddToCart={onAddToCart}
-                  isDark={isDark}
-                />
-              )}
-
-              {/* Projects Quick Access */}
-              <div className={`p-6 rounded-[28px] border overflow-hidden relative group ${dk("bg-[#0d0d0d] border-white/5", "bg-white border-black/5 shadow-sm")}`}>
-                 <div className="absolute right-0 top-0 p-8 opacity-5 -rotate-12">
-                    <Briefcase size={80} />
-                 </div>
-                 <div className="flex items-center justify-between mb-5 relative z-10">
-                    <div className="flex items-center gap-2">
-                       <FileStack size={16} className="text-primary" />
-                       <h3 className="text-sm font-bold uppercase tracking-widest">Mis Carpetas de Proyecto</h3>
-                    </div>
-                    <button onClick={() => onGoTo("projects" as any)} className="text-[10px] font-bold text-primary hover:underline flex items-center gap-1">
-                       Administrar Proyectos <ArrowUpRight size={12} />
-                    </button>
-                 </div>
-                 <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar relative z-10">
-                    {projects.length === 0 ? (
-                      <div className="flex items-center gap-3">
-                        <p className="text-xs text-muted-foreground">Sin proyectos</p>
-                        {onCreateProject && (
-                          <button
-                            onClick={() => setShowCreateProject(true)}
-                            className="text-xs text-primary hover:underline flex items-center gap-1"
-                          >
-                            <Plus size={12} /> Crear proyecto
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <>
-                        {projects.map(p => {
-                          const colorMap: Record<string, string> = {
-                            blue:   "bg-blue-500/10 border-blue-500/20 text-blue-400",
-                            amber:  "bg-amber-500/10 border-amber-500/20 text-amber-400",
-                            green:  "bg-primary/10 border-primary/20 text-primary",
-                            purple: "bg-purple-500/10 border-purple-500/20 text-purple-400",
-                            red:    "bg-red-500/10 border-red-500/20 text-red-400",
-                          };
-                          const colorCls = colorMap[p.color] ?? colorMap.blue;
-                          return (
-                            <button key={p.id} className={`flex-shrink-0 px-4 py-3 rounded-2xl border ${colorCls} transition hover:scale-105 active:scale-95`}>
-                               <p className="text-xs font-bold whitespace-nowrap">{p.name}</p>
-                               <p className="text-[9px] opacity-70 mt-0.5">{p.item_count} ítems agrupados</p>
-                            </button>
-                          );
-                        })}
-                        {onCreateProject && (
-                          <button
-                            onClick={() => setShowCreateProject(true)}
-                            className={`flex-shrink-0 px-4 py-3 rounded-2xl border border-dashed text-muted-foreground hover:border-primary/30 hover:text-primary transition text-xs ${dk("border-white/10", "border-black/10")}`}
-                          >
-                            <Plus size={12} className="mx-auto mb-1" />
-                            <span className="whitespace-nowrap">Nuevo</span>
-                          </button>
-                        )}
-                      </>
-                    )}
-                 </div>
-                 {showCreateProject && onCreateProject && (
-                   <div className="mt-3 flex gap-2 items-center relative z-10">
-                     <input
-                       className={`flex-1 rounded-xl border px-3 py-1.5 text-xs placeholder:text-muted-foreground ${dk("border-white/10 bg-white/5", "border-black/10 bg-black/5")}`}
-                       placeholder="Nombre del proyecto"
-                       value={newProjectName}
-                       onChange={e => setNewProjectName(e.target.value)}
-                       onKeyDown={async e => {
-                         if (e.key === "Enter" && newProjectName.trim()) {
-                           setCreatingProject(true);
-                           try {
-                             await onCreateProject(newProjectName.trim(), newProjectColor);
-                             setNewProjectName("");
-                             setShowCreateProject(false);
-                           } finally {
-                             setCreatingProject(false);
-                           }
-                         }
-                       }}
-                       autoFocus
-                     />
-                     <select
-                       className={`rounded-xl border px-2 py-1.5 text-xs ${dk("border-white/10 bg-white/5", "border-black/10 bg-black/5")}`}
-                       value={newProjectColor}
-                       onChange={e => setNewProjectColor(e.target.value)}
-                     >
-                       {["blue","amber","green","purple","red"].map(c => (
-                         <option key={c} value={c}>{c}</option>
-                       ))}
-                     </select>
-                     <Button
-                       size="sm"
-                       disabled={creatingProject || !newProjectName.trim()}
-                       onClick={async () => {
-                         setCreatingProject(true);
-                         try {
-                           await onCreateProject(newProjectName.trim(), newProjectColor);
-                           setNewProjectName("");
-                           setShowCreateProject(false);
-                         } finally {
-                           setCreatingProject(false);
-                         }
-                       }}
-                       className="rounded-xl text-xs h-8 px-3"
-                     >
-                       {creatingProject ? "..." : "Crear"}
-                     </Button>
-                     <button onClick={() => setShowCreateProject(false)} className={`text-muted-foreground text-xs ${dk("hover:text-white", "hover:text-[#171717]")}`}>✕</button>
-                   </div>
-                 )}
-              </div>
-           </div>
-
-           {/* Sidebar: Smart Alerts Feed */}
-           <div className={`rounded-[28px] border p-5 space-y-5 h-fit ${dk("bg-[#0d0d0d] border-white/5", "bg-white border-black/5")}`}>
-              <div className="flex items-center justify-between">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Alertas de Negocio</h3>
-                <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-              </div>
-              
-              <div className="space-y-4">
-                 {alerts.length === 0 ? (
-                   <p className="text-xs text-muted-foreground py-2">Sin alertas activas</p>
-                 ) : (
-                   alerts.map(alert => {
-                     const AlertIcon = ALERT_ICON_MAP[alert.type] ?? AlertCircle;
-                     const alertColor = ALERT_COLOR_MAP[alert.type] ?? "text-muted-foreground";
-                     return (
-                       <div key={alert.id} className="flex gap-3 group cursor-pointer hover:translate-x-1 transition-transform">
-                          <div className={`w-8 h-8 rounded-xl ${dk("bg-white/5", "bg-gray-100")} flex items-center justify-center shrink-0`}>
-                             <AlertIcon size={14} className={alertColor} />
-                          </div>
-                          <div className="min-w-0">
-                             <p className="text-[11px] font-bold leading-tight group-hover:text-primary transition-colors">{alert.title}</p>
-                             {alert.subtitle && <p className="text-[10px] text-muted-foreground">{alert.subtitle}</p>}
-                          </div>
-                       </div>
-                     );
-                   })
-                 )}
-              </div>
-              
-              <div className={`mt-6 pt-6 border-t ${dk("border-white/5", "border-black/5")}`}>
-                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Soporte Concierge</p>
-                 {(() => {
-                   const sellerName = assignedSeller?.name ?? "Bartez Soporte";
-                   const waNumber = assignedSeller?.phone
-                     ? assignedSeller.phone.replace(/\D/g, "")
-                     : "5491100000000";
-                   const waUrl = `https://wa.me/${waNumber}`;
-                   return (
-                     <a href={waUrl} target="_blank" rel="noopener noreferrer" className={`flex items-center gap-3 p-3 rounded-2xl group transition cursor-pointer ${dk("bg-white/5 hover:bg-white/10", "bg-black/5 hover:bg-black/10")}`}>
-                        <img src={`https://i.pravatar.cc/150?u=${sellerName}`} alt={sellerName} className="w-10 h-10 rounded-full border border-primary/30" />
-                        <div className="flex-1 min-w-0">
-                           <p className="text-xs font-bold truncate">{sellerName}</p>
-                           <p className="text-[9px] text-[#2D9F6A] font-bold">
-                             {assignedSeller ? "Vendedor asignado · WhatsApp Directo" : "Soporte Bartez · WhatsApp"}
-                           </p>
-                        </div>
-                        <MessageSquare size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
-                     </a>
-                   );
-                 })()}
-              </div>
-           </div>
-        </div>
-
-      {/* Alerta deuda vencida */}
+      {/* ── OVERDUE ALERT (conditional) ───────────────────────────────── */}
       {overdueInvoices.length > 0 && (
         <button
+          type="button"
           onClick={() => onGoTo("invoices")}
-          className="w-full flex items-center gap-3 px-5 py-4 rounded-[24px] border border-red-500/30 bg-red-500/8 text-left hover:bg-red-500/12 transition group shadow-lg shadow-red-500/5"
+          className="flex w-full items-center gap-3 rounded-[24px] border border-destructive/20 bg-destructive/10 px-5 py-4 text-left transition hover:bg-destructive/15"
         >
-          <div className="w-10 h-10 rounded-2xl bg-red-500/20 flex items-center justify-center shrink-0">
-            <AlertCircle size={18} className="text-red-400" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-destructive/15 text-destructive">
+            <AlertCircle size={18} />
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-red-400">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-destructive">
               Urgente: {overdueInvoices.length} factura{overdueInvoices.length !== 1 ? "s" : ""} fuera de término
             </p>
-            <p className="text-xs text-red-500/60 font-medium">
-              Tu servicio podría verse interrumpido. Deuda acumulada: {formatMoneyAmount(overdueDebt, currency, 0)}
-            </p>
+            <p className="text-xs text-destructive/80">Deuda acumulada: {formatMoneyAmount(overdueDebt, currency, 0)}</p>
           </div>
-          <ArrowRight size={16} className="text-red-400 group-hover:translate-x-1 transition-transform" />
+          <ArrowRight size={16} className="text-destructive" />
         </button>
       )}
 
-      {/* Spending analytics widget */}
+      {/* ── 2 KPIs ────────────────────────────────────────────────────── */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {kpis.map((kpi) => (
+          <button key={kpi.label} type="button" className="text-left" onClick={kpi.onClick}>
+            <MetricCard
+              label={kpi.label}
+              value={kpi.value}
+              detail={kpi.detail}
+              icon={kpi.icon}
+              className="h-full transition hover:border-primary/20 hover:shadow-lg hover:shadow-primary/10"
+            />
+          </button>
+        ))}
+      </div>
+
+      {/* ── ACTIONS ───────────────────────────────────────────────────── */}
+      {actionItems.length > 0 && (
+        <SurfaceCard tone="default" padding="lg" className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-foreground">Qué resolver hoy</h2>
+            <Badge variant="outline" className="border-primary/20 bg-primary/10 text-primary">
+              {actionItems.length} acción{actionItems.length !== 1 ? "es" : ""}
+            </Badge>
+          </div>
+          <div className="space-y-2">
+            {actionItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={item.action}
+                className={`flex w-full items-center gap-4 rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 ${actionToneClass[item.tone]}`}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{item.description}</p>
+                </div>
+                <span className="shrink-0 text-[11px] font-semibold text-primary">{item.cta}</span>
+                <ArrowRight size={13} className="shrink-0 text-muted-foreground" />
+              </button>
+            ))}
+          </div>
+        </SurfaceCard>
+      )}
+
+      {/* ── SPENDING SUMMARY (only if history) ───────────────────────── */}
       {spendingStats.ytdCount > 0 && (
-        <div className={`rounded-xl border p-4 ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")}`}>
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-3 flex-1">
-              <p className={`text-[10px] font-bold uppercase tracking-widest ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>
-                Resumen de cuenta · {new Date().getFullYear()}
-              </p>
-              <div className="grid grid-cols-3 gap-4">
+        <div>
+          <SurfaceCard tone="default" padding="lg">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 space-y-4">
                 <div>
-                  <p className={`text-lg font-bold ${dk("text-white", "text-[#171717]")}`}>
-                    {formatMoneyAmount(convertMoneyAmount(spendingStats.ytdTotal, "ARS", currency, exchangeRate.rate), currency, 0)}
-                  </p>
-                  <p className={`text-[10px] mt-0.5 ${dk("text-[#737373]", "text-[#a3a3a3]")}`}>Total comprado este año</p>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Resumen anual</p>
+                  <h2 className="mt-0.5 text-base font-semibold text-foreground">Cuenta {new Date().getFullYear()}</h2>
                 </div>
-                <div>
-                  <p className={`text-lg font-bold text-[#2D9F6A]`}>
-                    {formatMoneyAmount(convertMoneyAmount(spendingStats.monthTotal, "ARS", currency, exchangeRate.rate), currency, 0)}
-                  </p>
-                  <p className={`text-[10px] mt-0.5 ${dk("text-[#737373]", "text-[#a3a3a3]")}`}>Este mes</p>
-                </div>
-                <div>
-                  <p className={`text-lg font-bold ${dk("text-white", "text-[#171717]")}`}>
-                    {formatMoneyAmount(convertMoneyAmount(spendingStats.avgOrder, "ARS", currency, exchangeRate.rate), currency, 0)}
-                  </p>
-                  <p className={`text-[10px] mt-0.5 ${dk("text-[#737373]", "text-[#a3a3a3]")}`}>Ticket promedio</p>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-xl font-semibold text-foreground">
+                      {formatMoneyAmount(convertMoneyAmount(spendingStats.ytdTotal, "ARS", currency, exchangeRate.rate), currency, 0)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Total comprado</p>
+                  </div>
+                  <div>
+                    <p className="text-xl font-semibold text-primary">
+                      {formatMoneyAmount(convertMoneyAmount(spendingStats.monthTotal, "ARS", currency, exchangeRate.rate), currency, 0)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Este mes</p>
+                  </div>
+                  <div>
+                    <p className="text-xl font-semibold text-foreground">
+                      {formatMoneyAmount(convertMoneyAmount(spendingStats.avgOrder, "ARS", currency, exchangeRate.rate), currency, 0)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Ticket promedio</p>
+                  </div>
                 </div>
               </div>
+              <div className="flex h-12 items-end gap-[4px] pt-2">
+                {spendingStats.buckets.map((value, idx) => {
+                  const pct = spendingStats.maxBucket > 0 ? Math.max(8, (value / spendingStats.maxBucket) * 100) : 8;
+                  const isLast = idx === spendingStats.buckets.length - 1;
+                  return (
+                    <div
+                      key={idx}
+                      style={{ height: `${pct}%` }}
+                      className={`w-3 rounded-full ${isLast ? "bg-primary" : "bg-muted-foreground/20"}`}
+                    />
+                  );
+                })}
+              </div>
             </div>
-            {/* Mini sparkline */}
-            <div className="flex items-end gap-[3px] h-10 shrink-0 pr-1">
-              {spendingStats.buckets.map((v, i) => {
-                const pct = spendingStats.maxBucket > 0 ? Math.max(4, (v / spendingStats.maxBucket) * 100) : 4;
-                const isLast = i === spendingStats.buckets.length - 1;
-                return (
-                  <div
-                    key={i}
-                    title={formatMoneyAmount(v, "ARS", 0)}
-                    style={{ height: `${pct}%` }}
-                    className={`w-3 rounded-sm transition-all ${isLast ? "bg-[#2D9F6A]" : dk("bg-white/10", "bg-black/10")}`}
-                  />
-                );
-              })}
-            </div>
-          </div>
+          </SurfaceCard>
+
         </div>
       )}
 
-      {/* KPI Grid */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {kpis.map(kpi => {
-          const Icon = kpi.icon;
-          return (
-            <button
-              key={kpi.label}
-              onClick={kpi.onClick}
-              className={`rounded-xl border p-4 text-left group transition hover:border-[#2D9F6A]/30 ${dk("border-[#1f1f1f] bg-[#0d0d0d] hover:bg-[#111]", "border-[#e5e5e5] bg-white hover:bg-[#fafafa]")}`}
-            >
-              <div className={`inline-flex p-2 rounded-lg mb-3 ${kpi.iconBg}`}>
-                <Icon size={14} className={kpi.accent} />
-              </div>
-              <p className={`text-lg font-bold leading-tight ${kpi.accent}`}>{kpi.value}</p>
-              <p className={`text-[10px] font-semibold mt-1 uppercase tracking-wider ${dk("text-[#737373]", "text-[#a3a3a3]")}`}>{kpi.label}</p>
-              <p className={`text-[10px] mt-1 ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>{kpi.sub}</p>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Credit bar */}
+      {/* ── CREDIT PANEL (always visible when creditLimit > 0) ────────── */}
       {creditLimit > 0 && (
-        <div className={`rounded-xl border p-4 ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")}`}>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <CreditCard size={13} className="text-[#2D9F6A]" />
-              <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>Línea de crédito</p>
+        <SurfaceCard tone="subtle" padding="lg" className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <CreditCard size={17} />
             </div>
-            <p className={`text-xs ${dk("text-[#737373]", "text-[#a3a3a3]")}`}>
-              {formatMoneyAmount(convertMoneyAmount(creditUsed, "ARS", currency, exchangeRate.rate), currency, 0)} usado de {formatMoneyAmount(convertMoneyAmount(creditLimit, "ARS", currency, exchangeRate.rate), currency, 0)}
-            </p>
+            <div>
+              <p className="text-xs text-muted-foreground">Línea de crédito</p>
+              <p className="text-sm font-semibold text-foreground">{creditPct.toFixed(0)}% utilizado</p>
+            </div>
           </div>
-          <div className={`h-2 rounded-full overflow-hidden ${dk("bg-[#1f1f1f]", "bg-[#f0f0f0]")}`}>
+          <div className="h-2 overflow-hidden rounded-full bg-muted">
             <div
-              className={`h-full rounded-full transition-all ${creditPct > 90 ? "bg-red-500" : creditPct > 70 ? "bg-amber-400" : "bg-[#2D9F6A]"}`}
+              className={`h-full rounded-full transition-all ${creditPct > 90 ? "bg-destructive" : creditPct > 70 ? "bg-amber-500" : "bg-primary"}`}
               style={{ width: `${creditPct}%` }}
             />
           </div>
-          <p className={`text-[10px] mt-1 ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>
-            {creditPct.toFixed(0)}% utilizado · Disponible: {formatMoneyAmount(convertMoneyAmount(Math.max(0, creditLimit - creditUsed), "ARS", currency, exchangeRate.rate), currency, 0)}
-          </p>
-        </div>
+          <div className="space-y-1 text-xs text-muted-foreground">
+            <p>
+              Usado: {formatMoneyAmount(convertMoneyAmount(creditUsed, "ARS", currency, exchangeRate.rate), currency, 0)} de{" "}
+              {formatMoneyAmount(convertMoneyAmount(creditLimit, "ARS", currency, exchangeRate.rate), currency, 0)}
+            </p>
+            <p>
+              Disponible: {formatMoneyAmount(convertMoneyAmount(Math.max(0, creditLimit - creditUsed), "ARS", currency, exchangeRate.rate), currency, 0)}
+            </p>
+          </div>
+        </SurfaceCard>
       )}
 
-      {/* Two columns: último pedido + próximas facturas */}
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* Último pedido */}
-        <div className={`rounded-xl border p-4 space-y-3 ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")}`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Package size={13} className="text-[#2D9F6A]" />
-              <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>Último pedido</p>
-            </div>
-            <button onClick={() => onGoTo("orders")} className="text-[10px] text-[#2D9F6A] hover:underline flex items-center gap-0.5">
-              Ver todos <ArrowRight size={10} />
-            </button>
+      {/* ── REORDER CANDIDATES (only if history) ─────────────────────── */}
+      {reorderCandidates.length > 0 && (
+        <SurfaceCard tone="default" padding="lg" className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-foreground">Productos frecuentes para recompra</h2>
+            <Button type="button" variant="ghost" size="sm" className="gap-1 text-primary" onClick={() => onGoTo("catalog")}>
+              Ver catálogo <ArrowRight size={13} />
+            </Button>
           </div>
-          {lastOrder ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <span className={`font-mono text-xs font-bold ${dk("text-white", "text-[#171717]")}`}>
-                  {lastOrder.order_number ?? `#${String(lastOrder.id).slice(-6).toUpperCase()}`}
-                </span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full border ${ORDER_STATUS_COLOR[lastOrder.status] ?? "text-gray-400 bg-gray-500/10 border-gray-500/20"}`}>
-                  {ORDER_STATUS_LABEL[lastOrder.status] ?? lastOrder.status}
-                </span>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {reorderCandidates.map(({ product, count, suggestedQty }) => (
+              <div
+                key={product.id}
+                className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-card/80 p-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-foreground">{product.name}</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {count} {count !== 1 ? "compras" : "compra"} · stock {product.stock ?? 0}
+                  </p>
+                </div>
+                <Button type="button" size="sm" className="w-full" onClick={() => onAddToCart(product, suggestedQty)}>
+                  Sumar {suggestedQty} u.
+                </Button>
               </div>
-              <p className={`text-xs ${dk("text-[#737373]", "text-[#525252]")}`}>
-                {new Date(lastOrder.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })}
-                {" · "}
-                {formatMoneyAmount(lastOrder.total, currency, 0)}
-              </p>
-              
-              {/* [LOGÍSTICA] Tracking Dinámico */}
-              <div className={`pt-2 border-t ${dk("border-white/5", "border-black/5")}`}>
-                {lastOrder.status === "dispatched" || lastOrder.status === "delivered" ? (
-                  <button 
-                    onClick={async () => {
-                      const numericId = typeof lastOrder.id === "string" ? parseInt(lastOrder.id.replace(/\D/g, "").slice(-8)) : lastOrder.id;
-                      const carrierId: CarrierId = numericId % 2 === 0 ? "andreani" : "oca";
-                      const tracking = await createShippingLabel(carrierId, String(lastOrder.id));
-                      alert(`Tracking ${carrierId.toUpperCase()}: ${tracking}\nSu pedido está en curso.`);
-                    }}
-                    className="w-full flex items-center justify-between p-2 rounded-lg bg-blue-400/10 border border-blue-400/20 group hover:bg-blue-400/20 transition"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Truck size={14} className="text-blue-400" />
-                      <span className="text-[10px] font-bold text-blue-400 uppercase">Seguimiento en tiempo real</span>
-                    </div>
-                    <ChevronRight size={12} className="text-blue-400 group-hover:translate-x-1 transition-transform" />
-                  </button>
-                ) : (
-                  <div className={`p-2 rounded-lg border flex items-center gap-2 ${dk("bg-white/5 border-white/10", "bg-black/5 border-black/5")}`}>
-                    <Clock size={12} className="text-gray-500" />
-                    <span className="text-[10px] text-gray-500 font-medium">Estado: {ORDER_STATUS_LABEL[lastOrder.status] || "Procesando..."}</span>
-                  </div>
-                )}
-              </div>
+            ))}
+          </div>
+        </SurfaceCard>
+      )}
 
-              {lastOrder.products?.length > 0 && (
-                <p className={`text-[10px] mt-1 ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>
-                  {lastOrder.products.length} producto{lastOrder.products.length !== 1 ? "s" : ""}
-                  {lastOrder.products[0]?.name ? ` · ${lastOrder.products[0].name}${lastOrder.products.length > 1 ? ` +${lastOrder.products.length - 1}` : ""}` : ""}
-                </p>
+      {/* ── LAST ORDER + DUE INVOICES ─────────────────────────────────── */}
+      {(lastOrder || dueInvoices.length > 0) && (
+      <div className="grid gap-4 lg:grid-cols-2">
+        {lastOrder && (
+        <SurfaceCard tone="default" padding="lg" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <Package size={17} />
+              </div>
+              <h2 className="text-sm font-semibold text-foreground">Último pedido</h2>
+            </div>
+            <Button type="button" variant="ghost" size="sm" className="gap-1 text-primary" onClick={() => onGoTo("orders")}>
+              Ver todos <ArrowRight size={13} />
+            </Button>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-sm font-semibold text-foreground">
+                {lastOrder.order_number ?? `#${String(lastOrder.id).slice(-6).toUpperCase()}`}
+              </span>
+              <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${ORDER_STATUS_CLASS[lastOrder.status] ?? "border-border bg-muted text-muted-foreground"}`}>
+                {ORDER_STATUS_LABEL[lastOrder.status] ?? lastOrder.status}
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {new Date(lastOrder.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })} —{" "}
+              {formatMoneyAmount(lastOrder.total, currency, 0)}
+            </p>
+            <div className="border-t border-border/70 pt-4">
+              {lastOrder.status === "dispatched" || lastOrder.status === "delivered" ? (
+                <div className="flex items-center gap-2 rounded-2xl border border-blue-500/20 bg-blue-500/10 px-3 py-3 text-sm text-blue-500">
+                  <Truck size={14} /> Pedido despachado — seguimiento disponible próximamente
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 rounded-2xl border border-border/70 bg-muted/40 px-3 py-3 text-sm text-muted-foreground">
+                  <Clock size={14} /> Estado: {ORDER_STATUS_LABEL[lastOrder.status] || "Procesando"}
+                </div>
               )}
             </div>
-          ) : (
-            <div className="text-center py-4">
-              <ShoppingCart size={20} className={`mx-auto mb-2 ${dk("text-[#404040]", "text-[#c0c0c0]")}`} />
-              <p className={`text-xs ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>Sin pedidos aún</p>
-              <button onClick={() => onGoTo("catalog")} className="text-xs text-[#2D9F6A] mt-1 hover:underline">
-                Ir al catálogo →
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Próximos vencimientos */}
-        <div className={`rounded-xl border p-4 space-y-3 ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")}`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CalendarClock size={13} className="text-blue-400" />
-              <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>Próximos vencimientos</p>
-            </div>
-            <button onClick={() => onGoTo("invoices")} className="text-[10px] text-[#2D9F6A] hover:underline flex items-center gap-0.5">
-              Ver facturas <ArrowRight size={10} />
-            </button>
+            {lastOrder.products?.length ? (
+              <p className="text-xs text-muted-foreground">
+                {lastOrder.products.length} producto{lastOrder.products.length !== 1 ? "s" : ""}
+                {lastOrder.products[0]?.name ? ` — ${lastOrder.products[0].name}${lastOrder.products.length > 1 ? ` +${lastOrder.products.length - 1}` : ""}` : ""}
+              </p>
+            ) : null}
           </div>
-          {pendingInvoices.filter(i => i.due_date).length === 0 ? (
-            <div className="text-center py-4">
-              <CheckCircle2 size={20} className="mx-auto mb-2 text-[#2D9F6A]" />
-              <p className={`text-xs ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>Sin vencimientos próximos</p>
+        </SurfaceCard>
+        )}
+
+        {dueInvoices.length > 0 && (
+        <SurfaceCard tone="default" padding="lg" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-500">
+                <CalendarClock size={17} />
+              </div>
+              <h2 className="text-sm font-semibold text-foreground">Próximos vencimientos</h2>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {pendingInvoices
-                .filter(i => i.due_date)
-                .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
-                .slice(0, 3)
-                .map(inv => {
-                  const days = daysUntil(inv.due_date!);
-                  const isOverdue = days < 0;
-                  const isUrgent = days >= 0 && days <= 3;
-                  const eff = getEffectiveInvoiceAmounts(inv, exchangeRate.rate);
-                  return (
-                    <div key={inv.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg ${dk("bg-[#111]", "bg-[#f8f8f8]")}`}>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-semibold truncate ${dk("text-white", "text-[#171717]")}`}>
-                          {inv.invoice_number || `Factura ${inv.id.slice(-6)}`}
-                        </p>
-                        <p className={`text-[10px] ${isOverdue ? "text-red-400" : isUrgent ? "text-amber-400" : dk("text-[#737373]", "text-[#a3a3a3]")}`}>
-                          {isOverdue ? `Vencida hace ${Math.abs(days)} día${Math.abs(days) !== 1 ? "s" : ""}` : days === 0 ? "Vence hoy" : `Vence en ${days} día${days !== 1 ? "s" : ""}`}
-                        </p>
-                      </div>
-                      <p className={`text-xs font-semibold ${isOverdue ? "text-red-400" : dk("text-white", "text-[#171717]")}`}>
-                        {formatMoneyAmount(convertMoneyAmount(eff.total, eff.currency, currency, exchangeRate.rate), currency, 0)}
-                      </p>
-                      {isOverdue && <AlertTriangle size={12} className="text-red-400 flex-shrink-0" />}
-                      {isUrgent && !isOverdue && <Clock size={12} className="text-amber-400 flex-shrink-0" />}
-                    </div>
-                  );
-                })}
+            <Button type="button" variant="ghost" size="sm" className="gap-1 text-primary" onClick={() => onGoTo("invoices")}>
+              Ver facturas <ArrowRight size={13} />
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            {dueInvoices.slice(0, 3).map((invoice) => {
+              const days = daysUntil(invoice.due_date!);
+              const isOverdue = days < 0;
+              const isUrgent = days >= 0 && days <= 3;
+              const effective = getEffectiveInvoiceAmounts(invoice, exchangeRate.rate);
+              return (
+                <div key={invoice.id} className="flex items-center gap-3 rounded-2xl border border-border/70 bg-muted/30 px-3 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-foreground">
+                      {invoice.invoice_number || `Factura ${invoice.id.slice(-6)}`}
+                    </p>
+                    <p className={`mt-0.5 text-xs ${isOverdue ? "text-destructive" : isUrgent ? "text-amber-500" : "text-muted-foreground"}`}>
+                      {isOverdue
+                        ? `Vencida hace ${Math.abs(days)} día${Math.abs(days) !== 1 ? "s" : ""}`
+                        : days === 0
+                          ? "Vence hoy"
+                          : `Vence en ${days} día${days !== 1 ? "s" : ""}`}
+                    </p>
+                  </div>
+                  <p className={`text-sm font-semibold ${isOverdue ? "text-destructive" : "text-foreground"}`}>
+                    {formatMoneyAmount(convertMoneyAmount(effective.total, effective.currency, currency, exchangeRate.rate), currency, 0)}
+                  </p>
+                  {isOverdue ? <AlertTriangle size={14} className="text-destructive" /> : null}
+                  {isUrgent && !isOverdue ? <Clock size={14} className="text-amber-500" /> : null}
+                </div>
+              );
+            })}
+          </div>
+        </SurfaceCard>
+        )}
+      </div>
+      )}
+
+      {/* ── PROMOTIONS (only if there's actual content) ───────────────── */}
+      {hasPromoContent && (
+        <SurfaceCard tone="default" padding="lg" className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-foreground">Promociones y condiciones activas</h2>
+            {activeAgreement && (
+              <Badge variant="outline" className="border-primary/20 bg-primary/10 text-primary">
+                Acuerdo activo
+              </Badge>
+            )}
+          </div>
+
+          {activeAgreement && (
+            <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4">
+              <p className="text-sm font-semibold text-primary">{activeAgreement.name}</p>
+              <p className="mt-1 text-xs text-primary/80">
+                {activeAgreement.discount_pct > 0 ? `Descuento adicional ${activeAgreement.discount_pct}%` : "Condición comercial preferencial activa"}
+                {activeAgreement.valid_until ? ` · vigente hasta ${new Date(activeAgreement.valid_until).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}` : ""}
+              </p>
             </div>
           )}
-        </div>
-      </div>
 
-      {/* Quick actions */}
-      <div className={`rounded-xl border p-4 ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")}`}>
-        <p className={`text-[10px] font-bold uppercase tracking-widest mb-3 ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>Accesos rápidos</p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {[
-            { label: "Ver catálogo",    icon: TrendingUp,  tab: "catalog"  as const },
-            { label: "Mis pedidos",     icon: ShoppingCart,tab: "orders"   as const },
-            { label: "Mis facturas",    icon: FileText,    tab: "invoices" as const },
-            { label: "Mi cuenta",       icon: CreditCard,  tab: "cuenta"   as const },
-          ].map(({ label, icon: Icon, tab }) => (
-            <button
-              key={tab}
-              onClick={() => onGoTo(tab)}
-              className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-xs font-medium transition ${dk("border-[#262626] text-[#a3a3a3] hover:text-white hover:border-[#2D9F6A]/40 hover:bg-[#111]", "border-[#e5e5e5] text-[#525252] hover:text-[#171717] hover:bg-[#f5f5f5]")}`}
-            >
-              <Icon size={12} className="text-[#2D9F6A]" />
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {promoAlerts.map((alert) => (
+              <div key={alert.id} className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-4">
+                <p className="text-sm font-semibold text-blue-500">{alert.title}</p>
+                {alert.subtitle ? <p className="mt-1 text-xs text-blue-500/80">{alert.subtitle}</p> : null}
+              </div>
+            ))}
+            {offerProducts.map((product) => (
+              <button
+                key={product.id}
+                type="button"
+                onClick={() => onGoTo("catalog")}
+                className="rounded-2xl border border-border/70 bg-card/80 p-4 text-left transition hover:border-primary/20"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">{product.name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{product.category || "General"}</p>
+                  </div>
+                  <Badge variant="outline" className="border-amber-500/20 bg-amber-500/10 text-amber-500">
+                    {(product.offer_percent ?? 0) > 0 ? `-${product.offer_percent}%` : "Precio especial"}
+                  </Badge>
+                </div>
+              </button>
+            ))}
+          </div>
+        </SurfaceCard>
+      )}
+
+      {/* ── ALERTS (conditional) ─────────────────────────────────────── */}
+      {alerts.length > 0 && (
+        <SurfaceCard tone="subtle" padding="lg" className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-foreground">Alertas de negocio</h2>
+            <span className="flex h-2 w-2 animate-pulse rounded-full bg-destructive" />
+          </div>
+          <div className="space-y-2">
+            {alerts.map((alert) => (
+              <div key={alert.id} className="flex gap-3 rounded-2xl border border-border/70 bg-card/70 p-3 transition hover:border-primary/15 hover:bg-card">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-muted">
+                  <ShieldCheck size={14} className={ALERT_COLOR_MAP[alert.type] ?? "text-muted-foreground"} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{alert.title}</p>
+                  {alert.subtitle ? <p className="mt-0.5 text-xs text-muted-foreground">{alert.subtitle}</p> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </SurfaceCard>
+      )}
+
+      {/* ── ACTIVE TICKETS (conditional) ─────────────────────────────── */}
+      {serviceInsights.activeTickets.length > 0 && (
+        <button
+          type="button"
+          onClick={() => onGoTo("support")}
+          className="flex w-full items-center gap-3 rounded-[24px] border border-border/70 bg-muted/30 px-5 py-4 text-left transition hover:border-primary/20 hover:bg-muted/50"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-foreground">
+              {serviceInsights.activeTickets.length} ticket{serviceInsights.activeTickets.length !== 1 ? "s" : ""} de soporte activo{serviceInsights.activeTickets.length !== 1 ? "s" : ""}
+            </p>
+            <p className="text-xs text-muted-foreground">SLA: {serviceInsights.slaLabel}</p>
+          </div>
+          <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
+        </button>
+      )}
     </div>
   );
 }

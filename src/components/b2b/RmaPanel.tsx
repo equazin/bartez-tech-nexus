@@ -16,7 +16,7 @@ import {
 // ── Status config ─────────────────────────────────────────────────────────────
 
 const STATUS_MAP: Record<RmaStatus, { label: string; cls: string; icon: LucideIcon }> = {
-  draft:      { label: "Borrador",   cls: "bg-[#1f1f1f] text-[#a3a3a3] border-[#2a2a2a]",         icon: Clock },
+  draft:      { label: "Borrador",   cls: "bg-muted text-muted-foreground border-border/70",        icon: Clock },
   submitted:  { label: "Enviada",    cls: "bg-blue-500/15 text-blue-400 border-blue-500/30",        icon: ArrowLeftRight },
   reviewing:  { label: "En revisión",cls: "bg-amber-500/15 text-amber-400 border-amber-500/30",     icon: RefreshCw },
   approved:   { label: "Aprobada",   cls: "bg-green-500/15 text-green-400 border-green-500/30",     icon: CheckCircle2 },
@@ -53,8 +53,6 @@ function RmaStatusBadge({ status }: { status: RmaStatus }) {
 interface NewRmaFormProps {
   clientId: string;
   orders: PortalOrder[];
-  isDark: boolean;
-  dk: (d: string, l: string) => string;
   onSubmit: (data: {
     order_id: string;
     reason: RmaReason;
@@ -64,7 +62,7 @@ interface NewRmaFormProps {
   onCancel: () => void;
 }
 
-function NewRmaForm({ orders, isDark, dk, onSubmit, onCancel }: NewRmaFormProps) {
+function NewRmaForm({ orders, onSubmit, onCancel }: NewRmaFormProps) {
   const deliveredOrders = orders.filter((o) => ["delivered", "dispatched"].includes(o.status));
   const [orderId, setOrderId]       = useState<string>(deliveredOrders[0]?.id?.toString() ?? "");
   const [reason, setReason]         = useState<RmaReason>("defective");
@@ -104,26 +102,30 @@ function NewRmaForm({ orders, isDark, dk, onSubmit, onCancel }: NewRmaFormProps)
   }
 
   return (
-    <form onSubmit={handleSubmit} className={`border rounded-2xl p-5 space-y-4 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
+    <form onSubmit={handleSubmit} className="border border-border/70 bg-card rounded-2xl p-5 space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>Nueva solicitud de devolución</h3>
-        <button type="button" onClick={onCancel} className={`p-1.5 rounded-lg transition text-gray-500 ${dk("hover:text-gray-300 hover:bg-white/5", "hover:text-gray-700 hover:bg-black/5")}`}>
+        <h3 className="text-sm font-bold text-foreground">Nueva solicitud de devolución</h3>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="p-1.5 rounded-lg transition text-muted-foreground hover:text-foreground hover:bg-secondary"
+        >
           <X size={14} />
         </button>
       </div>
 
       {/* Order selector */}
       <div>
-        <label className={`text-[11px] font-semibold uppercase tracking-wider mb-1.5 block ${dk("text-gray-400", "text-[#737373]")}`}>
+        <label className="text-[11px] font-semibold uppercase tracking-wider mb-1.5 block text-muted-foreground">
           Pedido
         </label>
         {deliveredOrders.length === 0 ? (
-          <p className={`text-xs ${dk("text-gray-500", "text-gray-600")}`}>No tenés pedidos entregados todavía.</p>
+          <p className="text-xs text-muted-foreground">No tenés pedidos entregados todavía.</p>
         ) : (
           <select
             value={orderId}
             onChange={(e) => { setOrderId(e.target.value); setSelectedItems({}); }}
-            className={`w-full rounded-xl border px-3 py-2 text-sm outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#e5e5e5] text-[#171717]")}`}
+            className="w-full rounded-xl border border-border/70 bg-card px-3 py-2 text-sm text-foreground outline-none"
           >
             {deliveredOrders.map((o) => (
               <option key={o.id} value={String(o.id)}>
@@ -138,7 +140,7 @@ function NewRmaForm({ orders, isDark, dk, onSubmit, onCancel }: NewRmaFormProps)
       {/* Items */}
       {selectedOrder && (
         <div>
-          <label className={`text-[11px] font-semibold uppercase tracking-wider mb-1.5 block ${dk("text-gray-400", "text-[#737373]")}`}>
+          <label className={`text-[11px] font-semibold uppercase tracking-wider mb-1.5 block text-muted-foreground`}>
             Productos a devolver
           </label>
           <div className="space-y-1.5">
@@ -149,18 +151,18 @@ function NewRmaForm({ orders, isDark, dk, onSubmit, onCancel }: NewRmaFormProps)
                   key={p.product_id}
                   type="button"
                   onClick={() => toggleItem(p.product_id, p.quantity)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl border text-left transition ${
+                  className={
                     isSelected
-                      ? dk("border-[#2D9F6A]/50 bg-[#2D9F6A]/10", "border-[#2D9F6A]/40 bg-[#2D9F6A]/5")
-                      : dk("border-[#1f1f1f] bg-[#0d0d0d] hover:border-[#2a2a2a]", "border-[#e5e5e5] bg-[#f9f9f9] hover:border-[#d4d4d4]")
-                  }`}
+                      ? "w-full flex items-center gap-3 px-3 py-2 rounded-xl border text-left transition border-primary/40 bg-primary/10"
+                      : "w-full flex items-center gap-3 px-3 py-2 rounded-xl border text-left transition border-border/70 bg-card hover:border-border/80"
+                  }
                 >
-                  <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 transition ${isSelected ? "bg-[#2D9F6A] border-[#2D9F6A]" : dk("border-[#3a3a3a]", "border-[#d4d4d4]")}`}>
+                  <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 transition ${isSelected ? "bg-primary border-primary text-white" : "border-border/70"}`}>
                     {isSelected && <CheckCircle2 size={10} className="text-white" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-medium truncate ${dk("text-white", "text-[#171717]")}`}>{p.name}</p>
-                    <p className="text-[10px] text-gray-500 font-mono">{p.sku} · x{p.quantity}</p>
+                    <p className="text-xs font-medium truncate text-foreground">{p.name}</p>
+                    <p className="text-[10px] text-muted-foreground font-mono">{p.sku} · x{p.quantity}</p>
                   </div>
                 </button>
               );
@@ -171,7 +173,7 @@ function NewRmaForm({ orders, isDark, dk, onSubmit, onCancel }: NewRmaFormProps)
 
       {/* Reason */}
       <div>
-        <label className={`text-[11px] font-semibold uppercase tracking-wider mb-1.5 block ${dk("text-gray-400", "text-[#737373]")}`}>
+        <label className={`text-[11px] font-semibold uppercase tracking-wider mb-1.5 block text-muted-foreground`}>
           Motivo
         </label>
         <div className="flex flex-wrap gap-2">
@@ -180,11 +182,11 @@ function NewRmaForm({ orders, isDark, dk, onSubmit, onCancel }: NewRmaFormProps)
               key={key}
               type="button"
               onClick={() => setReason(key)}
-              className={`px-3 py-1.5 text-xs rounded-lg border font-medium transition ${
+              className={
                 reason === key
-                  ? dk("bg-[#2D9F6A]/20 border-[#2D9F6A]/50 text-[#2D9F6A]", "bg-[#2D9F6A]/10 border-[#2D9F6A]/40 text-[#1a7a50]")
-                  : dk("border-[#262626] text-[#737373] hover:text-white hover:border-[#333]", "border-[#e5e5e5] text-[#737373] hover:text-[#171717]")
-              }`}
+                  ? "px-3 py-1.5 text-xs rounded-lg border font-medium transition bg-primary/15 border-primary/40 text-primary"
+                  : "px-3 py-1.5 text-xs rounded-lg border font-medium transition border-border/70 text-muted-foreground hover:text-foreground"
+              }
             >
               {label}
             </button>
@@ -194,7 +196,7 @@ function NewRmaForm({ orders, isDark, dk, onSubmit, onCancel }: NewRmaFormProps)
 
       {/* Description */}
       <div>
-        <label className={`text-[11px] font-semibold uppercase tracking-wider mb-1.5 block ${dk("text-gray-400", "text-[#737373]")}`}>
+        <label className={`text-[11px] font-semibold uppercase tracking-wider mb-1.5 block text-muted-foreground`}>
           Descripción (opcional)
         </label>
         <textarea
@@ -202,14 +204,14 @@ function NewRmaForm({ orders, isDark, dk, onSubmit, onCancel }: NewRmaFormProps)
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
           placeholder="Describí el problema con más detalle..."
-          className={`w-full rounded-xl border px-3 py-2 text-sm outline-none resize-none ${dk("bg-[#0d0d0d] border-[#262626] text-white placeholder:text-[#404040]", "bg-white border-[#e5e5e5] text-[#171717] placeholder:text-[#a3a3a3]")}`}
+          className={`w-full rounded-xl border px-3 py-2 text-sm outline-none resize-none bg-card border border-border/70 text-foreground placeholder:text-muted-foreground`}
         />
       </div>
 
       <button
         type="submit"
         disabled={submitting || Object.keys(selectedItems).length === 0 || !orderId}
-        className="w-full bg-[#2D9F6A] hover:bg-[#25835A] disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-sm transition"
+        className="w-full bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground font-bold py-2.5 rounded-xl text-sm transition"
       >
         {submitting ? "Enviando..." : "Enviar solicitud"}
       </button>
@@ -222,11 +224,9 @@ function NewRmaForm({ orders, isDark, dk, onSubmit, onCancel }: NewRmaFormProps)
 interface RmaPanelProps {
   clientId: string;
   orders: PortalOrder[];
-  isDark: boolean;
 }
 
-export function RmaPanel({ clientId, orders, isDark }: RmaPanelProps) {
-  const dk = (d: string, l: string) => (isDark ? d : l);
+export function RmaPanel({ clientId, orders }: RmaPanelProps) {
   const { rmas, loading, createRma, refetch } = useRma(clientId);
   const [showForm, setShowForm] = useState(false);
 
@@ -240,16 +240,16 @@ export function RmaPanel({ clientId, orders, isDark }: RmaPanelProps) {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className={`text-base font-bold ${dk("text-white", "text-[#171717]")}`}>Devoluciones y RMA</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Solicitá la devolución, cambio o reparación de productos.</p>
+          <h2 className={`text-base font-bold text-foreground`}>Devoluciones y RMA</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Solicitá la devolución, cambio o reparación de productos.</p>
         </div>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border transition ${
+          className={
             showForm
-              ? dk("border-[#333] text-[#a3a3a3]", "border-[#e5e5e5] text-[#737373]")
-              : "bg-[#2D9F6A] border-[#2D9F6A] text-white hover:bg-[#25835A]"
-          }`}
+              ? "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border border-border/70 text-muted-foreground transition"
+              : "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border border-primary bg-primary text-primary-foreground transition hover:bg-primary/90"
+          }
         >
           {showForm ? <><X size={13} /> Cancelar</> : <><Plus size={13} /> Nueva solicitud</>}
         </button>
@@ -260,8 +260,6 @@ export function RmaPanel({ clientId, orders, isDark }: RmaPanelProps) {
         <NewRmaForm
           clientId={clientId}
           orders={orders}
-          isDark={isDark}
-          dk={dk}
           onSubmit={handleSubmit}
           onCancel={() => setShowForm(false)}
         />
@@ -271,35 +269,35 @@ export function RmaPanel({ clientId, orders, isDark }: RmaPanelProps) {
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className={`h-20 rounded-xl animate-pulse ${dk("bg-[#111]", "bg-white border border-[#f0f0f0]")}`} />
+            <div key={i} className={`h-20 rounded-xl animate-pulse bg-card border border-border/70`} />
           ))}
         </div>
       ) : rmas.length === 0 ? (
-        <div className={`border rounded-xl py-20 text-center ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
-          <RotateCcw size={32} className={`mx-auto mb-3 ${dk("text-gray-500/30", "text-gray-400/40")}`} />
-          <p className={`text-sm font-medium ${dk("text-gray-500", "text-gray-600")}`}>No tenés solicitudes de devolución</p>
-          <p className={`text-xs mt-1 ${dk("text-gray-600", "text-gray-500")}`}>Si recibiste un producto con problemas, podés iniciar una solicitud arriba.</p>
+        <div className="border border-border/70 bg-card rounded-xl py-20 text-center">
+          <RotateCcw size={32} className={`mx-auto mb-3 text-muted-foreground`} />
+          <p className={`text-sm font-medium text-muted-foreground`}>No tenés solicitudes de devolución</p>
+          <p className={`text-xs mt-1 text-muted-foreground`}>Si recibiste un producto con problemas, podés iniciar una solicitud arriba.</p>
         </div>
       ) : (
         <div className="space-y-3">
           {rmas.map((rma) => (
-            <div key={rma.id} className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl px-5 py-4`}>
+            <div key={rma.id} className="bg-card border border-border/70 rounded-xl px-5 py-4">
               <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`text-sm font-bold font-mono ${dk("text-white", "text-[#171717]")}`}>
+                    <span className={`text-sm font-bold font-mono text-foreground`}>
                       {rma.rma_number}
                     </span>
                     <RmaStatusBadge status={rma.status} />
                   </div>
-                  <p className={`text-[11px] mt-0.5 ${dk("text-gray-500", "text-gray-600")}`}>
+                  <p className={`text-[11px] mt-0.5 text-muted-foreground`}>
                     {REASON_LABELS[rma.reason]}
                     {" · "}
                     {new Date(rma.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })}
                   </p>
                 </div>
                 {rma.resolution_type && (
-                  <span className={`text-[11px] px-2 py-0.5 rounded-full border ${dk("border-[#2a2a2a] text-[#a3a3a3]", "border-[#e5e5e5] text-[#737373]")}`}>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full border border-border/70 text-muted-foreground">
                     {RESOLUTION_LABELS[rma.resolution_type]}
                   </span>
                 )}
@@ -309,21 +307,21 @@ export function RmaPanel({ clientId, orders, isDark }: RmaPanelProps) {
               <div className="space-y-1 mb-3">
                 {rma.items.map((item, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs">
-                    <Package size={11} className={`shrink-0 ${dk("text-gray-500", "text-gray-400")}`} />
-                    <span className={dk("text-gray-300", "text-[#525252]")}>{item.name}</span>
-                    <span className={dk("text-gray-600", "text-gray-500")}>×{item.quantity}</span>
+                    <Package size={11} className={`shrink-0 text-muted-foreground`} />
+                    <span className="text-muted-foreground">{item.name}</span>
+                    <span className="text-muted-foreground">×{item.quantity}</span>
                   </div>
                 ))}
               </div>
 
               {rma.description && (
-                <p className={`text-xs ${dk("text-gray-500", "text-[#737373]")} leading-relaxed`}>{rma.description}</p>
+                <p className={`text-xs text-muted-foreground leading-relaxed`}>{rma.description}</p>
               )}
 
               {rma.resolution_notes && (
-                <div className={`mt-3 p-3 rounded-lg text-xs ${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-[#f9f9f9] border-[#e5e5e5]")} border`}>
-                  <p className={`text-[10px] uppercase font-bold mb-1 ${dk("text-gray-500", "text-gray-600")}`}>Respuesta del equipo</p>
-                  <p className={dk("text-gray-300", "text-[#525252]")}>{rma.resolution_notes}</p>
+                <div className="mt-3 p-3 rounded-lg text-xs bg-card border border-border/70">
+                  <p className={`text-[10px] uppercase font-bold mb-1 text-muted-foreground`}>Respuesta del equipo</p>
+                  <p className="text-muted-foreground">{rma.resolution_notes}</p>
                 </div>
               )}
             </div>
@@ -333,3 +331,9 @@ export function RmaPanel({ clientId, orders, isDark }: RmaPanelProps) {
     </div>
   );
 }
+
+
+
+
+
+

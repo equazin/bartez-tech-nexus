@@ -1,8 +1,11 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { FolderPlus, FolderOpen, MoreVertical, Plus, Briefcase, FileText, CheckCircle2, TrendingUp, Search } from "lucide-react";
+import { FolderPlus, FolderOpen, MoreVertical, Plus, Briefcase } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { SurfaceCard } from "@/components/ui/surface-card";
 import { formatMoneyAmount } from "@/lib/money";
 import { useCurrency } from "@/context/CurrencyContext";
 import type { PortalOrder } from "@/hooks/useOrders";
@@ -21,12 +24,10 @@ interface ProjectsPanelProps {
   orders: PortalOrder[];
   quotes: Quote[];
   profileId: string;
-  isDark: boolean;
 }
 
-export function ProjectsPanel({ orders, quotes, profileId, isDark }: ProjectsPanelProps) {
+export function ProjectsPanel({ orders, quotes, profileId }: ProjectsPanelProps) {
   const { currency } = useCurrency();
-  const dk = (d: string, l: string) => isDark ? d : l;
   const [projects, setProjects] = useState<Project[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
@@ -34,42 +35,27 @@ export function ProjectsPanel({ orders, quotes, profileId, isDark }: ProjectsPan
 
   useEffect(() => {
     async function loadProjects() {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .eq("client_id", profileId)
-        .order("created_at", { ascending: false });
-      
+      const { data, error } = await supabase.from("projects").select("*").eq("client_id", profileId).order("created_at", { ascending: false });
       if (!error && data) {
-        setProjects(data.map(p => ({
-          id: p.id,
-          name: p.name,
-          description: p.description,
-          createdAt: p.created_at,
-          orderIds: p.order_ids || [],
-          quoteIds: p.quote_ids || []
-        })));
+        setProjects(
+          data.map((project) => ({
+            id: project.id,
+            name: project.name,
+            description: project.description,
+            createdAt: project.created_at,
+            orderIds: project.order_ids || [],
+            quoteIds: project.quote_ids || [],
+          })),
+        );
       }
     }
-    loadProjects();
+    void loadProjects();
   }, [profileId]);
 
   const handleCreateProject = async () => {
     if (!newName) return;
-    const newProj = {
-      client_id: profileId,
-      name: newName,
-      description: newDesc,
-      order_ids: [],
-      quote_ids: []
-    };
-
-    const { data, error } = await supabase
-      .from("projects")
-      .insert(newProj)
-      .select()
-      .single();
-
+    const newProject = { client_id: profileId, name: newName, description: newDesc, order_ids: [], quote_ids: [] };
+    const { data, error } = await supabase.from("projects").insert(newProject).select().single();
     if (!error && data) {
       const formatted: Project = {
         id: data.id,
@@ -77,103 +63,101 @@ export function ProjectsPanel({ orders, quotes, profileId, isDark }: ProjectsPan
         description: data.description,
         createdAt: data.created_at,
         orderIds: data.order_ids || [],
-        quoteIds: data.quote_ids || []
+        quoteIds: data.quote_ids || [],
       };
-      setProjects([formatted, ...projects]);
+      setProjects((prev) => [formatted, ...prev]);
       setNewName("");
       setNewDesc("");
       setShowAdd(false);
     }
   };
 
-  const getProjectTotal = (project: Project) => {
-    const pOrders = orders.filter(o => project.orderIds.includes(String(o.id)));
-    const pQuotes = quotes.filter(q => project.quoteIds.includes(String(q.id)));
-    
-    return pOrders.reduce((s, o) => s + o.total, 0) + pQuotes.reduce((s, q) => s + q.total, 0);
-  };
+  const projectTotals = useMemo(() => {
+    return new Map(
+      projects.map((project) => {
+        const ordersTotal = orders
+          .filter((order) => project.orderIds.includes(String(order.id)))
+          .reduce((sum, order) => sum + order.total, 0);
+        const quotesTotal = quotes
+          .filter((quote) => project.quoteIds.includes(String(quote.id)))
+          .reduce((sum, quote) => sum + quote.total, 0);
+        return [project.id, ordersTotal + quotesTotal] as const;
+      })
+    );
+  }, [projects, orders, quotes]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="max-w-[1680px] space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-[24px] border border-border/70 bg-card px-5 py-4 shadow-sm">
         <div>
-          <h2 className={`text-xl font-bold ${dk("text-white", "text-foreground")}`}>Panel de Proyectos</h2>
-          <p className="text-xs text-muted-foreground mt-1">Organice sus compras y cotizaciones por carpetas de obra o cliente final.</p>
+          <h2 className="text-lg font-bold text-foreground">Proyectos</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Agrupa compras y cotizaciones por obra, sede o cliente final sin salir del portal.</p>
         </div>
-        <Button onClick={() => setShowAdd(true)} className="bg-primary text-white gap-2">
-          <FolderPlus size={16} /> Nuevo Proyecto
+        <Button type="button" onClick={() => setShowAdd(true)} className="gap-2 rounded-xl">
+          <FolderPlus size={16} /> Nuevo proyecto
         </Button>
       </div>
 
-      {showAdd && (
-        <div className={`p-6 rounded-2xl border ${dk("bg-[#0d0d0d] border-white/10", "bg-white border-black/5 shadow-lg")}`}>
-          <h3 className="font-bold mb-4 flex items-center gap-2">
-            <Plus size={16} className="text-primary" /> Crear Carpeta de Proyecto
+      {showAdd ? (
+        <SurfaceCard tone="default" padding="lg" className="rounded-[24px] border border-border/70 bg-card shadow-sm">
+          <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-foreground">
+            <Plus size={16} className="text-primary" /> Crear proyecto
           </h3>
           <div className="grid gap-4 md:grid-cols-2">
-            <Input 
-              placeholder="Nombre del Proyecto (ej: Sede Central Rosario)" 
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              className={dk("bg-[#1a1a1a]", "bg-gray-50")}
-            />
-            <Input 
-              placeholder="Descripción breve" 
-              value={newDesc}
-              onChange={e => setNewDesc(e.target.value)}
-              className={dk("bg-[#1a1a1a]", "bg-gray-50")}
-            />
+            <Input placeholder="Nombre del proyecto" value={newName} onChange={(event) => setNewName(event.target.value)} className="h-11 rounded-xl border-border/70 bg-background" />
+            <Input placeholder="Descripcion breve" value={newDesc} onChange={(event) => setNewDesc(event.target.value)} className="h-11 rounded-xl border-border/70 bg-background" />
           </div>
-          <div className="flex justify-end gap-3 mt-6">
-            <Button variant="ghost" size="sm" onClick={() => setShowAdd(false)}>Cancelar</Button>
-            <Button size="sm" onClick={handleCreateProject}>Crear Proyecto</Button>
+          <div className="mt-6 flex justify-end gap-3">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setShowAdd(false)}>Cancelar</Button>
+            <Button type="button" size="sm" onClick={handleCreateProject}>Crear proyecto</Button>
           </div>
-        </div>
-      )}
+        </SurfaceCard>
+      ) : null}
 
       {projects.length === 0 ? (
-        <div className={`text-center py-20 rounded-3xl border border-dashed ${dk("border-white/10", "border-black/10 bg-gray-50/50")}`}>
-          <Briefcase size={40} className="mx-auto mb-4 text-muted-foreground/30" />
-          <h3 className="text-base font-bold text-muted-foreground">No tiene proyectos activos.</h3>
-          <p className="text-xs text-muted-foreground/60 mt-1">Cree su primer proyecto para empezar a agrupar sus cotizaciones.</p>
-        </div>
+        <EmptyState
+          icon={<Briefcase size={22} />}
+          title="No tienes proyectos activos"
+          description="Crea tu primer proyecto para separar compras, cotizaciones y montos por carpeta comercial."
+          className="rounded-[24px] border border-dashed border-border/70 bg-card py-20"
+        />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {projects.map((project) => (
-            <div key={project.id} className={`group p-5 rounded-2xl border transition-all hover:border-primary/40 ${dk("bg-[#0d0d0d] border-white/5", "bg-white border-black/5 shadow-sm")}`}>
-               <div className="flex items-start justify-between mb-4">
-                  <div className={`p-2 rounded-xl bg-primary/10 text-primary`}>
-                    <Briefcase size={20} />
-                  </div>
-                  <button className="text-muted-foreground/40 hover:text-white transition">
-                    <MoreVertical size={16} />
-                  </button>
-               </div>
-               
-               <h4 className="font-bold text-base mb-1 truncate">{project.name}</h4>
-               <p className="text-xs text-muted-foreground line-clamp-1 mb-6">{project.description || "Sin descripción"}</p>
-               
-               <div className="grid grid-cols-2 gap-3 pb-4 mb-4 border-b border-white/5">
-                  <div className="text-center p-2 rounded-lg bg-surface/50">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">Pedidos</p>
-                    <p className="text-sm font-bold">{project.orderIds.length}</p>
-                  </div>
-                  <div className="text-center p-2 rounded-lg bg-surface/50">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">Cotizac.</p>
-                    <p className="text-sm font-bold">{project.quoteIds.length}</p>
-                  </div>
-               </div>
+            <SurfaceCard key={project.id} tone="default" padding="lg" className="group rounded-[24px] border border-border/70 bg-card shadow-sm transition hover:border-primary/30 hover:shadow-md">
+              <div className="mb-4 flex items-start justify-between">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <Briefcase size={20} />
+                </div>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-muted-foreground">
+                  <MoreVertical size={16} />
+                </Button>
+              </div>
 
-               <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[10px] text-muted-foreground">Inversión Total</p>
-                    <p className="text-sm font-black text-primary">{formatMoneyAmount(getProjectTotal(project), currency, 0)}</p>
-                  </div>
-                  <Button variant="outline" size="sm" className="rounded-lg h-8 text-[10px]">
-                    Administrar <FolderOpen size={12} className="ml-1.5" />
-                  </Button>
-               </div>
-            </div>
+              <h4 className="mb-1 truncate text-base font-bold text-foreground">{project.name}</h4>
+              <p className="mb-6 line-clamp-2 text-sm text-muted-foreground">{project.description || "Sin descripcion"}</p>
+
+              <div className="mb-4 grid grid-cols-2 gap-3 border-b border-border/70 pb-4">
+                <div className="rounded-xl bg-background px-3 py-3 text-center">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Pedidos</p>
+                  <p className="text-sm font-bold text-foreground">{project.orderIds.length}</p>
+                </div>
+                <div className="rounded-xl bg-background px-3 py-3 text-center">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Cotizaciones</p>
+                  <p className="text-sm font-bold text-foreground">{project.quoteIds.length}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Inversion total</p>
+                  <p className="text-sm font-bold text-primary">{formatMoneyAmount(projectTotals.get(project.id) ?? 0, currency, 0)}</p>
+                </div>
+                <Button type="button" variant="toolbar" size="sm" className="rounded-xl text-[11px]" disabled>
+                  Administrar <FolderOpen size={12} className="ml-1.5" />
+                </Button>
+              </div>
+            </SurfaceCard>
           ))}
         </div>
       )}

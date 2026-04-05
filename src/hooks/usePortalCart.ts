@@ -2,6 +2,7 @@
  * usePortalCart — Manages cart, order submission, and quote lifecycle for the B2B portal.
  */
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { getAvailableStock } from "@/lib/pricing";
 import { getSavedCarts, saveCart, deleteSavedCart, type SavedCart } from "@/lib/savedCarts";
@@ -11,7 +12,7 @@ import type { Product } from "@/models/products";
 import type { PriceResult } from "@/hooks/usePricing";
 import type { Quote } from "@/models/quote";
 import type { UserProfile } from "@/lib/supabase";
-import type { PortalOrder } from "@/hooks/useOrders";
+import type { AddOrderPayload, PortalOrder } from "@/hooks/useOrders";
 
 export type CartItem = {
   product: Product;
@@ -29,9 +30,9 @@ interface UsePortalCartOptions {
   profile: UserProfile | null;
   products: Product[];
   computePrice: (p: Product, qty: number) => PriceResult;
-  currency: string;
+  currency: "USD" | "ARS";
   orders: PortalOrder[];
-  addOrder: (order: Omit<PortalOrder, "id" | "client_id" | "client_name">) => Promise<{ error: unknown }>;
+  addOrder: (order: AddOrderPayload) => Promise<{ error: unknown }>;
   updateOrder: (id: string | number, data: Partial<PortalOrder>) => Promise<unknown>;
   addQuote: (q: Omit<Quote, "id">) => Promise<unknown>;
   updateQuoteStatus: (id: number, status: string) => Promise<unknown>;
@@ -223,6 +224,21 @@ export function usePortalCart({
   }
 
   // ── Quick order ───────────────────────────────────────────────────────────
+  const handleResolvedQuickOrder = useCallback((product: Product, qty: number = 1) => {
+    const available = getAvailableStock(product);
+    const inCart = cart[product.id] || 0;
+    const toAdd = Math.min(qty, available - inCart);
+    if (toAdd <= 0) {
+      setQuickError(`Sin stock disponible para ${product.sku ?? product.id}`);
+      setTimeout(() => setQuickError(""), 2500);
+      return false;
+    }
+    setCart((prev) => ({ ...prev, [product.id]: (prev[product.id] || 0) + toAdd }));
+    setQuickSku("");
+    setQuickError("");
+    return true;
+  }, [cart]);
+
   function handleQuickOrder() {
     const parts = quickSku.trim().split(/\s+/);
     const sku = parts[0];
@@ -234,17 +250,7 @@ export function usePortalCart({
       setTimeout(() => setQuickError(""), 2500);
       return;
     }
-    const available = getAvailableStock(product);
-    const inCart = cart[product.id] || 0;
-    const toAdd = Math.min(qty, available - inCart);
-    if (toAdd <= 0) {
-      setQuickError(`Sin stock disponible para ${sku}`);
-      setTimeout(() => setQuickError(""), 2500);
-      return;
-    }
-    setCart((prev) => ({ ...prev, [product.id]: (prev[product.id] || 0) + toAdd }));
-    setQuickSku("");
-    setQuickError("");
+    handleResolvedQuickOrder(product, qty);
   }
 
   // ── Coupon ────────────────────────────────────────────────────────────────
@@ -418,8 +424,13 @@ export function usePortalCart({
       p_quote_id: String(quote.id),
       p_client_id: profile.id,
     });
-    if (!error && data) {
+    if (error) {
+      toast.error("No se pudo convertir la cotización en pedido.");
+      return;
+    }
+    if (data) {
       await updateQuoteStatus(quote.id, "converted");
+      toast.success("Cotización convertida en pedido correctamente.");
       setActiveTab("orders");
     }
   }
@@ -462,7 +473,7 @@ export function usePortalCart({
     handleSaveCart, handleSaveNamedCart, handleLoadSavedCart, handleDeleteSavedCart,
     handleToggleFavorite,
     // Handlers — quick order
-    handleQuickOrder,
+    handleQuickOrder, handleResolvedQuickOrder,
     // Handlers — coupon
     handleApplyCoupon, handleRemoveCoupon,
     // Handlers — order

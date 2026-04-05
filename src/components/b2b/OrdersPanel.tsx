@@ -1,14 +1,19 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ClipboardList, MapPin, Package, Search, Truck, ExternalLink, Copy } from "lucide-react";
+
 import { OrderStatusBadge } from "@/components/OrderStatusBadge";
 import { OrderPaymentProof } from "@/components/OrderPaymentProof";
 import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+import { SurfaceCard } from "@/components/ui/surface-card";
 import type { PortalOrder } from "@/hooks/useOrders";
 import type { Invoice } from "@/lib/api/invoices";
 
 interface OrdersPanelProps {
-  isDark: boolean;
   orders: PortalOrder[];
   invoices?: Invoice[];
   formatPrice: (value: number) => string;
@@ -21,9 +26,16 @@ interface OrdersPanelProps {
   onUpdateOrderProofs: (orderId: string | number, proofs: unknown[]) => Promise<void> | void;
 }
 
+const DATE_RANGE_OPTIONS = [
+  { value: "all", label: "Todo el tiempo" },
+  { value: "30", label: "Últimos 30 días" },
+  { value: "90", label: "Últimos 90 días" },
+  { value: "365", label: "Último año" },
+] as const;
+
 const ORDER_STATUS_OPTIONS = [
   { value: "all", label: "Todos" },
-  { value: "pending", label: "En revisión" },
+  { value: "pending", label: "En revision" },
   { value: "approved", label: "Aprobados" },
   { value: "preparing", label: "Preparando" },
   { value: "dispatched", label: "Despachados" },
@@ -33,17 +45,16 @@ const ORDER_STATUS_OPTIONS = [
 ] as const;
 
 const ORDER_STATUS_COPY: Record<string, string> = {
-  pending: "Estamos revisando el pedido con stock y condiciones comerciales.",
-  approved: "Pedido confirmado. Próximo paso: preparación o despacho.",
-  preparing: "Tu pedido está en preparación interna.",
-  dispatched: "El pedido ya salió de depósito con remito emitido.",
-  shipped: "El transporte está en curso.",
+  pending: "Estamos revisando stock y condiciones comerciales.",
+  approved: "Pedido confirmado. Proximo paso: preparacion o despacho.",
+  preparing: "Tu pedido esta en preparacion interna.",
+  dispatched: "El pedido ya salio de deposito con remito emitido.",
+  shipped: "El transporte esta en curso.",
   delivered: "El pedido figura como entregado.",
-  rejected: "El pedido quedó rechazado. Si querés, podés repetirlo ajustando condiciones.",
+  rejected: "El pedido quedo rechazado. Podes repetirlo ajustando condiciones.",
 };
 
 export function OrdersPanel({
-  isDark,
   orders,
   invoices = [],
   formatPrice,
@@ -55,18 +66,18 @@ export function OrdersPanel({
   onGoToInvoices,
   onUpdateOrderProofs,
 }: OrdersPanelProps) {
-  const dk = (d: string, l: string) => (isDark ? d : l);
-
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<(typeof ORDER_STATUS_OPTIONS)[number]["value"]>("all");
+  const [dateRange, setDateRange] = useState<(typeof DATE_RANGE_OPTIONS)[number]["value"]>("all");
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
   const filteredOrders = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
+    const cutoff = dateRange !== "all" ? Date.now() - Number(dateRange) * 86_400_000 : null;
     return orders.filter((order) => {
       if (statusFilter !== "all" && order.status !== statusFilter) return false;
+      if (cutoff !== null && new Date(order.created_at).getTime() < cutoff) return false;
       if (!normalizedQuery) return true;
-
       const haystack = [
         order.order_number,
         String(order.id),
@@ -80,7 +91,6 @@ export function OrdersPanel({
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
-
       return haystack.includes(normalizedQuery);
     });
   }, [orders, query, statusFilter]);
@@ -89,76 +99,68 @@ export function OrdersPanel({
     const activeOrders = orders.filter((order) => !["rejected", "delivered"].includes(order.status));
     const deliveredOrders = orders.filter((order) => order.status === "delivered");
     return [
-      { label: "Pedidos activos", value: String(activeOrders.length), accent: "text-[#2D9F6A]" },
-      { label: "Despachados", value: String(orders.filter((order) => order.status === "dispatched").length), accent: "text-blue-400" },
-      { label: "Entregados", value: String(deliveredOrders.length), accent: "text-emerald-400" },
-      {
-        label: "Monto en curso",
-        value: formatPrice(activeOrders.reduce((sum, order) => sum + order.total, 0)),
-        accent: "text-amber-400",
-      },
+      { label: "Pedidos activos", value: String(activeOrders.length), accent: "text-primary" },
+      { label: "Despachados", value: String(orders.filter((order) => order.status === "dispatched").length), accent: "text-blue-600 dark:text-blue-400" },
+      { label: "Entregados", value: String(deliveredOrders.length), accent: "text-emerald-600 dark:text-emerald-400" },
+      { label: "Monto en curso", value: formatPrice(activeOrders.reduce((sum, order) => sum + order.total, 0)), accent: "text-amber-600 dark:text-amber-400" },
     ];
   }, [orders, formatPrice]);
 
+  if (orders.length === 0) {
+    return (
+      <EmptyState
+        icon={<ClipboardList size={22} />}
+        title="Todavia no tenes pedidos"
+        description="Cuando confirmes una compra, vas a poder seguir stock, remitos y comprobantes desde aca."
+        actionLabel="Ir al catalogo"
+        onAction={onGoToCatalog}
+        className="rounded-[24px] border border-border/70 bg-card py-20"
+      />
+    );
+  }
+
   return (
-    <div className="max-w-5xl space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className={`text-base font-bold ${dk("text-white", "text-[#171717]")}`}>Mis Pedidos</h2>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Seguimiento comercial, logístico y comprobantes de pago.
-          </p>
+          <h2 className="text-lg font-bold text-foreground">Mis pedidos</h2>
+          <p className="text-sm text-muted-foreground">Seguimiento comercial, logistico y comprobantes.</p>
         </div>
-        <button
-          onClick={onGoToCatalog}
-          className={`text-xs font-medium px-3 py-2 rounded-lg border transition ${dk("border-[#262626] text-gray-400 hover:text-white hover:bg-[#1a1a1a]", "border-[#e5e5e5] text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")}`}
-        >
-          Ir al catálogo
-        </button>
+        <Button type="button" variant="toolbar" onClick={onGoToCatalog}>Ir al catalogo</Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {kpis.map((kpi) => (
-          <div key={kpi.label} className={`border rounded-xl px-4 py-3 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{kpi.label}</p>
-            <p className={`text-lg font-bold ${kpi.accent}`}>{kpi.value}</p>
-          </div>
+          <SurfaceCard key={kpi.label} tone="default" padding="md" className="rounded-[22px] border border-border/70 bg-card shadow-sm">
+            <p className="mb-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{kpi.label}</p>
+            <p className={`text-xl font-bold ${kpi.accent}`}>{kpi.value}</p>
+          </SurfaceCard>
         ))}
       </div>
 
-      <div className={`border rounded-xl p-3 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
-        <div className="grid gap-3 md:grid-cols-[1fr_180px]">
+      <SurfaceCard tone="default" padding="md" className="rounded-[24px] border border-border/70 bg-card shadow-sm">
+        <div className="grid gap-3 md:grid-cols-[1fr_180px_180px]">
           <label className="relative">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar por pedido, remito, SKU, dirección o nota"
-              className={`w-full rounded-lg border pl-9 pr-3 py-2 text-sm outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white placeholder:text-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] placeholder:text-[#a3a3a3]")}`}
-            />
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por pedido, remito, SKU o direccion" className="h-10 rounded-xl border-border/70 bg-background pl-9" />
           </label>
-
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as (typeof ORDER_STATUS_OPTIONS)[number]["value"])}
-            className={`rounded-lg border px-3 py-2 text-sm outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717]")}`}
-          >
+          <select value={dateRange} onChange={(event) => setDateRange(event.target.value as (typeof DATE_RANGE_OPTIONS)[number]["value"])} className="h-10 rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none">
+            {DATE_RANGE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as (typeof ORDER_STATUS_OPTIONS)[number]["value"])} className="h-10 rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none">
             {ORDER_STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
+              <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
         </div>
-      </div>
+      </SurfaceCard>
 
       {filteredOrders.length === 0 ? (
-        <div className={`border rounded-xl py-20 text-center ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
-          <ClipboardList size={32} className="mx-auto mb-3 text-gray-500/40" />
-          <p className="text-sm font-medium text-gray-500">No encontramos pedidos con esos filtros.</p>
-        </div>
+        <EmptyState title="No encontramos pedidos con esos filtros" icon={<Search size={18} />} className="rounded-[24px] border border-border/70 bg-card py-16" />
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {filteredOrders.map((order) => {
             const orderId = String(order.id);
             const isExpanded = expandedOrderId === orderId;
@@ -167,221 +169,143 @@ export function OrdersPanel({
             const shippingLabel = order.shipping_type
               ? {
                   retiro: "Retiro en sucursal",
-                  envio: "Envío coordinado",
+                  envio: "Envio coordinado",
                   transporte: "Transporte / expreso",
                 }[order.shipping_type] ?? order.shipping_type
               : "Sin modalidad definida";
 
             return (
-              <div key={orderId} className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl overflow-hidden`}>
-                <button
-                  onClick={() => setExpandedOrderId(isExpanded ? null : orderId)}
-                  className={`w-full px-5 py-4 text-left transition ${dk("hover:bg-[#151515]", "hover:bg-[#fafafa]")}`}
-                >
-                  <div className="flex items-center justify-between gap-4 flex-wrap">
+              <SurfaceCard key={orderId} tone="default" padding="none" className="overflow-hidden rounded-[24px] border border-border/70 bg-card shadow-sm">
+                <button type="button" onClick={() => setExpandedOrderId(isExpanded ? null : orderId)} className="w-full px-5 py-4 text-left transition hover:bg-secondary/30">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-xs font-bold font-mono ${dk("text-white", "text-[#171717]")}`}>
-                          {order.order_number ?? `#${orderId.slice(-6).toUpperCase()}`}
-                        </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">{order.order_number ?? `#${orderId.slice(-6).toUpperCase()}`}</span>
                         <OrderStatusBadge status={order.status} />
-                        {order.numero_remito && (
-                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${dk("text-blue-400 border-blue-500/20 bg-blue-500/10", "text-blue-600 border-blue-200 bg-blue-50")}`}>
-                            Remito {order.numero_remito}
-                          </span>
-                        )}
+                        {order.numero_remito ? <Badge variant="outline" className="text-[10px]">Remito {order.numero_remito}</Badge> : null}
                       </div>
-                      <p className="text-[11px] text-gray-500 mt-1">
-                        {new Date(order.created_at).toLocaleDateString("es-AR", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {new Date(order.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                         {" · "}
                         {order.products.length} producto{order.products.length === 1 ? "" : "s"}
                       </p>
                     </div>
 
-                    <div className="text-right shrink-0">
-                      <p className="text-base font-bold text-[#2D9F6A]">{formatPrice(order.total)}</p>
-                      <p className="text-[11px] text-gray-500">{otherCurrencyValue}</p>
+                    <div className="text-right">
+                      <p className="text-lg font-bold tabular-nums text-primary">{formatPrice(order.total)}</p>
+                      <p className="text-[11px] text-muted-foreground">{otherCurrencyValue}</p>
                     </div>
                   </div>
                 </button>
 
-                {isExpanded && (
-                  <div className={`border-t ${dk("border-[#1a1a1a]", "border-[#f0f0f0]")}`}>
-                    <div className="grid gap-3 px-5 py-4 md:grid-cols-3">
-                      <div className={`rounded-xl border px-4 py-3 ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <Package size={13} className="text-[#2D9F6A]" />
-                          <p className={`text-xs font-bold uppercase tracking-wider ${dk("text-gray-400", "text-[#737373]")}`}>Estado</p>
+                {isExpanded ? (
+                  <div className="space-y-4 border-t border-border/70 px-5 py-4">
+                    <div className="grid gap-3 lg:grid-cols-3">
+                      <SurfaceCard tone="subtle" padding="md" className="rounded-[20px] border border-border/70 bg-background/70">
+                        <div className="mb-2 flex items-center gap-2">
+                          <Package size={13} className="text-primary" />
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Estado</p>
                         </div>
-                        <p className={`text-sm ${dk("text-gray-300", "text-[#525252]")}`}>
-                          {ORDER_STATUS_COPY[order.status] ?? "Estamos actualizando el estado del pedido."}
-                        </p>
-                        <div className="mt-3">
-                          <OrderStatusTimeline status={order.status} />
-                        </div>
-                      </div>
+                        <p className="text-sm text-foreground">{ORDER_STATUS_COPY[order.status] ?? "Estamos actualizando el estado del pedido."}</p>
+                        <div className="mt-3"><OrderStatusTimeline status={order.status} /></div>
+                      </SurfaceCard>
 
-                      <div className={`rounded-xl border px-4 py-3 ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <Truck size={13} className="text-blue-400" />
-                          <p className={`text-xs font-bold uppercase tracking-wider ${dk("text-gray-400", "text-[#737373]")}`}>Logística</p>
+                      <SurfaceCard tone="subtle" padding="md" className="rounded-[20px] border border-border/70 bg-background/70">
+                        <div className="mb-2 flex items-center gap-2">
+                          <Truck size={13} className="text-blue-600 dark:text-blue-400" />
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Logistica</p>
                         </div>
-                        <p className={`text-sm font-medium ${dk("text-white", "text-[#171717]")}`}>{shippingLabel}</p>
-                        {order.shipping_transport && (
-                          <p className="text-[11px] text-gray-500 mt-1">Transporte: {order.shipping_transport}</p>
-                        )}
-                        
-                        {/* ── SEGUIMIENTO (Phase 5.2) ── */}
-                        {order.tracking_number && (
-                          <div className={`mt-3 p-3 rounded-lg border ${dk("bg-[#171717] border-[#222]", "bg-blue-50 border-blue-100")}`}>
-                            <div className="flex items-center justify-between mb-2">
-                               <span className={`text-[10px] font-bold uppercase tracking-wider ${dk("text-gray-500", "text-blue-700/60")}`}>Seguimiento</span>
-                               <span className={`text-[10px] font-bold uppercase ${dk("text-[#2D9F6A]", "text-blue-700")}`}>{order.shipping_provider || 'transporte'}</span>
+                        <p className="text-sm font-medium text-foreground">{shippingLabel}</p>
+                        {order.shipping_transport ? <p className="mt-1 text-[11px] text-muted-foreground">Transporte: {order.shipping_transport}</p> : null}
+                        {typeof order.shipping_cost === "number" && order.shipping_cost > 0 ? <p className="mt-1 text-[11px] text-muted-foreground">Costo: {formatPrice(order.shipping_cost)}</p> : null}
+                        {order.tracking_number ? (
+                          <div className="mt-3 rounded-xl border border-border/70 bg-card px-3 py-3">
+                            <div className="mb-2 flex items-center justify-between">
+                              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Seguimiento</span>
+                              <span className="text-[10px] font-bold uppercase text-primary">{order.shipping_provider || "transporte"}</span>
                             </div>
                             <div className="flex items-center gap-2">
-                               <p className={`text-xs font-mono font-bold ${dk("text-white", "text-[#171717]")}`}>{order.tracking_number}</p>
-                               <button 
-                                 onClick={(e) => {
-                                   e.stopPropagation();
-                                   navigator.clipboard.writeText(order.tracking_number!);
-                                   toast.success("Número copiado al portapapeles");
-                                 }}
-                                 className="p-1 hover:bg-black/10 rounded transition"
-                                 title="Copiar número"
-                               >
-                                 <Copy size={10} />
-                               </button>
+                              <p className="text-xs font-mono font-bold text-foreground">{order.tracking_number}</p>
+                              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={(event) => { event.stopPropagation(); navigator.clipboard.writeText(order.tracking_number ?? ""); toast.success("Numero copiado"); }}>
+                                <Copy size={10} />
+                              </Button>
                             </div>
-                            {order.shipping_provider && ['andreani', 'oca'].includes(order.shipping_provider) && (
-                              <a 
-                                href={
-                                  order.shipping_provider === 'andreani' 
-                                    ? `https://seguimiento.andreani.com/envio/${order.tracking_number}`
-                                    : `https://www4.oca.com.ar/ocaonline/seguimiento/buscar_envio.asp?p_search=${order.tracking_number}`
-                                }
+                            {order.shipping_provider && ["andreani", "oca"].includes(order.shipping_provider) ? (
+                              <a
+                                href={order.shipping_provider === "andreani" ? `https://seguimiento.andreani.com/envio/${order.tracking_number}` : `https://www4.oca.com.ar/ocaonline/seguimiento/buscar_envio.asp?p_search=${order.tracking_number}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className={`mt-2 flex items-center justify-center gap-1.5 w-full py-1.5 rounded-md text-[10px] font-bold transition-all ${dk("bg-[#2D9F6A] text-white hover:bg-[#25835A]", "bg-blue-600 text-white hover:bg-blue-700")}`}
+                                className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-[11px] font-semibold text-primary-foreground transition hover:bg-primary/90"
                               >
-                                <ExternalLink size={10} /> Ver en {order.shipping_provider.toUpperCase()}
+                                <ExternalLink size={10} /> Ver seguimiento
                               </a>
-                            )}
+                            ) : null}
                           </div>
-                        )}
+                        ) : null}
+                      </SurfaceCard>
 
-                        {typeof order.shipping_cost === "number" && order.shipping_cost > 0 && (
-                          <p className="text-[11px] text-gray-500 mt-1">Costo: {formatPrice(order.shipping_cost)}</p>
-                        )}
-                      </div>
-
-                      <div className={`rounded-xl border px-4 py-3 ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <MapPin size={13} className="text-amber-400" />
-                          <p className={`text-xs font-bold uppercase tracking-wider ${dk("text-gray-400", "text-[#737373]")}`}>Entrega</p>
+                      <SurfaceCard tone="subtle" padding="md" className="rounded-[20px] border border-border/70 bg-background/70">
+                        <div className="mb-2 flex items-center gap-2">
+                          <MapPin size={13} className="text-amber-600 dark:text-amber-400" />
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Entrega</p>
                         </div>
-                        <p className={`text-sm ${dk("text-gray-300", "text-[#525252]")}`}>
-                          {order.shipping_address || "Se coordina con el equipo comercial"}
-                        </p>
-                      </div>
+                        <p className="text-sm text-foreground">{order.shipping_address || "Se coordina con el equipo comercial"}</p>
+                      </SurfaceCard>
                     </div>
 
-                    <div className="px-5 pb-1">
-                      <div className={`rounded-xl border px-4 py-3 ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
-                        <div className="flex items-center justify-between gap-3 flex-wrap">
-                          <div>
-                            <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${dk("text-gray-400", "text-[#737373]")}`}>Documentos asociados</p>
-                            <p className={`text-sm ${dk("text-gray-300", "text-[#525252]")}`}>
-                              Remito: <span className={`font-semibold ${dk("text-white", "text-[#171717]")}`}>{order.numero_remito || "Pendiente"}</span>
-                            </p>
-                            <p className={`text-sm ${dk("text-gray-300", "text-[#525252]")}`}>
-                              Facturas vinculadas: <span className={`font-semibold ${dk("text-white", "text-[#171717]")}`}>{relatedInvoices.length}</span>
-                            </p>
-                          </div>
-                          {relatedInvoices.length > 0 && (
-                            <button
-                              onClick={onGoToInvoices}
-                              className={`text-xs font-medium px-3 py-2 rounded-lg border transition ${dk("border-[#262626] text-gray-400 hover:text-white hover:bg-[#1a1a1a]", "border-[#e5e5e5] text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")}`}
-                            >
-                              Ver facturas
-                            </button>
-                          )}
+                    <SurfaceCard tone="subtle" padding="md" className="rounded-[20px] border border-border/70 bg-background/70">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Documentos asociados</p>
+                          <p className="mt-1 text-sm text-foreground">Remito: <span className="font-semibold">{order.numero_remito || "Pendiente"}</span></p>
+                          <p className="text-sm text-foreground">Facturas vinculadas: <span className="font-semibold">{relatedInvoices.length}</span></p>
                         </div>
-                        {relatedInvoices.length > 0 && (
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {relatedInvoices.map((invoice) => (
-                              <span key={invoice.id} className={`text-[11px] px-2 py-1 rounded-full border ${dk("border-[#262626] text-gray-300", "border-[#e5e5e5] text-[#525252]")}`}>
-                                {invoice.invoice_number}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                        {relatedInvoices.length > 0 ? <Button type="button" variant="toolbar" onClick={onGoToInvoices}>Ver facturas</Button> : null}
                       </div>
-                    </div>
-
-                    {order.notes && (
-                      <div className="px-5 pb-1">
-                        <div className={`rounded-xl border px-4 py-3 ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
-                          <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${dk("text-gray-400", "text-[#737373]")}`}>Notas</p>
-                          <p className={`text-sm ${dk("text-gray-300", "text-[#525252]")}`}>{order.notes}</p>
+                      {relatedInvoices.length > 0 ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {relatedInvoices.map((invoice) => <Badge key={invoice.id} variant="outline">{invoice.invoice_number}</Badge>)}
                         </div>
-                      </div>
-                    )}
+                      ) : null}
+                    </SurfaceCard>
 
-                    <div className={`mx-5 my-4 border rounded-xl overflow-hidden ${dk("border-[#1f1f1f]", "border-[#ececec]")}`}>
-                      <div className={`grid grid-cols-[1fr_80px_110px] gap-2 px-4 py-2 text-[10px] font-bold uppercase tracking-wider ${dk("bg-[#0d0d0d] text-gray-500", "bg-[#f5f5f5] text-[#a3a3a3]")}`}>
+                    {order.notes ? (
+                      <SurfaceCard tone="subtle" padding="md" className="rounded-[20px] border border-border/70 bg-background/70">
+                        <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Notas</p>
+                        <p className="text-sm text-foreground">{order.notes}</p>
+                      </SurfaceCard>
+                    ) : null}
+
+                    <div className="overflow-hidden rounded-[20px] border border-border/70 bg-background/70">
+                      <div className="grid grid-cols-[1fr_80px_110px] gap-2 border-b border-border/70 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                         <span>Producto</span>
                         <span className="text-center">Cant.</span>
                         <span className="text-right">Total</span>
                       </div>
                       {order.products.map((product, index) => (
-                        <div
-                          key={`${orderId}-${product.product_id}-${index}`}
-                          className={`grid grid-cols-[1fr_80px_110px] gap-2 px-4 py-2.5 border-t ${dk("border-[#1a1a1a]", "border-[#f0f0f0]")}`}
-                        >
+                        <div key={`${orderId}-${product.product_id}-${index}`} className="grid grid-cols-[1fr_80px_110px] gap-2 border-t border-border/70 px-4 py-3 first:border-t-0">
                           <div className="min-w-0">
-                            <p className={`text-sm font-medium ${dk("text-white", "text-[#171717]")} truncate`}>{product.name}</p>
-                            {product.sku && <p className="text-[10px] text-gray-500 font-mono">{product.sku}</p>}
+                            <p className="truncate text-sm font-medium text-foreground">{product.name}</p>
+                            {product.sku ? <p className="text-[10px] font-mono text-muted-foreground">{product.sku}</p> : null}
                           </div>
-                          <span className={`text-sm text-center ${dk("text-gray-300", "text-[#525252]")}`}>{product.quantity}</span>
-                          <span className="text-sm text-right font-semibold text-[#2D9F6A]">
-                            {formatPrice(product.total_price ?? 0)}
-                          </span>
+                          <span className="text-center text-sm text-muted-foreground">{product.quantity}</span>
+                          <span className="text-right text-sm font-semibold text-primary">{formatPrice(product.total_price ?? 0)}</span>
                         </div>
                       ))}
                     </div>
 
-                    <div className="px-5 pb-4">
-                      <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
-                        <div>
-                          <p className="text-xs text-gray-500">Total del pedido</p>
-                          <p className="text-lg font-extrabold text-[#2D9F6A]">{formatPrice(order.total)}</p>
-                        </div>
-                        <button
-                          onClick={() => onRepeatOrder(order)}
-                          className={`text-xs font-semibold px-3 py-2 rounded-lg border transition ${dk("border-[#262626] text-gray-400 hover:text-white hover:bg-[#1a1a1a]", "border-[#e5e5e5] text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")}`}
-                        >
-                          Repetir pedido
-                        </button>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Total del pedido</p>
+                        <p className="text-xl font-bold text-primary">{formatPrice(order.total)}</p>
                       </div>
-
-                      <OrderPaymentProof
-                        orderId={order.id}
-                        existingProofs={order.payment_proofs}
-                        isDark={isDark}
-                        onProofsUpdated={(proofs) => {
-                          void Promise.resolve(onUpdateOrderProofs(order.id, proofs));
-                        }}
-                      />
+                      <Button type="button" variant="toolbar" onClick={() => onRepeatOrder(order)}>Repetir pedido</Button>
                     </div>
+
+                    <OrderPaymentProof orderId={order.id} existingProofs={order.payment_proofs} isDark={false} onProofsUpdated={(proofs) => { void Promise.resolve(onUpdateOrderProofs(order.id, proofs)); }} />
                   </div>
-                )}
-              </div>
+                ) : null}
+              </SurfaceCard>
             );
           })}
         </div>

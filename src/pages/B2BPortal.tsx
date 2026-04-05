@@ -28,6 +28,7 @@ import { InvoicesPanel } from "@/components/b2b/InvoicesPanel";
 import { ApprovalsPanel } from "@/components/b2b/ApprovalsPanel";
 import { RmaPanel } from "@/components/b2b/RmaPanel";
 import { PortalHeader } from "@/components/b2b/PortalHeader";
+import { OperativeBar } from "@/components/b2b/OperativeBar";
 import { PortalSidebar } from "@/components/b2b/PortalSidebar";
 import { AccountCenter } from "@/components/b2b/AccountCenter";
 import { SupportCenter } from "@/components/b2b/SupportCenter";
@@ -46,20 +47,19 @@ import { BulkImport } from "@/components/b2b/BulkImport";
 import { DetailedAccountView } from "@/components/b2b/DetailedAccountView";
 import { usePortalCatalog } from "@/hooks/usePortalCatalog";
 import { usePortalCart } from "@/hooks/usePortalCart";
+import { useAppTheme } from "@/hooks/useAppTheme";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { MapPin } from "lucide-react";
 import { OrderStatusBadge as StatusBadge } from "@/components/OrderStatusBadge";
 
-// ── Theme helpers ─────────────────────────────────────────────────────────────
+// â”€â”€ Theme helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type PortalTab = "home" | "catalog" | "orders" | "quotes" | "projects" | "express" | "invoices" | "cuenta" | "approvals" | "support" | "rma" | "bulk";
-type ThemeMode = "dark" | "light";
 type ViewModeByContext = Record<CatalogContext, ViewMode>;
 
 const VIEW_MODE_BY_CONTEXT_KEY = "b2b_view_mode_by_context";
-const THEME_KEY = "theme";
 const DEFAULT_VIEW_MODE_BY_CONTEXT: ViewModeByContext = { default: "list", featured: "grid", pos: "grid" };
 
 function loadViewModeByContext(): ViewModeByContext {
@@ -78,15 +78,6 @@ function loadViewModeByContext(): ViewModeByContext {
   }
 }
 
-function getInitialTheme(): ThemeMode {
-  try {
-    const saved = localStorage.getItem(THEME_KEY);
-    if (saved === "dark" || saved === "light") return saved;
-  } catch { /* ignore */ }
-  return typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches
-    ? "dark" : "light";
-}
-
 function normalizePortalText(value: unknown): string {
   return String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
@@ -96,7 +87,7 @@ function isPosCategoryValue(value: unknown): boolean {
   return norm.includes("punto de venta") || /\bpos\b/i.test(norm);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function B2BPortal() {
   const navigate = useNavigate();
@@ -105,13 +96,13 @@ export default function B2BPortal() {
   const { activeProfile: profile, isImpersonating, stopImpersonation } = useImpersonate();
   const { computePrice, activeAgreement } = usePricing(profile);
 
-  // ── UI state ──────────────────────────────────────────────────────────────
+  // â”€â”€ UI state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [catalogContext, setCatalogContext] = useState<CatalogContext>("default");
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<PortalTab>("home");
+  const dk = (dark: string, light: string) => (isDark ? dark : light);
   const [viewModeByContext, setViewModeByContext] = useState<ViewModeByContext>(() => loadViewModeByContext());
   const [viewMode, setViewMode] = useState<ViewMode>(() => loadViewModeByContext().default);
-  const [theme, setTheme] = useState<ThemeMode>(() => getInitialTheme());
   const [themeFlash, setThemeFlash] = useState(false);
   const [themeSwitchReady, setThemeSwitchReady] = useState(false);
   const [compareList, setCompareList] = useState<number[]>([]);
@@ -119,10 +110,9 @@ export default function B2BPortal() {
   const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null);
   const [warehouses, setWarehouses] = useState<{ id: string; name: string; address: string; allows_pickup: boolean }[]>([]);
 
-  const isDark = theme === "dark";
-  const dk = (d: string, l: string) => isDark ? d : l;
+  const { isDark, toggleTheme: toggleAppTheme } = useAppTheme();
 
-  // ── Dynamic dashboard data ────────────────────────────────────────────────
+  // â”€â”€ Dynamic dashboard data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const dashboardUserId = profile?.id ?? "";
   const { projects, createProject } = useClientProjects(dashboardUserId);
   const { alerts } = useBusinessAlerts(dashboardUserId);
@@ -140,7 +130,7 @@ export default function B2BPortal() {
       });
   }, [profile?.assigned_seller_id]);
 
-  // ── Catalog data (categories, filters, display products) ──────────────────
+  // â”€â”€ Catalog data (categories, filters, display products) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { hiddenProductIds } = useCatalogSegments(profile?.id);
 
   const catalog = usePortalCatalog({
@@ -155,7 +145,7 @@ export default function B2BPortal() {
   // via its own useProducts call. However search is a separate state in the header.
   // For now we keep search in portal and use displayProducts which already filters.
 
-  // ── Cart, orders, quotes ──────────────────────────────────────────────────
+  // â”€â”€ Cart, orders, quotes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { orders, addOrder, updateOrder, fetchOrders, fetchManagedOrders } = useOrders();
   const [managedOrders, setManagedOrders] = useState<PortalOrder[]>([]);
   const { quotes, addQuote, updateStatus: updateQuoteStatus, deleteQuote } = useQuotes(profile?.id || "guest");
@@ -172,17 +162,19 @@ export default function B2BPortal() {
     addQuote,
     updateQuoteStatus,
     navigate,
-    setActiveTab,
+    setActiveTab: (tab) => setActiveTab(tab as PortalTab),
   });
+  const { setCart } = cart;
+  const formatQuickPrice = useCallback((product: Product) => formatPrice(computePrice(product, 1).unitPrice), [computePrice, formatPrice]);
 
-  // ── Credit ────────────────────────────────────────────────────────────────
+  // â”€â”€ Credit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const creditUsed = useMemo(() =>
     orders.filter((o) => ["pending", "approved", "preparing"].includes(o.status))
       .reduce((s, o) => s + o.total, 0),
     [orders]
   );
 
-  // ── Invoices ──────────────────────────────────────────────────────────────
+  // â”€â”€ Invoices â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [myInvoices, setMyInvoices] = useState<Invoice[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
 
@@ -203,10 +195,10 @@ export default function B2BPortal() {
     if (activeTab === "approvals") refreshApprovals();
   }, [activeTab, loadMyInvoices, refreshApprovals]);
 
-  // ── Cart sync with Supabase ───────────────────────────────────────────────
+  // â”€â”€ Cart sync with Supabase â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useCartSync(cart.cart, cart.setCart);
 
-  // ── Shared cart token from URL ────────────────────────────────────────────
+  // â”€â”€ Shared cart token from URL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const cartKey = `b2b_cart_${profile?.id || "guest"}`;
   const cartToken = searchParams.get("cart_token");
   useEffect(() => {
@@ -217,23 +209,24 @@ export default function B2BPortal() {
         (data.items as { product_id: number; quantity: number }[]).forEach((item) => {
           newCart[item.product_id] = item.quantity;
         });
-        cart.setCart(newCart);
+        setCart(newCart);
         localStorage.setItem(cartKey, JSON.stringify(newCart));
-        searchParams.delete("cart_token");
-        setSearchParams(searchParams);
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete("cart_token");
+        setSearchParams(nextParams);
         alert("¡Carrito reconstruido desde el enlace compartido!");
       }
     });
-  }, [cartToken, profile]);
+  }, [cartToken, profile, cartKey, searchParams, setCart, setSearchParams]);
 
-  // ── Warehouses ────────────────────────────────────────────────────────────
+  // â”€â”€ Warehouses â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     supabase.from("warehouses").select("*").eq("is_active", true).then(({ data }) => {
       if (data) setWarehouses(data as typeof warehouses);
     });
   }, []);
 
-  // ── noindex meta ──────────────────────────────────────────────────────────
+  // â”€â”€ noindex meta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     const meta = document.createElement("meta");
     meta.name = "robots"; meta.content = "noindex, nofollow";
@@ -241,18 +234,17 @@ export default function B2BPortal() {
     return () => { document.head.removeChild(meta); };
   }, []);
 
-  // ── Theme effects ─────────────────────────────────────────────────────────
-  const toggleTheme = () => { setTheme((prev) => (prev === "dark" ? "light" : "dark")); setThemeFlash(true); };
+  // â”€â”€ Theme effects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const toggleTheme = () => { toggleAppTheme(); setThemeFlash(true); };
 
-  useEffect(() => { localStorage.setItem(THEME_KEY, theme); document.documentElement.classList.toggle("dark", isDark); }, [theme, isDark]);
   useEffect(() => { if (!themeFlash) return; const t = window.setTimeout(() => setThemeFlash(false), 260); return () => window.clearTimeout(t); }, [themeFlash]);
   useEffect(() => { const raf = window.requestAnimationFrame(() => setThemeSwitchReady(true)); return () => window.cancelAnimationFrame(raf); }, []);
 
-  // ── View mode effects ─────────────────────────────────────────────────────
+  // â”€â”€ View mode effects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => { setViewMode(viewModeByContext[catalogContext]); }, [catalogContext, viewModeByContext]);
   useEffect(() => { localStorage.setItem(VIEW_MODE_BY_CONTEXT_KEY, JSON.stringify(viewModeByContext)); }, [viewModeByContext]);
 
-  // ── Catalog context from URL ──────────────────────────────────────────────
+  // â”€â”€ Catalog context from URL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     const categoryParam = searchParams.get("category");
     if (isPosCategoryValue(categoryParam)) { setCatalogContext("pos"); return; }
@@ -266,10 +258,10 @@ export default function B2BPortal() {
     setViewModeByContext((prev) => ({ ...prev, [catalogContext]: mode }));
   }
 
-  // ── Notifications ─────────────────────────────────────────────────────────
+  // â”€â”€ Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useNotifications(profile?.id, orders, catalog.products);
 
-  // ── Compare ───────────────────────────────────────────────────────────────
+  // â”€â”€ Compare â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function toggleCompare(productId: number) {
     setCompareList((prev) => {
       if (prev.includes(productId)) return prev.filter((id) => id !== productId);
@@ -278,7 +270,7 @@ export default function B2BPortal() {
     });
   }
 
-  // ── Display products (requires purchase history and margins from cart hook) ─
+  // â”€â”€ Display products (requires purchase history and margins from cart hook) â”€
   const displayProducts = useMemo(
     () => catalog.displayProducts(cart.purchaseHistory, cart.productMargins ?? {}, cart.globalMargin),
     [catalog, cart.purchaseHistory, cart.productMargins, cart.globalMargin]
@@ -295,34 +287,25 @@ export default function B2BPortal() {
 
   const handleLogout = async () => { await signOut(); navigate("/login"); };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const clientName = profile?.company_name ?? profile?.contact_name ?? "Cliente";
   const defaultMargin = profile?.default_margin ?? 20;
 
   return (
-    <div className={`flex min-h-screen ${dk("bg-[#0a0a0a]", "bg-[#f5f5f5]")} flex-col`}>
+    <div className="dashboard-stage min-h-screen bg-background px-2 py-2 md:px-4 md:py-4">
+      <div className="dashboard-canvas flex min-h-[calc(100vh-1rem)] flex-col overflow-hidden">
 
       {/* TOPBAR */}
       <PortalHeader
         clientName={clientName}
         search={search}
         setSearch={setSearch}
-        quickSku={cart.quickSku}
-        setQuickSku={cart.setQuickSku}
-        quickError={cart.quickError}
-        handleQuickOrder={cart.handleQuickOrder}
-        viewMode={viewMode}
-        handleViewModeChange={handleViewModeChange}
         currency={currency}
         setCurrency={setCurrency}
         isDark={isDark}
         toggleTheme={toggleTheme}
         themeFlash={themeFlash}
         themeSwitchReady={themeSwitchReady}
-        activeTab={activeTab}
-        displayProducts={displayProducts}
-        exportCatalogCSV={exportCatalogCSV}
-        handleExportCatalogPDF={handleExportCatalogPDF}
         cartItemsCount={cart.cartCount}
         onOpenCart={() => navigate("/cart")}
         exchangeRate={exchangeRate}
@@ -330,11 +313,27 @@ export default function B2BPortal() {
         isFetchingRate={isFetchingRate}
       />
 
+      {/* OPERATIVE BAR — carga rápida mayorista */}
+      <OperativeBar
+        quickSku={cart.quickSku}
+        setQuickSku={cart.setQuickSku}
+        quickError={cart.quickError}
+        handleQuickOrder={cart.handleQuickOrder}
+        quickProducts={catalog.products}
+        cartSnapshot={cart.cart}
+        onQuickAddProduct={cart.handleResolvedQuickOrder}
+        formatQuickPrice={formatQuickPrice}
+        activeTab={activeTab}
+        displayProducts={displayProducts}
+        exportCatalogCSV={exportCatalogCSV}
+        handleExportCatalogPDF={handleExportCatalogPDF}
+      />
+
       {/* TABS */}
-      <div className={`flex border-b ${dk("border-[#1a1a1a] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")} px-4 md:px-6 overflow-x-auto whitespace-nowrap scrollbar-none`}>
+      <div className="flex overflow-x-auto whitespace-nowrap border-b border-border/70 bg-card/75 px-4 py-1.5 scrollbar-none md:px-6">
         {[
           { id: "home",     label: "Inicio",        icon: LayoutGrid },
-          { id: "catalog",  label: "Catálogo",       icon: Package },
+          { id: "catalog",  label: "Catálogo",        icon: Package },
           { id: "orders",   label: `Mis Pedidos${orders.length ? ` (${orders.length})` : ""}`, icon: ClipboardList },
           { id: "projects", label: "Proyectos",      icon: Briefcase },
           { id: "express",  label: "Cotizador Express", icon: Sparkles },
@@ -351,10 +350,8 @@ export default function B2BPortal() {
           <button
             key={id}
             onClick={() => setActiveTab(id as PortalTab)}
-            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition ${
-              activeTab === id
-                ? `border-[#2D9F6A] ${dk("text-white", "text-[#171717]")}`
-                : `border-transparent ${dk("text-[#525252] hover:text-[#a3a3a3]", "text-[#737373] hover:text-[#525252]")}`
+            className={`mx-0.5 my-0.5 flex items-center gap-1.5 rounded-2xl px-3.5 py-2 text-sm font-medium transition ${
+              activeTab === id ? "bg-accent text-foreground shadow-sm" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
             }`}
           >
             <Icon size={13} /> {label}
@@ -364,12 +361,12 @@ export default function B2BPortal() {
 
       {/* BANNER SOPORTE (Impersonate) */}
       {isImpersonating && (
-        <div className="bg-red-600 text-white px-4 py-2 text-center text-xs font-bold flex items-center justify-center gap-4 z-[100] sticky top-0 shadow-lg animate-pulse">
+        <div className="sticky top-0 z-[100] flex items-center justify-center gap-4 bg-destructive px-4 py-2 text-center text-xs font-bold text-destructive-foreground shadow-lg">
           <div className="flex items-center gap-2">
             <Shield size={14} />
             MODO SOPORTE ACTIVO: {profile?.company_name || profile?.contact_name}
           </div>
-          <button onClick={stopImpersonation} className="bg-white text-red-600 px-3 py-1 rounded-full hover:bg-red-50 transition-colors shadow-sm">
+          <button onClick={stopImpersonation} className="rounded-full bg-background px-3 py-1 text-destructive transition-colors hover:bg-background/90">
             Detener sesión de soporte
           </button>
         </div>
@@ -377,11 +374,11 @@ export default function B2BPortal() {
 
       {/* BANNER ADMIN */}
       {isAdmin && (
-        <div className={`flex items-center justify-between ${dk("bg-[#111] border-[#1a1a1a]", "bg-[#f9f9f9] border-[#e5e5e5]")} border-b px-4 md:px-6 py-2`}>
-          <div className="flex items-center gap-2 text-[#737373] text-xs font-medium">
+        <div className="flex items-center justify-between border-b border-border/70 bg-muted/30 px-4 py-2 md:px-6">
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <ShieldCheck size={13} /> Vista de administrador
           </div>
-          <Link to="/admin" className={`flex items-center gap-1.5 ${dk("bg-[#1c1c1c] hover:bg-[#262626] text-[#a3a3a3] hover:text-white border-[#262626] hover:border-[#333]", "bg-white hover:bg-[#f5f5f5] text-[#525252] hover:text-[#171717] border-[#e5e5e5] hover:border-[#d4d4d4]")} text-xs font-medium px-3 py-1.5 rounded-lg border transition`}>
+          <Link to="/admin" className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground">
             <ShieldCheck size={11} /> Panel Admin
           </Link>
         </div>
@@ -389,15 +386,15 @@ export default function B2BPortal() {
 
       {/* BANNER CLIENTE */}
       {profile && !isAdmin && (
-        <div className={`flex flex-wrap items-center gap-x-5 gap-y-1 ${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-[#f9f9f9] border-[#e5e5e5]")} border-b px-4 md:px-6 py-2`}>
-          <span className={`text-xs font-semibold ${dk("text-gray-300", "text-[#525252]")}`}>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-b border-border/70 bg-muted/20 px-4 py-2 md:px-6">
+          <span className="text-xs font-semibold text-foreground">
             {profile.company_name || profile.contact_name}
           </span>
-          <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${dk("bg-[#1c1c1c] text-[#a3a3a3] border-[#2a2a2a]", "bg-[#f0f0f0] text-[#525252] border-[#e5e5e5]")} border capitalize`}>
+          <span className="rounded-full border border-border/70 bg-card px-2 py-0.5 text-[11px] font-medium capitalize text-muted-foreground">
             {profile.client_type ?? "mayorista"}
           </span>
-          <span className={`text-[11px] ${dk("text-gray-500", "text-[#737373]")}`}>
-            Margen: <span className="font-semibold text-[#2D9F6A]">{defaultMargin}%</span>
+          <span className="text-[11px] text-muted-foreground">
+            Margen: <span className="font-semibold text-primary">{defaultMargin}%</span>
           </span>
           {profile.credit_limit != null && profile.credit_limit > 0 && (() => {
             const fmt = (n: number) => `$${Math.round(n).toLocaleString("es-AR")}`;
@@ -405,13 +402,13 @@ export default function B2BPortal() {
             const pct = Math.min(100, (creditUsed / profile.credit_limit!) * 100);
             const danger = pct >= 80;
             return (
-              <div className="flex items-center gap-2 ml-auto">
-                <span className={`text-[11px] ${dk("text-gray-500", "text-[#737373]")}`}>
-                  Crédito: <span className={`font-semibold ${danger ? "text-red-400" : "text-[#2D9F6A]"}`}>{fmt(creditAvail)}</span>
-                  <span className={`${dk("text-gray-700", "text-[#c4c4c4]")} ml-1`}>/ {fmt(profile.credit_limit!)}</span>
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-[11px] text-muted-foreground">
+                  Crédito:<span className={`font-semibold ${danger ? "text-destructive" : "text-primary"}`}>{fmt(creditAvail)}</span>
+                  <span className="ml-1 text-muted-foreground/80">/ {fmt(profile.credit_limit!)}</span>
                 </span>
-                <div className={`w-24 h-1.5 rounded-full ${dk("bg-[#1c1c1c]", "bg-[#e5e5e5]")} overflow-hidden`}>
-                  <div className={`h-full rounded-full transition-all ${danger ? "bg-red-500" : "bg-[#2D9F6A]"}`} style={{ width: `${pct}%` }} />
+                <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
+                  <div className={`h-full rounded-full transition-all ${danger ? "bg-destructive" : "bg-primary"}`} style={{ width: `${pct}%` }} />
                 </div>
               </div>
             );
@@ -421,11 +418,11 @@ export default function B2BPortal() {
 
       {/* Active price agreement banner */}
       {activeAgreement && !isAdmin && (
-        <div className={`flex items-center gap-2 px-4 md:px-6 py-1.5 text-[11px] font-semibold ${dk("bg-emerald-950/40 border-b border-emerald-800/30 text-emerald-400", "bg-emerald-50 border-b border-emerald-200 text-emerald-700")}`}>
+        <div className="flex items-center gap-2 border-b border-emerald-500/20 bg-emerald-500/10 px-4 py-1.5 text-[11px] font-semibold text-emerald-600 md:px-6 dark:text-emerald-400">
           <BadgeCheck size={12} />
           Acuerdo de precio activo: <span className="font-bold">{activeAgreement.name}</span>
-          {activeAgreement.margin_pct != null && <span className="opacity-70">· Margen {activeAgreement.margin_pct}%</span>}
-          {activeAgreement.discount_pct > 0 && <span className="opacity-70">· Descuento adicional -{activeAgreement.discount_pct}%</span>}
+          {activeAgreement.margin_pct != null && <span className="opacity-70">Â· Margen {activeAgreement.margin_pct}%</span>}
+          {activeAgreement.discount_pct > 0 && <span className="opacity-70">Â· Descuento adicional -{activeAgreement.discount_pct}%</span>}
           {activeAgreement.valid_until && (
             <span className="ml-auto opacity-60">Vigente hasta {new Date(activeAgreement.valid_until).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })}</span>
           )}
@@ -434,17 +431,17 @@ export default function B2BPortal() {
 
       {/* Global banners */}
       {cart.creditError && (
-        <div className="mx-4 mt-3 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl p-3 text-sm font-medium flex items-center gap-2">
+        <div className="mx-4 mt-3 flex items-center gap-2 rounded-2xl border border-destructive/20 bg-destructive/10 p-3 text-sm font-medium text-destructive md:mx-6">
           <AlertTriangle size={15} /> {cart.creditError}
         </div>
       )}
       {cart.orderSuccess && (
-        <div className={`mx-4 mt-3 ${dk("bg-green-900/20 border-green-500/30 text-green-400", "bg-green-50 border-green-200 text-green-700")} border rounded-xl p-3 text-sm font-medium flex items-center gap-2`}>
+        <div className="mx-4 mt-3 flex items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm font-medium text-emerald-600 md:mx-6 dark:text-emerald-400">
           <CheckCircle2 size={15} /> Pedido confirmado. Lo estamos revisando y te contactaremos pronto.
         </div>
       )}
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
 
         {/* SIDEBAR */}
         {activeTab === "catalog" && (
@@ -472,7 +469,7 @@ export default function B2BPortal() {
         )}
 
         {/* MAIN CONTENT */}
-        <main className="flex-1 p-4 md:p-5 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto bg-transparent p-3 md:p-4 lg:p-5">
 
           {/* HOME */}
           {activeTab === "home" && profile && (
@@ -483,13 +480,13 @@ export default function B2BPortal() {
               products={catalog.products}
               creditLimit={profile.credit_limit ?? 0}
               creditUsed={creditUsed}
-              isDark={isDark}
               onGoTo={(tab) => setActiveTab(tab as PortalTab)}
               onAddToCart={cart.handleSmartAddToCart}
               projects={projects}
               onCreateProject={createProject}
               alerts={alerts}
               assignedSeller={assignedSeller}
+              activeAgreement={activeAgreement}
             />
           )}
 
@@ -509,20 +506,16 @@ export default function B2BPortal() {
               handleViewModeChange={handleViewModeChange}
               catalogContext={catalogContext}
               setCatalogContext={setCatalogContext}
-              isDark={isDark}
-              dk={dk}
               cart={cart.cart}
               computePrice={computePrice}
               formatPrice={formatPrice}
               productMargins={cart.productMargins ?? {}}
               globalMargin={cart.globalMargin}
-              handleAddToCart={cart.handleAddToCart}
               onRemoveFromCart={cart.onRemoveFromCart}
               handleSmartAddToCart={cart.handleSmartAddToCart}
               handleToggleFavorite={cart.handleToggleFavorite}
               toggleCompare={toggleCompare}
               setSelectedProduct={setSelectedProduct}
-              setBrandFilter={catalog.setBrandFilter}
               isPosProduct={catalog.isPosProduct}
               favoriteProductIds={cart.favoriteProductIds}
               compareList={compareList}
@@ -535,7 +528,6 @@ export default function B2BPortal() {
           {/* ORDERS */}
           {activeTab === "orders" && (
             <OrdersPanel
-              isDark={isDark}
               orders={orders}
               invoices={myInvoices}
               formatPrice={formatPrice}
@@ -577,7 +569,6 @@ export default function B2BPortal() {
             <AccountCenter
               profile={profile}
               sessionEmail={user?.email}
-              isDark={isDark}
               orders={orders}
               quotes={quotes}
               invoices={myInvoices}
@@ -594,7 +585,6 @@ export default function B2BPortal() {
             <InvoicesPanel
               invoices={myInvoices}
               orders={orders}
-              isDark={isDark}
               loading={loadingInvoices}
               onGoToOrders={() => setActiveTab("orders")}
             />
@@ -603,7 +593,6 @@ export default function B2BPortal() {
           {/* APPROVALS */}
           {activeTab === "approvals" && (
             <ApprovalsPanel
-              isDark={isDark}
               formatPrice={formatPrice}
               formatUSD={formatUSD}
               formatARS={formatARS}
@@ -619,18 +608,17 @@ export default function B2BPortal() {
               orders={orders}
               quotes={quotes}
               profileId={profile?.id || "guest"}
-              isDark={isDark}
             />
           )}
 
           {/* SUPPORT */}
           {activeTab === "support" && (
-            <SupportCenter isDark={isDark} orders={orders} />
+            <SupportCenter orders={orders} />
           )}
 
           {/* RMA */}
           {activeTab === "rma" && profile && (
-            <RmaPanel clientId={profile.id} orders={orders} isDark={isDark} />
+            <RmaPanel clientId={profile.id} orders={orders} />
           )}
 
           {/* BULK IMPORT */}
@@ -647,10 +635,10 @@ export default function B2BPortal() {
 
           {/* PICKUP POINTS MODAL */}
           <Dialog open={!!confirmingOrderId} onOpenChange={() => {}}>
-            <DialogContent className={`${isDark ? "bg-[#0d0d0d] border-[#1a1a1a] text-white" : "bg-white text-black"}`}>
+            <DialogContent>
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
-                  <MapPin className="text-[#2D9F6A]" /> Seleccionar Punto de Retiro
+                  <MapPin className="text-primary" /> Seleccionar Punto de Retiro
                 </DialogTitle>
               </DialogHeader>
               <div className="grid grid-cols-1 gap-3 py-4">
@@ -658,10 +646,10 @@ export default function B2BPortal() {
                   <button
                     key={w.id}
                     onClick={() => {}}
-                    className={`p-3 rounded-xl border text-left transition ${isDark ? "bg-[#111] border-[#1f1f1f] hover:bg-[#1a1a1a]" : "bg-[#f8f8f8] border-[#eee] hover:bg-[#f0f0f0]"}`}
+                    className="p-3 rounded-xl border border-border/70 bg-secondary/30 hover:bg-secondary text-left transition"
                   >
-                    <p className="text-xs font-bold">{w.name}</p>
-                    <p className="text-[10px] text-gray-500">{w.address}</p>
+                    <p className="text-xs font-bold text-foreground">{w.name}</p>
+                    <p className="text-[10px] text-muted-foreground">{w.address}</p>
                   </button>
                 ))}
               </div>
@@ -694,12 +682,16 @@ export default function B2BPortal() {
           currency={currency}
           setCurrency={setCurrency}
           isDark={isDark}
-          dk={dk}
           onClose={() => setSelectedProduct(null)}
           onAddToCart={cart.handleAddToCart}
           onRemoveFromCart={cart.onRemoveFromCart}
         />
       )}
+      </div>
     </div>
   );
 }
+
+
+
+
