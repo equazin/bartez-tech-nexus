@@ -142,7 +142,7 @@ const Register = () => {
         entityType: r.entityType,
       }));
       setAfipData(result);
-      if (result.companyName) setName(result.companyName);
+      setName(result.companyName);
       setStep(2);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "No pudimos validar este CUIT en AFIP.");
@@ -308,9 +308,12 @@ const Register = () => {
                               </div>
                               <div className="min-w-0">
                                 <p className="text-sm font-bold text-foreground truncate">
-                                  {afipData.entityType === "empresa" ? "Empresa / Persona jurídica" : "Persona física"} · CUIT válido
+                                  {afipData.companyName || (afipData.entityType === "empresa" ? "Persona jurídica" : "Persona física")}
                                 </p>
-                                <p className="text-xs text-muted-foreground">{afipData.taxStatus} — completá tu razón social en el paso siguiente</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {afipData.taxStatus}
+                                  {!afipData.companyName && " — completá la razón social en el paso siguiente"}
+                                </p>
                               </div>
                               <CheckCircle2 className="ml-auto h-4 w-4 shrink-0 text-emerald-500" />
                             </motion.div>

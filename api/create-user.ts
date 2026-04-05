@@ -23,16 +23,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 // ── GET: AFIP padron lookup ────────────────────────────────────────────────────
 
-/**
- * Validates CUIT checksum (mod 11) and derives entity type from prefix.
- * The public AFIP padron requires certificates — we validate locally and
- * let the user confirm their own name/razón social in step 2.
- */
 async function handleAfipLookup(req: VercelRequest, res: VercelResponse) {
   const cuit = String(req.query.cuit ?? "").replace(/\D/g, "");
   if (cuit.length !== 11) return fail(res, "El CUIT debe tener 11 dígitos.", 400);
 
-  // Mod-11 checksum validation
+  // Mod-11 checksum
   const weights = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
   const sum = weights.reduce((acc, w, i) => acc + w * Number(cuit[i]), 0);
   const remainder = sum % 11;
@@ -40,20 +35,61 @@ async function handleAfipLookup(req: VercelRequest, res: VercelResponse) {
   const expected = remainder === 0 ? 0 : 11 - remainder;
   if (expected !== Number(cuit[10])) return fail(res, "El CUIT ingresado no es válido. Verificá los números.", 400);
 
-  // Entity type from prefix
-  const prefix = parseInt(cuit.slice(0, 2), 10);
-  const isLegal = [30, 33, 34].includes(prefix);
-  const entityType = isLegal ? "empresa" : "persona_fisica";
+  // Scrape cuitonline.com — public data, no auth required
+  try {
+    const res2 = await fetch(`https://www.cuitonline.com/detalle/${cuit}/`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html",
+      },
+      redirect: "follow",
+      signal: AbortSignal.timeout(8000),
+    });
 
-  // Default tax status by entity type (user can correct in step 2)
-  const taxStatus = isLegal ? "responsable_inscripto" : "monotributista";
+    const html = await res2.text();
 
-  return ok(res, {
-    companyName: "",   // user fills this in step 2
-    taxStatus,
-    entityType,
-    active: true,
-  });
+    // Extract name from <title>NAME (CUIT...) - Cuit Online</title>
+    const titleMatch = html.match(/<title>([^(]+)\s*\(/);
+    const companyName = titleMatch ? titleMatch[1].trim() : "";
+
+    // Extract from meta description: "... · Persona Física · ..." or "Persona Jurídica"
+    const descMatch = html.match(/content="([^"]+CUIT[^"]+)"/);
+    const desc = descMatch ? descMatch[1] : "";
+
+    const isLegal = /Persona Jur/i.test(desc);
+    const entityType = isLegal ? "empresa" : "persona_fisica";
+
+    const taxStatus =
+      /Responsable Inscripto/i.test(desc) ? "responsable_inscripto"
+      : /Monotributo|Monotributista/i.test(desc) ? "monotributista"
+      : /Exento/i.test(desc) ? "exento"
+      : isLegal ? "responsable_inscripto" : "monotributista";
+
+    const notFound = html.includes("ERROR 404") || !companyName;
+    if (notFound) {
+      // Fall back to prefix-only detection without a name
+      const prefix = parseInt(cuit.slice(0, 2), 10);
+      const fallbackLegal = [30, 33, 34].includes(prefix);
+      return ok(res, {
+        companyName: "",
+        taxStatus: fallbackLegal ? "responsable_inscripto" : "monotributista",
+        entityType: fallbackLegal ? "empresa" : "persona_fisica",
+        active: true,
+      });
+    }
+
+    return ok(res, { companyName, taxStatus, entityType, active: true });
+  } catch {
+    // Network error — fall back to prefix detection
+    const prefix = parseInt(cuit.slice(0, 2), 10);
+    const isLegal = [30, 33, 34].includes(prefix);
+    return ok(res, {
+      companyName: "",
+      taxStatus: isLegal ? "responsable_inscripto" : "monotributista",
+      entityType: isLegal ? "empresa" : "persona_fisica",
+      active: true,
+    });
+  }
 }
 
 // ── POST: Create user ─────────────────────────────────────────────────────────
