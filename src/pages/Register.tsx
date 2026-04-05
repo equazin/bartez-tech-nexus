@@ -150,7 +150,7 @@ const Register = () => {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cuit,
+          cuit: rawDigits,
           company_name: name,
           contact_name: name,
           email,

@@ -165,26 +165,54 @@ async function handleRegistrationRequest(req: VercelRequest, res: VercelResponse
   }
 
   const adminClient = getSupabaseAdmin();
+  const normalizedCuit = cuit.replace(/\D/g, "");
+  if (normalizedCuit.length !== 11) {
+    return fail(res, "El CUIT debe tener 11 digitos.", 400);
+  }
+
   const assignedExecutive = await resolveAssignedExecutive(adminClient, cuit);
-  const { data, error } = await adminClient
+  const insertPayload = {
+    cuit: normalizedCuit,
+    company_name: (typeof company_name === "string" && company_name.trim()) || (contact_name as string),
+    contact_name: (contact_name as string).trim(),
+    email: (email as string).trim().toLowerCase(),
+    requested_password: password,
+    entity_type: entity_type ?? "empresa",
+    tax_status: tax_status ?? "responsable_inscripto",
+    assigned_to: assignedExecutive?.email ?? null,
+    assigned_seller_id: assignedExecutive?.id ?? null,
+    status: "pending" as const,
+  };
+
+  let { data, error } = await adminClient
     .from("b2b_registration_requests")
-    .insert({
-      cuit: cuit.replace(/\D/g, ""),
-      company_name: (typeof company_name === "string" && company_name.trim()) || (contact_name as string),
-      contact_name: (contact_name as string).trim(),
-      email: (email as string).trim().toLowerCase(),
-      requested_password: password,
-      entity_type: entity_type ?? "empresa",
-      tax_status: tax_status ?? "responsable_inscripto",
-      assigned_to: assignedExecutive?.email ?? null,
-      assigned_seller_id: assignedExecutive?.id ?? null,
-      status: "pending",
-    })
+    .insert(insertPayload)
     .select("id, assigned_to")
     .single();
 
+  if (error && /(requested_password|assigned_seller_id|approved_user_id)/i.test(error.message)) {
+    ({ data, error } = await adminClient
+      .from("b2b_registration_requests")
+      .insert({
+        cuit: insertPayload.cuit,
+        company_name: insertPayload.company_name,
+        contact_name: insertPayload.contact_name,
+        email: insertPayload.email,
+        entity_type: insertPayload.entity_type,
+        tax_status: insertPayload.tax_status,
+        assigned_to: insertPayload.assigned_to,
+        status: insertPayload.status,
+      })
+      .select("id, assigned_to")
+      .single());
+  }
+
   if (error) {
     console.error("[registration-request] insert failed:", error.message);
+    return fail(res, "No se pudo guardar la solicitud. Intenta de nuevo.", 500);
+  }
+
+  if (!data) {
     return fail(res, "No se pudo guardar la solicitud. Intenta de nuevo.", 500);
   }
 

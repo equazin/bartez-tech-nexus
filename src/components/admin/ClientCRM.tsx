@@ -1948,6 +1948,11 @@ export function ClientCRM({ clients, orders, products, loading, isDark, selected
             <div className="flex flex-col items-center py-16 text-[#525252] gap-2">
               <Users size={28} className="opacity-20" />
               <p className="text-xs">{search ? "Sin resultados" : statusFilter === "inactive" ? "Sin clientes pendientes" : "Sin clientes"}</p>
+              {!search && statusFilter === "active" && clients.length === 0 ? (
+                <p className="max-w-[220px] text-center text-[11px] leading-relaxed text-[#737373]">
+                  Todavia no hay perfiles de cliente creados. Las altas B2B pendientes se gestionan desde "Altas B2B".
+                </p>
+              ) : null}
             </div>
           ) : (
             filtered.map((c) => (

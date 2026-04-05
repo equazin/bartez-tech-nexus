@@ -1428,7 +1428,7 @@ async function handleCreateSeller() {
   const navBadges: Partial<Record<Tab, number>> = {
     products:  products.length || undefined,
     orders:    pendingOrders   || undefined,
-    clients:   clients.length  || undefined,
+    clients:   customerProfiles.length || undefined,
     reports:   lowStockCount   || undefined,
   };
 
@@ -1455,7 +1455,7 @@ async function handleCreateSeller() {
       currentUserLabel={session?.user?.email ?? "Administrador"}
       searchData={{
         products,
-        clients,
+        clients: customerProfiles,
         orders,
         invoices: invoiceSearchItems,
         quotes:   quoteSearchItems,
