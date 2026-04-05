@@ -66,7 +66,7 @@ export async function validateCuit(cuit: string): Promise<ValidateCuitResult> {
   const digits = cuit.replace(/\D/g, "");
 
   try {
-    const res = await fetch(`/api/afip-cuit?cuit=${digits}`);
+    const res = await fetch(`/api/create-user?cuit=${digits}`);
     const text = await res.text();
 
     // If response is not JSON (e.g. raw TS source in dev without vercel dev), fall through to mock
