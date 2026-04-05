@@ -96,27 +96,58 @@ async function handleAfipLookup(req: VercelRequest, res: VercelResponse) {
 
 // ── PUT: Submit B2B registration request (public, no auth) ───────────────────
 
-const EXECUTIVES = [
-  "vmorales@bartez.com.ar",
-  "rfernandez@bartez.com.ar",
-  "lperez@bartez.com.ar",
-  "maguirre@bartez.com.ar",
-  "scastellano@bartez.com.ar",
-];
+const FALLBACK_EXECUTIVES = [
+  { email: "vmorales@bartez.com.ar", name: "Valentina Morales", role: "Ejecutiva de Cuentas B2B" },
+  { email: "rfernandez@bartez.com.ar", name: "Rodrigo Fernandez", role: "Gerente de Canal Corporativo" },
+  { email: "lperez@bartez.com.ar", name: "Luciana Perez", role: "Responsable de Onboarding B2B" },
+  { email: "maguirre@bartez.com.ar", name: "Martin Aguirre", role: "Head of B2B Sales and Integrators" },
+  { email: "scastellano@bartez.com.ar", name: "Sofia Castellano", role: "Ejecutiva de Negocios Corporativos" },
+] as const;
+
+async function resolveAssignedExecutive(adminClient: ReturnType<typeof getSupabaseAdmin>, cuit: string) {
+  const normalizedCuit = cuit.replace(/\D/g, "");
+  const lastDigit = Number.parseInt(normalizedCuit.slice(-1), 10) || 0;
+
+  const { data } = await adminClient
+    .from("profiles")
+    .select("id, email, contact_name, company_name, role, active")
+    .in("role", ["vendedor", "sales"])
+    .eq("active", true)
+    .not("email", "is", null)
+    .order("contact_name", { ascending: true });
+
+  const sellers = ((data as Array<Record<string, unknown>> | null) ?? [])
+    .map((item) => ({
+      id: String(item.id ?? ""),
+      email: String(item.email ?? "").trim().toLowerCase(),
+      name: String(item.contact_name ?? item.company_name ?? "").trim(),
+      role: "Ejecutivo comercial",
+    }))
+    .filter((item) => item.id && item.email);
+
+  if (sellers.length > 0) {
+    return sellers[lastDigit % sellers.length];
+  }
+
+  const fallback = FALLBACK_EXECUTIVES[lastDigit % FALLBACK_EXECUTIVES.length];
+  return {
+    id: null,
+    email: fallback.email,
+    name: fallback.name,
+    role: fallback.role,
+  };
+}
 
 async function handleRegistrationRequest(req: VercelRequest, res: VercelResponse) {
-  const { cuit, company_name, contact_name, email, entity_type, tax_status } =
+  const { cuit, company_name, contact_name, email, password, entity_type, tax_status } =
     req.body as Record<string, unknown>;
 
   if (!cuit || typeof cuit !== "string") return fail(res, "CUIT requerido.", 400);
   if (!contact_name || typeof contact_name !== "string" || !contact_name.trim()) return fail(res, "Nombre requerido.", 400);
   if (!email || typeof email !== "string" || !email.includes("@")) return fail(res, "Email inválido.", 400);
 
-  // Round-robin assignment based on cuit last digit for determinism
-  const lastDigit = parseInt(cuit.replace(/\D/g, "").slice(-1), 10);
-  const assigned_to = EXECUTIVES[lastDigit % EXECUTIVES.length];
-
   const adminClient = getSupabaseAdmin();
+  const assignedExecutive = await resolveAssignedExecutive(adminClient, cuit);
   const { data, error } = await adminClient
     .from("b2b_registration_requests")
     .insert({
@@ -124,9 +155,11 @@ async function handleRegistrationRequest(req: VercelRequest, res: VercelResponse
       company_name: (typeof company_name === "string" && company_name.trim()) || contact_name as string,
       contact_name: (contact_name as string).trim(),
       email: (email as string).trim().toLowerCase(),
+      requested_password: password,
       entity_type: entity_type ?? "empresa",
       tax_status: tax_status ?? "responsable_inscripto",
-      assigned_to,
+      assigned_to: assignedExecutive.email,
+      assigned_seller_id: assignedExecutive.id,
       status: "pending",
     })
     .select("id, assigned_to")
@@ -137,7 +170,11 @@ async function handleRegistrationRequest(req: VercelRequest, res: VercelResponse
     return fail(res, "No se pudo guardar la solicitud. Intentá de nuevo.", 500);
   }
 
-  return ok(res, { id: data.id, assigned_to: data.assigned_to }, 201);
+  return ok(res, {
+    id: data.id,
+    assigned_to: data.assigned_to,
+    assigned_executive: assignedExecutive,
+  }, 201);
 }
 
 // ── POST: Create user ─────────────────────────────────────────────────────────

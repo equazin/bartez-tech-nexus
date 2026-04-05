@@ -48,12 +48,12 @@ const TAX_STATUS_LABELS: Record<string, string> = {
   consumidor_final: "Consumidor Final",
 };
 
-const EXECUTIVES: Record<string, { name: string; role: string }> = {
-  "vmorales@bartez.com.ar":    { name: "Valentina Morales",  role: "Ejecutiva de Cuentas B2B" },
-  "rfernandez@bartez.com.ar":  { name: "Rodrigo Fernández",  role: "Gerente de Canal Corporativo" },
-  "lperez@bartez.com.ar":      { name: "Luciana Pérez",       role: "Responsable de Onboarding B2B" },
-  "maguirre@bartez.com.ar":    { name: "Martín Aguirre",      role: "Head of B2B Sales and Integrators" },
-  "scastellano@bartez.com.ar": { name: "Sofía Castellano",    role: "Ejecutiva de Negocios Corporativos" },
+const EXECUTIVES: Record<string, { name: string; role: string; email: string }> = {
+  "vmorales@bartez.com.ar": { name: "Valentina Morales", role: "Ejecutiva de Cuentas B2B", email: "vmorales@bartez.com.ar" },
+  "rfernandez@bartez.com.ar": { name: "Rodrigo Fern?ndez", role: "Gerente de Canal Corporativo", email: "rfernandez@bartez.com.ar" },
+  "lperez@bartez.com.ar": { name: "Luciana P?rez", role: "Responsable de Onboarding B2B", email: "lperez@bartez.com.ar" },
+  "maguirre@bartez.com.ar": { name: "Mart?n Aguirre", role: "Head of B2B Sales and Integrators", email: "maguirre@bartez.com.ar" },
+  "scastellano@bartez.com.ar": { name: "Sof?a Castellano", role: "Ejecutiva de Negocios Corporativos", email: "scastellano@bartez.com.ar" },
 };
 
 const Register = () => {
@@ -69,8 +69,9 @@ const Register = () => {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [assignedExecutive, setAssignedExecutive] = useState<string | null>(null);
+  const [assignedExecutiveDetails, setAssignedExecutiveDetails] = useState<{ name: string; role: string; email: string } | null>(null);
 
-  const executive = assignedExecutive ? EXECUTIVES[assignedExecutive] ?? null : null;
+  const executive = assignedExecutiveDetails ?? (assignedExecutive ? EXECUTIVES[assignedExecutive] ?? null : null);
 
   // Derived from current raw digits
   const rawDigits = cuit.replace(/\D/g, "");
@@ -161,13 +162,27 @@ const Register = () => {
           company_name: name,
           contact_name: name,
           email,
+          password,
           entity_type: afipData?.entityType ?? "empresa",
           tax_status: afipData?.taxStatus ?? "responsable_inscripto",
         }),
       });
-      const json = await res.json() as { ok: boolean; data?: { assigned_to: string }; error?: string };
+      const json = await res.json() as {
+        ok: boolean;
+        data?: { assigned_to: string; assigned_executive?: { name?: string; role?: string; email?: string } };
+        error?: string;
+      };
       if (!json.ok) throw new Error(json.error ?? "No pudimos procesar la solicitud.");
       setAssignedExecutive(json.data?.assigned_to ?? null);
+      setAssignedExecutiveDetails(
+        json.data?.assigned_executive?.email
+          ? {
+              name: json.data.assigned_executive.name ?? "Ejecutivo comercial",
+              role: json.data.assigned_executive.role ?? "Equipo de ventas B2B",
+              email: json.data.assigned_executive.email,
+            }
+          : null,
+      );
       setStep(3);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "No pudimos procesar la solicitud.");
@@ -466,14 +481,14 @@ const Register = () => {
                       <Users className="h-6 w-6" />
                     </div>
                     <div className="space-y-1">
-                      <h4 className="font-semibold text-foreground">{executive.name}</h4>
-                      <p className="text-sm text-muted-foreground">{executive.role}</p>
+                      <h4 className="font-semibold text-foreground">{executive?.name ?? "Equipo comercial B2B"}</h4>
+                      <p className="text-sm text-muted-foreground">{executive?.role ?? "Asignaci?n pendiente"}</p>
                       <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
                         <span className="inline-flex items-center gap-1 font-semibold text-primary">
                           <Zap className="h-3 w-3" />
                           Online
                         </span>
-                        <span className="text-muted-foreground">{executive.email}</span>
+                        <span className="text-muted-foreground">{executive?.email ?? "ventas@bartez.com.ar"}</span>
                       </div>
                     </div>
                     <Building className="ml-auto hidden h-10 w-10 text-primary/20 sm:block" />
