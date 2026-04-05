@@ -48,13 +48,13 @@ const TAX_STATUS_LABELS: Record<string, string> = {
   consumidor_final: "Consumidor Final",
 };
 
-const EXECUTIVES = [
-  { name: "Valentina Morales",  role: "Ejecutiva de Cuentas B2B",          email: "vmorales@bartez.com.ar" },
-  { name: "Rodrigo Fernández",  role: "Gerente de Canal Corporativo",       email: "rfernandez@bartez.com.ar" },
-  { name: "Luciana Pérez",      role: "Responsable de Onboarding B2B",      email: "lperez@bartez.com.ar" },
-  { name: "Martín Aguirre",     role: "Head of B2B Sales and Integrators",  email: "maguirre@bartez.com.ar" },
-  { name: "Sofía Castellano",   role: "Ejecutiva de Negocios Corporativos", email: "scastellano@bartez.com.ar" },
-];
+const EXECUTIVES: Record<string, { name: string; role: string }> = {
+  "vmorales@bartez.com.ar":    { name: "Valentina Morales",  role: "Ejecutiva de Cuentas B2B" },
+  "rfernandez@bartez.com.ar":  { name: "Rodrigo Fernández",  role: "Gerente de Canal Corporativo" },
+  "lperez@bartez.com.ar":      { name: "Luciana Pérez",       role: "Responsable de Onboarding B2B" },
+  "maguirre@bartez.com.ar":    { name: "Martín Aguirre",      role: "Head of B2B Sales and Integrators" },
+  "scastellano@bartez.com.ar": { name: "Sofía Castellano",    role: "Ejecutiva de Negocios Corporativos" },
+};
 
 const Register = () => {
   const navigate = useNavigate();
@@ -68,12 +68,9 @@ const Register = () => {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [assignedExecutive, setAssignedExecutive] = useState<string | null>(null);
 
-  // Pick a random executive once per session
-  const executive = useMemo(
-    () => EXECUTIVES[Math.floor(Math.random() * EXECUTIVES.length)],
-    []
-  );
+  const executive = assignedExecutive ? EXECUTIVES[assignedExecutive] ?? null : null;
 
   // Derived from current raw digits
   const rawDigits = cuit.replace(/\D/g, "");
@@ -156,7 +153,21 @@ const Register = () => {
     setError("");
     setLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1800));
+      const res = await fetch("/api/create-user", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cuit,
+          company_name: name,
+          contact_name: name,
+          email,
+          entity_type: afipData?.entityType ?? "empresa",
+          tax_status: afipData?.taxStatus ?? "responsable_inscripto",
+        }),
+      });
+      const json = await res.json() as { ok: boolean; data?: { assigned_to: string }; error?: string };
+      if (!json.ok) throw new Error(json.error ?? "No pudimos procesar la solicitud.");
+      setAssignedExecutive(json.data?.assigned_to ?? null);
       setStep(3);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "No pudimos procesar la solicitud.");

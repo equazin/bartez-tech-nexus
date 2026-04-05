@@ -28,7 +28,6 @@ import { InvoicesPanel } from "@/components/b2b/InvoicesPanel";
 import { ApprovalsPanel } from "@/components/b2b/ApprovalsPanel";
 import { RmaPanel } from "@/components/b2b/RmaPanel";
 import { PortalHeader } from "@/components/b2b/PortalHeader";
-import { OperativeBar } from "@/components/b2b/OperativeBar";
 import { PortalSidebar } from "@/components/b2b/PortalSidebar";
 import { AccountCenter } from "@/components/b2b/AccountCenter";
 import { SupportCenter } from "@/components/b2b/SupportCenter";
@@ -313,21 +312,6 @@ export default function B2BPortal() {
         isFetchingRate={isFetchingRate}
       />
 
-      {/* OPERATIVE BAR — carga rápida mayorista */}
-      <OperativeBar
-        quickSku={cart.quickSku}
-        setQuickSku={cart.setQuickSku}
-        quickError={cart.quickError}
-        handleQuickOrder={cart.handleQuickOrder}
-        quickProducts={catalog.products}
-        cartSnapshot={cart.cart}
-        onQuickAddProduct={cart.handleResolvedQuickOrder}
-        formatQuickPrice={formatQuickPrice}
-        activeTab={activeTab}
-        displayProducts={displayProducts}
-        exportCatalogCSV={exportCatalogCSV}
-        handleExportCatalogPDF={handleExportCatalogPDF}
-      />
 
       {/* TABS */}
       <div className="flex overflow-x-auto whitespace-nowrap border-b border-border/70 bg-card/75 px-4 py-1.5 scrollbar-none md:px-6">

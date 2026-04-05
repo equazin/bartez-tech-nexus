@@ -4,16 +4,18 @@ import { getSupabaseAdmin, getSupabaseClient } from "./_shared/supabaseServer.js
 import { getRoleFromRequest } from "./_shared/roles.js";
 
 /**
- * GET  /api/create-user?cuit=XXXXXXXXXXX  — AFIP padron lookup (no auth required)
- * POST /api/create-user                   — Create user (admin only)
- * PATCH /api/create-user                  — Edit user/seller (admin only)
+ * GET   /api/create-user?cuit=XXXXXXXXXXX  — AFIP padron lookup (no auth required)
+ * PUT   /api/create-user                   — Submit B2B registration request (public)
+ * POST  /api/create-user                   — Create user (admin only)
+ * PATCH /api/create-user                   — Edit user/seller (admin only)
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (req.method === "GET")   return await handleAfipLookup(req, res);
+    if (req.method === "PUT")   return await handleRegistrationRequest(req, res);
     if (req.method === "POST")  return await handleCreateUser(req, res);
     if (req.method === "PATCH") return await handleManageUser(req, res);
-    return methodNotAllowed(res, ["GET", "POST", "PATCH"]);
+    return methodNotAllowed(res, ["GET", "PUT", "POST", "PATCH"]);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Error interno del servidor.";
     console.error("[create-user] Unhandled error:", msg);
@@ -90,6 +92,52 @@ async function handleAfipLookup(req: VercelRequest, res: VercelResponse) {
       active: true,
     });
   }
+}
+
+// ── PUT: Submit B2B registration request (public, no auth) ───────────────────
+
+const EXECUTIVES = [
+  "vmorales@bartez.com.ar",
+  "rfernandez@bartez.com.ar",
+  "lperez@bartez.com.ar",
+  "maguirre@bartez.com.ar",
+  "scastellano@bartez.com.ar",
+];
+
+async function handleRegistrationRequest(req: VercelRequest, res: VercelResponse) {
+  const { cuit, company_name, contact_name, email, entity_type, tax_status } =
+    req.body as Record<string, unknown>;
+
+  if (!cuit || typeof cuit !== "string") return fail(res, "CUIT requerido.", 400);
+  if (!contact_name || typeof contact_name !== "string" || !contact_name.trim()) return fail(res, "Nombre requerido.", 400);
+  if (!email || typeof email !== "string" || !email.includes("@")) return fail(res, "Email inválido.", 400);
+
+  // Round-robin assignment based on cuit last digit for determinism
+  const lastDigit = parseInt(cuit.replace(/\D/g, "").slice(-1), 10);
+  const assigned_to = EXECUTIVES[lastDigit % EXECUTIVES.length];
+
+  const adminClient = getSupabaseAdmin();
+  const { data, error } = await adminClient
+    .from("b2b_registration_requests")
+    .insert({
+      cuit: cuit.replace(/\D/g, ""),
+      company_name: (typeof company_name === "string" && company_name.trim()) || contact_name as string,
+      contact_name: (contact_name as string).trim(),
+      email: (email as string).trim().toLowerCase(),
+      entity_type: entity_type ?? "empresa",
+      tax_status: tax_status ?? "responsable_inscripto",
+      assigned_to,
+      status: "pending",
+    })
+    .select("id, assigned_to")
+    .single();
+
+  if (error) {
+    console.error("[registration-request] insert failed:", error.message);
+    return fail(res, "No se pudo guardar la solicitud. Intentá de nuevo.", 500);
+  }
+
+  return ok(res, { id: data.id, assigned_to: data.assigned_to }, 201);
 }
 
 // ── POST: Create user ─────────────────────────────────────────────────────────
