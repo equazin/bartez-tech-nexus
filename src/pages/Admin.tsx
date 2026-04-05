@@ -41,6 +41,7 @@ const SalesDashboard = lazy(() => import("@/components/admin/SalesDashboard").th
 const ClientCRM = lazy(() => import("@/components/admin/ClientCRM").then(m => ({ default: m.ClientCRM })));
 const SellerCRM = lazy(() => import("@/components/admin/SellerCRM").then(m => ({ default: m.SellerCRM })));
 const SellerManagementTab = lazy(() => import("@/components/admin/SellerManagementTab").then(m => ({ default: m.SellerManagementTab })));
+const AdminManagementTab = lazy(() => import("@/components/admin/AdminManagementTab").then(m => ({ default: m.AdminManagementTab })));
 const OrderKanban = lazy(() => import("@/components/admin/OrderKanban"));
 const SuppliersTab = lazy(() => import("@/components/admin/SuppliersTab").then(m => ({ default: m.SuppliersTab })));
 const BrandsTab = lazy(() => import("@/components/admin/BrandsTab").then(m => ({ default: m.BrandsTab })));
@@ -347,6 +348,10 @@ const Admin = () => {
     [clients],
   );
 
+  const adminProfiles = useMemo(
+    () => clients.filter((client) => client.role === "admin"),
+    [clients],
+  );
   function navigateModule(moduleId: ModuleId) {
     setActiveModule(moduleId);
   }
@@ -2031,6 +2036,15 @@ async function handleCreateSeller() {
             orders={orders}
             isDark={isDark}
             onRefreshClients={fetchClients}
+          />
+        )}
+
+        {/* -- GESTION ADMINISTRADORES -- */}
+        {activeTab === "admin_management" && (
+          <AdminManagementTab
+            admins={adminProfiles}
+            isDark={isDark}
+            onRefresh={fetchClients}
           />
         )}
 

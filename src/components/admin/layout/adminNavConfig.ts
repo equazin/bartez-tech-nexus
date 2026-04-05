@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Package, Download, Tag, Image, Flame, Truck, DollarSign,
   ClipboardList, Layers, CheckCircle2, MessageSquare, Users, UserPlus,
   CreditCard, Bell, FileText, BarChart2, Building2, Bookmark, Wifi,
-  ShieldCheck, History, ShoppingBag, RotateCcw, Handshake, LifeBuoy,
+  ShieldCheck, ShieldAlert, History, ShoppingBag, RotateCcw, Handshake, LifeBuoy,
   Ticket, Globe, Activity, type LucideIcon,
 } from "lucide-react";
 
@@ -16,7 +16,7 @@ export type Tab =
   | "clients" | "users_permissions" | "credit" | "business_alerts" | "documents" | "support"
   | "invoices" | "reports"
   | "suppliers" | "brands" | "pricing" | "supplier_sync" | "stock" | "serials"
-  | "movements" | "purchase_orders" | "rma" | "price_agreements" | "marketing" | "webhooks" | "activity";
+  | "movements" | "purchase_orders" | "rma" | "price_agreements" | "marketing" | "webhooks" | "activity" | "admin_management";
 
 export type ModuleId = "top" | "catalogo" | "pedidos" | "vendedores" | "clientes" | "finanzas" | "sistema";
 
@@ -110,6 +110,7 @@ export const NAV_MODULES: NavModule[] = [
     label: "Sistema",
     icon: Activity,
     items: [
+      { id: "admin_management", label: "Administradores",  icon: ShieldAlert, adminOnly: true },
       { id: "suppliers",       label: "Proveedores",     icon: Building2,  adminOnly: true },
       { id: "brands",          label: "Marcas",          icon: Bookmark,   adminOnly: true },
       { id: "pricing",         label: "Precios",         icon: Tag,        adminOnly: true },
