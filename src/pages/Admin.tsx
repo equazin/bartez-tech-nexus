@@ -55,6 +55,7 @@ const CreditTab = lazy(() => import("@/components/admin/CreditTab").then(m => ({
 const QuotesAdminTab = lazy(() => import("@/components/admin/QuotesAdminTab").then(m => ({ default: m.QuotesAdminTab })));
 const PurchaseOrdersTab = lazy(() => import("@/components/admin/PurchaseOrdersTab").then(m => ({ default: m.PurchaseOrdersTab })));
 const UsersPermissionsTab = lazy(() => import("@/components/admin/UsersPermissionsTab").then(m => ({ default: m.UsersPermissionsTab })));
+const RegistrationRequestsTab = lazy(() => import("@/components/admin/RegistrationRequestsTab").then(m => ({ default: m.RegistrationRequestsTab })));
 const ApprovalsTab = lazy(() => import("@/components/admin/ApprovalsTab").then(m => ({ default: m.ApprovalsTab })));
 const DocumentsTab = lazy(() => import("@/components/admin/DocumentsTab").then(m => ({ default: m.DocumentsTab })));
 const SupportTab = lazy(() => import("@/components/admin/SupportTab").then(m => ({ default: m.SupportTab })));
@@ -2615,6 +2616,10 @@ async function handleCreateSeller() {
         )}
 
         {/* -- PROVEEDORES -- */}
+        {activeTab === "registration_requests" && (
+          <RegistrationRequestsTab />
+        )}
+
         {activeTab === "users_permissions" && (
           <UsersPermissionsTab
             isDark={isDark}

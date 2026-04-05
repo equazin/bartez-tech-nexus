@@ -3,7 +3,6 @@ import { defineConfig, loadEnv, type PluginOption } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import createUserHandler from "./api/create-user";
-import manageUserHandler from "./api/manage-user";
 
 const AIR_BASE = "https://api.air-intra.com/v2";
 const ELIT_BASE = "https://clientes.elit.com.ar/v1/api";
@@ -77,7 +76,7 @@ function devApiProxyPlugin(env: Record<string, string>): PluginOption {
         const requestUrl = req.url ? new URL(req.url, "http://localhost") : null;
         const pathname = requestUrl?.pathname ?? "";
 
-        if (pathname === "/api/create-user" || pathname === "/api/manage-user") {
+        if (pathname === "/api/create-user") {
           try {
             const rawBody = await readRequestBody(req);
             const parsedBody = rawBody ? JSON.parse(rawBody) : {};
@@ -90,11 +89,7 @@ function devApiProxyPlugin(env: Record<string, string>): PluginOption {
             vercelReq.query = Object.fromEntries(requestUrl?.searchParams.entries() ?? []);
 
             const vercelRes = attachVercelCompat(res);
-            if (pathname === "/api/create-user") {
-              await createUserHandler(vercelReq as never, vercelRes as never);
-            } else {
-              await manageUserHandler(vercelReq as never, vercelRes as never);
-            }
+            await createUserHandler(vercelReq as never, vercelRes as never);
             return;
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);

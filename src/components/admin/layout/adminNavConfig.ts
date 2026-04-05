@@ -11,7 +11,7 @@ import {
 export type Tab =
   | "dashboard"
   | "products" | "imports" | "categories" | "images" | "opportunities" | "pos"
-  | "orders" | "kanban" | "approvals" | "quotes_admin"
+  | "orders" | "kanban" | "approvals" | "quotes_admin" | "registration_requests"
   | "seller_mode" | "seller_management" | "seller_portfolio" | "seller_targets" | "seller_activity"
   | "clients" | "users_permissions" | "credit" | "business_alerts" | "documents" | "support"
   | "invoices" | "reports"
@@ -88,8 +88,9 @@ export const NAV_MODULES: NavModule[] = [
     label: "Clientes",
     icon: Users,
     items: [
-      { id: "clients",           label: "Clientes",      icon: Users,      adminOnly: true },
-      { id: "users_permissions", label: "Accesos",       icon: UserPlus,   adminOnly: true },
+      { id: "clients",                label: "Clientes",      icon: Users,      adminOnly: true },
+      { id: "registration_requests",  label: "Altas B2B",     icon: UserPlus,   adminOnly: true },
+      { id: "users_permissions",      label: "Accesos",       icon: UserPlus,   adminOnly: true },
       { id: "credit",            label: "Crédito",       icon: CreditCard, adminOnly: true },
       { id: "business_alerts",   label: "Alertas B2B",  icon: Bell,       adminOnly: true },
     ],
