@@ -94,17 +94,7 @@ async function handleAfipLookup(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-// ── PUT: Submit B2B registration request (public, no auth) ───────────────────
-
-const FALLBACK_EXECUTIVES = [
-  { email: "vmorales@bartez.com.ar", name: "Valentina Morales", role: "Ejecutiva de Cuentas B2B" },
-  { email: "rfernandez@bartez.com.ar", name: "Rodrigo Fernandez", role: "Gerente de Canal Corporativo" },
-  { email: "lperez@bartez.com.ar", name: "Luciana Perez", role: "Responsable de Onboarding B2B" },
-  { email: "maguirre@bartez.com.ar", name: "Martin Aguirre", role: "Head of B2B Sales and Integrators" },
-  { email: "scastellano@bartez.com.ar", name: "Sofia Castellano", role: "Ejecutiva de Negocios Corporativos" },
-] as const;
-
-async function resolveAssignedExecutive(adminClient: ReturnType<typeof getSupabaseAdmin>, cuit: string) {
+async function resolveAssignedExecutive(adminClient: ReturnType<typeof getSupabaseAdmin>, cuit: string): Promise<{ id: string; email: string; name: string; role: string } | null> {
   const normalizedCuit = cuit.replace(/\D/g, "");
   const lastDigit = Number.parseInt(normalizedCuit.slice(-1), 10) || 0;
 
@@ -129,14 +119,9 @@ async function resolveAssignedExecutive(adminClient: ReturnType<typeof getSupaba
     return sellers[lastDigit % sellers.length];
   }
 
-  const fallback = FALLBACK_EXECUTIVES[lastDigit % FALLBACK_EXECUTIVES.length];
-  return {
-    id: null,
-    email: fallback.email,
-    name: fallback.name,
-    role: fallback.role,
-  };
+  return null;
 }
+// ── PUT: Submit B2B registration request (public, no auth) ───────────────────
 
 async function handleRegistrationRequest(req: VercelRequest, res: VercelResponse) {
   const { cuit, company_name, contact_name, email, password, entity_type, tax_status } =
@@ -158,8 +143,8 @@ async function handleRegistrationRequest(req: VercelRequest, res: VercelResponse
       requested_password: password,
       entity_type: entity_type ?? "empresa",
       tax_status: tax_status ?? "responsable_inscripto",
-      assigned_to: assignedExecutive.email,
-      assigned_seller_id: assignedExecutive.id,
+      assigned_to: assignedExecutive?.email ?? null,
+      assigned_seller_id: assignedExecutive?.id ?? null,
       status: "pending",
     })
     .select("id, assigned_to")
@@ -292,3 +277,4 @@ async function handleManageUser(req: VercelRequest, res: VercelResponse) {
 
   return ok(res, { id, email: nextEmail, contact_name: nextContactName, company_name: nextCompanyName, role: "sales", active: nextActive });
 }
+

@@ -1,5 +1,16 @@
-import { useEffect, useState } from "react";
-import { Building2, CheckCircle2, Clock, RefreshCw, User, XCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  Building2,
+  CheckCircle2,
+  Clock,
+  Mail,
+  RefreshCw,
+  ShieldCheck,
+  User,
+  UserCheck,
+  XCircle,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
@@ -29,9 +40,9 @@ const TAX_LABELS: Record<string, string> = {
 };
 
 const STATUS_CONFIG: Record<RegistrationStatus, { label: string; cls: string }> = {
-  pending: { label: "Pendiente", cls: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
-  approved: { label: "Aprobada", cls: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
-  rejected: { label: "Rechazada", cls: "bg-red-500/15 text-red-400 border-red-500/30" },
+  pending: { label: "Pendiente", cls: "bg-amber-500/15 text-amber-500 border-amber-500/30" },
+  approved: { label: "Aprobada", cls: "bg-emerald-500/15 text-emerald-500 border-emerald-500/30" },
+  rejected: { label: "Rechazada", cls: "bg-red-500/15 text-red-500 border-red-500/30" },
 };
 
 function formatCuit(raw: string) {
@@ -40,11 +51,23 @@ function formatCuit(raw: string) {
   return `${d.slice(0, 2)}-${d.slice(2, 10)}-${d.slice(10)}`;
 }
 
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString("es-AR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function RegistrationRequestsTab() {
   const [requests, setRequests] = useState<RegistrationRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<RegistrationStatus | "all">("pending");
   const [processing, setProcessing] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
   async function withSessionHeaders() {
     const {
@@ -73,21 +96,27 @@ export function RegistrationRequestsTab() {
 
   async function fetchRequests() {
     setLoading(true);
+    setErrorMessage(null);
     try {
       const headers = await withSessionHeaders();
-      const response = await fetch(`/api/registration-requests?status=${statusFilter}`, {
+      const response = await fetch("/api/registration-requests?status=all", {
         method: "GET",
         headers,
       });
       const result = await readApiResult<RegistrationRequest[]>(response);
       if (!response.ok || !result.ok) {
-        toast.error(result.error ?? "No se pudieron cargar las solicitudes.");
+        const message = result.error ?? "No se pudieron cargar las solicitudes.";
+        setErrorMessage(message);
+        toast.error(message);
         setRequests([]);
       } else {
         setRequests(result.data ?? []);
+        setLastUpdatedAt(new Date().toISOString());
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudieron cargar las solicitudes.");
+      const message = error instanceof Error ? error.message : "No se pudieron cargar las solicitudes.";
+      setErrorMessage(message);
+      toast.error(message);
       setRequests([]);
     } finally {
       setLoading(false);
@@ -96,7 +125,7 @@ export function RegistrationRequestsTab() {
 
   useEffect(() => {
     void fetchRequests();
-  }, [statusFilter]);
+  }, []);
 
   async function updateStatus(id: string, status: RegistrationStatus, notes?: string) {
     setProcessing(id);
@@ -111,7 +140,7 @@ export function RegistrationRequestsTab() {
       if (!response.ok || !result.ok) {
         toast.error(result.error ?? "No se pudo actualizar la solicitud.");
       } else {
-        toast.success(status === "approved" ? "Solicitud aprobada y cliente habilitado" : "Solicitud rechazada");
+        toast.success(status === "approved" ? "Solicitud aprobada y cliente creado" : "Solicitud rechazada");
         await fetchRequests();
       }
     } catch (error) {
@@ -121,47 +150,68 @@ export function RegistrationRequestsTab() {
     }
   }
 
-  const counts = requests.reduce(
-    (acc, request) => {
-      acc[request.status] = (acc[request.status] ?? 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>,
+  const counts = useMemo(
+    () => requests.reduce(
+      (acc, request) => {
+        acc[request.status] = (acc[request.status] ?? 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    ),
+    [requests],
+  );
+
+  const filteredRequests = useMemo(
+    () => statusFilter === "all" ? requests : requests.filter((request) => request.status === statusFilter),
+    [requests, statusFilter],
   );
 
   return (
-    <div className="max-w-5xl space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-bold text-foreground">Solicitudes de alta B2B</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Empresas y personas que completaron el formulario de /registrarse.
+          <p className="mt-1 text-xs text-muted-foreground">
+            Cola de onboarding de /registrarse. Desde aca se aprueba la solicitud y se crea el cliente real en el sistema.
           </p>
+          {lastUpdatedAt ? (
+            <p className="mt-2 text-[11px] text-muted-foreground">Ultima sincronizacion: {formatDate(lastUpdatedAt)}</p>
+          ) : null}
         </div>
-        <button onClick={fetchRequests} className="flex items-center gap-1.5 text-xs text-muted-foreground transition hover:text-foreground">
+        <button onClick={fetchRequests} className="inline-flex items-center gap-2 rounded-xl border border-border/70 bg-card px-3 py-2 text-xs font-medium text-muted-foreground transition hover:bg-secondary/40 hover:text-foreground">
           <RefreshCw size={13} /> Actualizar
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      {errorMessage ? (
+        <div className="flex items-start gap-3 rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-semibold">No se pudieron leer las altas B2B</p>
+            <p className="mt-1 text-xs text-destructive/80">{errorMessage}</p>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 lg:grid-cols-3">
         {(["pending", "approved", "rejected"] as RegistrationStatus[]).map((status) => (
           <button
             key={status}
             onClick={() => setStatusFilter(status)}
-            className={`rounded-xl border px-4 py-3 text-left transition ${statusFilter === status ? "border-primary/40 bg-primary/10" : "border-border/70 bg-card hover:bg-secondary/40"}`}
+            className={`rounded-2xl border px-4 py-4 text-left transition ${statusFilter === status ? "border-primary/40 bg-primary/10" : "border-border/70 bg-card hover:bg-secondary/40"}`}
           >
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{STATUS_CONFIG[status].label}</p>
-            <p className="mt-0.5 text-2xl font-bold text-foreground">{counts[status] ?? 0}</p>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{STATUS_CONFIG[status].label}</p>
+            <p className="mt-1 text-3xl font-black text-foreground">{counts[status] ?? 0}</p>
           </button>
         ))}
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {(["all", "pending", "approved", "rejected"] as const).map((filterValue) => (
           <button
             key={filterValue}
             onClick={() => setStatusFilter(filterValue)}
-            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${statusFilter === filterValue ? "border-primary/40 bg-primary/15 text-primary" : "border-border/70 text-muted-foreground hover:text-foreground"}`}
+            className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${statusFilter === filterValue ? "border-primary/40 bg-primary/15 text-primary" : "border-border/70 bg-card text-muted-foreground hover:text-foreground"}`}
           >
             {filterValue === "all" ? "Todas" : STATUS_CONFIG[filterValue].label}
           </button>
@@ -169,84 +219,110 @@ export function RegistrationRequestsTab() {
       </div>
 
       {loading ? (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="h-24 animate-pulse rounded-xl border border-border/70 bg-card" />
+            <div key={index} className="h-28 animate-pulse rounded-2xl border border-border/70 bg-card" />
           ))}
         </div>
-      ) : requests.length === 0 ? (
-        <div className="rounded-xl border border-border/70 bg-card py-16 text-center">
+      ) : filteredRequests.length === 0 ? (
+        <div className="rounded-2xl border border-border/70 bg-card px-6 py-16 text-center">
           <Clock size={28} className="mx-auto mb-3 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">
-            No hay solicitudes {statusFilter !== "all" ? `${STATUS_CONFIG[statusFilter as RegistrationStatus].label.toLowerCase()}s` : ""}.
+          <p className="text-sm font-semibold text-foreground">No hay solicitudes para este estado.</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {requests.length === 0
+              ? "No entro ninguna solicitud desde /registrarse o el admin y el portal no estan mirando la misma base de Supabase."
+              : "Cambia el filtro para revisar solicitudes aprobadas, rechazadas o pendientes."}
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {requests.map((request) => {
+          {filteredRequests.map((request) => {
             const isProcessing = processing === request.id;
             const statusCfg = STATUS_CONFIG[request.status];
             return (
-              <div key={request.id} className="rounded-xl border border-border/70 bg-card p-5">
+              <div key={request.id} className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
                       {request.entity_type === "empresa" ? <Building2 size={18} /> : <User size={18} />}
                     </div>
-                    <div>
+                    <div className="space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-bold text-foreground">{request.company_name || request.contact_name}</span>
                         <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusCfg.cls}`}>
                           {statusCfg.label}
                         </span>
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                        <span className="font-mono">{formatCuit(request.cuit)}</span>
-                        <span>{TAX_LABELS[request.tax_status] ?? request.tax_status}</span>
-                        <span>{request.entity_type === "empresa" ? "Persona jur?dica" : "Persona f?sica"}</span>
-                      </div>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                        <span>{request.contact_name}</span>
-                        <span>?</span>
-                        <a href={`mailto:${request.email}`} className="text-primary hover:underline">{request.email}</a>
-                        {(request.assigned_seller?.name || request.assigned_to) ? (
-                          <span>
-                            ? asignado a <span className="text-foreground">{request.assigned_seller?.name ?? request.assigned_to}</span>
+                        {request.approved_user_id ? (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                            <ShieldCheck className="h-3 w-3" /> Cliente creado
                           </span>
                         ) : null}
                       </div>
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                        <span className="font-mono">{formatCuit(request.cuit)}</span>
+                        <span>{TAX_LABELS[request.tax_status] ?? request.tax_status}</span>
+                        <span>{request.entity_type === "empresa" ? "Persona juridica" : "Persona fisica"}</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                        <span>{request.contact_name}</span>
+                        <span className="inline-flex items-center gap-1">
+                          <Mail className="h-3 w-3" />
+                          <a href={`mailto:${request.email}`} className="text-primary hover:underline">{request.email}</a>
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[10px] text-muted-foreground">
-                      {new Date(request.created_at).toLocaleDateString("es-AR", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                  <div className="text-right text-[11px] text-muted-foreground">
+                    <p>{formatDate(request.created_at)}</p>
+                    <p className="mt-1 font-mono text-[10px]">{request.id.slice(0, 8)}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                  <div className="rounded-xl border border-border/70 bg-secondary/20 px-3 py-3">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Solicitante</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">{request.contact_name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{request.email}</p>
+                  </div>
+                  <div className="rounded-xl border border-border/70 bg-secondary/20 px-3 py-3">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Vendedor asignado</p>
+                    {request.assigned_seller ? (
+                      <>
+                        <p className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-foreground"><UserCheck className="h-4 w-4 text-primary" /> {request.assigned_seller.name}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{request.assigned_seller.email}</p>
+                      </>
+                    ) : (
+                      <p className="mt-1 text-sm font-semibold text-muted-foreground">Asignacion pendiente</p>
+                    )}
+                  </div>
+                  <div className="rounded-xl border border-border/70 bg-secondary/20 px-3 py-3">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Estado operativo</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">
+                      {request.approved_user_id ? "Cliente dado de alta" : request.status === "pending" ? "Pendiente de aprobacion" : request.status === "approved" ? "Aprobada sin cliente visible" : "Solicitud cerrada"}
                     </p>
+                    {request.approved_user_id ? (
+                      <p className="mt-1 text-xs text-muted-foreground font-mono">{request.approved_user_id}</p>
+                    ) : null}
                   </div>
                 </div>
 
                 {request.notes ? (
-                  <p className="mt-3 rounded-lg bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">{request.notes}</p>
+                  <p className="mt-3 rounded-xl bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">{request.notes}</p>
                 ) : null}
 
                 {request.status === "pending" ? (
-                  <div className="mt-4 flex items-center gap-2">
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
                     <button
                       onClick={() => updateStatus(request.id, "approved")}
                       disabled={isProcessing}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-2 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
+                      className="inline-flex min-w-40 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
                     >
-                      <CheckCircle2 size={15} /> Aprobar
+                      <CheckCircle2 size={15} /> Aprobar y crear cliente
                     </button>
                     <button
                       onClick={() => updateStatus(request.id, "rejected")}
                       disabled={isProcessing}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border/70 py-2 text-sm font-bold text-muted-foreground transition hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                      className="inline-flex min-w-32 items-center justify-center gap-2 rounded-xl border border-border/70 px-4 py-2 text-sm font-bold text-muted-foreground transition hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                     >
                       <XCircle size={15} /> Rechazar
                     </button>

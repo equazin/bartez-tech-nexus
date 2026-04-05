@@ -48,14 +48,6 @@ const TAX_STATUS_LABELS: Record<string, string> = {
   consumidor_final: "Consumidor Final",
 };
 
-const EXECUTIVES: Record<string, { name: string; role: string; email: string }> = {
-  "vmorales@bartez.com.ar": { name: "Valentina Morales", role: "Ejecutiva de Cuentas B2B", email: "vmorales@bartez.com.ar" },
-  "rfernandez@bartez.com.ar": { name: "Rodrigo Fern?ndez", role: "Gerente de Canal Corporativo", email: "rfernandez@bartez.com.ar" },
-  "lperez@bartez.com.ar": { name: "Luciana P?rez", role: "Responsable de Onboarding B2B", email: "lperez@bartez.com.ar" },
-  "maguirre@bartez.com.ar": { name: "Mart?n Aguirre", role: "Head of B2B Sales and Integrators", email: "maguirre@bartez.com.ar" },
-  "scastellano@bartez.com.ar": { name: "Sof?a Castellano", role: "Ejecutiva de Negocios Corporativos", email: "scastellano@bartez.com.ar" },
-};
-
 const Register = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -71,7 +63,7 @@ const Register = () => {
   const [assignedExecutive, setAssignedExecutive] = useState<string | null>(null);
   const [assignedExecutiveDetails, setAssignedExecutiveDetails] = useState<{ name: string; role: string; email: string } | null>(null);
 
-  const executive = assignedExecutiveDetails ?? (assignedExecutive ? EXECUTIVES[assignedExecutive] ?? null : null);
+  const executive = assignedExecutiveDetails;
 
   // Derived from current raw digits
   const rawDigits = cuit.replace(/\D/g, "");
@@ -169,7 +161,7 @@ const Register = () => {
       });
       const json = await res.json() as {
         ok: boolean;
-        data?: { assigned_to: string; assigned_executive?: { name?: string; role?: string; email?: string } };
+        data?: { assigned_to: string | null; assigned_executive?: { name?: string; role?: string; email?: string } | null };
         error?: string;
       };
       if (!json.ok) throw new Error(json.error ?? "No pudimos procesar la solicitud.");
@@ -488,7 +480,7 @@ const Register = () => {
                           <Zap className="h-3 w-3" />
                           Online
                         </span>
-                        <span className="text-muted-foreground">{executive?.email ?? "ventas@bartez.com.ar"}</span>
+                        <span className="text-muted-foreground">{executive?.email ?? "Asignacion pendiente"}</span>
                       </div>
                     </div>
                     <Building className="ml-auto hidden h-10 w-10 text-primary/20 sm:block" />
