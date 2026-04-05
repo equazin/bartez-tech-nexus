@@ -23,41 +23,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 // ── GET: AFIP padron lookup ────────────────────────────────────────────────────
 
+/**
+ * Validates CUIT checksum (mod 11) and derives entity type from prefix.
+ * The public AFIP padron requires certificates — we validate locally and
+ * let the user confirm their own name/razón social in step 2.
+ */
 async function handleAfipLookup(req: VercelRequest, res: VercelResponse) {
   const cuit = String(req.query.cuit ?? "").replace(/\D/g, "");
   if (cuit.length !== 11) return fail(res, "El CUIT debe tener 11 dígitos.", 400);
 
-  const upstream = await fetch(`https://apis.net.ar/api/cuit/${cuit}`, {
-    headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(8000),
-  });
+  // Mod-11 checksum validation
+  const weights = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+  const sum = weights.reduce((acc, w, i) => acc + w * Number(cuit[i]), 0);
+  const remainder = sum % 11;
+  if (remainder === 1) return fail(res, "El CUIT ingresado no es válido. Verificá los números.", 400);
+  const expected = remainder === 0 ? 0 : 11 - remainder;
+  if (expected !== Number(cuit[10])) return fail(res, "El CUIT ingresado no es válido. Verificá los números.", 400);
 
-  if (!upstream.ok) {
-    return upstream.status === 404
-      ? fail(res, "CUIT no encontrado en el padrón de AFIP.", 404)
-      : fail(res, "Error al consultar AFIP. Intentá de nuevo.", 502);
-  }
+  // Entity type from prefix
+  const prefix = parseInt(cuit.slice(0, 2), 10);
+  const isLegal = [30, 33, 34].includes(prefix);
+  const entityType = isLegal ? "empresa" : "persona_fisica";
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data: any = await upstream.json();
-
-  const isLegal = String(data.tipoPersona ?? "").toLowerCase() === "juridica";
-  const companyName: string = isLegal
-    ? (data.razonSocial ?? "Empresa sin nombre")
-    : [data.nombre, data.apellido].filter(Boolean).join(" ") || data.razonSocial || "Persona sin nombre";
-
-  const rawIva = String(data.categoriaIva ?? data.categoriaMono ?? "").toLowerCase();
-  const taxStatus =
-    rawIva.includes("responsable inscripto") || rawIva.includes("ri") ? "responsable_inscripto"
-    : rawIva.includes("mono") ? "monotributista"
-    : rawIva.includes("exento") ? "exento"
-    : rawIva || "no_especificado";
+  // Default tax status by entity type (user can correct in step 2)
+  const taxStatus = isLegal ? "responsable_inscripto" : "monotributista";
 
   return ok(res, {
-    companyName,
+    companyName: "",   // user fills this in step 2
     taxStatus,
-    entityType: isLegal ? "empresa" : "persona_fisica",
-    active: String(data.estadoClave ?? "").toLowerCase() === "activo",
+    entityType,
+    active: true,
   });
 }
 

@@ -142,7 +142,7 @@ const Register = () => {
         entityType: r.entityType,
       }));
       setAfipData(result);
-      setName(result.companyName);
+      if (result.companyName) setName(result.companyName);
       setStep(2);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "No pudimos validar este CUIT en AFIP.");
@@ -307,8 +307,10 @@ const Register = () => {
                                 {afipData.entityType === "empresa" ? <Building2 className="h-4 w-4" /> : <User className="h-4 w-4" />}
                               </div>
                               <div className="min-w-0">
-                                <p className="text-sm font-bold text-foreground truncate">{afipData.companyName}</p>
-                                <p className="text-xs text-muted-foreground">{afipData.taxStatus}</p>
+                                <p className="text-sm font-bold text-foreground truncate">
+                                  {afipData.entityType === "empresa" ? "Empresa / Persona jurídica" : "Persona física"} · CUIT válido
+                                </p>
+                                <p className="text-xs text-muted-foreground">{afipData.taxStatus} — completá tu razón social en el paso siguiente</p>
                               </div>
                               <CheckCircle2 className="ml-auto h-4 w-4 shrink-0 text-emerald-500" />
                             </motion.div>
@@ -369,7 +371,9 @@ const Register = () => {
                       : <User className="h-8 w-8 text-primary/40" />
                     }
                   </div>
-                  <h3 className="font-display text-xl font-semibold tracking-tight text-foreground">{afipData.companyName}</h3>
+                  <h3 className="font-display text-xl font-semibold tracking-tight text-foreground">
+                    {afipData.companyName || (afipData.entityType === "empresa" ? "Empresa / Persona jurídica" : "Persona física")}
+                  </h3>
                   <p className="mt-1 text-sm text-muted-foreground">{afipData.taxStatus} · CUIT {cuit}</p>
                 </div>
 
@@ -379,7 +383,7 @@ const Register = () => {
                     <Input
                       value={name}
                       onChange={(event) => setName(event.target.value)}
-                      placeholder="Nombre del representante"
+                      placeholder={afipData?.entityType === "empresa" ? "Razón social de la empresa" : "Nombre y apellido"}
                       className="h-14 rounded-2xl pl-12"
                       required
                     />
