@@ -99,8 +99,8 @@ export function AdminTopbar({
                   <Pencil size={10} />
                 </button>
               </div>
-              <p className="mt-0.5 text-[9px] text-muted-foreground uppercase tracking-tight">
-                {exchangeRate.source === "api" ? `OFICIAL (${ageLabel})` : "Manual (Custom)"}
+              <p className="mt-0.5 text-[9px] text-muted-foreground uppercase tracking-tight font-bold">
+                {exchangeRate.source === "api" ? `DÓLAR OFICIAL (${ageLabel})` : "Manual (Custom)"}
               </p>
             </div>
             <button

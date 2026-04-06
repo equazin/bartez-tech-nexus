@@ -7,6 +7,7 @@ import ProductForm from "@/components/admin/ProductForm";
 import ProductImport from "@/components/admin/ProductImport";
 import ProductTable from "@/components/admin/ProductTable";
 import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useCurrency } from "@/context/CurrencyContext";
 import { OrderStatusBadge as StatusBadge } from "@/components/OrderStatusBadge";
@@ -211,10 +212,6 @@ function LegacyStatusBadge({ status }: { status: string }) {
     </span>
   );
 }
-
-// Tab, ModuleId, TAB_TO_MODULE are now in @/components/admin/layout/adminNavConfig
-
-
 
 const Admin = () => {
   const { signOut, session, isAdmin, canManageProducts, canManageOrders } = useAuth();
@@ -1428,11 +1425,11 @@ async function handleCreateSeller() {
   }
 
   async function handleManualRateUpdate() {
-    const newVal = prompt("Ingresá el nuevo valor del dólar (ARS):", String(exchangeRate.rate));
+    const newVal = prompt("Ingresá el nuevo valor del dólar oficial (ARS):", String(exchangeRate.rate));
     if (newVal === null) return;
     const num = parseFloat(newVal);
     if (isNaN(num) || num <= 0) {
-      alert("Por favor ingresá un número válido mayor a 0.");
+      toast.error("Por favor ingresá un número válido mayor a 0.");
       return;
     }
     setExchangeRate({
@@ -1440,6 +1437,16 @@ async function handleCreateSeller() {
       source: "manual",
       updatedAt: new Date().toISOString(),
     });
+    toast.success(`Dólar actualizado a $ ${num.toLocaleString("es-AR")}`);
+  }
+
+  async function handleRefreshRate() {
+    try {
+      await fetchExchangeRate();
+      toast.success("Cotización oficial actualizada correctamente.");
+    } catch {
+      toast.error("Error al obtener la cotización oficial.");
+    }
   }
 
   return (
@@ -1454,7 +1461,7 @@ async function handleCreateSeller() {
       currentUserLabel={session?.user?.email ?? "Administrador"}
       exchangeRate={exchangeRate}
       isFetchingRate={isFetchingRate}
-      onRefreshRate={() => fetchExchangeRate().catch(() => {})}
+      onRefreshRate={handleRefreshRate}
       onManualRateUpdate={handleManualRateUpdate}
       searchData={{
         products,
