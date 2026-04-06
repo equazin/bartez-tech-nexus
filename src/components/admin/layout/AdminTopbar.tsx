@@ -1,4 +1,4 @@
-import { Sun, Moon, LogOut, RefreshCw, LayoutDashboard, Bell, Search, UserCircle2, TrendingUp } from "lucide-react";
+import { Sun, Moon, LogOut, RefreshCw, LayoutDashboard, Bell, Search, UserCircle2, TrendingUp, Pencil } from "lucide-react";
 import { AdminSearch } from "@/components/admin/AdminSearch";
 import { NotificationBell } from "@/components/admin/NotificationBell";
 import { getModuleLabel, getTabLabel, type Tab, type ModuleId, type NavItem } from "./adminNavConfig";
@@ -23,6 +23,7 @@ interface AdminTopbarProps {
   exchangeRate: ExchangeRate;
   isFetchingRate: boolean;
   onRefreshRate: () => void;
+  onManualRateUpdate: () => void;
   canSeeItem: (item: NavItem) => boolean;
   onNavigateTab: (tab: Tab) => void;
   onNavigateModule: (moduleId: ModuleId) => void;
@@ -43,6 +44,7 @@ export function AdminTopbar({
   exchangeRate,
   isFetchingRate,
   onRefreshRate,
+  onManualRateUpdate,
   onNavigateTab,
   onToggleMobileSidebar,
   onToggleTheme,
@@ -84,11 +86,21 @@ export function AdminTopbar({
               <TrendingUp size={11} />
             </div>
             <div className="leading-none">
-              <p className="font-semibold text-foreground">
-                $ {exchangeRate.rate.toLocaleString("es-AR")}
-              </p>
-              <p className="mt-0.5 text-[9px] text-muted-foreground">
-                {exchangeRate.source === "api" ? ageLabel : "manual"}
+              <div className="flex items-center gap-1.5">
+                <p className="font-semibold text-foreground">
+                  $ {exchangeRate.rate.toLocaleString("es-AR")}
+                </p>
+                <button
+                  type="button"
+                  onClick={onManualRateUpdate}
+                  className="rounded p-0.5 text-muted-foreground transition hover:bg-muted hover:text-primary"
+                  title="Editar valor manualmente"
+                >
+                  <Pencil size={10} />
+                </button>
+              </div>
+              <p className="mt-0.5 text-[9px] text-muted-foreground uppercase tracking-tight">
+                {exchangeRate.source === "api" ? `OFICIAL (${ageLabel})` : "Manual (Custom)"}
               </p>
             </div>
             <button
@@ -96,7 +108,7 @@ export function AdminTopbar({
               onClick={onRefreshRate}
               disabled={isFetchingRate}
               className="ml-1 rounded-lg p-1 text-muted-foreground transition hover:bg-card hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
-              title="Actualizar cotización"
+              title="Cargar cotización oficial automatica"
             >
               <RefreshCw size={11} className={isFetchingRate ? "animate-spin" : ""} />
             </button>

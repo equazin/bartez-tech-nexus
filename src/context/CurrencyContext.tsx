@@ -163,13 +163,13 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
-  // Auto-fetch on mount if cached rate is stale (> TTL) or was manually entered
+  // Auto-fetch on mount if cached rate is stale (> TTL) and was NOT manual
   useEffect(() => {
     const cachedAt = new Date(exchangeRate.updatedAt).getTime();
     const isStale = Date.now() - cachedAt > RATE_TTL_MS;
-    // We only auto-refetch if it is stale OR it was manual (indicating it might be an old session)
-    // but the real fix for "won't update" is the storage listener + UI accessibility.
-    if (isStale || exchangeRate.source === "manual") {
+    const isApi   = exchangeRate.source === "api";
+
+    if (isStale && isApi) {
       fetchExchangeRate().catch(() => { /* silently fall back to cached rate */ });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

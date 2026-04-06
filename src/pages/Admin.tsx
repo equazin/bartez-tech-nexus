@@ -1427,6 +1427,21 @@ async function handleCreateSeller() {
     await exportRemitoPdf(selectedOrder, clientName, formatPrice);
   }
 
+  async function handleManualRateUpdate() {
+    const newVal = prompt("Ingresá el nuevo valor del dólar (ARS):", String(exchangeRate.rate));
+    if (newVal === null) return;
+    const num = parseFloat(newVal);
+    if (isNaN(num) || num <= 0) {
+      alert("Por favor ingresá un número válido mayor a 0.");
+      return;
+    }
+    setExchangeRate({
+      rate: num,
+      source: "manual",
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
   return (
     <AdminLayout
       activeTab={activeTab}
@@ -1440,6 +1455,7 @@ async function handleCreateSeller() {
       exchangeRate={exchangeRate}
       isFetchingRate={isFetchingRate}
       onRefreshRate={() => fetchExchangeRate().catch(() => {})}
+      onManualRateUpdate={handleManualRateUpdate}
       searchData={{
         products,
         clients: customerProfiles,

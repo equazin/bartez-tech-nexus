@@ -26,6 +26,7 @@ interface AdminLayoutProps {
   exchangeRate: any;
   isFetchingRate: boolean;
   onRefreshRate: () => void;
+  onManualRateUpdate: () => void;
   canSeeItem: (item: NavItem) => boolean;
   onNavigateTab: (tab: Tab) => void;
   onNavigateModule: (moduleId: ModuleId) => void;
@@ -51,6 +52,7 @@ export function AdminLayout({
   exchangeRate,
   isFetchingRate,
   onRefreshRate,
+  onManualRateUpdate,
   canSeeItem,
   onNavigateTab,
   onNavigateModule,
@@ -75,6 +77,7 @@ export function AdminLayout({
             exchangeRate={exchangeRate}
             isFetchingRate={isFetchingRate}
             onRefreshRate={onRefreshRate}
+            onManualRateUpdate={onManualRateUpdate}
             canSeeItem={canSeeItem}
             onNavigateTab={onNavigateTab}
             onNavigateModule={onNavigateModule}
