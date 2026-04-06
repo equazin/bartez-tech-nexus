@@ -25,17 +25,29 @@ export const orderProductSchema = z.object({
 });
 
 export const orderEmailSchema = z.object({
-  type: z.enum(["order_confirmed", "new_order_admin", "order_approved", "order_preparing", "order_shipped", "order_delivered", "order_rejected", "quote_approved", "quote_rejected"]),
+  type: z.enum(["order_confirmed", "new_order_admin", "order_approved", "order_preparing", "order_shipped", "order_delivered", "order_rejected", "quote_approved", "quote_rejected", "new_payment"]),
   orderId: z.coerce.number().int().positive().optional(),
-  orderNumber: z.string().trim().min(1).max(64),
+  orderNumber: z.string().trim().min(0).max(64).optional(),
   clientId: z.string().trim().min(1).max(128),
   clientEmail: z.string().trim().email().max(320).optional(),
   clientName: optionalTrimmedString(120),
-  products: z.array(orderProductSchema).max(200),
-  total: z.coerce.number().nonnegative(),
+  products: z.array(orderProductSchema).max(200).optional().default([]),
+  total: z.coerce.number().nonnegative().optional().default(0),
   shippingProvider: optionalTrimmedString(100),
   trackingNumber:   optionalTrimmedString(100),
   quoteId: z.coerce.number().int().positive().optional(),
+  // New Payment fields
+  method: z.string().trim().optional(),
+  currency: z.string().trim().optional(),
+  amount: z.coerce.number().optional(),
+  date: z.string().trim().optional(),
+  fileUrl: z.string().trim().url().optional(),
+  notes: z.string().trim().optional(),
+  invoiceNumber: z.string().trim().optional(),
+  echeqDetails: z.object({
+    count: z.number(),
+    dates: z.array(z.string())
+  }).optional().nullable(),
 });
 
 export const createOrderSchema = z.object({

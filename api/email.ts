@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { orderConfirmationHTML, newOrderAlertHTML, quoteStatusHTML, orderPreparingHTML, orderRejectedHTML, orderApprovedHTML } from "./_shared/emailTemplates.js";
+import { orderConfirmationHTML, newOrderAlertHTML, quoteStatusHTML, orderPreparingHTML, orderRejectedHTML, orderApprovedHTML, newPaymentHTML } from "./_shared/emailTemplates.js";
 import { createMailerTransport, getDefaultFromEmail, sanitizeHeaderText } from "./_shared/mailer.js";
 import { orderEmailSchema } from "./_shared/schemas.js";
 
@@ -40,10 +40,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           "Pedido confirmado"
         ),
         html: orderConfirmationHTML({
-          orderNumber: payload.orderNumber,
+          orderNumber: payload.orderNumber ?? "",
           clientName: payload.clientName ?? "Cliente",
           products,
-          total: payload.total,
+          total: payload.total ?? 0,
         }),
       });
     }
@@ -57,9 +57,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           "Pedido aprobado"
         ),
         html: orderApprovedHTML({
-          orderNumber: payload.orderNumber,
+          orderNumber: payload.orderNumber ?? "",
           clientName: payload.clientName ?? "Cliente",
-          total: payload.total,
+          total: payload.total ?? 0,
         }),
       });
     }
@@ -73,7 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           "Pedido en preparación"
         ),
         html: orderPreparingHTML({
-          orderNumber: payload.orderNumber,
+          orderNumber: payload.orderNumber ?? "",
           clientName: payload.clientName ?? "Cliente",
         }),
       });
@@ -89,7 +89,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           "Pedido en camino"
         ),
         html: orderShippedHTML({
-          orderNumber: payload.orderNumber,
+          orderNumber: payload.orderNumber ?? "",
           clientName: payload.clientName ?? "Cliente",
           shippingProvider: payload.shippingProvider,
           trackingNumber: payload.trackingNumber,
@@ -107,7 +107,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           "Pedido entregado"
         ),
         html: orderDeliveredHTML({
-          orderNumber: payload.orderNumber,
+          orderNumber: payload.orderNumber ?? "",
           clientName: payload.clientName ?? "Cliente",
         }),
       });
@@ -122,7 +122,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           "Pedido rechazado"
         ),
         html: orderRejectedHTML({
-          orderNumber: payload.orderNumber,
+          orderNumber: payload.orderNumber ?? "",
           clientName: payload.clientName ?? "Cliente",
         }),
       });
@@ -137,11 +137,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           "Nuevo pedido"
         ),
         html: newOrderAlertHTML({
-          orderNumber: payload.orderNumber,
+          orderNumber: payload.orderNumber ?? "",
           clientName: payload.clientName ?? payload.clientId,
           clientId: payload.clientId,
           products,
-          total: payload.total,
+          total: payload.total ?? 0,
         }),
       });
     }
@@ -159,9 +159,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         html: quoteStatusHTML({
           quoteId: payload.quoteId,
           clientName: payload.clientName ?? "Cliente",
-          total: payload.total,
+          total: payload.total ?? 0,
           currency: "ARS",
           status: payload.type === "quote_approved" ? "approved" : "rejected",
+        }),
+      });
+    }
+
+    if (payload.type === "new_payment") {
+      await transport.sendMail({
+        from: `"Bartez B2B" <${fromEmail}>`,
+        to: adminEmail,
+        subject: sanitizeHeaderText(
+          `Nuevo Pago: ${payload.clientName} - ${payload.currency} ${payload.amount}`,
+          "Nuevo Pago"
+        ),
+        html: newPaymentHTML({
+          clientName: payload.clientName ?? "Cliente",
+          amount: payload.amount ?? 0,
+          currency: payload.currency ?? "USD",
+          date: payload.date ?? new Date().toISOString(),
+          method: payload.method ?? "otro",
+          orderNumber: payload.orderNumber,
+          invoiceNumber: payload.invoiceNumber,
+          fileUrl: payload.fileUrl,
+          notes: payload.notes,
+          echeqDetails: payload.echeqDetails,
         }),
       });
     }

@@ -9,10 +9,11 @@ export interface PaymentRecord {
   amount: number;
   currency: "ARS" | "USD";
   payment_date: string;
-  payment_method: "transferencia" | "deposito" | "efectivo" | "otro";
+  payment_method: "transferencia" | "deposito" | "efectivo" | "echeq" | "otro";
   reference?: string;
   file_url?: string;
   notes?: string;
+  echeq_details?: { count: number; dates: string[] } | null;
   status: "pendiente" | "validado" | "rechazado";
   created_at: string;
 }
@@ -23,10 +24,11 @@ export interface PaymentPayload {
   amount: number;
   currency: "ARS" | "USD";
   payment_date: string;
-  payment_method: "transferencia" | "deposito" | "efectivo" | "otro";
+  payment_method: "transferencia" | "deposito" | "efectivo" | "echeq" | "otro";
   reference?: string;
   file_url?: string;
   notes?: string;
+  echeq_details?: { count: number; dates: string[] } | null;
 }
 
 /**

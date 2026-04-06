@@ -398,3 +398,96 @@ export function orderApprovedHTML(params: {
 </body>
 </html>`;
 }
+
+export function newPaymentHTML(params: {
+  clientName: string;
+  amount: number;
+  currency: string;
+  date: string;
+  method: string;
+  orderNumber?: string;
+  invoiceNumber?: string;
+  fileUrl?: string;
+  notes?: string;
+  echeqDetails?: { count: number; dates: string[] } | null;
+}): string {
+  const { clientName, amount, currency, date, method, orderNumber, invoiceNumber, fileUrl, notes, echeqDetails } = params;
+  const isEcheq = method === "echeq";
+  const fmt = new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
+
+  let echeqSection = "";
+  if (isEcheq && echeqDetails) {
+    const dateList = echeqDetails.dates.map(d => `<li style="margin-bottom:4px;">${new Date(d).toLocaleDateString("es-AR")}</li>`).join("");
+    echeqSection = `
+      <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:16px; margin:20px 0;">
+        <p style="margin:0 0 8px; font-size:12px; color:#64748b; font-weight:bold; text-transform:uppercase;">Detalle de Echeqs (${echeqDetails.count})</p>
+        <ul style="margin:0; padding-left:20px; font-size:14px; color:#1e293b;">
+          ${dateList}
+        </ul>
+      </div>
+    `;
+  }
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+        <tr>
+          <td style="background:#111;padding:24px 32px;">
+            <h1 style="margin:0;color:#2D9F6A;font-size:20px;">Nuevo Comprobante de Pago</h1>
+            <p style="margin:4px 0 0;color:#888;font-size:13px;">${clientName} — ${method.toUpperCase()}</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px 32px;">
+            <p style="margin:0 0 20px; color:#333; font-size:15px;">Se ha registrado un nuevo aviso de pago en el Portal B2B.</p>
+            
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px; border-collapse:collapse;">
+              <tr>
+                <td style="padding:8px 0; border-bottom:1px solid #f1f5f9; color:#64748b; font-size:14px;">Monto Informado</td>
+                <td style="padding:8px 0; border-bottom:1px solid #f1f5f9; color:#1e293b; font-size:14px; font-weight:bold; text-align:right;">${fmt}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0; border-bottom:1px solid #f1f5f9; color:#64748b; font-size:14px;">Fecha Declarada</td>
+                <td style="padding:8px 0; border-bottom:1px solid #f1f5f9; color:#1e293b; font-size:14px; text-align:right;">${new Date(date).toLocaleDateString("es-AR")}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0; border-bottom:1px solid #f1f5f9; color:#64748b; font-size:14px;">Medio de Pago</td>
+                <td style="padding:8px 0; border-bottom:1px solid #f1f5f9; color:#1e293b; font-size:14px; text-align:right; text-transform:capitalize;">${method}</td>
+              </tr>
+              ${orderNumber ? `<tr><td style="padding:8px 0; border-bottom:1px solid #f1f5f9; color:#64748b; font-size:14px;">Pedido Relacionado</td><td style="padding:8px 0; border-bottom:1px solid #f1f5f9; color:#1e293b; font-size:14px; text-align:right;">${orderNumber}</td></tr>` : ""}
+              ${invoiceNumber ? `<tr><td style="padding:8px 0; border-bottom:1px solid #f1f5f9; color:#64748b; font-size:14px;">Factura Realacionada</td><td style="padding:8px 0; border-bottom:1px solid #f1f5f9; color:#1e293b; font-size:14px; text-align:right;">${invoiceNumber}</td></tr>` : ""}
+            </table>
+
+            ${echeqSection}
+
+            ${notes ? `
+            <div style="background:#fffbeb; border:1px solid #fef3c7; border-radius:8px; padding:16px; margin-bottom:20px;">
+              <p style="margin:0 0 4px; font-size:11px; color:#92400e; font-weight:bold; text-transform:uppercase;">Observaciones del Cliente</p>
+              <p style="margin:0; font-size:13px; color:#78350f; line-height:1.5;">${notes}</p>
+            </div>
+            ` : ""}
+
+            <div style="text-align:center; margin-top:32px;">
+              ${fileUrl ? `
+              <a href="${fileUrl}" style="display:inline-block; background:#2D9F6A; color:#fff; padding:12px 24px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:14px;">Ver Comprobante Adjunto</a>
+              ` : `
+              <p style="color:#ef4444; font-size:13px; font-weight:bold;">⚠️ El cliente no adjuntó un archivo legible.</p>
+              `}
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px 32px; border-top:1px solid #f0f0f0; background:#fafafa; text-align:center;">
+             <p style="margin:0; font-size:12px; color:#aaa;">Gestioná este pago desde el panel administrativo de Bartez.</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}

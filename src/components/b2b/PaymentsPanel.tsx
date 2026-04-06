@@ -64,11 +64,13 @@ export function PaymentsPanel({ profile, orders, invoices, isDark }: PaymentsPan
     amount: "",
     currency: "USD" as "ARS" | "USD",
     payment_date: new Date().toISOString().split("T")[0],
-    payment_method: "transferencia" as "transferencia" | "deposito" | "efectivo" | "otro",
+    payment_method: "transferencia" as "transferencia" | "deposito" | "efectivo" | "echeq" | "otro",
     reference: "",
     order_id: "",
     invoice_id: "",
     notes: "",
+    echeq_count: "1",
+    echeq_dates: [new Date().toISOString().split("T")[0]] as string[],
   });
   const [file, setFile] = useState<File | null>(null);
 
@@ -132,6 +134,10 @@ export function PaymentsPanel({ profile, orders, invoices, isDark }: PaymentsPan
         invoice_id: formData.invoice_id || null,
         notes: formData.notes,
         file_url: fileUrl,
+        echeq_details: formData.payment_method === "echeq" ? {
+          count: parseInt(formData.echeq_count),
+          dates: formData.echeq_dates,
+        } : null,
       }, {
         id: profile.id,
         name: profile.company_name || profile.contact_name || "Cliente"
@@ -152,6 +158,8 @@ export function PaymentsPanel({ profile, orders, invoices, isDark }: PaymentsPan
         order_id: "",
         invoice_id: "",
         notes: "",
+        echeq_count: "1",
+        echeq_dates: [new Date().toISOString().split("T")[0]],
       });
       setFile(null);
       
@@ -270,10 +278,66 @@ export function PaymentsPanel({ profile, orders, invoices, isDark }: PaymentsPan
                       <SelectItem value="transferencia">Transferencia Bancaria</SelectItem>
                       <SelectItem value="deposito">Depósito</SelectItem>
                       <SelectItem value="efectivo">Efectivo</SelectItem>
+                      <SelectItem value="echeq">Echeck (Cheque Electrónico)</SelectItem>
                       <SelectItem value="otro">Otro medio</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+
+                {formData.payment_method === "echeq" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="echeq_count">Cantidad de Echecks</Label>
+                      <Select 
+                        value={formData.echeq_count} 
+                        onValueChange={(v) => {
+                          const count = parseInt(v);
+                          const newDates = [...formData.echeq_dates];
+                          if (count > newDates.length) {
+                            for (let i = newDates.length; i < count; i++) {
+                              newDates.push(new Date().toISOString().split("T")[0]);
+                            }
+                          } else {
+                            newDates.splice(count);
+                          }
+                          setFormData({...formData, echeq_count: v, echeq_dates: newDates});
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="1" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                            <SelectItem key={n} value={String(n)}>{n} {n === 1 ? 'Echeq' : 'Echeqs'}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="sm:col-span-2 space-y-3 p-4 border rounded-xl bg-muted/30">
+                      <Label className="text-xs font-bold uppercase text-muted-foreground">Fechas de cobro por cada Echeck</Label>
+                      <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                        {formData.echeq_dates.map((date, idx) => (
+                          <div key={idx} className="space-y-1">
+                            <Label htmlFor={`echeq-date-${idx}`} className="text-[10px]">Fecha Echeq {idx + 1}</Label>
+                            <Input
+                              id={`echeq-date-${idx}`}
+                              type="date"
+                              required
+                              value={date}
+                              onChange={(e) => {
+                                const newDates = [...formData.echeq_dates];
+                                newDates[idx] = e.target.value;
+                                setFormData({...formData, echeq_dates: newDates});
+                              }}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="reference">Número de referencia / operación</Label>
