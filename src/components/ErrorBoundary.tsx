@@ -22,6 +22,19 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   handleRetry = () => {
+    const errorMsg = this.state.error?.message?.toLowerCase() ?? "";
+    const isFetchError =
+      errorMsg.includes("failed to fetch") ||
+      errorMsg.includes("dynamically imported module") ||
+      errorMsg.includes("importing");
+
+    if (isFetchError) {
+      // Si falló la descarga de un módulo, la única forma de arreglarlo
+      // es pedirle al navegador que recupere el index.html nuevo (F5).
+      window.location.reload();
+      return;
+    }
+
     this.setState({ hasError: false, error: null });
   };
 
