@@ -23,6 +23,9 @@ interface AdminLayoutProps {
   currency: "USD" | "ARS";
   currentUserLabel?: string;
   searchData: SearchData;
+  exchangeRate: any;
+  isFetchingRate: boolean;
+  onRefreshRate: () => void;
   canSeeItem: (item: NavItem) => boolean;
   onNavigateTab: (tab: Tab) => void;
   onNavigateModule: (moduleId: ModuleId) => void;
@@ -45,6 +48,9 @@ export function AdminLayout({
   currency,
   currentUserLabel,
   searchData,
+  exchangeRate,
+  isFetchingRate,
+  onRefreshRate,
   canSeeItem,
   onNavigateTab,
   onNavigateModule,
@@ -66,6 +72,9 @@ export function AdminLayout({
             isDark={isDark}
             currency={currency}
             searchData={searchData}
+            exchangeRate={exchangeRate}
+            isFetchingRate={isFetchingRate}
+            onRefreshRate={onRefreshRate}
             canSeeItem={canSeeItem}
             onNavigateTab={onNavigateTab}
             onNavigateModule={onNavigateModule}

@@ -1,7 +1,8 @@
-import { Sun, Moon, LogOut, RefreshCw, LayoutDashboard, Bell, Search, UserCircle2 } from "lucide-react";
+import { Sun, Moon, LogOut, RefreshCw, LayoutDashboard, Bell, Search, UserCircle2, TrendingUp } from "lucide-react";
 import { AdminSearch } from "@/components/admin/AdminSearch";
 import { NotificationBell } from "@/components/admin/NotificationBell";
 import { getModuleLabel, getTabLabel, type Tab, type ModuleId, type NavItem } from "./adminNavConfig";
+import type { ExchangeRate } from "@/context/CurrencyContext";
 
 interface SearchData {
   products: Array<{ id: number; name: string; sku?: string; category?: string }>;
@@ -19,6 +20,9 @@ interface AdminTopbarProps {
   isDark: boolean;
   currency: "USD" | "ARS";
   searchData: SearchData;
+  exchangeRate: ExchangeRate;
+  isFetchingRate: boolean;
+  onRefreshRate: () => void;
   canSeeItem: (item: NavItem) => boolean;
   onNavigateTab: (tab: Tab) => void;
   onNavigateModule: (moduleId: ModuleId) => void;
@@ -36,6 +40,9 @@ export function AdminTopbar({
   isDark,
   currency,
   searchData,
+  exchangeRate,
+  isFetchingRate,
+  onRefreshRate,
   onNavigateTab,
   onToggleMobileSidebar,
   onToggleTheme,
@@ -43,6 +50,11 @@ export function AdminTopbar({
   onLogout,
   onSetCurrency,
 }: AdminTopbarProps) {
+  const ageMs = Date.now() - new Date(exchangeRate.updatedAt).getTime();
+  const ageMin = Math.floor(ageMs / 60000);
+  const ageLabel =
+    ageMin < 2 ? "Ahora" : ageMin < 60 ? `hace ${ageMin}m` : `hace ${Math.floor(ageMin / 60)}h`;
+
   return (
     <header className="border-b border-border/70 bg-card/88 px-3 py-3 backdrop-blur md:px-5">
       <div className="flex items-center gap-3">
@@ -66,6 +78,30 @@ export function AdminTopbar({
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Exchange rate chip */}
+          <div className="hidden items-center gap-2 rounded-[24px] border border-border/70 bg-surface px-3 py-1.5 text-xs lg:flex">
+            <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+              <TrendingUp size={11} />
+            </div>
+            <div className="leading-none">
+              <p className="font-semibold text-foreground">
+                $ {exchangeRate.rate.toLocaleString("es-AR")}
+              </p>
+              <p className="mt-0.5 text-[9px] text-muted-foreground">
+                {exchangeRate.source === "api" ? ageLabel : "manual"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onRefreshRate}
+              disabled={isFetchingRate}
+              className="ml-1 rounded-lg p-1 text-muted-foreground transition hover:bg-card hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+              title="Actualizar cotización"
+            >
+              <RefreshCw size={11} className={isFetchingRate ? "animate-spin" : ""} />
+            </button>
+          </div>
+
           <div className="hidden items-center rounded-full border border-border/70 bg-surface p-1 sm:flex">
             {(["USD", "ARS"] as const).map((opt) => (
               <button
@@ -92,8 +128,8 @@ export function AdminTopbar({
             />
           </div>
 
-          <button onClick={onRefresh} className="dashboard-pill hidden sm:inline-flex">
-            <RefreshCw size={12} /> Actualizar
+          <button onClick={onRefresh} className="dashboard-pill hidden sm:inline-flex" title="Refrescar datos del módulo actual">
+            <RefreshCw size={12} /> <span className="hidden xl:inline">Refrescar</span>
           </button>
 
           <button className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/70 bg-surface text-muted-foreground transition hover:bg-secondary hover:text-foreground sm:hidden">

@@ -149,10 +149,26 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     }
   }, [setExchangeRate]);
 
+  // ── Sync across tabs ──────────────────────────────────────────────────
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === CURRENCY_KEY && e.newValue) {
+        _setCurrency(e.newValue as Currency);
+      }
+      if (e.key === EXCHANGE_KEY && e.newValue) {
+        _setExchangeRate(JSON.parse(e.newValue) as ExchangeRate);
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
   // Auto-fetch on mount if cached rate is stale (> TTL) or was manually entered
   useEffect(() => {
     const cachedAt = new Date(exchangeRate.updatedAt).getTime();
     const isStale = Date.now() - cachedAt > RATE_TTL_MS;
+    // We only auto-refetch if it is stale OR it was manual (indicating it might be an old session)
+    // but the real fix for "won't update" is the storage listener + UI accessibility.
     if (isStale || exchangeRate.source === "manual") {
       fetchExchangeRate().catch(() => { /* silently fall back to cached rate */ });
     }

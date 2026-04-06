@@ -1420,7 +1420,6 @@ async function handleCreateSeller() {
   async function handleExportAdminCatalogPdf() {
     await exportCatalogPdf(products, formatPrice, currency);
   }
-
   async function handleExportRemitoPdf() {
     if (!selectedOrder) return;
     const client = clients.find((c) => c.id === selectedOrder.client_id);
@@ -1438,6 +1437,9 @@ async function handleCreateSeller() {
       isDark={isDark}
       currency={currency}
       currentUserLabel={session?.user?.email ?? "Administrador"}
+      exchangeRate={exchangeRate}
+      isFetchingRate={isFetchingRate}
+      onRefreshRate={() => fetchExchangeRate().catch(() => {})}
       searchData={{
         products,
         clients: customerProfiles,
