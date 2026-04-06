@@ -427,7 +427,15 @@ export function AccountCenter({
       },
       {
         label: "Crédito disponible",
-        value: creditLimit > 0 ? formatMoneyInPreferredCurrency(Math.max(0, creditLimit - creditUsed), "ARS", currency, exchangeRate.rate, 0) : "Sin límite",
+        value: creditLimit > 0 
+          ? formatMoneyInPreferredCurrency(
+              Math.max(0, creditLimit - creditUsed - (currency === "ARS" ? pendingDebt : pendingDebt * exchangeRate.rate)), 
+              "ARS", 
+              currency, 
+              exchangeRate.rate, 
+              0
+            ) 
+          : "Sin límite",
         accent: "text-emerald-400",
       },
       { label: "Cotizaciones", value: String(quotes.length), accent: "text-blue-600 dark:text-blue-400" },

@@ -77,13 +77,13 @@ export function AccountDashboard({
 
     const pendingInvoicesCount = unpaidInvoices.length;
     
-    // Credit is usually USD-based in the DB
+    // Credit is ARS-based in the DB for most cases (confirmed by user)
     let limit = profile.credit_limit || 0;
     let used = profile.credit_used || 0;
     
-    if (currency === "ARS") {
-      limit *= safeRate;
-      used *= safeRate;
+    if (currency === "USD") {
+      limit /= safeRate;
+      used /= safeRate;
     }
 
     const availableCredit = limit - used - totalDebt;
