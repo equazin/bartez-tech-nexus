@@ -317,6 +317,7 @@ export default function B2BPortal() {
         themeSwitchReady={themeSwitchReady}
         cartItemsCount={cart.cartCount}
         onOpenCart={() => navigate("/cart")}
+        onLogout={handleLogout}
         exchangeRate={exchangeRate}
         onRefreshRate={() => fetchExchangeRate().catch(() => {})}
         isFetchingRate={isFetchingRate}

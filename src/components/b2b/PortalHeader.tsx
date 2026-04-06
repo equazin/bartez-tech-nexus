@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  LogOut,
   Moon,
   RefreshCw,
   Search,
@@ -29,6 +30,7 @@ interface PortalHeaderProps {
   themeSwitchReady: boolean;
   cartItemsCount: number;
   onOpenCart: () => void;
+  onLogout: () => void;
 }
 
 export const PortalHeader: React.FC<PortalHeaderProps> = ({
@@ -46,6 +48,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
   themeSwitchReady,
   cartItemsCount,
   onOpenCart,
+  onLogout,
 }) => {
   const ageMs = Date.now() - new Date(exchangeRate.updatedAt).getTime();
   const ageMin = Math.floor(ageMs / 60000);
@@ -198,6 +201,16 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
                 {cartItemsCount}
               </span>
             ) : null}
+          </Button>
+          
+          <Button
+            type="button"
+            onClick={onLogout}
+            variant="ghost"
+            title="Cerrar sesión"
+            className="h-11 w-11 rounded-2xl p-0 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0"
+          >
+            <LogOut size={16} />
           </Button>
         </div>
       </div>
