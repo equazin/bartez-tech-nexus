@@ -86,7 +86,7 @@ export function AccountDashboard({
       used /= safeRate;
     }
 
-    const availableCredit = limit - used - totalDebt;
+    const availableCredit = limit - used;
     
     const sortedDue = [...unpaidInvoices]
       .filter(i => i.due_date)

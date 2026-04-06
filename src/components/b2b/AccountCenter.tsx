@@ -429,7 +429,7 @@ export function AccountCenter({
         label: "Crédito disponible",
         value: creditLimit > 0 
           ? formatMoneyInPreferredCurrency(
-              Math.max(0, creditLimit - creditUsed - (currency === "ARS" ? pendingDebt : pendingDebt * exchangeRate.rate)), 
+              Math.max(0, creditLimit - creditUsed), 
               "ARS", 
               currency, 
               exchangeRate.rate, 
