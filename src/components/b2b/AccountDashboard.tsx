@@ -37,6 +37,8 @@ interface AccountDashboardProps {
   payments: PaymentRecord[];
   onAction: (section: string) => void;
   onTabChange: (tab: "catalog" | "orders" | "quotes" | "invoices") => void;
+  currency: "ARS" | "USD";
+  exchangeRate: number;
   seller?: {
     name: string;
     email: string;
@@ -52,17 +54,38 @@ export function AccountDashboard({
   payments,
   onAction,
   onTabChange,
+  currency,
+  exchangeRate,
   seller
 }: AccountDashboardProps) {
   
   // Financial Calculations
   const metrics = useMemo(() => {
     const unpaidInvoices = invoices.filter(i => i.status !== "paid");
-    const totalDebt = unpaidInvoices.reduce((sum, i) => sum + (i.total || 0), 0);
-    const pendingInvoicesCount = unpaidInvoices.length;
-    const availableCredit = (profile.credit_limit || 0) - (profile.credit_used || 0) - totalDebt;
     
-    // Nearest due date
+    // Calculate total debt converting individual invoices to the target currency
+    const totalDebt = unpaidInvoices.reduce((sum, i) => {
+      let amount = i.total || 0;
+      if (i.currency !== currency) {
+        if (currency === "ARS") amount *= exchangeRate;
+        else amount /= exchangeRate;
+      }
+      return sum + amount;
+    }, 0);
+
+    const pendingInvoicesCount = unpaidInvoices.length;
+    
+    // Credit is usually USD-based in the DB
+    let limit = profile.credit_limit || 0;
+    let used = profile.credit_used || 0;
+    
+    if (currency === "ARS") {
+      limit *= exchangeRate;
+      used *= exchangeRate;
+    }
+
+    const availableCredit = limit - used - totalDebt;
+    
     const sortedDue = [...unpaidInvoices]
       .filter(i => i.due_date)
       .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime());
@@ -72,9 +95,10 @@ export function AccountDashboard({
       totalDebt,
       pendingInvoicesCount,
       availableCredit,
+      creditLimit: limit,
       nextDue
     };
-  }, [invoices, profile]);
+  }, [invoices, profile, currency, exchangeRate]);
 
   // Operational Status
   const operational = useMemo(() => {
@@ -126,7 +150,7 @@ export function AccountDashboard({
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           label="Deuda Pendiente"
-          value={formatMoneyAmount(metrics.totalDebt, "USD", 0)}
+          value={formatMoneyAmount(metrics.totalDebt, currency, 0)}
           detail={`${metrics.pendingInvoicesCount} facturas sin pagar`}
           icon={<Wallet className="text-amber-500" />}
           trend={metrics.nextDue ? new Date(metrics.nextDue).toLocaleDateString() : "—"}
@@ -139,8 +163,8 @@ export function AccountDashboard({
         />
         <MetricCard
           label="Crédito Disponible"
-          value={formatMoneyAmount(metrics.availableCredit, "USD", 0)}
-          detail={`Límite: ${formatMoneyAmount(profile.credit_limit || 0, "USD", 0)}`}
+          value={formatMoneyAmount(metrics.availableCredit, currency, 0)}
+          detail={`Límite: ${formatMoneyAmount(metrics.creditLimit, currency, 0)}`}
           icon={<TrendingUp className="text-emerald-500" />}
         />
         <MetricCard
