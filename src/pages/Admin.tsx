@@ -219,7 +219,7 @@ function LegacyStatusBadge({ status }: { status: string }) {
 const Admin = () => {
   const { signOut, session, isAdmin, canManageProducts, canManageOrders } = useAuth();
   const navigate = useNavigate();
-  const { exchangeRate, setExchangeRate, fetchExchangeRate, formatPrice, formatARS, formatUSD, currency, setCurrency } = useCurrency();
+  const { exchangeRate, setExchangeRate, fetchExchangeRate, isFetchingRate, formatPrice, formatARS, formatUSD, currency, setCurrency } = useCurrency();
   const { isDark, toggleTheme } = useAppTheme();
   const dk = (d: string, l: string) => isDark ? d : l;
 
