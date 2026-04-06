@@ -5,16 +5,27 @@ function roundMoney(value: number): number {
   return Number(value.toFixed(2));
 }
 
+/**
+ * Detect if a value is likely in ARS or USD based on a threshold.
+ * Threshold 10,000 is a safe bet for ARS in current economy.
+ */
+export function detectCurrency(value: number): Currency {
+  if (value === 0 || !value) return "USD";
+  if (value > 10000) return "ARS";
+  return "USD";
+}
+
 export function convertMoneyAmount(
   amount: number,
-  fromCurrency: Currency,
+  fromCurrency: Currency | undefined,
   toCurrency: Currency,
   exchangeRate: number
 ): number {
   if (!Number.isFinite(amount)) return 0;
-  if (fromCurrency === toCurrency) return amount;
+  const from = fromCurrency ?? detectCurrency(amount);
+  if (from === toCurrency) return amount;
   if (!exchangeRate || exchangeRate <= 0) return amount;
-  return fromCurrency === "USD"
+  return from === "USD"
     ? amount * exchangeRate
     : amount / exchangeRate;
 }

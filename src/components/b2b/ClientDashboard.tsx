@@ -58,6 +58,8 @@ interface ClientDashboardProps {
   alerts?: BusinessAlert[];
   assignedSeller?: AssignedSeller | null;
   activeAgreement?: PriceAgreement | null;
+  projects?: any[];
+  onCreateProject?: (name: string) => void;
 }
 
 type PartnerLevel = "cliente" | "silver" | "gold" | "platinum";
@@ -115,6 +117,8 @@ export function ClientDashboard({
   alerts = [],
   assignedSeller,
   activeAgreement,
+  projects = [],
+  onCreateProject,
 }: ClientDashboardProps) {
   const [supportTickets, setSupportTickets] = useState<SupportTicketSummary[]>([]);
   const [rmaRequests, setRmaRequests] = useState<RmaRequest[]>([]);

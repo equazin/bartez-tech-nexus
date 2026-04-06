@@ -35,6 +35,7 @@ import { B2BInsights } from "@/components/admin/B2BInsights";
 import { AdminLayout } from "@/components/admin/layout/AdminLayout";
 import { TAB_TO_MODULE, type Tab, type ModuleId, type NavItem } from "@/components/admin/layout/adminNavConfig";
 import { useAppTheme } from "@/hooks/useAppTheme";
+import { EmailNotificationService } from "@/lib/api/emailNotifications";
 
 // Lazy loaded tabs
 const SalesDashboard = lazy(() => import("@/components/admin/SalesDashboard").then(m => ({ default: m.SalesDashboard })));
@@ -1312,6 +1313,10 @@ async function handleCreateSeller() {
     if (!error) {
       setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status } : o));
       if (selectedOrder?.id === orderId) setSelectedOrder((o) => o ? { ...o, status } : o);
+      
+      // Fire background email notification
+      void EmailNotificationService.notifyOrderStatus(orderId, status);
+
       logActivity({
         user_id: userId,
         action: "order_status_change",
@@ -1329,29 +1334,6 @@ async function handleCreateSeller() {
     }
   }
 
-  async function sendOrderStatusEmail(orderId: string, status: "order_shipped" | "order_delivered") {
-    const order = orders.find((o) => String(o.id) === String(orderId));
-    if (!order) return;
-    const client = clients.find((c) => c.id === order.client_id);
-    if (!client?.email) return;
-    try {
-      await fetch("/api/email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: status,
-          orderId: order.id,
-          orderNumber: order.order_number || `#${String(order.id).slice(-8)}`,
-          clientId: order.client_id,
-          clientEmail: client.email,
-          clientName: client.company_name || client.contact_name,
-          products: order.products,
-          total: order.total,
-        }),
-      });
-    } catch { /* non-blocking */ }
-  }
-
   async function dispatchOrder(orderId: string, numeroRemito: string) {
     if (!numeroRemito.trim()) return;
     setDispatchingOrder(true);
@@ -1365,7 +1347,7 @@ async function handleCreateSeller() {
       setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, ...updated } : o));
       if (selectedOrder?.id === orderId) setSelectedOrder((o) => o ? { ...o, ...updated } : o);
       setRemitoInput("");
-      sendOrderStatusEmail(orderId, "order_shipped");
+      void EmailNotificationService.notifyOrderStatus(orderId, "shipped");
     }
   }
 
@@ -1378,8 +1360,7 @@ async function handleCreateSeller() {
       setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: newStatus } : o));
       if (selectedOrder?.id === orderId) setSelectedOrder((o) => o ? { ...o, status: newStatus } : o);
       logActivity({ user_id: userId, action: "order_status_change", entity_type: "order", entity_id: orderId, metadata: { status: newStatus } });
-      if (newStatus === "shipped" || newStatus === "dispatched") sendOrderStatusEmail(orderId, "order_shipped");
-      if (newStatus === "delivered") sendOrderStatusEmail(orderId, "order_delivered");
+      void EmailNotificationService.notifyOrderStatus(orderId, newStatus);
     }
   }
 
@@ -1399,9 +1380,8 @@ async function handleCreateSeller() {
       if (order && client) {
         void whatsappNotifications.notifyOrderShipped(order, client);
       }
-      sendOrderStatusEmail(orderId, "order_shipped");
     }
-    if (newStatus === "delivered") sendOrderStatusEmail(orderId, "order_delivered");
+    // rtUpdateStatus already triggers EmailNotificationService.notifyOrderStatus
   }
 
   const lowStockCount = products.filter((p) => p.stock <= 3 && p.active !== false).length;
@@ -2084,7 +2064,7 @@ async function handleCreateSeller() {
                 <div className={`flex-1 flex items-start gap-2.5 rounded-xl px-4 py-3 border text-xs ${dk("bg-blue-500/8 border-blue-500/20 text-blue-300", "bg-blue-50 border-blue-200 text-blue-700")}`}>
                   <DollarSign size={13} className="mt-0.5 shrink-0" />
                   <span>
-                    Los importes se muestran en <strong>USD</strong> (moneda base del portal).
+                    Mostrando importes en <strong>{currency}</strong>.
                     1 USD = <strong>{exchangeRate.rate.toLocaleString("es-AR")} ARS</strong>
                   </span>
                 </div>
@@ -2182,7 +2162,7 @@ async function handleCreateSeller() {
                         <span className={`text-xs ${dk("text-gray-500", "text-[#a3a3a3]")}`}>{order.products?.length} items</span>
                         <div className="text-right">
                           <span className={`font-bold text-sm ${dk("text-white", "text-[#171717]")}`}>
-                            USD {order.total.toLocaleString("en-US", { minimumFractionDigits: 0 })}
+                            {formatPrice(order.total)}
                           </span>
                           <span className={`block text-[10px] font-mono ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>
                             ≈ {(order.total * exchangeRate.rate).toLocaleString("es-AR", { maximumFractionDigits: 0 })} ARS
@@ -2254,7 +2234,7 @@ async function handleCreateSeller() {
                     <tr className={`border-b ${dk("border-[#333]", "border-[#e5e5e5]")}`}>
                       <th className={`pb-2 text-left text-xs font-medium ${dk("text-gray-500", "text-[#a3a3a3]")}`}>Producto</th>
                       <th className={`pb-2 text-center text-xs font-medium ${dk("text-gray-500", "text-[#a3a3a3]")}`}>Cant.</th>
-                      <th className={`pb-2 text-right text-xs font-medium ${dk("text-gray-500", "text-[#a3a3a3]")}`}>USD</th>
+                      <th className={`pb-2 text-right text-xs font-medium ${dk("text-gray-500", "text-[#a3a3a3]")}`}>{currency}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2274,11 +2254,18 @@ async function handleCreateSeller() {
                   <div className="flex justify-between font-bold text-base">
                     <span className={dk("text-gray-400", "text-[#737373]")}>Total</span>
                     <div className="text-right">
-                      <span className="text-[#2D9F6A]">USD {selectedOrder.total.toLocaleString("en-US", { minimumFractionDigits: 0 })}</span>
-                      <p className={`text-[11px] font-normal font-mono mt-0.5 ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>
-                        ≈ {(selectedOrder.total * exchangeRate.rate).toLocaleString("es-AR", { maximumFractionDigits: 0 })} ARS
-                        <span className={`ml-1.5 ${dk("text-[#3a3a3a]", "text-[#c4c4c4]")}`}>@ {exchangeRate.rate.toLocaleString("es-AR")} ARS/USD</span>
-                      </p>
+                      <span className="text-[#2D9F6A] font-bold text-lg">{formatPrice(selectedOrder.total)}</span>
+                      {currency === "USD" && (
+                        <p className={`text-[11px] font-normal font-mono mt-0.5 ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>
+                          ≈ {formatARS(selectedOrder.total)}
+                          <span className={`ml-1.5 ${dk("text-[#3a3a3a]", "text-[#c4c4c4]")}`}>@ {exchangeRate.rate.toLocaleString("es-AR")} ARS/USD</span>
+                        </p>
+                      )}
+                      {currency === "ARS" && (
+                        <p className={`text-[11px] font-normal font-mono mt-0.5 ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>
+                          (Base: {formatUSD(selectedOrder.total)})
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2334,6 +2321,24 @@ async function handleCreateSeller() {
                     className="w-full bg-[#2D9F6A] hover:bg-[#25835A] disabled:opacity-50 text-white rounded-lg py-2 text-[11px] font-bold uppercase tracking-widest transition shadow-lg shadow-[#2D9F6A]/10"
                   >
                     {savingLogistics ? "Guardando..." : "Actualizar Información de Envío"}
+                  </button>
+
+                  <button 
+                    onClick={async () => {
+                      if (!selectedOrder) return;
+                      const ok = confirm("¿Estás seguro de que quieres reenviar el email de este estado?");
+                      if (ok) {
+                        const res = await EmailNotificationService.notifyOrderStatus(selectedOrder.id, selectedOrder.status);
+                        if (res.success) {
+                          alert("Email reenviado con éxito");
+                        } else {
+                          alert("Error al reenviar email: " + (res.error || res.reason));
+                        }
+                      }
+                    }}
+                    className={`w-full mt-2 border rounded-lg py-2 text-[11px] font-bold uppercase tracking-widest transition ${dk("border-[#1a1a1a] text-gray-400 hover:bg-[#1a1a1a] hover:text-white", "border-[#e5e5e5] text-gray-500 hover:bg-[#f5f5f5] hover:text-[#171717]")}`}
+                  >
+                    Reenviar Email (Estado Actual)
                   </button>
                 </div>
 

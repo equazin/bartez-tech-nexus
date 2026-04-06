@@ -1333,7 +1333,7 @@ function ClientDetail({
                     <p className="text-[10px] text-[#525252] mt-0.5">{fmtDate(m.fecha)} - {m.tipo}</p>
                   </div>
                   <span className={`text-sm font-bold tabular-nums shrink-0 ml-4 ${m.monto >= 0 ? "text-red-400" : "text-emerald-400"}`}>
-                    {m.monto >= 0 ? "+" : ""}{formatPrice(m.monto)}
+                    {m.monto >= 0 ? "+" : ""}{formatPrice(m.monto, "ARS")}
                   </span>
                 </div>
               ))}
@@ -1683,7 +1683,7 @@ function CreditPanel({ profile, isDark, onRefresh }: { profile: ClientDetailData
           <div className="flex justify-between text-[10px] text-[#525252] mb-1">
             <span>Uso de credito</span>
             <span className="tabular-nums">
-              ${creditUsed.toLocaleString("es-AR")} / ${creditLimit.toLocaleString("es-AR")} ARS - {usagePct.toFixed(0)}%
+              {formatPrice(creditUsed, "ARS")} / {formatPrice(creditLimit, "ARS")} - {usagePct.toFixed(0)}%
             </span>
           </div>
           <div className={`h-2 rounded-full overflow-hidden ${dk("bg-[#1f1f1f]", "bg-[#e5e5e5]")}`}>

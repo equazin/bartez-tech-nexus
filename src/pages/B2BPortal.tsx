@@ -6,7 +6,6 @@ import { supabase } from "@/lib/supabase";
 import { useOrders, type PortalOrder } from "@/hooks/useOrders";
 import { useQuotes } from "@/hooks/useQuotes";
 import { Quote } from "@/models/quote";
-import { QuoteList } from "@/components/QuoteList";
 import { useCurrency } from "@/context/CurrencyContext";
 import { toggleSetValue } from "@/lib/toggleSet";
 import {
@@ -32,7 +31,6 @@ import { PortalSidebar } from "@/components/b2b/PortalSidebar";
 import { AccountCenter } from "@/components/b2b/AccountCenter";
 import { SupportCenter } from "@/components/b2b/SupportCenter";
 import { ProjectsPanel } from "@/components/b2b/ProjectsPanel";
-import { ExpressQuoter } from "@/components/b2b/ExpressQuoter";
 import { ProductDetailModal } from "@/components/b2b/ProductDetailModal";
 import { CatalogSection } from "@/components/b2b/CatalogSection";
 import { ClientDashboard } from "@/components/b2b/ClientDashboard";
@@ -103,7 +101,7 @@ export default function B2BPortal() {
   const [viewModeByContext, setViewModeByContext] = useState<ViewModeByContext>(() => loadViewModeByContext());
   const [viewMode, setViewMode] = useState<ViewMode>(() => loadViewModeByContext().default);
   const [themeFlash, setThemeFlash] = useState(false);
-  const [themeSwitchReady] = useState(true);
+  const [themeSwitchReady, setThemeSwitchReady] = useState(true);
   const [compareList, setCompareList] = useState<number[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null);
@@ -250,7 +248,19 @@ export default function B2BPortal() {
     const ctx = normalizePortalText(searchParams.get("context"));
     if (ctx === "featured" || ctx === "oportunidades") setCatalogContext("featured");
     else if (ctx === "default") setCatalogContext("default");
-  }, [searchParams]);
+
+    // Redirect old tabs to Account Hub
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "quotes" || tabParam === "express" || tabParam === "payments") {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("tab", "cuenta");
+        next.set("section", tabParam);
+        return next;
+      });
+      setActiveTab("cuenta");
+    }
+  }, [searchParams, setSearchParams]);
 
   function handleViewModeChange(mode: ViewMode) {
     setViewMode(mode);
@@ -320,8 +330,6 @@ export default function B2BPortal() {
           { id: "catalog",  label: "Catálogo",        icon: Package },
           { id: "orders",   label: `Mis Pedidos${orders.length ? ` (${orders.length})` : ""}`, icon: ClipboardList },
           { id: "projects", label: "Proyectos",      icon: Briefcase },
-          { id: "express",  label: "Cotizador Express", icon: Sparkles },
-          { id: "quotes",   label: `Cotizaciones${quotes.length ? ` (${quotes.length})` : ""}`, icon: FileText },
           { id: "invoices", label: `Facturas${myInvoices.length ? ` (${myInvoices.length})` : ""}`, icon: FileText },
           { id: "cuenta",   label: "Mi Cuenta",      icon: Users },
           ...(profile?.b2b_role === "manager" || isAdmin ? [{
@@ -525,34 +533,11 @@ export default function B2BPortal() {
             />
           )}
 
-          {/* QUOTES */}
-          {activeTab === "quotes" && (
-            <QuoteList
-              quotes={quotes}
-              isDark={isDark}
-              onLoad={cart.handleLoadQuote}
-              onUpdateStatus={updateQuoteStatus}
-              onDelete={deleteQuote}
-              onGoToCatalog={() => setActiveTab("catalog")}
-              onDuplicate={(id) => cart.handleDuplicateQuote(id, quotes)}
-              onConvertToOrder={cart.handleConvertQuoteToOrder}
-            />
-          )}
-
-          {/* EXPRESS QUOTER */}
-          {activeTab === "express" && (
-            <ExpressQuoter
-              products={catalog.products}
-              onAddToCart={cart.handleSmartAddToCart}
-              isDark={isDark}
-            />
-          )}
-
           {/* ACCOUNT */}
           {activeTab === "cuenta" && profile && (
             <AccountCenter
               profile={profile}
-              sessionEmail={user?.email}
+              sessionEmail={authProfile?.email}
               orders={orders}
               quotes={quotes}
               invoices={myInvoices}
@@ -560,7 +545,15 @@ export default function B2BPortal() {
               savedCarts={cart.savedCarts}
               onGoToTab={setActiveTab}
               onLoadSavedCart={cart.handleLoadSavedCart}
-              onDeleteSavedCart={cart.handleDeleteSavedCart}
+              onDeleteSavedCart={cart.deleteSavedCart}
+              isDark={isDark}
+              onLoadQuote={cart.handleLoadQuote}
+              onUpdateQuoteStatus={updateQuoteStatus}
+              onDeleteQuote={deleteQuote}
+              onDuplicateQuote={(id) => cart.handleDuplicateQuote(id, quotes)}
+              onConvertQuoteToOrder={cart.handleConvertQuoteToOrder}
+              products={catalog.products}
+              onAddToCart={cart.handleSmartAddToCart}
             />
           )}
 

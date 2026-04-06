@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import type { KanbanOrder } from "@/components/admin/OrderKanban";
+import { EmailNotificationService } from "@/lib/api/emailNotifications";
 
 /**
  * Admin-scoped orders hook with Supabase Realtime subscription.
@@ -71,6 +72,9 @@ export function useOrdersRealtime() {
     async (orderId: string, status: KanbanOrder["status"]): Promise<void> => {
       await supabase.from("orders").update({ status }).eq("id", orderId);
       // Realtime will update local state automatically
+      
+      // Fire background email notification
+      void EmailNotificationService.notifyOrderStatus(orderId, status);
     },
     []
   );

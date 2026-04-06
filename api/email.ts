@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { orderConfirmationHTML, newOrderAlertHTML, quoteStatusHTML } from "./_shared/emailTemplates.js";
+import { orderConfirmationHTML, newOrderAlertHTML, quoteStatusHTML, orderPreparingHTML, orderRejectedHTML, orderApprovedHTML } from "./_shared/emailTemplates.js";
 import { createMailerTransport, getDefaultFromEmail, sanitizeHeaderText } from "./_shared/mailer.js";
 import { orderEmailSchema } from "./_shared/schemas.js";
 
@@ -48,6 +48,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    if (payload.type === "order_approved" && payload.clientEmail) {
+      await transport.sendMail({
+        from: `"Bartez Tecnologia" <${fromEmail}>`,
+        to: payload.clientEmail,
+        subject: sanitizeHeaderText(
+          `Tu pedido ${payload.orderNumber} fue aprobado ✅`,
+          "Pedido aprobado"
+        ),
+        html: orderApprovedHTML({
+          orderNumber: payload.orderNumber,
+          clientName: payload.clientName ?? "Cliente",
+          total: payload.total,
+        }),
+      });
+    }
+
+    if (payload.type === "order_preparing" && payload.clientEmail) {
+      await transport.sendMail({
+        from: `"Bartez Tecnologia" <${fromEmail}>`,
+        to: payload.clientEmail,
+        subject: sanitizeHeaderText(
+          `Tu pedido ${payload.orderNumber} está en preparación`,
+          "Pedido en preparación"
+        ),
+        html: orderPreparingHTML({
+          orderNumber: payload.orderNumber,
+          clientName: payload.clientName ?? "Cliente",
+        }),
+      });
+    }
+
     if (payload.type === "order_shipped" && payload.clientEmail) {
       const { orderShippedHTML } = await import("./_shared/emailTemplates.js");
       await transport.sendMail({
@@ -76,6 +107,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           "Pedido entregado"
         ),
         html: orderDeliveredHTML({
+          orderNumber: payload.orderNumber,
+          clientName: payload.clientName ?? "Cliente",
+        }),
+      });
+    }
+
+    if (payload.type === "order_rejected" && payload.clientEmail) {
+      await transport.sendMail({
+        from: `"Bartez Tecnologia" <${fromEmail}>`,
+        to: payload.clientEmail,
+        subject: sanitizeHeaderText(
+          `Actualización sobre tu pedido ${payload.orderNumber}`,
+          "Pedido rechazado"
+        ),
+        html: orderRejectedHTML({
           orderNumber: payload.orderNumber,
           clientName: payload.clientName ?? "Cliente",
         }),

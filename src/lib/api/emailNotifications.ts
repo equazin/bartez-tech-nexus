@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 export interface EmailTemplate {
   subject: string;
   body: string;
-  type: "weekly_report" | "order_update" | "credit_alert" | "project_feedback";
+  type: "weekly_report" | "order_update" | "credit_alert" | "project_feedback" | "new_payment";
 }
 
 /**
@@ -59,17 +59,130 @@ export const EmailNotificationService = {
   },
 
   /**
-   * Notifica cambio de estado en un pedido (vínculo con Logística).
+   * Notifica cambio de estado en un pedido y registra en order_email_logs.
    */
-  async notifyOrderStatus(clientEmail: string, orderNumber: string, status: string, trackingInfo?: { carrier: string; id: string }) {
-    const subject = `📦 Pedido ${orderNumber}: ${status.toUpperCase()}`;
-    let body = `<h3> Actualización de su pedido ${orderNumber} </h3>`;
-    body += `<p>El estado de su pedido ha cambiado a: <strong>${status}</strong></p>`;
-    
-    if (trackingInfo) {
-      body += `<p>Puede realizar el seguimiento en ${trackingInfo.carrier} con el código: <strong>${trackingInfo.id}</strong></p>`;
+  async notifyOrderStatus(orderId: string | number, status: string) {
+    try {
+      const typeMap: Record<string, string> = {
+        approved: "order_approved",
+        preparing: "order_preparing",
+        shipped: "order_shipped",
+        delivered: "order_delivered",
+        rejected: "order_rejected",
+      };
+      
+      const emailType = typeMap[status];
+      if (!emailType) return { success: false, reason: "No email template for this status" };
+
+      const { data: order, error } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("id", orderId)
+        .single();
+        
+      if (error || !order) return { success: false, error: "Order not found" };
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("company_name, contact_name, email")
+        .eq("id", order.client_id)
+        .single();
+
+      const clientEmail = profile?.email;
+      if (!clientEmail) return { success: false, reason: "Client missing email" };
+
+      const clientName = profile?.company_name || profile?.contact_name || "Cliente";
+
+      const payload = {
+        type: emailType,
+        orderId: Number(order.id),
+        orderNumber: order.order_number || `#${String(order.id).slice(-6).toUpperCase()}`,
+        clientId: order.client_id,
+        clientEmail,
+        clientName,
+        products: order.products || [],
+        total: order.total,
+        shippingProvider: order.shipping_provider,
+        trackingNumber: order.tracking_number,
+      };
+
+      const res = await fetch("/api/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error(`Email API failed: ${await res.text()}`);
+
+      // Registrar log de evento
+      await supabase.from("order_email_logs").insert({
+        order_id: order.id,
+        email: clientEmail,
+        tipo: emailType,
+        status: "sent",
+      });
+
+      console.log(`[EmailService] Email '${emailType}' enviado para orden ${orderId}`);
+      return { success: true };
+    } catch (err) {
+      console.error("[EmailService] Error enviando email de estado:", err);
+      
+      // Registrar log manual si hubiese fallado globalmente e interesa
+      try {
+        await supabase.from("order_email_logs").insert({
+          order_id: typeof orderId === 'number' ? orderId : null,
+          email: "unknown",
+          tipo: status,
+          status: "failed",
+        });
+      } catch { }
+
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
+  },
+
+  /**
+   * Notifica a ventas sobre un nuevo comprobante subido por el cliente.
+   */
+  async notifyNewPayment(data: {
+    clientName: string;
+    amount: number;
+    currency: string;
+    date: string;
+    method: string;
+    orderNumber?: string;
+    invoiceNumber?: string;
+    fileUrl?: string;
+    notes?: string;
+  }) {
+    console.log(`[EmailService] Notificando nuevo pago de ${data.clientName}...`);
     
-    return { success: true };
+    const payload = {
+      type: "new_payment",
+      to: "ventas@bartez.com.ar",
+      clientName: data.clientName,
+      amount: data.amount,
+      currency: data.currency,
+      date: data.date,
+      method: data.method,
+      orderNumber: data.orderNumber,
+      invoiceNumber: data.invoiceNumber,
+      fileUrl: data.fileUrl,
+      notes: data.notes,
+    };
+
+    try {
+      const res = await fetch("/api/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error(`Email API failed: ${await res.text()}`);
+      return { success: true };
+    } catch (err) {
+      console.error("[EmailService] Error enviando notificación de pago:", err);
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
   }
 };

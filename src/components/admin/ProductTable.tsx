@@ -728,7 +728,7 @@ export default function ProductTable({
                       ) : (
                         <div>
                           <span className={`font-medium cursor-pointer hover:text-[#2D9F6A] transition ${dk("text-white", "text-[#171717]")}`} title="Doble click para editar">
-                            ${p.cost_price?.toLocaleString()}
+                            {formatPrice(p.cost_price)}
                           </span>
                           <span className={`ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
                             p.iva_rate === 10.5
@@ -744,7 +744,7 @@ export default function ProductTable({
                     {/* P.+IVA */}
                     <td className="px-3 py-3">
                       <span className={`text-sm tabular-nums ${dk("text-gray-400", "text-[#525252]")}`}>
-                        ${(p.cost_price * (1 + (p.iva_rate ?? 21) / 100)).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                        {formatPrice(p.cost_price * (1 + (p.iva_rate ?? 21) / 100))}
                       </span>
                     </td>
 
@@ -938,7 +938,7 @@ export default function ProductTable({
                               #{product.id} - {getDisplayName(product)}
                             </p>
                             <p className={`text-xs ${dk("text-gray-500", "text-[#737373]")}`}>
-                              SKU: {product.sku || "sin-sku"} - Cat: {product.category || "sin categoria"} - ${product.cost_price.toLocaleString("es-AR")} - Stock {product.stock}
+                              SKU: {product.sku || "sin-sku"} - Cat: {product.category || "sin categoria"} - {formatPrice(product.cost_price)} - Stock {product.stock}
                             </p>
                           </div>
 

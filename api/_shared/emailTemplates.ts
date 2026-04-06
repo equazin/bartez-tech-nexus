@@ -274,28 +274,122 @@ export function orderDeliveredHTML(params: {
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 0;">
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export function orderPreparingHTML(params: {
+  orderNumber: string;
+  clientName: string;
+}): string {
+  const { orderNumber, clientName } = params;
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 0;">
     <tr><td align="center">
       <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
         <tr>
-          <td style="background:#111;padding:32px;text-align:center;">
-            <h1 style="margin:0;color:#2D9F6A;font-size:24px;">Pedido Entregado</h1>
-            <p style="margin:8px 0 0;color:#888;font-size:14px;">${orderNumber}</p>
+          <td style="background:#f59e0b;padding:32px;text-align:center;">
+            <h1 style="margin:0;color:#fff;font-size:24px;">Tu pedido está en preparación 📦</h1>
+            <p style="margin:8px 0 0;color:rgba(255,255,255,0.8);font-size:14px;">${orderNumber}</p>
           </td>
         </tr>
         <tr>
           <td style="padding:32px;">
             <p style="margin:0 0 16px;color:#333;font-size:16px;">Hola <strong>${clientName}</strong>,</p>
             <p style="margin:0 0 24px;color:#555;font-size:14px;line-height:1.6;">
-              Te informamos que tu pedido ha sido registrado como entregado satisfactoriamente.
+              ¡Buenas noticias! Nuestro equipo de depósito ya ha comenzado a preparar tu pedido. Te notificaremos nuevamente en cuanto sea despachado.
             </p>
-            <p style="margin:0 0 16px;color:#555;font-size:14px;">
-              ¡Gracias por confiar en <strong>Bartez Tecnologia</strong>! Esperamos volver a verte pronto.
+            <p style="margin:24px 0 0;color:#888;font-size:13px;text-align:center;">
+              Podés hacer el seguimiento de este pedido en el <a href="https://bartez-tech-nexus.vercel.app/portal" style="color:#f59e0b;">Portal B2B</a>.
             </p>
           </td>
         </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export function orderRejectedHTML(params: {
+  orderNumber: string;
+  clientName: string;
+}): string {
+  const { orderNumber, clientName } = params;
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
         <tr>
-          <td style="padding:20px;background:#fafafa;text-align:center;border-top:1px solid #f0f0f0;">
-             <a href="https://bartez-tech-nexus.vercel.app/portal" style="color:#2D9F6A;font-size:13px;text-decoration:none;">Acceder a mi cuenta</a>
+          <td style="background:#dc2626;padding:32px;text-align:center;">
+            <h1 style="margin:0;color:#fff;font-size:24px;">Actualización de tu pedido</h1>
+            <p style="margin:8px 0 0;color:rgba(255,255,255,0.8);font-size:14px;">${orderNumber}</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px;">
+            <p style="margin:0 0 16px;color:#333;font-size:16px;">Hola <strong>${clientName}</strong>,</p>
+            <p style="margin:0 0 24px;color:#555;font-size:14px;line-height:1.6;">
+              Lamentablemente, tuvimos que rechazar tu pedido en esta ocasión. Puede deberse a falta de stock de último momento, inconvenientes en pagos o políticas de cuenta.
+            </p>
+            <p style="margin:0 0 16px;color:#555;font-size:14px;">
+              Si tenés preguntas sobre por qué se rechazó tu solicitud, comunicate con tu ejecutivo de cuentas o con nuestro soporte respondiendo a este email.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export function orderApprovedHTML(params: {
+  orderNumber: string;
+  clientName: string;
+  total: number;
+}): string {
+  const { orderNumber, clientName, total } = params;
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+        <tr>
+          <td style="background:#111;padding:24px 32px;">
+            <h1 style="margin:0;color:#2D9F6A;font-size:22px;letter-spacing:-0.5px;">Tu pedido fue aprobado ✅</h1>
+            <p style="margin:4px 0 0;color:#888;font-size:13px;">${orderNumber}</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px 32px;">
+            <p style="margin:0 0 16px;color:#333;font-size:15px;">Hola <strong>${clientName}</strong>,</p>
+            <p style="margin:0 0 24px;color:#555;font-size:14px;line-height:1.6;">
+              Tu pedido <strong>#{${orderNumber}}</strong> fue revisado y aprobado exitosamente.
+            </p>
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="padding:12px 16px;background:#f0fdf4;border-radius:6px;border-left:3px solid #2D9F6A;">
+                  <span style="font-size:14px;color:#555;">Total del pedido:</span>
+                  <span style="float:right;font-size:18px;font-weight:700;color:#111;">$${total.toFixed(2)}</span>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:24px 0 0;color:#888;font-size:13px;text-align:center;">
+              Podés ver el estado y opciones en tu cuenta del <a href="https://bartez-tech-nexus.vercel.app/portal" style="color:#2D9F6A;">Portal B2B</a>.
+            </p>
           </td>
         </tr>
       </table>

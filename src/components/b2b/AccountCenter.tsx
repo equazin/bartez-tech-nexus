@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Bell,
   Building2,
@@ -11,10 +12,14 @@ import {
   Shield,
   Star,
   Truck,
-  UserCog,
+  Sparkles,
   Wallet,
-  Wrench,
+  Receipt,
+  Search,
 } from "lucide-react";
+import { QuoteList } from "@/components/QuoteList";
+import { ExpressQuoter } from "@/components/b2b/ExpressQuoter";
+import { PaymentsPanel } from "@/components/b2b/PaymentsPanel";
 import { supabase, type UserProfile } from "@/lib/supabase";
 import {
   addClientNote,
@@ -43,13 +48,16 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 type AccountSection =
-  | "Dirección"
+  | "resumen"
   | "datos"
   | "usuarios"
   | "sucursales"
   | "condiciones"
   | "credito"
   | "documentos"
+  | "quotes"
+  | "express"
+  | "payments"
   | "listas"
   | "notificaciones"
   | "seguridad"
@@ -66,6 +74,16 @@ interface AccountCenterProps {
   onGoToTab: (tab: "catalog" | "orders" | "quotes" | "invoices") => void;
   onLoadSavedCart: (cart: SavedCart) => void;
   onDeleteSavedCart: (cartId: string) => void;
+  // Quotes props
+  isDark: boolean;
+  onLoadQuote: (quote: Quote) => void;
+  onUpdateQuoteStatus: (id: string, status: Quote["status"]) => void;
+  onDeleteQuote: (id: string) => void;
+  onDuplicateQuote: (id: string) => void;
+  onConvertQuoteToOrder: (quote: Quote) => void;
+  // Express Quoter props
+  products: Product[];
+  onAddToCart: (product: Product, quantity: number) => void;
 }
 
 const SECTIONS: Array<{ id: AccountSection; label: string }> = [
@@ -76,6 +94,9 @@ const SECTIONS: Array<{ id: AccountSection; label: string }> = [
   { id: "condiciones", label: "Condiciones comerciales" },
   { id: "credito", label: "Crédito y cuenta" },
   { id: "documentos", label: "Documentación" },
+  { id: "quotes", label: "Cotizaciones" },
+  { id: "express", label: "Cotizador Express" },
+  { id: "payments", label: "Pagos y comprobantes" },
   { id: "listas", label: "Listas guardadas" },
   { id: "notificaciones", label: "Notificaciones" },
   { id: "seguridad", label: "Seguridad" },
@@ -138,12 +159,39 @@ export function AccountCenter({
   invoices,
   favoriteProducts,
   savedCarts,
-  onGoToTab,
   onLoadSavedCart,
   onDeleteSavedCart,
+  isDark,
+  onLoadQuote,
+  onUpdateQuoteStatus,
+  onDeleteQuote,
+  onDuplicateQuote,
+  onConvertQuoteToOrder,
+  products,
+  onAddToCart,
 }: AccountCenterProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currency, exchangeRate } = useCurrency();
-  const [activeSection, setActiveSection] = useState<AccountSection>("resumen");
+  const [activeSection, setActiveSection] = useState<AccountSection>(() => {
+    const section = searchParams.get("section") as AccountSection;
+    return (SECTIONS.some(s => s.id === section) ? section : "resumen") as AccountSection;
+  });
+
+  useEffect(() => {
+    const section = searchParams.get("section") as AccountSection;
+    if (section && SECTIONS.some(s => s.id === section) && section !== activeSection) {
+      setActiveSection(section);
+    }
+  }, [searchParams, activeSection]);
+
+  function handleSectionChange(section: AccountSection) {
+    setActiveSection(section);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("section", section);
+      return next;
+    }, { replace: true });
+  }
   const [clientDetail, setClientDetail] = useState<ClientDetail | null>(null);
   const [movements, setMovements] = useState<AccountMovement[]>([]);
   const [notes, setNotes] = useState<ClientNote[]>([]);
@@ -518,7 +566,7 @@ export function AccountCenter({
             {SECTIONS.map((section) => (
               <button
                 key={section.id}
-                onClick={() => setActiveSection(section.id)}
+                onClick={() => handleSectionChange(section.id)}
                 className={
                   activeSection === section.id
                     ? "w-full text-left px-3 py-2 rounded-xl text-sm transition bg-primary text-primary-foreground font-semibold"
@@ -675,12 +723,15 @@ export function AccountCenter({
                 <div className="border border-border/70 bg-card rounded-2xl p-5">
                   <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
                     <div>
-                      <h3 className={`text-sm font-bold text-foreground`}>Acciones rapidas</h3>
+                      <h3 className={`text-sm font-bold text-foreground`}>Acciones rápidas</h3>
                       <p className="text-xs text-muted-foreground mt-0.5">Gestiona datos, accesos y operaciones frecuentes.</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     {[
+                      { label: "Cotizaciones", action: () => setActiveSection("quotes"), icon: FileText, color: "text-blue-600 dark:text-blue-400" },
+                      { label: "Cotizador Express", action: () => setActiveSection("express"), icon: Sparkles, color: "text-emerald-500" },
+                      { label: "Cargar Pago", action: () => setActiveSection("payments"), icon: Receipt, color: "text-amber-500" },
                       { label: "Editar datos", action: () => setActiveSection("datos") },
                       { label: "Usuarios", action: () => setActiveSection("usuarios") },
                       { label: "Direcciones", action: () => setActiveSection("sucursales") },
@@ -691,15 +742,50 @@ export function AccountCenter({
                       <button
                         key={item.label}
                         onClick={item.action}
-                        className="rounded-xl border border-border/70 bg-card px-3 py-3 text-sm text-left text-muted-foreground transition hover:text-foreground hover:bg-secondary"
+                        className={`rounded-xl border border-border/70 bg-card px-3 py-3 text-sm text-left transition hover:bg-secondary flex flex-col gap-1.5`}
                       >
-                        {item.label}
+                        <div className="flex items-center gap-2">
+                          {item.icon && <item.icon size={14} className={item.color} />}
+                          <span className="font-semibold text-foreground">{item.label}</span>
+                        </div>
                       </button>
                     ))}
                   </div>
                 </div>
               </div>
             </>
+          )}
+
+          {activeSection === "quotes" && (
+            <div className="space-y-4">
+              <QuoteList
+                quotes={quotes}
+                isDark={isDark}
+                onLoad={onLoadQuote}
+                onUpdateStatus={onUpdateQuoteStatus}
+                onDelete={onDeleteQuote}
+                onGoToCatalog={() => onGoToTab("catalog")}
+                onDuplicate={onDuplicateQuote}
+                onConvertToOrder={onConvertQuoteToOrder}
+              />
+            </div>
+          )}
+
+          {activeSection === "express" && (
+            <ExpressQuoter
+              products={products}
+              onAddToCart={onAddToCart}
+              isDark={isDark}
+            />
+          )}
+
+          {activeSection === "payments" && (
+            <PaymentsPanel
+              profile={profile}
+              orders={orders}
+              invoices={invoices}
+              isDark={isDark}
+            />
           )}
 
           {activeSection === "datos" && (

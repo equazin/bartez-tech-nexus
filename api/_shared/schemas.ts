@@ -25,7 +25,7 @@ export const orderProductSchema = z.object({
 });
 
 export const orderEmailSchema = z.object({
-  type: z.enum(["order_confirmed", "new_order_admin", "order_shipped", "order_delivered", "quote_approved", "quote_rejected"]),
+  type: z.enum(["order_confirmed", "new_order_admin", "order_approved", "order_preparing", "order_shipped", "order_delivered", "order_rejected", "quote_approved", "quote_rejected"]),
   orderId: z.coerce.number().int().positive().optional(),
   orderNumber: z.string().trim().min(1).max(64),
   clientId: z.string().trim().min(1).max(128),

@@ -200,7 +200,7 @@ export default function CartPage() {
   const surchargeAmt     = cartBaseTotal * (paymentSurchargePct / 100);
   const shippingCostInputNum = Number(shippingCost || 0);
   const shippingCostBaseUsd = shippingType === "envio"
-    ? (currency === "ARS" ? shippingCostInputNum / exchangeRate.rate : shippingCostInputNum)
+    ? convertPrice(shippingCostInputNum, currency === "ARS" ? "ARS" : "USD")
     : 0;
   const grandTotal       = cartBaseTotal + surchargeAmt + shippingCostBaseUsd;
   const resellerProfit   = cartSubtotal * (resellerMargin / 100);
@@ -266,10 +266,10 @@ export default function CartPage() {
     ? Math.max(0, creditAvailableArs - currentAccountAmountArs)
     : null;
   const creditAvailableDisplay = creditAvailableArs != null
-    ? formatMoneyInPreferredCurrency(creditAvailableArs, "ARS", currency, exchangeRate.rate, 0)
+    ? formatPrice(creditAvailableArs, "ARS")
     : "Sin limite";
   const projectedCreditRemainingDisplay = projectedCreditRemainingArs != null
-    ? formatMoneyInPreferredCurrency(projectedCreditRemainingArs, "ARS", currency, exchangeRate.rate, 0)
+    ? formatPrice(projectedCreditRemainingArs, "ARS")
     : "Sin limite";
   const clientPaymentTerms = profile?.payment_terms ?? 30;
   const maxCurrentAccountSharePct = creditAvailableArs != null && grandTotal > 0
@@ -390,7 +390,7 @@ export default function CartPage() {
       issues.push("Completá la dirección de entrega para coordinar el envío.");
     }
     if (paymentMethod === "cuenta_corriente" && creditAvailableArs != null && currentAccountAmountArs > creditAvailableArs) {
-      issues.push(`Crédito insuficiente. Disponible: ${creditAvailableDisplay} - solicitado en cuenta corriente: ${formatMoneyInPreferredCurrency(currentAccountAmountArs, "ARS", currency, exchangeRate.rate, 0)}.`);
+      issues.push(`Crédito insuficiente. Disponible: ${creditAvailableDisplay} - solicitado en cuenta corriente: ${formatPrice(currentAccountAmountArs, "ARS")}.`);
     }
     if (shippingType === "envio" && !postalCode.trim()) {
       issues.push("Indicá el código postal para validar logística y costo.");

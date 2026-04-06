@@ -1692,7 +1692,7 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders, onOpe
         id: "overdue-invoices",
         label: "Facturas vencidas",
         value: String(invoiceKpis?.overdueCount ?? 0),
-        detail: invoiceKpis?.overdueAmount ? formatMoneyInPreferredCurrency(invoiceKpis.overdueAmount, currency, currency, exchangeRate.rate, 0) : "Sin deuda vencida.",
+        detail: invoiceKpis?.overdueAmount ? formatPrice(invoiceKpis.overdueAmount, currency) : "Sin deuda vencida.",
         severity: (invoiceKpis?.overdueCount ?? 0) > 0 ? "high" as const : "low" as const,
       },
       {

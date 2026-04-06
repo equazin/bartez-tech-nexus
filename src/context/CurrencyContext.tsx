@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useMemo, useEffect, ReactNode } from "react";
+import { detectCurrency } from "@/lib/money";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 export type Currency = "USD" | "ARS";
@@ -14,14 +15,14 @@ interface CurrencyContextType {
   setCurrency: (c: Currency) => void;
   exchangeRate: ExchangeRate;
   setExchangeRate: (r: ExchangeRate) => void;
-  /** Convert a USD value to the active currency */
-  convertPrice: (usdValue: number) => number;
-  /** Format a USD value into the active currency string */
-  formatPrice: (usdValue: number) => string;
-  /** Always format as USD regardless of active currency */
-  formatUSD: (usdValue: number) => string;
-  /** Always format as ARS regardless of active currency */
-  formatARS: (usdValue: number) => string;
+  /** Convert a value from its source currency to the active currency */
+  convertPrice: (value: number, from?: Currency) => number;
+  /** Format a value into the active currency string, detecting source if not provided */
+  formatPrice: (value: number, from?: Currency) => string;
+  /** Always format as USD (converts from ARS if detected) */
+  formatUSD: (value: number, from?: Currency) => string;
+  /** Always format as ARS (converts from USD if detected) */
+  formatARS: (value: number, from?: Currency) => string;
   /** Fetch rate from external API */
   fetchExchangeRate: () => Promise<void>;
   /** Whether a fetch is in progress */
@@ -43,19 +44,16 @@ const DEFAULT_RATE: ExchangeRate = {
 };
 
 // ── Formatters ─────────────────────────────────────────────────────────────
-/**
- * Format a USD amount.
- * USD 1200      →  "USD 1,200"
- * ARS 1200*1300 →  "$ 1.560.000"
- */
-function fmtUSD(value: number): string {
-  const rounded = Math.round(value);
+function fmtUSD(value: number, from: Currency, rate: number): string {
+  const usd = from === "ARS" ? value / rate : value;
+  const rounded = Math.round(usd);
   return "USD " + rounded.toLocaleString("en-US");
 }
 
-function fmtARS(usdValue: number, rate: number): string {
-  const ars = Math.round(usdValue * rate);
-  return "$ " + ars.toLocaleString("es-AR");
+function fmtARS(value: number, from: Currency, rate: number): string {
+  const ars = from === "USD" ? value * rate : value;
+  const rounded = Math.round(ars);
+  return "$ " + rounded.toLocaleString("es-AR");
 }
 
 // ── Context ────────────────────────────────────────────────────────────────
@@ -93,18 +91,28 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(EXCHANGE_KEY, JSON.stringify(r));
   }, []);
 
-  const convertPrice = useCallback((usdValue: number): number => {
-    return currency === "ARS" ? usdValue * exchangeRate.rate : usdValue;
+  const convertPrice = useCallback((value: number, from?: Currency): number => {
+    const source = from ?? detectCurrency(value);
+    if (source === currency) return value;
+    return currency === "ARS" ? value * exchangeRate.rate : value / exchangeRate.rate;
   }, [currency, exchangeRate.rate]);
 
-  const formatPrice = useCallback((usdValue: number): string => {
+  const formatPrice = useCallback((value: number, from?: Currency): string => {
+    const source = from ?? detectCurrency(value);
     return currency === "ARS"
-      ? fmtARS(usdValue, exchangeRate.rate)
-      : fmtUSD(usdValue);
+      ? fmtARS(value, source, exchangeRate.rate)
+      : fmtUSD(value, source, exchangeRate.rate);
   }, [currency, exchangeRate.rate]);
 
-  const formatUSD = useCallback((usdValue: number) => fmtUSD(usdValue), []);
-  const formatARS = useCallback((usdValue: number) => fmtARS(usdValue, exchangeRate.rate), [exchangeRate.rate]);
+  const formatUSD = useCallback((value: number, from?: Currency) => {
+    const source = from ?? detectCurrency(value);
+    return fmtUSD(value, source, exchangeRate.rate);
+  }, [exchangeRate.rate]);
+
+  const formatARS = useCallback((value: number, from?: Currency) => {
+    const source = from ?? detectCurrency(value);
+    return fmtARS(value, source, exchangeRate.rate);
+  }, [exchangeRate.rate]);
 
   /**
    * Fetches the current USD blue rate from dolarapi.com.
