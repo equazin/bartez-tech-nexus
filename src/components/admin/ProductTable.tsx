@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { useCurrency } from "@/context/CurrencyContext";
 import { supabase } from "@/lib/supabase";
 import { toggleSetValue } from "@/lib/toggleSet";
 import { Product } from "@/models/products";
@@ -229,6 +230,7 @@ export default function ProductTable({
   isDark = true,
   onRefresh,
 }: Props) {
+  const { formatPrice } = useCurrency();
   const dk = (d: string, l: string) => isDark ? d : l;
   const [search,       setSearch]       = useState("");
   const [filterCat,    setFilterCat]    = useState("all");
