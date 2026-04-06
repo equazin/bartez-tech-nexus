@@ -12,6 +12,8 @@ import {
   Shield,
   Star,
   Truck,
+  UserCog,
+  Wrench,
   Sparkles,
   Wallet,
   Receipt,
@@ -20,6 +22,8 @@ import {
 import { QuoteList } from "@/components/QuoteList";
 import { ExpressQuoter } from "@/components/b2b/ExpressQuoter";
 import { PaymentsPanel } from "@/components/b2b/PaymentsPanel";
+import { AccountDashboard } from "@/components/b2b/AccountDashboard";
+import { fetchMyPayments, type PaymentRecord } from "@/lib/api/payments";
 import { supabase, type UserProfile } from "@/lib/supabase";
 import {
   addClientNote,
@@ -71,15 +75,15 @@ interface AccountCenterProps {
   invoices: Invoice[];
   favoriteProducts: Product[];
   savedCarts: SavedCart[];
-  onGoToTab: (tab: "catalog" | "orders" | "quotes" | "invoices") => void;
+  onNavigateToTab: (tab: "catalog" | "orders" | "quotes" | "invoices") => void;
   onLoadSavedCart: (cart: SavedCart) => void;
   onDeleteSavedCart: (cartId: string) => void;
   // Quotes props
   isDark: boolean;
   onLoadQuote: (quote: Quote) => void;
-  onUpdateQuoteStatus: (id: string, status: Quote["status"]) => void;
-  onDeleteQuote: (id: string) => void;
-  onDuplicateQuote: (id: string) => void;
+  onUpdateQuoteStatus: (id: number, status: Quote["status"]) => void;
+  onDeleteQuote: (id: number) => void;
+  onDuplicateQuote: (id: number) => void;
   onConvertQuoteToOrder: (quote: Quote) => void;
   // Express Quoter props
   products: Product[];
@@ -159,6 +163,7 @@ export function AccountCenter({
   invoices,
   favoriteProducts,
   savedCarts,
+  onNavigateToTab,
   onLoadSavedCart,
   onDeleteSavedCart,
   isDark,
@@ -176,6 +181,30 @@ export function AccountCenter({
     const section = searchParams.get("section") as AccountSection;
     return (SECTIONS.some(s => s.id === section) ? section : "resumen") as AccountSection;
   });
+
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [assignedSeller, setAssignedSeller] = useState<{ name: string; email: string; phone?: string } | undefined>();
+
+  useEffect(() => {
+    fetchMyPayments().then(setPayments).catch(console.error);
+
+    if (profile.vendedor_id) {
+      supabase
+        .from("profiles")
+        .select("company_name, contact_name, email, phone")
+        .eq("id", profile.vendedor_id)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setAssignedSeller({
+              name: data.company_name || data.contact_name || "Vendedor Bartez",
+              email: data.email || "ventas@bartez.com.ar",
+              phone: data.phone
+            });
+          }
+        });
+    }
+  }, [profile.vendedor_id]);
 
   useEffect(() => {
     const section = searchParams.get("section") as AccountSection;
@@ -416,9 +445,9 @@ export function AccountCenter({
         if (invoice.pdf_url) {
           window.open(invoice.pdf_url, "_blank", "noopener,noreferrer");
         } else if (invoice.order_id) {
-          onGoToTab("orders");
+          onNavigateToTab("orders");
         } else {
-          onGoToTab("invoices");
+          onNavigateToTab("invoices");
         }
       },
       date: invoice.created_at,
@@ -429,7 +458,7 @@ export function AccountCenter({
       label: order.order_number ?? `#${String(order.id).slice(-6).toUpperCase()}`,
       meta: order.numero_remito ? `Remito ${order.numero_remito}` : "Sin remito",
       action: "Ver pedido",
-      onAction: () => onGoToTab("orders"),
+      onAction: () => onNavigateToTab("orders"),
       date: order.created_at,
     }));
     const quoteDocs = quotes.map((quote) => ({
@@ -438,14 +467,14 @@ export function AccountCenter({
       label: `COT-${String(quote.id).padStart(5, "0")}`,
       meta: quote.status,
       action: "Ver cotización",
-      onAction: () => onGoToTab("quotes"),
+      onAction: () => onNavigateToTab("quotes"),
       date: quote.created_at,
     }));
 
     return [...invoiceDocs, ...orderDocs, ...quoteDocs]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 10);
-  }, [invoices, onGoToTab, orders, quotes]);
+  }, [invoices, onNavigateToTab, orders, quotes]);
 
   function jumpToSupport(category: string, message: string) {
     setSupportCategory(category);
@@ -587,173 +616,16 @@ export function AccountCenter({
           )}
 
           {activeSection === "resumen" && (
-            <>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {summaryMetrics.map((metric) => (
-                  <div key={metric.label} className={"border border-border/70 bg-card rounded-xl px-4 py-3"}>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{metric.label}</p>
-                    <p className={`text-lg font-bold ${metric.accent}`}>{metric.value}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <div className="border border-border/70 bg-card rounded-2xl p-5">
-                  <p className={`text-xs font-bold uppercase tracking-wider mb-2 text-muted-foreground`}>Deuda pendiente</p>
-                  <p className="text-xl font-extrabold text-amber-600 dark:text-amber-400">{formatMoneyAmount(pendingDebt, currency, 0)}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{pendingInvoices.length} documento{pendingInvoices.length === 1 ? "" : "s"} por cobrar</p>
-                </div>
-
-                <div className="border border-border/70 bg-card rounded-2xl p-5">
-                  <p className={`text-xs font-bold uppercase tracking-wider mb-2 text-muted-foreground`}>Proximo vencimiento</p>
-                  {nextDueInvoice ? (
-                    <>
-                      <p className="text-xl font-extrabold text-primary">{new Date(nextDueInvoice.due_date ?? "").toLocaleDateString("es-AR")}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {daysUntil(nextDueInvoice.due_date ?? "") <= 0 ? "Vence hoy o esta vencida" : `En ${daysUntil(nextDueInvoice.due_date ?? "")} dias`}
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className={`text-xl font-extrabold text-foreground`}>Sin alertas</p>
-                      <p className="text-xs text-muted-foreground mt-1">No hay vencimientos pendientes cargados.</p>
-                    </>
-                  )}
-                </div>
-
-                <div className="border border-border/70 bg-card rounded-2xl p-5">
-                  <p className={`text-xs font-bold uppercase tracking-wider mb-2 text-muted-foreground`}>Facturas vencidas</p>
-                  <p className={`text-xl font-extrabold ${overdueInvoices.length > 0 ? "text-destructive" : "text-primary"}`}>
-                    {overdueInvoices.length}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {overdueInvoices.length > 0 ? formatMoneyAmount(overdueDebt, currency, 0) : "Sin deuda vencida"}
-                  </p>
-                </div>
-
-                <div className="border border-border/70 bg-card rounded-2xl p-5">
-                  <p className={`text-xs font-bold uppercase tracking-wider mb-2 text-muted-foreground`}>Condiciones vigentes</p>
-                  <p className={`text-sm font-semibold text-foreground`}>
-                    {clientDetail?.payment_terms ? `${clientDetail.payment_terms} dias` : "Contado"} · {clientDetail?.precio_lista ?? "standard"}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {clientDetail?.credit_approved ? "Credito aprobado" : "Credito sujeto a revision"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="border border-border/70 bg-card rounded-2xl p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Building2 size={15} className="text-primary" />
-                    <h3 className={`text-sm font-bold text-foreground`}>Cuenta comercial</h3>
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <p className="text-muted-foreground">
-                      Empresa: <span className={`font-semibold text-foreground`}>{clientDetail?.company_name || profile.company_name}</span>
-                    </p>
-                    <p className="text-muted-foreground">
-                      Contacto principal: <span className={`font-semibold text-foreground`}>{clientDetail?.contact_name || profile.contact_name}</span>
-                    </p>
-                    <p className="text-muted-foreground">
-                      Tipo de cliente: <span className={`font-semibold text-foreground`}>{clientDetail?.client_type || profile.client_type}</span>
-                    </p>
-                    <p className="text-muted-foreground">
-                      Estado comercial: <span className={`font-semibold text-foreground`}>{clientDetail?.estado ?? "activo"}</span>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="border border-border/70 bg-card rounded-2xl p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Wallet size={15} className="text-blue-600 dark:text-blue-400" />
-                    <h3 className={`text-sm font-bold text-foreground`}>Próximos focos</h3>
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <button onClick={() => setActiveSection("documentos")} className="text-left text-primary hover:underline">
-                      Revisar documentación disponible
-                    </button>
-                    <button onClick={() => setActiveSection("credito")} className="text-left text-primary hover:underline">
-                      Ver crédito y movimientos de cuenta
-                    </button>
-                    <button onClick={() => setActiveSection("listas")} className="text-left text-primary hover:underline">
-                      Administrar favoritos y carritos guardados
-                    </button>
-                    <button onClick={() => jumpToSupport("ACCESOS", "Necesito sumar o ajustar usuarios/compradores en el portal.")} className="text-left text-primary hover:underline">
-                      Pedir cambios de usuarios y permisos
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-                <div className="border border-border/70 bg-card rounded-2xl p-5">
-                  <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-                    <div>
-                      <h3 className={`text-sm font-bold text-foreground`}>Proximos pagos y alertas</h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">Vencimientos y seguimiento financiero de corto plazo.</p>
-                    </div>
-                    <button onClick={() => onGoToTab("invoices")} className="text-xs text-primary hover:underline">
-                      Ir a facturas
-                    </button>
-                  </div>
-                  {upcomingPayments.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No hay vencimientos proximos registrados.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {upcomingPayments.map((invoice) => (
-                        <div key={invoice.id} className={`rounded-xl border px-3 py-3 border border-border/70 bg-card`}>
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className={`text-sm font-semibold text-foreground`}>{invoice.invoice_number}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {invoice.days <= 0 ? "Vencimiento inmediato" : `Vence en ${invoice.days} dias`} · {new Date(invoice.due_date ?? "").toLocaleDateString("es-AR")}
-                              </p>
-                            </div>
-                            <p className="text-sm font-bold text-amber-600 dark:text-amber-400">
-                              {formatMoneyInPreferredCurrency(invoice.effective.total, invoice.effective.currency, currency, exchangeRate.rate, 0)}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="border border-border/70 bg-card rounded-2xl p-5">
-                  <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-                    <div>
-                      <h3 className={`text-sm font-bold text-foreground`}>Acciones rápidas</h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">Gestiona datos, accesos y operaciones frecuentes.</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { label: "Cotizaciones", action: () => setActiveSection("quotes"), icon: FileText, color: "text-blue-600 dark:text-blue-400" },
-                      { label: "Cotizador Express", action: () => setActiveSection("express"), icon: Sparkles, color: "text-emerald-500" },
-                      { label: "Cargar Pago", action: () => setActiveSection("payments"), icon: Receipt, color: "text-amber-500" },
-                      { label: "Editar datos", action: () => setActiveSection("datos") },
-                      { label: "Usuarios", action: () => setActiveSection("usuarios") },
-                      { label: "Direcciones", action: () => setActiveSection("sucursales") },
-                      { label: "Credito", action: () => setActiveSection("credito") },
-                      { label: "Pedidos", action: () => onGoToTab("orders") },
-                      { label: "Facturas", action: () => onGoToTab("invoices") },
-                    ].map((item) => (
-                      <button
-                        key={item.label}
-                        onClick={item.action}
-                        className={`rounded-xl border border-border/70 bg-card px-3 py-3 text-sm text-left transition hover:bg-secondary flex flex-col gap-1.5`}
-                      >
-                        <div className="flex items-center gap-2">
-                          {item.icon && <item.icon size={14} className={item.color} />}
-                          <span className="font-semibold text-foreground">{item.label}</span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </>
+            <AccountDashboard
+              profile={profile}
+              orders={orders}
+              quotes={quotes}
+              invoices={invoices}
+              payments={payments}
+              onAction={(s) => setActiveSection(s as AccountSection)}
+              onTabChange={onNavigateToTab}
+              seller={assignedSeller}
+            />
           )}
 
           {activeSection === "quotes" && (
@@ -764,7 +636,7 @@ export function AccountCenter({
                 onLoad={onLoadQuote}
                 onUpdateStatus={onUpdateQuoteStatus}
                 onDelete={onDeleteQuote}
-                onGoToCatalog={() => onGoToTab("catalog")}
+                onGoToCatalog={() => onNavigateToTab("catalog")}
                 onDuplicate={onDuplicateQuote}
                 onConvertToOrder={onConvertQuoteToOrder}
               />
@@ -1071,7 +943,7 @@ export function AccountCenter({
                         <p className="text-[11px] text-muted-foreground">{product.sku || product.category}</p>
                       </div>
                     ))}
-                    <button onClick={() => onGoToTab("catalog")} className="text-sm text-primary hover:underline">
+                    <button onClick={() => onNavigateToTab("catalog")} className="text-sm text-primary hover:underline">
                       Ver catálogo completo
                     </button>
                   </div>

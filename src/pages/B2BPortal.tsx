@@ -543,7 +543,7 @@ export default function B2BPortal() {
               invoices={myInvoices}
               favoriteProducts={favoriteProducts}
               savedCarts={cart.savedCarts}
-              onGoToTab={setActiveTab}
+              onNavigateToTab={setActiveTab}
               onLoadSavedCart={cart.handleLoadSavedCart}
               onDeleteSavedCart={cart.deleteSavedCart}
               isDark={isDark}
