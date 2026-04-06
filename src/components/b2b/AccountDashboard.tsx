@@ -63,12 +63,14 @@ export function AccountDashboard({
   const metrics = useMemo(() => {
     const unpaidInvoices = invoices.filter(i => i.status !== "paid");
     
+    const safeRate = Number(exchangeRate) || 1;
+    
     // Calculate total debt converting individual invoices to the target currency
     const totalDebt = unpaidInvoices.reduce((sum, i) => {
-      let amount = i.total || 0;
+      let amount = Number(i.total) || 0;
       if (i.currency !== currency) {
-        if (currency === "ARS") amount *= exchangeRate;
-        else amount /= exchangeRate;
+        if (currency === "ARS") amount *= safeRate;
+        else amount /= safeRate;
       }
       return sum + amount;
     }, 0);
@@ -80,8 +82,8 @@ export function AccountDashboard({
     let used = profile.credit_used || 0;
     
     if (currency === "ARS") {
-      limit *= exchangeRate;
-      used *= exchangeRate;
+      limit *= safeRate;
+      used *= safeRate;
     }
 
     const availableCredit = limit - used - totalDebt;

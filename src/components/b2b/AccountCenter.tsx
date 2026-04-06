@@ -623,7 +623,7 @@ export function AccountCenter({
               invoices={invoices}
               payments={payments}
               currency={currency}
-              exchangeRate={exchangeRate}
+              exchangeRate={exchangeRate.rate}
               onAction={(s) => setActiveSection(s as AccountSection)}
               onTabChange={onNavigateToTab}
               seller={assignedSeller}
