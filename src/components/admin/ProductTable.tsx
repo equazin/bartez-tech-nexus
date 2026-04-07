@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useCurrency } from "@/context/CurrencyContext";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { toggleSetValue } from "@/lib/toggleSet";
 import { Product } from "@/models/products";
@@ -483,7 +484,29 @@ export default function ProductTable({
 
   async function bulkSetBrand() {
     if (!bulkBrand || selected.size === 0) return;
-    await supabase.from("products").update({ brand_id: bulkBrand }).in("id", Array.from(selected));
+    
+    // Find the brand object to get the name for denormalization
+    const selectedBrand = brands.find((b) => String(b.id) === String(bulkBrand));
+    if (!selectedBrand) {
+      toast.error("No se pudo encontrar la marca seleccionada en la lista local.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("products")
+      .update({ 
+        brand_id: bulkBrand,
+        brand_name: selectedBrand.name 
+      })
+      .in("id", Array.from(selected));
+
+    if (error) {
+      console.error("Error updating brands:", error);
+      toast.error("Error al actualizar las marcas: " + error.message);
+      return;
+    }
+
+    toast.success(`${selected.size} productos actualizados a la marca ${selectedBrand.name}`);
     setSelected(new Set());
     setBulkBrand("");
     onRefresh();
