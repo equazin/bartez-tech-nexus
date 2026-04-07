@@ -108,6 +108,7 @@ const App = () => (
                     <Route path="/login" element={<Login />} />
                     <Route path="/registrarse" element={<Register />} />
                     <Route path="/b2b-portal" element={<RequireAuth><B2BPortal /></RequireAuth>} />
+                    <Route path="/catalogo" element={<RequireAuth><B2BPortal /></RequireAuth>} />
                     <Route path="/cotizaciones" element={<Navigate to="/b2b-portal?tab=cuenta&section=quotes" replace />} />
                     <Route path="/cotizador" element={<Navigate to="/b2b-portal?tab=cuenta&section=express" replace />} />
                     <Route path="/pagos" element={<Navigate to="/b2b-portal?tab=cuenta&section=payments" replace />} />

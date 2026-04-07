@@ -3,6 +3,7 @@
  * Encapsulates: category tree, brand/category counts, filters, display product sorting.
  */
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useProducts } from "@/hooks/useProducts";
 import { useBrands } from "@/hooks/useBrands";
@@ -52,11 +53,35 @@ export function usePortalCatalog({
   search = "",
 }: UsePortalCatalogOptions) {
   // ── Filter state ──────────────────────────────────────────────────────────
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const categoriaFromUrl = searchParams.get("categoria") || "all";
+
+  const [categoryFilter, _setCategoryFilter] = useState(categoriaFromUrl);
+  
+  // Custom setter that also updates URL
+  const setCategoryFilter = useCallback((val: string) => {
+    _setCategoryFilter(val);
+    const params = new URLSearchParams(window.location.search);
+    if (val === "all") {
+      params.delete("categoria");
+    } else {
+      params.set("categoria", val);
+    }
+    setSearchParams(params);
+  }, [setSearchParams]);
+
+  // Sync state if URL changes (browser back/forward)
+  useEffect(() => {
+    if (categoriaFromUrl !== categoryFilter) {
+      _setCategoryFilter(categoriaFromUrl);
+    }
+  }, [categoriaFromUrl]);
+
   const [brandFilter, setBrandFilter] = useState("all");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
+  const [subCategoryFilters, setSubCategoryFilters] = useState<string[]>([]);
   const [page, setPage] = useState(0);
 
   // ── DB categories ─────────────────────────────────────────────────────────
@@ -81,51 +106,118 @@ export function usePortalCatalog({
 
   // ── Category tree ─────────────────────────────────────────────────────────
   const categoryTree = useMemo(() => {
-    const byId = new Map(dbCats.map((cat) => [cat.id, cat]));
-    const byName = new Map(dbCats.map((cat) => [cat.name, cat]));
-    const rootNodes = dbCats
-      .filter((cat) => cat.parent_id === null)
+    // 1. Children lookup map
+    const childrenByParentId = new Map<number | null, DbCat[]>();
+    dbCats.forEach((cat) => {
+      const list = childrenByParentId.get(cat.parent_id) ?? [];
+      list.push(cat);
+      childrenByParentId.set(cat.parent_id, list);
+    });
+
+    // 2. Recursive products check (to hide empty branches)
+    const hasProductsRecursive = (cat: DbCat): boolean => {
+      if ((serverCategoryCounts[cat.name] || 0) > 0) return true;
+      const children = childrenByParentId.get(cat.id) || [];
+      return children.some((child) => hasProductsRecursive(child));
+    };
+
+    // 3. Root nodes
+    const rootNodes = (childrenByParentId.get(null) || [])
+      .filter((root) => hasProductsRecursive(root))
       .sort((a, b) => a.name.localeCompare(b.name, "es"));
 
-    const childrenByRoot = new Map<string, Set<string>>();
-    rootNodes.forEach((root) => childrenByRoot.set(root.name, new Set()));
-
-    const standalone = new Set<string>();
-
-    Object.keys(serverCategoryCounts).forEach((categoryName) => {
-      const dbMatch = byName.get(categoryName);
-      if (!dbMatch) { standalone.add(categoryName); return; }
-
-      let current: DbCat | undefined = dbMatch;
-      let guard = 0;
-      while (current && current.parent_id !== null && guard < 20) {
-        current = byId.get(current.parent_id);
-        guard += 1;
-      }
-      const rootName = current?.name ?? null;
-      if (!rootName) { standalone.add(categoryName); return; }
-      if (dbMatch.name !== rootName) childrenByRoot.get(rootName)?.add(dbMatch.name);
+    // 4. Parents hierarchy: Root > Level 1 > Level 2
+    const parents = rootNodes.map((root) => {
+      const level1Children = (childrenByParentId.get(root.id) || [])
+        .filter((child) => hasProductsRecursive(child))
+        .map((child) => {
+          const level2Children = (childrenByParentId.get(child.id) || [])
+            .filter((sub) => hasProductsRecursive(sub))
+            .map((sub) => ({ id: sub.id, name: sub.name, slug: sub.slug }))
+            .sort((a, b) => a.name.localeCompare(b.name, "es"));
+          
+          return { id: child.id, name: child.name, slug: child.slug, children: level2Children };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name, "es"));
+      
+      return { id: root.id, name: root.name, slug: root.slug, children: level1Children };
     });
 
-    const parents = rootNodes
-      .map((root) => {
-        const children = Array.from(childrenByRoot.get(root.name) ?? []).sort((a, b) => a.localeCompare(b, "es"));
-        const parentHasProducts = serverCategoryCounts[root.name] > 0;
-        if (!parentHasProducts && children.length === 0) return null;
-        return { name: root.name, children };
-      })
-      .filter((item): item is { name: string; children: string[] } => item !== null);
+    const standalone = Object.keys(serverCategoryCounts)
+      .filter((name) => !dbCats.some(c => c.name === name))
+      .map(name => {
+        const cat = dbCats.find(c => c.name === name);
+        return { id: cat?.id || 0, name, slug: cat?.slug || null };
+      });
 
-    return { parents, leaves: Array.from(standalone).sort((a, b) => a.localeCompare(b, "es")) };
+    return { parents, leaves: standalone.sort((a, b) => a.name.localeCompare(b.name, "es")) };
   }, [dbCats, serverCategoryCounts]);
 
+  // Expose immediate children of the ACTIVE category for sub-filtering
+  const activeCategoryChildren = useMemo(() => {
+    if (categoryFilter === "all" || dbCats.length === 0) return [];
+    
+    // Find active category by name or slug
+    const activeCat = dbCats.find(c => 
+      c.name === categoryFilter || 
+      c.slug === categoryFilter || 
+      normalizePortalText(c.name) === normalizePortalText(categoryFilter) ||
+      normalizePortalText(c.slug) === normalizePortalText(categoryFilter)
+    );
+    if (!activeCat) return [];
+    
+    return dbCats
+      .filter(c => c.parent_id === activeCat.id)
+      .filter(c => {
+        // Recursive check: child must have products in its branch
+        const childrenByParentId = new Map<number | null, DbCat[]>();
+        dbCats.forEach((cat) => {
+          const list = childrenByParentId.get(cat.parent_id) ?? [];
+          list.push(cat);
+          childrenByParentId.set(cat.parent_id, list);
+        });
+        const hasProductsRecursive = (cat: DbCat): boolean => {
+          if ((serverCategoryCounts[cat.name] || 0) > 0) return true;
+          const children = childrenByParentId.get(cat.id) || [];
+          return children.some((child) => hasProductsRecursive(child));
+        };
+        return hasProductsRecursive(c);
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, "es"));
+  }, [categoryFilter, dbCats, serverCategoryCounts]);
+
+  // When categoryFilter changes, reset sub-filters
+  useEffect(() => {
+    setSubCategoryFilters([]);
+  }, [categoryFilter]);
+
+  // parentChildrenMap — Maps EVERY category name to its full list of recursive descendants (for search)
   const parentChildrenMap = useMemo(() => {
     const map: Record<string, string[]> = {};
-    categoryTree.parents.forEach(({ name, children }) => {
-      map[name] = [name, ...children];
+    
+    const childrenByParentId = new Map<number | null, DbCat[]>();
+    dbCats.forEach((cat) => {
+      const list = childrenByParentId.get(cat.parent_id) ?? [];
+      list.push(cat);
+      childrenByParentId.set(cat.parent_id, list);
     });
+
+    dbCats.forEach((cat) => {
+      const descendants: string[] = [cat.name];
+      const stack = [cat.id];
+      while (stack.length > 0) {
+        const currentId = stack.pop()!;
+        const children = childrenByParentId.get(currentId) || [];
+        children.forEach((child) => {
+          descendants.push(child.name);
+          stack.push(child.id);
+        });
+      }
+      map[cat.name] = descendants;
+    });
+
     return map;
-  }, [categoryTree]);
+  }, [dbCats]);
 
   // ── POS categories ────────────────────────────────────────────────────────
   const posCategoryNames = useMemo(() => {
@@ -186,8 +278,21 @@ export function usePortalCatalog({
   }, [dbCats]);
 
   const queryCategory = useMemo(() => {
+    if (subCategoryFilters.length > 0) {
+      const allSubDescendants = subCategoryFilters.flatMap(name => parentChildrenMap[name] || [name]);
+      return [...new Set(allSubDescendants)];
+    }
+
     if (categoryFilter !== "all") {
-      return parentChildrenMap[categoryFilter] || categoryFilter;
+      // Find the real name from slug/name to look up in parentChildrenMap
+      const activeCat = dbCats.find(c => 
+        c.name === categoryFilter || 
+        c.slug === categoryFilter ||
+        normalizePortalText(c.name) === normalizePortalText(categoryFilter) ||
+        normalizePortalText(c.slug) === normalizePortalText(categoryFilter)
+      );
+      const nameToQuery = activeCat ? activeCat.name : categoryFilter;
+      return parentChildrenMap[nameToQuery] || nameToQuery;
     }
 
     if (catalogContext === "pos" && posCategoryValues.length > 0) {
@@ -195,7 +300,7 @@ export function usePortalCatalog({
     }
 
     return "all";
-  }, [catalogContext, categoryFilter, parentChildrenMap, posCategoryValues]);
+  }, [catalogContext, categoryFilter, parentChildrenMap, posCategoryValues, dbCats]);
 
   // ── Products fetch ────────────────────────────────────────────────────────
   const {
@@ -225,17 +330,22 @@ export function usePortalCatalog({
     const counts: Record<string, number> = { all: totalCount };
 
     if (Object.keys(serverCategoryCounts).length > 0) {
-      Object.entries(serverCategoryCounts).forEach(([cat, count]) => { counts[cat] = count; });
-      categoryTree.parents.forEach(({ name, children }) => {
-        const childrenTotal = children.reduce((sum, child) => sum + (serverCategoryCounts[child] || 0), 0);
-        counts[name] = (serverCategoryCounts[name] || 0) + childrenTotal;
+      // 1. Standalone counts
+      Object.entries(serverCategoryCounts).forEach(([cat, count]) => {
+        counts[cat] = count;
+      });
+
+      // 2. Hierarchical counts for all known categories
+      Object.keys(parentChildrenMap).forEach((name) => {
+        const descendants = parentChildrenMap[name];
+        counts[name] = descendants.reduce((sum, d) => sum + (serverCategoryCounts[d] || 0), 0);
       });
     } else {
       products.forEach((p) => { counts[p.category] = (counts[p.category] || 0) + 1; });
     }
 
     return counts;
-  }, [totalCount, serverCategoryCounts, categoryTree, products]);
+  }, [totalCount, serverCategoryCounts, parentChildrenMap, products]);
 
   const brandCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -312,10 +422,11 @@ export function usePortalCatalog({
     [catalogContext, products, isPosProduct, hiddenProductIds]
   );
 
-  const hasActiveFilters = categoryFilter !== "all" || brandFilter !== "all" || minPrice !== "" || maxPrice !== "";
+  const hasActiveFilters = categoryFilter !== "all" || brandFilter !== "all" || minPrice !== "" || maxPrice !== "" || subCategoryFilters.length > 0;
 
   function clearFilters() {
     setCategoryFilter("all");
+    setSubCategoryFilters([]);
     setBrandFilter("all");
     setMinPrice("");
     setMaxPrice("");
@@ -325,11 +436,13 @@ export function usePortalCatalog({
   // Reset page on filters change
   useEffect(() => {
     setPage(0);
-  }, [categoryFilter, brandFilter, minPrice, maxPrice, search, catalogContext]);
+  }, [categoryFilter, subCategoryFilters, brandFilter, minPrice, maxPrice, search, catalogContext]);
 
   return {
     // Filter state
     categoryFilter, setCategoryFilter,
+    subCategoryFilters, setSubCategoryFilters,
+    activeCategoryChildren,
     brandFilter, setBrandFilter,
     minPrice, setMinPrice,
     maxPrice, setMaxPrice,

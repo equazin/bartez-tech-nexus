@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownAZ, ChevronDown, Loader2, Package, Search, Star, Truck, X, LayoutGrid, ChevronRight,
-  Cpu, Zap, HardDrive, Monitor, Globe, Gamepad2, Box, Mouse, Headphones, Printer, Smartphone, Server, Camera, Speaker, HardDrive as Disc,
-  Share2, MoreHorizontal, Grid
+  Cpu, Zap, HardDrive, Monitor, Globe, Gamepad2, Box, Mouse, Headphones, Printer, Smartphone, Server, Camera, Speaker,
+  Share2, MoreHorizontal, Grid, ArrowRight
 } from "lucide-react";
 
 import type { Product } from "@/models/products";
@@ -162,9 +162,25 @@ export interface CatalogSectionProps {
   latestPurchaseUnitPrice: Record<number, number>;
   page: number;
   setPage: (p: number) => void;
-  categoryTree: { parents: { name: string; children: string[] }[]; leaves: string[] };
+  categoryTree: { 
+    parents: { 
+      id: number; 
+      name: string; 
+      slug?: string | null; 
+      children: { 
+        id: number; 
+        name: string; 
+        slug?: string | null; 
+        children: { id: number; name: string; slug?: string | null }[] 
+      }[] 
+    }[]; 
+    leaves: { id: number; name: string; slug?: string | null }[] 
+  };
   categoryFilter: string;
   setCategoryFilter: (cat: string) => void;
+  subCategoryFilters: string[];
+  setSubCategoryFilters: (vals: string[]) => void;
+  activeCategoryChildren: { id: number; name: string; slug?: string | null }[];
   categoryCounts: Record<string, number>;
 }
 
@@ -203,6 +219,9 @@ export function CatalogSection({
   categoryTree,
   categoryFilter,
   setCategoryFilter,
+  subCategoryFilters,
+  setSubCategoryFilters,
+  activeCategoryChildren,
   categoryCounts,
 }: CatalogSectionProps) {
   const [activeParentInMenu, setActiveParentInMenu] = useState<string | null>(null);
@@ -270,6 +289,77 @@ export function CatalogSection({
   return (
     <>
       <div className="mb-4 space-y-4">
+        {/* Hierarchical Breadcrumb */}
+        {categoryFilter !== "all" && (
+          <div className="flex items-center gap-2 px-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 animate-in fade-in slide-in-from-left-2 transition-all">
+            <button 
+              onClick={() => setCategoryFilter("all")}
+              className="hover:text-primary transition-colors hover:bg-primary/5 px-2 py-1 rounded-md"
+            >
+              Catálogo
+            </button>
+            <ChevronRight size={10} className="opacity-30" />
+            
+            {/* Find Parent if active selection is a subcategory */}
+            {(() => {
+              const activeCatObject = categoryTree.parents.find(p => 
+                p.name === categoryFilter || 
+                p.slug === categoryFilter ||
+                p.children.some(c => 
+                  c.name === categoryFilter || 
+                  c.slug === categoryFilter ||
+                  c.children.some(sub => sub.name === categoryFilter || sub.slug === categoryFilter)
+                )
+              );
+              
+              if (!activeCatObject) return <span className="text-primary capitalize">{categoryFilter.replace(/-/g, ' ')}</span>;
+              
+              // If we are EXACTLY on the root
+              if (activeCatObject.name === categoryFilter || activeCatObject.slug === categoryFilter) {
+                return <span className="text-primary">{activeCatObject.name}</span>;
+              }
+
+              // Find if it's a Level 1 child
+              const level1 = activeCatObject.children.find(c => 
+                c.name === categoryFilter || 
+                c.slug === categoryFilter ||
+                c.children.some(sub => sub.name === categoryFilter || sub.slug === categoryFilter)
+              );
+              
+              if (level1) {
+                return (
+                  <>
+                    <button 
+                      onClick={() => setCategoryFilter(activeCatObject.slug || activeCatObject.name)}
+                      className="hover:text-primary transition-colors hover:bg-primary/5 px-2 py-1 rounded-md"
+                    >
+                      {activeCatObject.name}
+                    </button>
+                    <ChevronRight size={10} className="opacity-30" />
+                    
+                    {level1.name === categoryFilter || level1.slug === categoryFilter ? (
+                      <span className="text-primary">{level1.name}</span>
+                    ) : (
+                      <>
+                        <button 
+                          onClick={() => setCategoryFilter(level1.slug || level1.name)}
+                          className="hover:text-primary transition-colors hover:bg-primary/5 px-2 py-1 rounded-md"
+                        >
+                          {level1.name}
+                        </button>
+                        <ChevronRight size={10} className="opacity-30" />
+                        <span className="text-primary capitalize">{categoryFilter.replace(/-/g, ' ')}</span>
+                      </>
+                    )}
+                  </>
+                );
+              }
+
+              return <span className="text-primary">{categoryFilter}</span>;
+            })()}
+          </div>
+        )}
+
         <div className="rounded-[24px] border border-border/70 bg-card/85 p-4 shadow-sm">
           <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Compra mayorista</p>
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -345,32 +435,66 @@ export function CatalogSection({
                 </Button>
               ) : null}
             </div>
+          </div>
 
-            <div className="flex items-center gap-2">
-              <div className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-background p-1 md:hidden">
-                {(["list", "grid", "table"] as const).map((mode) => (
+          {activeCategoryChildren.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 border-t border-border/40 py-3 mt-3 animate-in fade-in slide-in-from-top-2">
+              <span className="mr-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Sectores:</span>
+              {activeCategoryChildren.map((cat) => {
+                const isActive = categoryFilter === (cat.slug || cat.name);
+                return (
                   <button
-                    key={mode}
-                    onClick={() => handleViewModeChange(mode)}
+                    key={cat.id}
+                    onClick={() => setCategoryFilter(cat.slug || cat.name)}
                     className={cn(
-                      "rounded-full px-2.5 py-1 text-[11px] font-semibold transition",
-                      viewMode === mode ? "bg-primary/10 text-primary" : "text-muted-foreground",
+                      "h-8 rounded-full px-4 text-[11px] font-bold transition-all border",
+                      isActive
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                        : "bg-secondary/40 text-muted-foreground border-border/60 hover:bg-secondary/60 hover:text-foreground"
                     )}
                   >
-                    {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                    {cat.name}
+                    <span className="ml-1.5 font-normal opacity-50">({categoryCounts[cat.name] || 0})</span>
                   </button>
-                ))}
-              </div>
-
-              {!productsLoading ? (
-                <div className="rounded-2xl border border-border/70 bg-background px-3 py-2 text-xs text-muted-foreground">
-                  <span className="font-semibold text-foreground">{resultsLabel}</span>
-                  {search ? (
-                    <> para <span className="font-semibold text-foreground">&quot;{search}&quot;</span></>
-                  ) : null}
-                </div>
-              ) : null}
+                );
+              })}
+              {categoryFilter !== "all" && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 rounded-full px-3 text-[10px] font-bold text-muted-foreground hover:text-destructive"
+                  onClick={() => setCategoryFilter("all")}
+                >
+                  Ver todo
+                </Button>
+              )}
             </div>
+          )}
+
+          <div className="flex items-center gap-4 mt-3 pt-3 border-t border-border/40">
+            <div className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-background p-1 md:hidden">
+              {(["list", "grid", "table"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => handleViewModeChange(mode)}
+                  className={cn(
+                    "rounded-full px-2.5 py-1 text-[11px] font-semibold transition",
+                    viewMode === mode ? "bg-primary/10 text-primary" : "text-muted-foreground",
+                  )}
+                >
+                  {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            {!productsLoading ? (
+              <div className="rounded-2xl border border-border/70 bg-background px-3 py-2 text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground">{resultsLabel}</span>
+                {search ? (
+                  <> para <span className="font-semibold text-foreground">&quot;{search}&quot;</span></>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -578,7 +702,20 @@ function CategoryMegaMenu({
   setActiveParent,
   counts,
 }: {
-  tree: { parents: { name: string; children: string[] }[]; leaves: string[] };
+  tree: { 
+    parents: { 
+      id: number; 
+      name: string; 
+      slug?: string | null; 
+      children: { 
+        id: number; 
+        name: string; 
+        slug?: string | null; 
+        children: { id: number; name: string; slug?: string | null }[] 
+      }[] 
+    }[]; 
+    leaves: { id: number; name: string; slug?: string | null }[] 
+  };
   current: string;
   onSelect: (cat: string) => void;
   activeParent: string | null;
@@ -586,23 +723,38 @@ function CategoryMegaMenu({
   counts: Record<string, number>;
 }) {
   const [open, setOpen] = useState(false);
+  const [activeSubParent, setActiveSubParent] = useState<string | null>(null);
 
   const getIcon = (name: string) => {
     const n = name.toLowerCase();
-    if (n.includes("fuente") || n.includes("energia")) return <Zap size={16} />;
-    if (n.includes("disco") || n.includes("almacenamiento") || n.includes("ssd") || n.includes("hdd")) return <HardDrive size={16} />;
-    if (n.includes("monitor") || n.includes("pantalla")) return <Monitor size={16} />;
-    if (n.includes("red") || n.includes("wifi") || n.includes("tp-link")) return <Globe size={16} />;
-    if (n.includes("gamer") || n.includes("juego") || n.includes("gaming")) return <Gamepad2 size={16} />;
-    if (n.includes("pc") || n.includes("computadora") || n.includes("cpu")) return <Cpu size={16} />;
-    if (n.includes("periferico") || n.includes("funda") || n.includes("accesorio")) return <Mouse size={16} />;
-    if (n.includes("impres") || n.includes("toner") || n.includes("cartucho")) return <Printer size={16} />;
-    if (n.includes("celular") || n.includes("tablet") || n.includes("mobile")) return <Smartphone size={16} />;
-    if (n.includes("server") || n.includes("rack") || n.includes("servidor")) return <Server size={16} />;
-    if (n.includes("audio") || n.includes("parlante") || n.includes("sonido")) return <Speaker size={16} />;
-    if (n.includes("auricular") || n.includes("headset")) return <Headphones size={16} />;
-    return <Package size={16} />;
+    if (n.includes("fuente") || n.includes("energia")) return <Zap size={14} />;
+    if (n.includes("disco") || n.includes("almacenamiento") || n.includes("ssd") || n.includes("hdd")) return <HardDrive size={14} />;
+    if (n.includes("monitor") || n.includes("pantalla")) return <Monitor size={14} />;
+    if (n.includes("red") || n.includes("wifi") || n.includes("tp-link")) return <Globe size={14} />;
+    if (n.includes("gamer") || n.includes("juego") || n.includes("gaming")) return <Gamepad2 size={14} />;
+    if (n.includes("pc") || n.includes("computadora") || n.includes("cpu")) return <Cpu size={14} />;
+    if (n.includes("periferico") || n.includes("funda") || n.includes("accesorio")) return <Mouse size={14} />;
+    if (n.includes("impres") || n.includes("toner") || n.includes("cartucho")) return <Printer size={14} />;
+    if (n.includes("celular") || n.includes("tablet") || n.includes("mobile")) return <Smartphone size={14} />;
+    if (n.includes("server") || n.includes("rack") || n.includes("servidor")) return <Server size={14} />;
+    if (n.includes("audio") || n.includes("parlante") || n.includes("sonido")) return <Speaker size={14} />;
+    if (n.includes("auricular") || n.includes("headset")) return <Headphones size={14} />;
+    return <Package size={14} />;
   };
+
+  // Auto-select first subparent when parent changes or on open
+  useEffect(() => {
+    if (open && activeParent) {
+      const parent = tree.parents.find(p => p.name === activeParent);
+      if (parent && parent.children.length > 0) {
+        if (!activeSubParent || !parent.children.some(c => c.name === activeSubParent)) {
+          setActiveSubParent(parent.children[0].name);
+        }
+      } else {
+        setActiveSubParent(null);
+      }
+    }
+  }, [open, activeParent, tree.parents, activeSubParent]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -610,22 +762,22 @@ function CategoryMegaMenu({
         <Button
           variant="toolbar"
           size="sm"
-          className="group h-10 rounded-2xl px-4 text-[13px] font-bold shadow-sm transition-all hover:bg-orange-500 hover:text-white"
+          className="group h-10 rounded-xl px-4 text-[13px] font-bold shadow-sm transition-all hover:bg-primary hover:text-primary-foreground"
         >
           <LayoutGrid size={15} className="mr-1.5 transition-transform group-hover:rotate-90" />
           Categorías
-          <ChevronDown size={14} className="ml-1 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="w-[950px] max-w-[95vw] overflow-hidden rounded-[32px] p-0 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] border-none ring-1 ring-border/50"
+        sideOffset={8}
+        className="w-[1080px] max-w-[95vw] overflow-hidden rounded-[24px] p-0 shadow-2xl border border-border/80 bg-background/95 backdrop-blur-md"
       >
-        <div className="flex bg-background h-[550px]">
-          {/* Left panel (Sidebar) */}
-          <div className="w-[260px] shrink-0 border-r border-border/10 bg-slate-50/50 dark:bg-slate-900/30 p-4 flex flex-col gap-1 overflow-y-auto">
-            <div className="mb-4 px-3 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">
-              Navegación Premium
+        <div className="flex h-[600px] divide-x divide-border/30">
+          {/* Column 1: Main Roots */}
+          <div className="w-[240px] shrink-0 bg-secondary/10 p-3 flex flex-col gap-0.5 overflow-y-auto custom-scrollbar">
+            <div className="mb-2 px-4 py-2 flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Departamentos</span>
             </div>
             
             <button
@@ -634,147 +786,157 @@ function CategoryMegaMenu({
                 setOpen(false);
               }}
               className={cn(
-                "flex items-center gap-3 rounded-2xl px-4 py-3 text-left text-[14px] font-bold transition-all h-[52px]",
-                current === "all"
-                  ? "bg-[#FF5500] text-white shadow-lg shadow-orange-500/30"
-                  : "text-muted-foreground hover:bg-white dark:hover:bg-white/5 hover:text-foreground hover:shadow-sm"
+                "flex items-center gap-3 rounded-xl px-4 py-2 text-left text-[13px] font-bold transition-all h-[44px]",
+                current === "all" ? "bg-primary/10 text-primary shadow-sm" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
               )}
             >
-              <Grid size={18} />
-              Todas las categorías
+              <LayoutGrid size={16} className="opacity-70" />
+              Todo el catálogo
             </button>
 
-            <div className="h-4" />
+            <div className="my-2 border-t border-border/20 mx-3" />
 
             {tree.parents.map((parent) => (
               <button
                 key={parent.name}
                 onMouseEnter={() => setActiveParent(parent.name)}
                 onClick={() => {
-                  onSelect(parent.name);
+                  onSelect(parent.slug || parent.name);
                   setOpen(false);
                 }}
                 className={cn(
-                  "relative flex items-center gap-3 rounded-2xl px-4 py-3 text-left text-[14px] font-bold transition-all h-[52px]",
+                  "relative group flex items-center gap-3 rounded-xl px-4 py-2 text-left text-[13px] font-bold transition-all h-[44px]",
                   activeParent === parent.name
-                    ? "bg-white dark:bg-white/10 text-[#FF5500] shadow-md border border-orange-500/10"
-                    : current === parent.name
-                    ? "bg-orange-50 dark:bg-orange-950/20 text-orange-600"
-                    : "text-muted-foreground hover:bg-white/60 dark:hover:bg-white/5 hover:text-foreground"
+                    ? "bg-primary/5 text-primary border-l-2 border-primary rounded-l-none"
+                    : "text-muted-foreground hover:bg-white/10 hover:text-foreground"
                 )}
               >
-                {activeParent === parent.name && (
-                  <div className="absolute left-1.5 h-6 w-1 bg-[#FF5500] rounded-full" />
-                )}
-                <span className="shrink-0 opacity-80">{getIcon(parent.name)}</span>
+                <span className="shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">{getIcon(parent.name)}</span>
                 <span className="flex-1 truncate">{parent.name}</span>
-                <ChevronRight
-                  size={14}
-                  className={cn("transition-transform opacity-20", activeParent === parent.name ? "opacity-60 translate-x-1" : "")}
-                />
+                <ChevronRight size={12} className={cn("transition-transform opacity-10", activeParent === parent.name && "opacity-40 translate-x-1")} />
               </button>
             ))}
+          </div>
 
-            {tree.leaves.length > 0 && (
-              <div className="mt-4 flex flex-col gap-1 border-t border-border/10 pt-4">
-                {tree.leaves.map((leaf) => (
-                  <button
-                    key={leaf}
+          {/* Column 2: Level 1 Children */}
+          <div className="w-[280px] shrink-0 bg-secondary/5 p-3 flex flex-col gap-0.5 overflow-y-auto custom-scrollbar">
+            {activeParent ? (
+              <>
+                <div className="mb-2 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">
+                   {activeParent}
+                </div>
+                {tree.parents.find(p => p.name === activeParent)?.children.map((child) => (
+                   <button
+                    key={child.name}
+                    onMouseEnter={() => setActiveSubParent(child.name)}
                     onClick={() => {
-                      onSelect(leaf);
+                      onSelect(child.slug || child.name);
                       setOpen(false);
                     }}
                     className={cn(
-                      "flex items-center gap-3 rounded-2xl px-4 py-3 text-left text-[14px] font-bold transition-all h-[52px]",
-                      current === leaf ? "bg-orange-50 text-orange-600" : "text-muted-foreground hover:bg-white/60"
+                      "group flex items-center justify-between rounded-xl px-4 py-2 text-left text-[13px] font-bold transition-all h-[42px]",
+                      activeSubParent === child.name 
+                        ? "bg-background text-primary shadow-sm border border-border/60" 
+                        : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
                     )}
                   >
-                    <span className="opacity-60">{getIcon(leaf)}</span>
-                    <span className="flex-1 truncate">{leaf}</span>
+                    <span className="truncate">{child.name}</span>
+                    <div className="flex items-center gap-2">
+                       <span className="text-[10px] font-medium opacity-30 group-hover:opacity-60">{counts[child.name] || 0}</span>
+                       <ChevronRight size={12} className={cn("opacity-10 transition-transform", activeSubParent === child.name && "opacity-50 translate-x-1")} />
+                    </div>
                   </button>
                 ))}
+              </>
+            ) : (
+              <div className="h-full flex items-center justify-center p-8 text-center text-muted-foreground/30 italic text-xs">
+                Selecciona una categoría principal
               </div>
             )}
           </div>
 
-          {/* Right panel (Content) */}
-          <div className="flex-1 bg-white dark:bg-background p-10 overflow-y-auto">
-            {activeParent ? (
-              <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                {(() => {
-                  const parent = tree.parents.find((p) => p.name === activeParent);
-                  if (!parent) return null;
+          {/* Column 3: Level 2 Children */}
+          <div className="flex-1 bg-background p-6 overflow-y-auto custom-scrollbar">
+            {activeParent && activeSubParent ? (
+              <div className="space-y-8 animate-in fade-in slide-in-from-left-4 duration-300">
+                {/* Header/Breadcrumb */}
+                <div className="flex flex-col gap-3 border-b border-border/50 pb-6">
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">
+                    <span className="hover:text-primary transition-colors cursor-pointer" onClick={() => { onSelect(activeParent); setOpen(false); }}>{activeParent}</span>
+                    <ChevronRight size={10} className="opacity-40" />
+                    <span className="text-primary">{activeSubParent}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-2xl font-bold tracking-tight text-foreground uppercase border-l-4 border-primary pl-4">
+                      {activeSubParent}
+                    </h4>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-8 rounded-full text-[11px] font-bold group border-primary/20 hover:border-primary hover:bg-primary/5 text-primary"
+                      onClick={() => {
+                        const child = tree.parents.find(p => p.name === activeParent)?.children.find(c => c.name === activeSubParent);
+                        onSelect(child?.slug || activeSubParent);
+                        setOpen(false);
+                      }}
+                    >
+                      Explorar sección <ArrowRight size={14} className="ml-1.5 transition-transform group-hover:translate-x-1" />
+                    </Button>
+                  </div>
+                </div>
 
-                  return (
-                    <div className="space-y-10">
-                      <div className="flex items-end justify-between border-b pb-6">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-[#FF5500]">
-                            Portal B2B <span className="text-muted-foreground">/</span> {parent.name}
+                {/* Sub-items (Grid) */}
+                <div className="grid grid-cols-2 gap-3">
+                  {tree.parents
+                    .find(p => p.name === activeParent)
+                    ?.children.find(c => c.name === activeSubParent)
+                    ?.children.map((subChild) => (
+                        <button
+                          key={subChild.id}
+                          onClick={() => {
+                            onSelect(subChild.slug || subChild.name);
+                            setOpen(false);
+                          }}
+                          className="group flex items-center justify-between p-4 rounded-xl border border-border/40 bg-secondary/5 hover:border-primary/20 hover:bg-primary/[0.03] transition-all text-left"
+                        >
+                          <div className="space-y-0.5">
+                            <span className="text-[13px] font-bold block leading-tight text-foreground group-hover:text-primary transition-colors">
+                              {subChild.name}
+                            </span>
+                            <span className="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wider">
+                              {counts[subChild.name] || 0} unidades
+                            </span>
                           </div>
-                          <h4 className="text-3xl font-black tracking-tighter text-foreground uppercase leading-none">
-                            {parent.name}
-                          </h4>
-                        </div>
-                        <div className="flex flex-col items-end justify-center">
-                           <span className="text-xs font-semibold text-muted-foreground bg-muted/30 px-3 py-1.5 rounded-full">
-                             {counts[parent.name] || 0} productos
-                           </span>
-                        </div>
+                          <div className="h-6 w-6 rounded-lg bg-secondary/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
+                             <ChevronRight size={12} className="text-primary" />
+                          </div>
+                        </button>
+                    ))}
+                  
+                  {(!tree.parents
+                    .find(p => p.name === activeParent)
+                    ?.children.find(c => c.name === activeSubParent)
+                    ?.children.length) && (
+                      <div className="col-span-2 py-20 flex flex-col items-center justify-center text-center opacity-30 italic">
+                         <Box size={32} className="mb-4 opacity-50" />
+                         <p className="text-sm font-medium">No hay sub-sectores adicionales para {activeSubParent}</p>
+                         <p className="text-[10px] mt-1">Haz clic en el botón de arriba para ver todos los productos registrados</p>
                       </div>
-
-                      {parent.children.length > 0 ? (
-                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
-                          {parent.children.map((child) => (
-                            <button
-                                key={child}
-                                onClick={() => {
-                                  onSelect(child);
-                                  setOpen(false);
-                                }}
-                                className="group relative flex flex-col items-start gap-4 rounded-[24px] border border-border/50 bg-white dark:bg-slate-900/40 p-6 text-left transition-all hover:scale-[1.03] hover:shadow-2xl hover:shadow-orange-500/10 hover:border-orange-500/20"
-                            >
-                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 dark:bg-slate-800 text-muted-foreground group-hover:bg-[#FF5500] group-hover:text-white transition-all duration-300">
-                                    {getIcon(child)}
-                                </div>
-                                <div className="space-y-1">
-                                    <span className="text-[15px] font-black text-foreground group-hover:text-[#FF5500] transition-colors leading-tight block">
-                                        {child}
-                                    </span>
-                                    <span className="text-[11px] font-medium text-muted-foreground/60 group-hover:text-muted-foreground transition-colors uppercase tracking-wider">
-                                        {counts[child] || 0} Variedades
-                                    </span>
-                                </div>
-                                <div className="mt-2 flex items-center gap-1.5 text-[11px] font-black uppercase text-[#FF5500] opacity-0 group-hover:opacity-100 transition-all translate-x-[-10px] group-hover:translate-x-0 duration-300">
-                                    Explorar <ChevronRight size={12} strokeWidth={3} />
-                                </div>
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="py-24 flex flex-col items-center justify-center text-center">
-                            <div className="h-20 w-20 rounded-full bg-muted/20 flex items-center justify-center mb-6">
-                                <Package size={40} className="text-muted-foreground/30" />
-                            </div>
-                            <h5 className="text-xl font-bold mb-2">Sin subcategorías específicas</h5>
-                            <p className="text-sm text-muted-foreground font-medium max-w-[320px]">
-                                Explora el catálogo general de {parent.name} haciendo clic en el título superior.
-                            </p>
-                            <Button variant="outline" className="mt-8 rounded-2xl px-8" onClick={() => { onSelect(parent.name); setOpen(false); }}>
-                                Ver todo en {parent.name}
-                            </Button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
+                    )}
+                </div>
               </div>
             ) : (
-              <div className="flex h-full flex-col items-center justify-center text-center">
-                <LayoutGrid size={48} className="text-muted-foreground/10 mb-4" />
-                <p className="text-lg font-bold text-muted-foreground/40">
-                  Selecciona una categoría para explorar
-                </p>
+              <div className="h-full flex flex-col items-center justify-center text-center p-12 space-y-6">
+                <div className="relative">
+                   <div className="absolute -inset-4 bg-primary/5 rounded-full blur-2xl animate-pulse" />
+                   <LayoutGrid size={48} className="text-primary/20 relative" />
+                </div>
+                <div className="space-y-2">
+                   <p className="text-[15px] font-bold text-foreground/60 tracking-tight">Catálogo Inteligente</p>
+                   <p className="text-[12px] text-muted-foreground/50 leading-relaxed max-w-[200px] mx-auto">
+                     Navega por múltiples niveles para encontrar exactamente lo que tu cliente necesita.
+                   </p>
+                </div>
               </div>
             )}
           </div>

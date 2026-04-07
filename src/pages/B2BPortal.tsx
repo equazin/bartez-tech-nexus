@@ -96,7 +96,13 @@ export default function B2BPortal() {
   // â”€â”€ UI state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [catalogContext, setCatalogContext] = useState<CatalogContext>("default");
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<PortalTab>("home");
+  const [activeTab, setActiveTab] = useState<PortalTab>(() => {
+    const t = searchParams.get("tab") as PortalTab;
+    if (["home", "catalog", "orders", "quotes", "cuenta", "approvals", "support", "rma", "bulk"].includes(t)) return t;
+    if (window.location.pathname === "/catalogo") return "catalog";
+    if (searchParams.get("category") || searchParams.get("categoria")) return "catalog";
+    return "home";
+  });
   const dk = (dark: string, light: string) => (isDark ? dark : light);
   const [viewModeByContext, setViewModeByContext] = useState<ViewModeByContext>(() => loadViewModeByContext());
   const [viewMode, setViewMode] = useState<ViewMode>(() => loadViewModeByContext().default);
@@ -244,7 +250,7 @@ export default function B2BPortal() {
 
   // â”€â”€ Catalog context from URL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
-    const categoryParam = searchParams.get("category");
+    const categoryParam = searchParams.get("categoria") || searchParams.get("category");
     if (isPosCategoryValue(categoryParam)) { setCatalogContext("pos"); return; }
     const ctx = normalizePortalText(searchParams.get("context"));
     if (ctx === "featured" || ctx === "oportunidades") setCatalogContext("featured");
@@ -261,7 +267,17 @@ export default function B2BPortal() {
       });
       setActiveTab("cuenta");
     }
-  }, [searchParams, setSearchParams]);
+
+    // Sync URL 'categoria' param with catalog state
+    if (categoryParam) {
+      if (categoryParam !== catalog.categoryFilter) {
+        catalog.setCategoryFilter(categoryParam);
+      }
+    } else if (catalog.categoryFilter !== "all" && !searchParams.get("context")) {
+      // If we cleared the URL but hook has state, reset hook
+      // catalog.setCategoryFilter("all");
+    }
+  }, [searchParams, setSearchParams, catalog.categoryFilter]);
 
   function handleViewModeChange(mode: ViewMode) {
     setViewMode(mode);
@@ -495,7 +511,20 @@ export default function B2BPortal() {
               setPage={catalog.setPage}
               categoryTree={catalog.categoryTree}
               categoryFilter={catalog.categoryFilter}
-              setCategoryFilter={catalog.setCategoryFilter}
+              setCategoryFilter={(cat) => {
+                setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.delete("category"); // Remove old param
+                  if (cat === "all") next.delete("categoria");
+                  else next.set("categoria", cat);
+                  return next;
+                });
+                catalog.setCategoryFilter(cat);
+                setActiveTab("catalog");
+              }}
+              subCategoryFilters={catalog.subCategoryFilters}
+              setSubCategoryFilters={catalog.setSubCategoryFilters}
+              activeCategoryChildren={catalog.activeCategoryChildren}
               categoryCounts={catalog.categoryCounts}
             />
           )}

@@ -14,7 +14,7 @@ interface PortalSidebarProps {
   setCategoryFilter: (c: string) => void;
   categoryCounts: Record<string, number>;
   categoryTree: {
-    parents: Array<{ name: string; children: string[] }>;
+    parents: Array<{ name: string; children: Array<{ name: string; children: string[] }> }>;
     leaves: string[];
   };
   expandedParents: Set<string>;
@@ -103,11 +103,11 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
                   {isExpanded ? (
                     <div className="ml-8 space-y-1">
                       {children.map((child) => {
-                        const childActive = categoryFilter === child;
+                        const childActive = categoryFilter === child.name;
                         return (
-                          <button key={child} type="button" onClick={() => setCategoryFilter(child)} className={filterButtonClass(childActive, true)}>
-                            <span className="truncate">{child}</span>
-                            <Badge variant="muted" className={countBadgeClass(childActive)}>{categoryCounts[child] || 0}</Badge>
+                          <button key={child.name} type="button" onClick={() => setCategoryFilter(child.name)} className={filterButtonClass(childActive, true)}>
+                            <span className="truncate">{child.name}</span>
+                            <Badge variant="muted" className={countBadgeClass(childActive)}>{categoryCounts[child.name] || 0}</Badge>
                           </button>
                         );
                       })}
