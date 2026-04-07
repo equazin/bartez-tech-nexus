@@ -253,6 +253,7 @@ export default function ProductTable({
   // Bulk action dropdown
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkCategory, setBulkCategory] = useState("");
+  const [bulkBrand, setBulkBrand] = useState("");
   const [duplicatesOpen, setDuplicatesOpen] = useState(false);
   const [analyzingDuplicates, setAnalyzingDuplicates] = useState(false);
   const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
@@ -480,6 +481,15 @@ export default function ProductTable({
     setBulkOpen(false);
   }
 
+  async function bulkSetBrand() {
+    if (!bulkBrand || selected.size === 0) return;
+    await supabase.from("products").update({ brand_id: bulkBrand }).in("id", Array.from(selected));
+    setSelected(new Set());
+    setBulkBrand("");
+    onRefresh();
+    setBulkOpen(false);
+  }
+
   const colHeader = (label: string, field: SortField) => (
     <th className="px-3 py-3 text-left cursor-pointer select-none group" onClick={() => toggleSort(field)}>
       <div className="flex items-center gap-1 text-[11px] font-semibold text-gray-500 uppercase tracking-wider group-hover:text-gray-300 transition">
@@ -589,7 +599,7 @@ export default function ProductTable({
                         disabled={!bulkCategory.trim()}
                         className="w-full px-2.5 py-2 text-xs rounded-lg bg-[#2D9F6A] text-white font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        Aplicar
+                        Aplicar Cat.
                       </button>
                       <button
                         onClick={bulkDelete}
@@ -598,6 +608,31 @@ export default function ProductTable({
                         Eliminar
                       </button>
                     </div>
+                  </div>
+                </div>
+
+                <div className={`border-t my-1 ${dk("border-[#2a2a2a]", "border-[#e5e5e5]")}`} />
+
+                <div className="px-3 py-2">
+                  <label className="block text-[11px] text-gray-500 mb-1">Marca masiva</label>
+                  <div className="flex flex-col gap-2">
+                    <select
+                      value={bulkBrand}
+                      onChange={(e) => setBulkBrand(e.target.value)}
+                      className={`w-full text-xs px-2.5 py-2 border rounded-lg outline-none focus:border-[#2D9F6A]/50 ${dk("bg-[#232323] border-[#2a2a2a] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}
+                    >
+                      <option value="">Seleccionar marca...</option>
+                      {brands.map((b) => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={bulkSetBrand}
+                      disabled={!bulkBrand}
+                      className="w-full px-2.5 py-2 text-xs rounded-lg bg-[#2D9F6A] text-white font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Aplicar Marca
+                    </button>
                   </div>
                 </div>
                 <div className={`border-t my-1 ${dk("border-[#2a2a2a]", "border-[#e5e5e5]")}`} />
