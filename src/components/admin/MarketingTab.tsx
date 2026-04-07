@@ -361,9 +361,14 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
   async function triggerSync() {
     setSyncing(true); setSyncMsg(null);
     try {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-ads-sync`, {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/ai`, {
         method: "POST",
-        headers: { "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ action: "sync_google_ads" }),
       });
       const data = await res.json() as { ok: boolean; message?: string; synced?: number };
       setSyncMsg(data.ok ? `✓ ${data.synced ?? 0} registros sincronizados` : (data.message ?? "Sin credenciales configuradas"));
@@ -426,13 +431,13 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
     setLaunching(id); setLaunchMsg(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/launch-campaign`, {
+      const res = await fetch(`/api/ai`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
-        body: JSON.stringify({ draft_id: id }),
+        body: JSON.stringify({ action: "launch_campaign", draft_id: id }),
       });
       const data = await res.json() as { ok: boolean; message?: string; google_ads_campaign_id?: string };
       setLaunchMsg(data.message ?? (data.ok ? "Lanzada" : "Error"));
@@ -1489,3 +1494,4 @@ function CouponsSection({ isDark }: { isDark: boolean }) {
     </div>
   );
 }
+

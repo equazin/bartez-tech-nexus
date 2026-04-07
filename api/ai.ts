@@ -53,6 +53,34 @@ async function insertDraft(record: Record<string, unknown>): Promise<{ id: strin
   return rows[0] ?? null;
 }
 
+async function callSupabaseFunction(
+  functionName: "google-ads-sync" | "launch-campaign",
+  authHeader: string,
+  payload?: Record<string, unknown>,
+) {
+  const res = await fetch(`${SB_URL()}/functions/v1/${functionName}`, {
+    method: "POST",
+    headers: {
+      Authorization: authHeader,
+      apikey: process.env.VITE_SUPABASE_ANON_KEY || "",
+      "Content-Type": "application/json",
+    },
+    body: payload ? JSON.stringify(payload) : undefined,
+  });
+
+  const raw = await res.text();
+  let parsed: Record<string, unknown> | null = null;
+  if (raw) {
+    try {
+      parsed = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      parsed = { message: raw };
+    }
+  }
+
+  return { ok: res.ok, status: res.status, data: parsed };
+}
+
 // ── enrich_content ─────────────────────────────────────────────────────────
 
 type Mode = "only_descriptions" | "only_specs" | "both";
@@ -372,6 +400,48 @@ Respondé SOLO con JSON minificado sin markdown:
 
 // ── generate_copy ─────────────────────────────────────────────────────────
 
+async function handleSyncGoogleAds(request: Request) {
+  const authHeader = request.headers.get("Authorization") || "";
+  const result = await callSupabaseFunction("google-ads-sync", authHeader);
+  const message =
+    (typeof result.data?.message === "string" && result.data.message) ||
+    (typeof result.data?.error === "string" && result.data.error) ||
+    (result.ok ? "Sincronizacion completada." : "No se pudo sincronizar Google Ads.");
+
+  return json(
+    {
+      ok: result.ok && result.data?.ok !== false,
+      synced: typeof result.data?.synced === "number" ? result.data.synced : 0,
+      message,
+    },
+    result.ok ? 200 : result.status || 500,
+  );
+}
+
+async function handleLaunchCampaign(request: Request, body: Record<string, unknown>) {
+  const authHeader = request.headers.get("Authorization") || "";
+  const draftId = typeof body.draft_id === "string" ? body.draft_id : "";
+  if (!draftId) return json({ ok: false, message: "draft_id requerido" }, 400);
+
+  const result = await callSupabaseFunction("launch-campaign", authHeader, { draft_id: draftId });
+  const message =
+    (typeof result.data?.message === "string" && result.data.message) ||
+    (typeof result.data?.error === "string" && result.data.error) ||
+    (result.ok ? "Campa?a lanzada." : "No se pudo lanzar la campa?a.");
+
+  return json(
+    {
+      ok: result.ok && result.data?.ok !== false,
+      message,
+      google_ads_campaign_id:
+        typeof result.data?.google_ads_campaign_id === "string" ? result.data.google_ads_campaign_id : null,
+      manual_launch: Boolean(result.data?.manual_launch),
+      draft_id: draftId,
+    },
+    result.ok ? 200 : result.status || 500,
+  );
+}
+
 const COPY_HEADLINES_BY_CATEGORY: Record<string, string[]> = {
   Monitores:    ["Monitores para tu Empresa", "Pantallas Profesionales B2B", "Monitores al Mejor Precio", "Stock Disponible Ya", "Calidad Corporativa"],
   Notebooks:    ["Notebooks para Empresas", "Laptops Corporativas B2B", "Equipá tu Equipo de Trabajo", "Stock Disponible Ya", "Precios Mayoristas IT"],
@@ -484,6 +554,22 @@ export default async function handler(request: Request): Promise<Response> {
     const profile = await getProfile(user.id);
     if (!profile || !["admin", "vendedor"].includes(profile.role)) return json({ ok: false, error: "Permisos insuficientes" }, 403);
     return handleGenerateCampaign(body, user.id);
+  }
+
+  if (action === "sync_google_ads") {
+    const user = await getAuthUser(request);
+    if (!user) return json({ ok: false, error: "Unauthorized" }, 401);
+    const profile = await getProfile(user.id);
+    if (!profile || profile.role !== "admin") return json({ ok: false, error: "Permisos insuficientes" }, 403);
+    return handleSyncGoogleAds(request);
+  }
+
+  if (action === "launch_campaign") {
+    const user = await getAuthUser(request);
+    if (!user) return json({ ok: false, error: "Unauthorized" }, 401);
+    const profile = await getProfile(user.id);
+    if (!profile || profile.role !== "admin") return json({ ok: false, error: "Permisos insuficientes" }, 403);
+    return handleLaunchCampaign(request, body);
   }
 
   return json({ ok: false, error: `Unknown action: ${action}` }, 400);
