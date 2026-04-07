@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Loader2, Package, Search, Star, Truck, X } from "lucide-react";
+import {
+  ArrowDownAZ, ChevronDown, Loader2, Package, Search, Star, Truck, X, LayoutGrid, ChevronRight,
+  Cpu, Zap, HardDrive, Monitor, Globe, Gamepad2, Box, Mouse, Headphones, Printer, Smartphone, Server, Camera, Speaker, HardDrive as Disc,
+  Share2, MoreHorizontal, Grid
+} from "lucide-react";
 
 import type { Product } from "@/models/products";
 import type { PriceResult } from "@/hooks/usePricing";
@@ -17,18 +21,14 @@ import { cn } from "@/lib/utils";
 
 export type ViewMode = "grid" | "list" | "table";
 export type CatalogContext = "default" | "featured" | "pos";
+export type SortOption = "price_asc" | "price_desc" | "name_asc" | "name_desc" | "brand_asc" | "brand_desc" | "stock_asc" | "stock_desc";
 
-type AdvancedFilterKey = "brands" | "ram" | "storage" | "hz" | "panel";
+type AdvancedFilterKey = "brands";
 type AdvancedFiltersState = Record<AdvancedFilterKey, string[]>;
-type DerivedProductFilters = Record<Exclude<AdvancedFilterKey, "brands">, string[]> & { brand: string };
 
 const ADVANCED_FILTERS_KEY = "b2b_catalog_advanced_filters";
 const EMPTY_ADVANCED_FILTERS: AdvancedFiltersState = {
   brands: [],
-  ram: [],
-  storage: [],
-  hz: [],
-  panel: [],
 };
 
 const CATALOG_CONTEXTS: { id: CatalogContext; label: string; icon: typeof Package }[] = [
@@ -36,126 +36,6 @@ const CATALOG_CONTEXTS: { id: CatalogContext; label: string; icon: typeof Packag
   { id: "featured", label: "Destacados", icon: Star },
   { id: "pos", label: "Punto de venta", icon: Truck },
 ];
-
-const PANEL_VALUES = ["IPS", "TN", "VA", "OLED", "QLED", "MINI LED"];
-
-function normalizeText(value: unknown): string {
-  return String(value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
-
-function normalizeCompact(value: unknown): string {
-  return normalizeText(value).replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function uniqueSorted(values: string[]): string[] {
-  return Array.from(new Set(values.filter(Boolean))).sort((a, b) => {
-    const aNum = Number.parseFloat(a);
-    const bNum = Number.parseFloat(b);
-    if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum;
-    return a.localeCompare(b, "es-AR");
-  });
-}
-
-function parseStoredFilters(): AdvancedFiltersState {
-  if (typeof window === "undefined") return EMPTY_ADVANCED_FILTERS;
-  try {
-    const raw = window.localStorage.getItem(ADVANCED_FILTERS_KEY);
-    if (!raw) return EMPTY_ADVANCED_FILTERS;
-    const parsed = JSON.parse(raw) as Partial<AdvancedFiltersState>;
-    return {
-      brands: Array.isArray(parsed.brands) ? parsed.brands.filter(Boolean) : [],
-      ram: Array.isArray(parsed.ram) ? parsed.ram.filter(Boolean) : [],
-      storage: Array.isArray(parsed.storage) ? parsed.storage.filter(Boolean) : [],
-      hz: Array.isArray(parsed.hz) ? parsed.hz.filter(Boolean) : [],
-      panel: Array.isArray(parsed.panel) ? parsed.panel.filter(Boolean) : [],
-    };
-  } catch {
-    return EMPTY_ADVANCED_FILTERS;
-  }
-}
-
-function formatSpecValue(value: unknown): string {
-  if (value == null) return "";
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-}
-
-function collectSpecTexts(product: Product): string[] {
-  const entries = Object.entries(product.specs ?? {});
-  const texts = entries.flatMap(([key, value]) => [key, formatSpecValue(value)]);
-  texts.push(product.name, product.description ?? "", product.category ?? "", product.brand_name ?? "");
-  return texts.filter(Boolean);
-}
-
-function extractByRegex(text: string, regex: RegExp, formatter?: (match: RegExpExecArray) => string): string[] {
-  const matches: string[] = [];
-  const normalized = normalizeCompact(text);
-  const globalRegex = new RegExp(regex.source, regex.flags.includes("g") ? regex.flags : `${regex.flags}g`);
-  let found = globalRegex.exec(normalized);
-  while (found) {
-    matches.push(formatter ? formatter(found) : found[0].toUpperCase());
-    found = globalRegex.exec(normalized);
-  }
-  return matches;
-}
-
-function deriveProductFilters(product: Product): DerivedProductFilters {
-  const specEntries = Object.entries(product.specs ?? {}).map(([key, value]) => ({
-    key: normalizeCompact(key),
-    raw: formatSpecValue(value),
-    normalized: normalizeCompact(value),
-  }));
-  const allTexts = collectSpecTexts(product);
-
-  const ramValues = new Set<string>();
-  const storageValues = new Set<string>();
-  const hzValues = new Set<string>();
-  const panelValues = new Set<string>();
-
-  specEntries.forEach(({ key, normalized }) => {
-    if (/(^| )(ram|memoria|memory)( |$)/.test(key)) {
-      extractByRegex(normalized, /(4|8|12|16|24|32|48|64|96|128)\s?(gb|tb)/gi, (match) => `${match[1]} ${match[2].toUpperCase()}`).forEach((value) => ramValues.add(value));
-    }
-
-    if (/(storage|almacen|capacity|capacidad|ssd|hdd|disk|disco)/.test(key)) {
-      extractByRegex(normalized, /(64|128|240|250|256|480|500|512|960|1000|1024|2000|2048)\s?(gb|tb)/gi, (match) => `${match[1]} ${match[2].toUpperCase()}`).forEach((value) => storageValues.add(value));
-    }
-
-    if (/(hz|refresh|frecuencia)/.test(key)) {
-      extractByRegex(normalized, /(60|75|90|100|120|144|165|180|200|240|360)\s?hz/gi, (match) => `${match[1]} Hz`).forEach((value) => hzValues.add(value));
-    }
-
-    PANEL_VALUES.forEach((panel) => {
-      if (normalized.includes(panel.toLowerCase().replace(/\s+/g, " "))) panelValues.add(panel);
-    });
-  });
-
-  allTexts.forEach((text) => {
-    extractByRegex(text, /(4|8|12|16|24|32|48|64|96|128)\s?gb/gi, (match) => `${match[1]} GB`).forEach((value) => ramValues.add(value));
-    extractByRegex(text, /(64|128|240|250|256|480|500|512|960|1000|1024|2000|2048)\s?(gb|tb)/gi, (match) => `${match[1]} ${match[2].toUpperCase()}`).forEach((value) => storageValues.add(value));
-    extractByRegex(text, /(60|75|90|100|120|144|165|180|200|240|360)\s?hz/gi, (match) => `${match[1]} Hz`).forEach((value) => hzValues.add(value));
-    const normalized = normalizeCompact(text);
-    PANEL_VALUES.forEach((panel) => {
-      if (normalized.includes(panel.toLowerCase().replace(/\s+/g, " "))) panelValues.add(panel);
-    });
-  });
-
-  return {
-    brand: String(product.brand_id ?? product.brand_name ?? ""),
-    ram: uniqueSorted(Array.from(ramValues)),
-    storage: uniqueSorted(Array.from(storageValues)),
-    hz: uniqueSorted(Array.from(hzValues)),
-    panel: uniqueSorted(Array.from(panelValues)),
-  };
-}
 
 interface AdvancedFilterDropdownProps {
   label: string;
@@ -216,6 +96,40 @@ function AdvancedFilterDropdown({ label, options, selected, onToggle }: Advanced
   );
 }
 
+function normalizeText(value: unknown): string {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function normalizeCompact(value: unknown): string {
+  return normalizeText(value).replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function uniqueSorted(values: (string | null | undefined)[]): string[] {
+  return Array.from(new Set(values.filter(Boolean) as string[])).sort((a, b) => {
+    const aNum = Number.parseFloat(a);
+    const bNum = Number.parseFloat(b);
+    if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum;
+    return a.localeCompare(b, "es-AR");
+  });
+}
+
+function parseStoredFilters(): AdvancedFiltersState {
+  if (typeof window === "undefined") return EMPTY_ADVANCED_FILTERS;
+  try {
+    const raw = window.localStorage.getItem(ADVANCED_FILTERS_KEY);
+    if (!raw) return EMPTY_ADVANCED_FILTERS;
+    const parsed = JSON.parse(raw) as Partial<AdvancedFiltersState>;
+    return {
+      brands: Array.isArray(parsed.brands) ? parsed.brands.filter(Boolean) : [],
+    };
+  } catch {
+    return EMPTY_ADVANCED_FILTERS;
+  }
+}
+
 export interface CatalogSectionProps {
   displayProducts: Product[];
   products: Product[];
@@ -246,6 +160,12 @@ export interface CatalogSectionProps {
   addedIds: Set<number>;
   purchaseHistory: Record<number, number>;
   latestPurchaseUnitPrice: Record<number, number>;
+  page: number;
+  setPage: (p: number) => void;
+  categoryTree: { parents: { name: string; children: string[] }[]; leaves: string[] };
+  categoryFilter: string;
+  setCategoryFilter: (cat: string) => void;
+  categoryCounts: Record<string, number>;
 }
 
 export function CatalogSection({
@@ -278,26 +198,31 @@ export function CatalogSection({
   addedIds,
   purchaseHistory,
   latestPurchaseUnitPrice,
+  page,
+  setPage,
+  categoryTree,
+  categoryFilter,
+  setCategoryFilter,
+  categoryCounts,
 }: CatalogSectionProps) {
+  const [activeParentInMenu, setActiveParentInMenu] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (categoryTree.parents.length > 0 && !activeParentInMenu) {
+      setActiveParentInMenu(categoryTree.parents[0].name);
+    }
+  }, [categoryTree, activeParentInMenu]);
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFiltersState>(parseStoredFilters);
+  const [sortOption, setSortOption] = useState<SortOption>("name_asc");
 
   useEffect(() => {
     window.localStorage.setItem(ADVANCED_FILTERS_KEY, JSON.stringify(advancedFilters));
   }, [advancedFilters]);
 
-  const derivedFiltersByProduct = useMemo(() => {
-    const entries = displayProducts.map((product) => [product.id, deriveProductFilters(product)] as const);
-    return new Map(entries);
-  }, [displayProducts]);
-
   const brandOptions = useMemo(
-    () => uniqueSorted(displayProducts.map((product) => String(product.brand_name ?? "")).filter(Boolean)),
+    () => uniqueSorted(displayProducts.map((product) => product.brand_name)),
     [displayProducts],
   );
-  const ramOptions = useMemo(() => uniqueSorted(displayProducts.flatMap((product) => derivedFiltersByProduct.get(product.id)?.ram ?? [])), [displayProducts, derivedFiltersByProduct]);
-  const storageOptions = useMemo(() => uniqueSorted(displayProducts.flatMap((product) => derivedFiltersByProduct.get(product.id)?.storage ?? [])), [displayProducts, derivedFiltersByProduct]);
-  const hzOptions = useMemo(() => uniqueSorted(displayProducts.flatMap((product) => derivedFiltersByProduct.get(product.id)?.hz ?? [])), [displayProducts, derivedFiltersByProduct]);
-  const panelOptions = useMemo(() => uniqueSorted(displayProducts.flatMap((product) => derivedFiltersByProduct.get(product.id)?.panel ?? [])), [displayProducts, derivedFiltersByProduct]);
 
   const toggleAdvancedFilter = (key: AdvancedFilterKey, value: string) => {
     setAdvancedFilters((current) => ({
@@ -308,32 +233,36 @@ export function CatalogSection({
 
   const clearAdvancedFilters = () => setAdvancedFilters(EMPTY_ADVANCED_FILTERS);
 
-  // Intersect persisted selections with currently available options — no useEffect needed
   const effectiveFilters = useMemo(() => ({
     brands: advancedFilters.brands.filter((item) => brandOptions.includes(item)),
-    ram: advancedFilters.ram.filter((item) => ramOptions.includes(item)),
-    storage: advancedFilters.storage.filter((item) => storageOptions.includes(item)),
-    hz: advancedFilters.hz.filter((item) => hzOptions.includes(item)),
-    panel: advancedFilters.panel.filter((item) => panelOptions.includes(item)),
-  }), [advancedFilters, brandOptions, ramOptions, storageOptions, hzOptions, panelOptions]);
+  }), [advancedFilters, brandOptions]);
 
   const hasAdvancedFilters = Object.values(effectiveFilters).some((values) => values.length > 0);
 
   const filteredProducts = useMemo(
     () =>
-      displayProducts.filter((product) => {
-        const derived = derivedFiltersByProduct.get(product.id);
-        const brandName = String(product.brand_name ?? "");
+      [...displayProducts]
+        .filter((product) => {
+          if (effectiveFilters.brands.length > 0 && !effectiveFilters.brands.includes(product.brand_name ?? "")) return false;
+          return true;
+        })
+        .sort((a, b) => {
+          const priceA = computePrice(a, 1).unitPrice;
+          const priceB = computePrice(b, 1).unitPrice;
 
-        if (effectiveFilters.brands.length > 0 && !effectiveFilters.brands.includes(brandName)) return false;
-        if (effectiveFilters.ram.length > 0 && !effectiveFilters.ram.some((value) => derived?.ram.includes(value))) return false;
-        if (effectiveFilters.storage.length > 0 && !effectiveFilters.storage.some((value) => derived?.storage.includes(value))) return false;
-        if (effectiveFilters.hz.length > 0 && !effectiveFilters.hz.some((value) => derived?.hz.includes(value))) return false;
-        if (effectiveFilters.panel.length > 0 && !effectiveFilters.panel.some((value) => derived?.panel.includes(value))) return false;
-
-        return true;
-      }),
-    [effectiveFilters, derivedFiltersByProduct, displayProducts],
+          switch (sortOption) {
+            case "price_asc": return priceA - priceB;
+            case "price_desc": return priceB - priceA;
+            case "name_asc": return (a.name ?? "").localeCompare(b.name ?? "", "es-AR");
+            case "name_desc": return (b.name ?? "").localeCompare(a.name ?? "", "es-AR");
+            case "brand_asc": return (a.brand_name ?? "").localeCompare(b.brand_name ?? "", "es-AR");
+            case "brand_desc": return (b.brand_name ?? "").localeCompare(a.brand_name ?? "", "es-AR");
+            case "stock_asc": return (a.stock ?? 0) - (b.stock ?? 0);
+            case "stock_desc": return (b.stock ?? 0) - (a.stock ?? 0);
+            default: return 0;
+          }
+        }),
+    [effectiveFilters, displayProducts, sortOption, computePrice],
   );
 
   const resultsLabel = `${filteredProducts.length}${totalCount > 0 ? ` de ${totalCount}` : ""} productos`;
@@ -345,6 +274,15 @@ export function CatalogSection({
           <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Compra mayorista</p>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
+              <CategoryMegaMenu
+                tree={categoryTree}
+                current={categoryFilter}
+                onSelect={setCategoryFilter}
+                activeParent={activeParentInMenu}
+                setActiveParent={setActiveParentInMenu}
+                counts={categoryCounts}
+              />
+
               {CATALOG_CONTEXTS.map(({ id, label, icon: Icon }) => {
                 const isActive = catalogContext === id;
                 return (
@@ -361,19 +299,49 @@ export function CatalogSection({
                 );
               })}
 
-              {(brandOptions.length > 0 || ramOptions.length > 0 || storageOptions.length > 0 || hzOptions.length > 0 || panelOptions.length > 0) && (
-                <div className="h-5 w-px bg-border/70" />
-              )}
-
               {brandOptions.length > 0 ? <AdvancedFilterDropdown label="Marca" options={brandOptions} selected={effectiveFilters.brands} onToggle={(value) => toggleAdvancedFilter("brands", value)} /> : null}
-              {ramOptions.length > 0 ? <AdvancedFilterDropdown label="RAM" options={ramOptions} selected={effectiveFilters.ram} onToggle={(value) => toggleAdvancedFilter("ram", value)} /> : null}
-              {storageOptions.length > 0 ? <AdvancedFilterDropdown label="Almacenamiento" options={storageOptions} selected={effectiveFilters.storage} onToggle={(value) => toggleAdvancedFilter("storage", value)} /> : null}
-              {hzOptions.length > 0 ? <AdvancedFilterDropdown label="Hz" options={hzOptions} selected={effectiveFilters.hz} onToggle={(value) => toggleAdvancedFilter("hz", value)} /> : null}
-              {panelOptions.length > 0 ? <AdvancedFilterDropdown label="Panel" options={panelOptions} selected={effectiveFilters.panel} onToggle={(value) => toggleAdvancedFilter("panel", value)} /> : null}
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="toolbar" size="sm" className="h-9 rounded-xl px-3 text-xs font-semibold">
+                    <ArrowDownAZ size={13} className="text-muted-foreground" />
+                    Ordenar
+                    <ChevronDown size={13} className="text-muted-foreground" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-[180px] rounded-2xl p-1 shadow-xl">
+                  <div className="grid gap-0.5">
+                    {([
+                      { id: "price_asc", label: "Menor precio" },
+                      { id: "price_desc", label: "Mayor precio" },
+                      { id: "name_asc", label: "Producto A-Z" },
+                      { id: "name_desc", label: "Producto Z-A" },
+                      { id: "brand_asc", label: "Marca A-Z" },
+                      { id: "brand_desc", label: "Marca Z-A" },
+                      { id: "stock_asc", label: "Menor Stock" },
+                      { id: "stock_desc", label: "Mayor Stock" },
+                    ] as const).map((opt) => (
+                      <Button
+                        key={opt.id}
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          "justify-start rounded-xl px-3 text-xs font-medium",
+                          sortOption === opt.id ? "bg-primary/10 text-primary" : "text-muted-foreground",
+                        )}
+                        onClick={() => setSortOption(opt.id)}
+                      >
+                        {opt.label}
+                      </Button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+
               {hasAdvancedFilters ? (
                 <Button type="button" variant="ghost" size="sm" className="h-9 rounded-xl px-3 text-xs" onClick={clearAdvancedFilters}>
                   <X size={13} />
-                  Limpiar avanzados
+                  Limpiar filtros
                 </Button>
               ) : null}
             </div>
@@ -448,7 +416,7 @@ export function CatalogSection({
           className="py-16"
         />
       ) : viewMode === "list" ? (
-        filteredProducts.length <= 80 ? (
+        filteredProducts.length <= 200 ? (
           <div className="flex flex-col gap-2">
             {filteredProducts.map((product) => {
               const price = computePrice(product, Math.max(cart[product.id] || 0, 1));
@@ -461,6 +429,9 @@ export function CatalogSection({
                   isFavorite={favoriteProductIds.includes(product.id)}
                   isCompared={compareList.includes(product.id)}
                   finalPrice={price.unitPrice}
+                  originalPrice={price.originalUnitPrice}
+                  isOffer={price.isOffer}
+                  offerPercent={price.calculatedOfferPercent}
                   formatPrice={formatPrice}
                   onAddQty={handleSmartAddToCart}
                   onRemoveFromCart={onRemoveFromCart}
@@ -513,6 +484,9 @@ export function CatalogSection({
                   isFavorite={favoriteProductIds.includes(product.id)}
                   isCompared={compareList.includes(product.id)}
                   finalPrice={price.unitPrice}
+                  originalPrice={price.originalUnitPrice}
+                  isOffer={price.isOffer}
+                  offerPercent={price.calculatedOfferPercent}
                   formatPrice={formatPrice}
                   onAddQty={handleSmartAddToCart}
                   onRemoveFromCart={onRemoveFromCart}
@@ -546,14 +520,40 @@ export function CatalogSection({
           onSelect={setSelectedProduct}
           isPosProduct={isPosProduct}
           addedIds={addedIds}
-          getUnitPrice={(product, qty) => computePrice(product, qty).unitPrice}
+          getPriceInfo={computePrice}
         />
       )}
 
-      {hasMore && !productsLoading && viewMode !== "list" && filteredProducts.length > 0 ? (
-        <div className="mb-12 mt-8 flex justify-center">
-          <Button variant="outline" size="lg" className="rounded-xl px-8" onClick={loadMore}>
-            Ver mas productos
+      {totalCount > 200 && !productsLoading && filteredProducts.length > 0 ? (
+        <div className="mb-12 mt-8 flex items-center justify-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl px-4"
+            disabled={page === 0}
+            onClick={() => {
+              setPage(page - 1);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          >
+            Anterior
+          </Button>
+
+          <div className="flex items-center gap-1.5 px-2 text-xs font-medium text-muted-foreground">
+            Página <span className="text-foreground">{page + 1}</span> de {Math.ceil(totalCount / 200)}
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl px-4"
+            disabled={(page + 1) * 200 >= totalCount}
+            onClick={() => {
+              setPage(page + 1);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          >
+            Siguiente
           </Button>
         </div>
       ) : null}
@@ -567,5 +567,219 @@ export function CatalogSection({
         </div>
       ) : null}
     </>
+  );
+}
+
+function CategoryMegaMenu({
+  tree,
+  current,
+  onSelect,
+  activeParent,
+  setActiveParent,
+  counts,
+}: {
+  tree: { parents: { name: string; children: string[] }[]; leaves: string[] };
+  current: string;
+  onSelect: (cat: string) => void;
+  activeParent: string | null;
+  setActiveParent: (val: string | null) => void;
+  counts: Record<string, number>;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const getIcon = (name: string) => {
+    const n = name.toLowerCase();
+    if (n.includes("fuente") || n.includes("energia")) return <Zap size={16} />;
+    if (n.includes("disco") || n.includes("almacenamiento") || n.includes("ssd") || n.includes("hdd")) return <HardDrive size={16} />;
+    if (n.includes("monitor") || n.includes("pantalla")) return <Monitor size={16} />;
+    if (n.includes("red") || n.includes("wifi") || n.includes("tp-link")) return <Globe size={16} />;
+    if (n.includes("gamer") || n.includes("juego") || n.includes("gaming")) return <Gamepad2 size={16} />;
+    if (n.includes("pc") || n.includes("computadora") || n.includes("cpu")) return <Cpu size={16} />;
+    if (n.includes("periferico") || n.includes("funda") || n.includes("accesorio")) return <Mouse size={16} />;
+    if (n.includes("impres") || n.includes("toner") || n.includes("cartucho")) return <Printer size={16} />;
+    if (n.includes("celular") || n.includes("tablet") || n.includes("mobile")) return <Smartphone size={16} />;
+    if (n.includes("server") || n.includes("rack") || n.includes("servidor")) return <Server size={16} />;
+    if (n.includes("audio") || n.includes("parlante") || n.includes("sonido")) return <Speaker size={16} />;
+    if (n.includes("auricular") || n.includes("headset")) return <Headphones size={16} />;
+    return <Package size={16} />;
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="toolbar"
+          size="sm"
+          className="group h-10 rounded-2xl px-4 text-[13px] font-bold shadow-sm transition-all hover:bg-orange-500 hover:text-white"
+        >
+          <LayoutGrid size={15} className="mr-1.5 transition-transform group-hover:rotate-90" />
+          Categorías
+          <ChevronDown size={14} className="ml-1 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-[950px] max-w-[95vw] overflow-hidden rounded-[32px] p-0 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] border-none ring-1 ring-border/50"
+      >
+        <div className="flex bg-background h-[550px]">
+          {/* Left panel (Sidebar) */}
+          <div className="w-[260px] shrink-0 border-r border-border/10 bg-slate-50/50 dark:bg-slate-900/30 p-4 flex flex-col gap-1 overflow-y-auto">
+            <div className="mb-4 px-3 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">
+              Navegación Premium
+            </div>
+            
+            <button
+              onClick={() => {
+                onSelect("all");
+                setOpen(false);
+              }}
+              className={cn(
+                "flex items-center gap-3 rounded-2xl px-4 py-3 text-left text-[14px] font-bold transition-all h-[52px]",
+                current === "all"
+                  ? "bg-[#FF5500] text-white shadow-lg shadow-orange-500/30"
+                  : "text-muted-foreground hover:bg-white dark:hover:bg-white/5 hover:text-foreground hover:shadow-sm"
+              )}
+            >
+              <Grid size={18} />
+              Todas las categorías
+            </button>
+
+            <div className="h-4" />
+
+            {tree.parents.map((parent) => (
+              <button
+                key={parent.name}
+                onMouseEnter={() => setActiveParent(parent.name)}
+                onClick={() => {
+                  onSelect(parent.name);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "relative flex items-center gap-3 rounded-2xl px-4 py-3 text-left text-[14px] font-bold transition-all h-[52px]",
+                  activeParent === parent.name
+                    ? "bg-white dark:bg-white/10 text-[#FF5500] shadow-md border border-orange-500/10"
+                    : current === parent.name
+                    ? "bg-orange-50 dark:bg-orange-950/20 text-orange-600"
+                    : "text-muted-foreground hover:bg-white/60 dark:hover:bg-white/5 hover:text-foreground"
+                )}
+              >
+                {activeParent === parent.name && (
+                  <div className="absolute left-1.5 h-6 w-1 bg-[#FF5500] rounded-full" />
+                )}
+                <span className="shrink-0 opacity-80">{getIcon(parent.name)}</span>
+                <span className="flex-1 truncate">{parent.name}</span>
+                <ChevronRight
+                  size={14}
+                  className={cn("transition-transform opacity-20", activeParent === parent.name ? "opacity-60 translate-x-1" : "")}
+                />
+              </button>
+            ))}
+
+            {tree.leaves.length > 0 && (
+              <div className="mt-4 flex flex-col gap-1 border-t border-border/10 pt-4">
+                {tree.leaves.map((leaf) => (
+                  <button
+                    key={leaf}
+                    onClick={() => {
+                      onSelect(leaf);
+                      setOpen(false);
+                    }}
+                    className={cn(
+                      "flex items-center gap-3 rounded-2xl px-4 py-3 text-left text-[14px] font-bold transition-all h-[52px]",
+                      current === leaf ? "bg-orange-50 text-orange-600" : "text-muted-foreground hover:bg-white/60"
+                    )}
+                  >
+                    <span className="opacity-60">{getIcon(leaf)}</span>
+                    <span className="flex-1 truncate">{leaf}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Right panel (Content) */}
+          <div className="flex-1 bg-white dark:bg-background p-10 overflow-y-auto">
+            {activeParent ? (
+              <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                {(() => {
+                  const parent = tree.parents.find((p) => p.name === activeParent);
+                  if (!parent) return null;
+
+                  return (
+                    <div className="space-y-10">
+                      <div className="flex items-end justify-between border-b pb-6">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-[#FF5500]">
+                            Portal B2B <span className="text-muted-foreground">/</span> {parent.name}
+                          </div>
+                          <h4 className="text-3xl font-black tracking-tighter text-foreground uppercase leading-none">
+                            {parent.name}
+                          </h4>
+                        </div>
+                        <div className="flex flex-col items-end justify-center">
+                           <span className="text-xs font-semibold text-muted-foreground bg-muted/30 px-3 py-1.5 rounded-full">
+                             {counts[parent.name] || 0} productos
+                           </span>
+                        </div>
+                      </div>
+
+                      {parent.children.length > 0 ? (
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
+                          {parent.children.map((child) => (
+                            <button
+                                key={child}
+                                onClick={() => {
+                                  onSelect(child);
+                                  setOpen(false);
+                                }}
+                                className="group relative flex flex-col items-start gap-4 rounded-[24px] border border-border/50 bg-white dark:bg-slate-900/40 p-6 text-left transition-all hover:scale-[1.03] hover:shadow-2xl hover:shadow-orange-500/10 hover:border-orange-500/20"
+                            >
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 dark:bg-slate-800 text-muted-foreground group-hover:bg-[#FF5500] group-hover:text-white transition-all duration-300">
+                                    {getIcon(child)}
+                                </div>
+                                <div className="space-y-1">
+                                    <span className="text-[15px] font-black text-foreground group-hover:text-[#FF5500] transition-colors leading-tight block">
+                                        {child}
+                                    </span>
+                                    <span className="text-[11px] font-medium text-muted-foreground/60 group-hover:text-muted-foreground transition-colors uppercase tracking-wider">
+                                        {counts[child] || 0} Variedades
+                                    </span>
+                                </div>
+                                <div className="mt-2 flex items-center gap-1.5 text-[11px] font-black uppercase text-[#FF5500] opacity-0 group-hover:opacity-100 transition-all translate-x-[-10px] group-hover:translate-x-0 duration-300">
+                                    Explorar <ChevronRight size={12} strokeWidth={3} />
+                                </div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="py-24 flex flex-col items-center justify-center text-center">
+                            <div className="h-20 w-20 rounded-full bg-muted/20 flex items-center justify-center mb-6">
+                                <Package size={40} className="text-muted-foreground/30" />
+                            </div>
+                            <h5 className="text-xl font-bold mb-2">Sin subcategorías específicas</h5>
+                            <p className="text-sm text-muted-foreground font-medium max-w-[320px]">
+                                Explora el catálogo general de {parent.name} haciendo clic en el título superior.
+                            </p>
+                            <Button variant="outline" className="mt-8 rounded-2xl px-8" onClick={() => { onSelect(parent.name); setOpen(false); }}>
+                                Ver todo en {parent.name}
+                            </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center text-center">
+                <LayoutGrid size={48} className="text-muted-foreground/10 mb-4" />
+                <p className="text-lg font-bold text-muted-foreground/40">
+                  Selecciona una categoría para explorar
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

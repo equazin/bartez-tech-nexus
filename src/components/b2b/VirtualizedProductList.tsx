@@ -69,6 +69,9 @@ function Row({
         isFavorite={favoriteProductIds.includes(product.id)}
         isCompared={compareList.includes(product.id)}
         finalPrice={price.unitPrice}
+        originalPrice={price.originalUnitPrice}
+        isOffer={price.isOffer}
+        offerPercent={price.calculatedOfferPercent}
         formatPrice={formatPrice}
         onAddQty={handleAddQty}
         onRemoveFromCart={onRemoveFromCart}

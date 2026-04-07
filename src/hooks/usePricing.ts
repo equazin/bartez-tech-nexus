@@ -31,6 +31,12 @@ export interface PriceResult {
   isVolumePricing: boolean;
   /** True when price comes from a client-specific agreement */
   isCustomPrice: boolean;
+  /** Unit price before any product-level offers (special_price or offer_percent) */
+  originalUnitPrice: number;
+  /** Whether a product-level offer is being applied */
+  isOffer: boolean;
+  /** Percentage discount of the offer (relative to originalUnitPrice) */
+  calculatedOfferPercent: number;
 }
 
 interface CustomPrice { product_id: number; custom_price: number; currency: string }
@@ -125,6 +131,8 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
           unitPrice: unitPriceARS, totalPrice, ivaRate, ivaAmount, totalWithIVA,
           iibbAmount, grandTotal: totalWithIVA + iibbAmount,
           isVolumePricing: false, isCustomPrice: true,
+          originalUnitPrice: unitPriceARS, isOffer: false,
+          calculatedOfferPercent: 0,
         };
       }
 
@@ -144,6 +152,8 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
           unitPrice: unitPriceARS, totalPrice, ivaRate, ivaAmount, totalWithIVA,
           iibbAmount, grandTotal: totalWithIVA + iibbAmount,
           isVolumePricing: false, isCustomPrice: true,
+          originalUnitPrice: unitPriceARS, isOffer: false,
+          calculatedOfferPercent: 0,
         };
       }
 
@@ -163,9 +173,39 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
 
       // Apply extra agreement discount on top
       const discountMultiplier = activeAgreement ? (1 - (activeAgreement.discount_pct / 100)) : 1;
-      const unitPrice    = ((cost_base !== undefined && cost_base !== null)
+      const originalUnitPrice = ((cost_base !== undefined && cost_base !== null)
         ? effective_cost_base * (1 + margin / 100)
         : (product.unit_price ?? 0)) * discountMultiplier;
+
+      // ── Priority 3: Product-level Offer (special_price or offer_percent) ──
+      // These apply ON TOP of the calculated price (lowest wins or offer takes precedence)
+      let unitPrice = originalUnitPrice;
+      let isOffer = false;
+      let calculatedOfferPercent = 0;
+
+      // Special Price: specific fixed offer price
+      if (product.special_price) {
+        // Assume special_price is in USD and needs conversion to ARS
+        const specialPriceARS = product.special_price * exchangeRate.rate;
+        if (specialPriceARS < unitPrice && unitPrice > 0) {
+          calculatedOfferPercent = ((unitPrice - specialPriceARS) / unitPrice) * 100;
+          unitPrice = specialPriceARS;
+          isOffer = true;
+        }
+      } 
+      
+      // Offer Percent: specific % discount from calculated price
+      if (product.offer_percent && product.offer_percent > 0) {
+        const offerPriceARS = unitPrice * (1 - product.offer_percent / 100);
+        if (offerPriceARS < unitPrice && unitPrice > 0) {
+          calculatedOfferPercent = calculatedOfferPercent > 0 
+            ? ((originalUnitPrice - offerPriceARS) / originalUnitPrice) * 100
+            : product.offer_percent;
+          unitPrice = offerPriceARS;
+          isOffer = true;
+        }
+      }
+
       const totalPrice   = unitPrice * quantity;
       const ivaAmount    = totalPrice * (ivaRate / 100);
       const totalWithIVA = totalPrice + ivaAmount;
@@ -173,11 +213,13 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
       const iibbAmount = province
         ? calculatePerception(totalPrice, province as ProvinceCode, (profile as any)?.iibb_aliquot)
         : 0;
+
       return {
         cost: cost_base ?? 0, effectiveCost: effective_cost_base ?? 0, margin,
         unitPrice, totalPrice, ivaRate, ivaAmount, totalWithIVA,
         iibbAmount, grandTotal: totalWithIVA + iibbAmount,
         isVolumePricing, isCustomPrice: activeAgreement != null,
+        originalUnitPrice, isOffer, calculatedOfferPercent
       };
     },
     [rules, globalMargin, profile?.id, exchangeRate.rate, customPrices, activeAgreement, agreementItems]

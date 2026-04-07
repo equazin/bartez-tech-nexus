@@ -42,12 +42,14 @@ export interface UsePortalCatalogOptions {
   catalogContext: CatalogContext;
   isAdmin?: boolean;
   hiddenProductIds?: Set<number>;
+  search?: string;
 }
 
 export function usePortalCatalog({
   catalogContext,
   isAdmin = false,
   hiddenProductIds = new Set(),
+  search = "",
 }: UsePortalCatalogOptions) {
   // ── Filter state ──────────────────────────────────────────────────────────
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -55,6 +57,7 @@ export function usePortalCatalog({
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
+  const [page, setPage] = useState(0);
 
   // ── DB categories ─────────────────────────────────────────────────────────
   const [dbCats, setDbCats] = useState<DbCat[]>([]);
@@ -205,10 +208,11 @@ export function usePortalCatalog({
   } = useProducts({
     category: queryCategory,
     brand: brandFilter,
-    search: "", // search is managed outside and passed as prop in portal header
+    search: search,
     minPrice: minPrice ? Number(minPrice) : undefined,
     maxPrice: maxPrice ? Number(maxPrice) : undefined,
-    pageSize: 40,
+    pageSize: 200,
+    page: page,
     isAdmin,
     isFeatured: catalogContext === "featured",
     sortBy: catalogContext === "featured" ? "featured" : "name",
@@ -315,7 +319,13 @@ export function usePortalCatalog({
     setBrandFilter("all");
     setMinPrice("");
     setMaxPrice("");
+    setPage(0);
   }
+
+  // Reset page on filters change
+  useEffect(() => {
+    setPage(0);
+  }, [categoryFilter, brandFilter, minPrice, maxPrice, search, catalogContext]);
 
   return {
     // Filter state
@@ -324,6 +334,7 @@ export function usePortalCatalog({
     minPrice, setMinPrice,
     maxPrice, setMaxPrice,
     expandedParents, setExpandedParents,
+    page, setPage,
     hasActiveFilters,
     clearFilters,
     // Category data

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Minus, Plus, Star, X } from "lucide-react";
+import { Minus, Plus, Star, X, Flame } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -146,7 +146,7 @@ export function ProductDetailModal({
   const SPEC_OVERSCAN = 6;
   const ANIMATION_MS = 140;
   const priceInfo = computePrice(product, Math.max(inCart, 1));
-  const { unitPrice, ivaAmount, ivaRate, totalWithIVA } = priceInfo;
+  const { unitPrice, ivaAmount, ivaRate, totalWithIVA, originalUnitPrice, isOffer, calculatedOfferPercent } = priceInfo;
   const availableStock = getAvailableStock(product);
   const outOfStock = availableStock === 0;
   const [imageSrc, setImageSrc] = useState(() => resolveProductImageUrl(product.image));
@@ -315,9 +315,30 @@ export function ProductDetailModal({
               <div className="rounded-2xl border border-border/70 bg-surface/70 p-4">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0 flex-1 space-y-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-[11px] text-muted-foreground">Precio unitario</span>
-                      <span className="text-base font-extrabold tabular-nums text-primary">{formatPrice(unitPrice)}</span>
+                    <div className="flex flex-col gap-1.5">
+                      {isOffer && calculatedOfferPercent && calculatedOfferPercent > 0 ? (
+                        <div className="inline-flex max-w-fit items-center gap-1 rounded-lg bg-orange-600 px-2 py-1 text-[10px] font-black uppercase text-white shadow-sm ring-1 ring-orange-500/10">
+                          <Flame size={10} fill="currentColor" />
+                          {calculatedOfferPercent.toFixed(1)}% OFF
+                        </div>
+                      ) : null}
+
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[11px] text-muted-foreground">{isOffer ? "Oferta especial" : "Precio unitario"}</span>
+                        <div className="text-right">
+                          {isOffer && originalUnitPrice && originalUnitPrice > unitPrice ? (
+                            <div className="mb-0.5 text-[11px] font-medium leading-none text-muted-foreground/60 line-through tabular-nums">
+                              Antes: {formatPrice(originalUnitPrice)}
+                            </div>
+                          ) : null}
+                          <span className={cn(
+                            "text-2xl font-black tabular-nums",
+                            isOffer ? "text-orange-600" : "text-primary"
+                          )}>
+                            {formatPrice(unitPrice)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-[11px] text-muted-foreground">IVA ({ivaRate}%)</span>

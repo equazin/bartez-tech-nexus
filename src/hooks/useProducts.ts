@@ -17,6 +17,7 @@ export interface UseProductsOptions {
   minPrice?: number;
   maxPrice?: number;
   pageSize?: number;
+  page?: number;
   isAdmin?: boolean;
   isFeatured?: boolean;
   sortBy?: "name" | "featured"; // Nueva opción (Phase 5.4)
@@ -30,6 +31,7 @@ export function useProducts(options: UseProductsOptions = {}) {
     minPrice,
     maxPrice,
     pageSize = 80,
+    page,
     isAdmin = false,
     isFeatured = false,
     sortBy = "name",
@@ -45,8 +47,13 @@ export function useProducts(options: UseProductsOptions = {}) {
     setLoading(true);
     
     try {
-      const currentLength = isNextPage ? products.length : 0;
-      const currentPage = Math.floor(currentLength / pageSize);
+      let currentPage = 0;
+      if (page !== undefined) {
+        currentPage = page;
+      } else {
+        const currentLength = isNextPage ? products.length : 0;
+        currentPage = Math.floor(currentLength / pageSize);
+      }
       
       const tableName = isAdmin ? "products" : "portal_products";
       let query = supabase
@@ -106,7 +113,9 @@ export function useProducts(options: UseProductsOptions = {}) {
       const newProducts = (data as Product[]) || [];
       
       setProducts(prev => {
-        if (!isNextPage) return newProducts;
+        if (!isNextPage && page === undefined) return newProducts;
+        if (page !== undefined) return newProducts; // If page specified, we replace
+        
         const existingIds = new Set(prev.map(p => p.id));
         const uniqueNew = newProducts.filter(p => !existingIds.has(p.id));
         return [...prev, ...uniqueNew];
@@ -123,13 +132,13 @@ export function useProducts(options: UseProductsOptions = {}) {
     } finally {
       setLoading(false);
     }
-  }, [category, brand, search, minPrice, maxPrice, pageSize, isAdmin, products.length]);
+  }, [category, brand, search, minPrice, maxPrice, pageSize, page, isAdmin, products.length]);
 
   // Initial load or filter change
   useEffect(() => {
     fetchProducts(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category, brand, search, minPrice, maxPrice, isAdmin]);
+  }, [category, brand, search, minPrice, maxPrice, page, isAdmin]);
 
   const loadMore = useCallback(() => {
     if (!loading && hasMore) {

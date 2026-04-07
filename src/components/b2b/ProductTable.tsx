@@ -2,6 +2,7 @@ import React from "react";
 import { Star, Truck } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { DataTableShell } from "@/components/ui/data-table-shell";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Product } from "@/models/products";
@@ -22,7 +23,7 @@ interface ProductTableProps {
   onSelect: (p: Product) => void;
   isPosProduct: (p: Product) => boolean;
   addedIds: Set<number>;
-  getUnitPrice: (p: Product, q: number) => number;
+  getPriceInfo: (p: Product, q: number) => import("@/hooks/usePricing").PriceResult;
 }
 
 export function ProductTable({
@@ -38,7 +39,7 @@ export function ProductTable({
   onSelect,
   isPosProduct,
   addedIds,
-  getUnitPrice,
+  getPriceInfo,
 }: ProductTableProps) {
   return (
     <DataTableShell
@@ -59,9 +60,9 @@ export function ProductTable({
         </TableHeader>
         <TableBody>
           {products.map((product) => {
-            const margin = productMargins[product.id] ?? globalMargin;
             const inCart = cart[product.id] || 0;
-            const finalPrice = getUnitPrice(product, Math.max(inCart, 1)) * (1 + margin / 100);
+            const price = getPriceInfo(product, Math.max(inCart, 1));
+            const finalPrice = price.unitPrice;
             const available = Math.max(0, product.stock - (product.stock_reserved ?? 0));
             const outOfStock = available === 0;
             const wasAdded = addedIds.has(product.id);
@@ -100,7 +101,17 @@ export function ProductTable({
                       <StockBadge stock={available} />
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
-                  <span className="text-sm font-bold text-primary">{formatPrice(finalPrice)}</span>
+                  {price.isOffer && price.originalUnitPrice > finalPrice ? (
+                    <span className="mb-0.5 block text-[10px] line-through text-muted-foreground/60">
+                      {formatPrice(price.originalUnitPrice)}
+                    </span>
+                  ) : null}
+                  <span className={cn(
+                    "text-sm font-bold",
+                    price.isOffer ? "text-sky-500" : "text-primary"
+                  )}>
+                    {formatPrice(finalPrice)}
+                  </span>
                   <span className="mt-1 block text-[11px] text-muted-foreground">+{product.iva_rate ?? 21}% IVA</span>
                   {lastUnit && deltaPct > 0 ? <span className="block text-[11px] font-semibold text-amber-500">+{deltaPct.toFixed(1)}%</span> : null}
                 </TableCell>

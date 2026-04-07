@@ -46,8 +46,7 @@ const DEFAULT_RATE: ExchangeRate = {
 // ── Formatters ─────────────────────────────────────────────────────────────
 function fmtUSD(value: number, from: Currency, rate: number): string {
   const usd = from === "ARS" ? value / rate : value;
-  const rounded = Math.round(usd);
-  return "USD " + rounded.toLocaleString("en-US");
+  return "USD " + usd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function fmtARS(value: number, from: Currency, rate: number): string {

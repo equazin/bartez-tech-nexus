@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Star, TrendingUp, Truck } from "lucide-react";
+import { Star, TrendingUp, Truck, Flame } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SurfaceCard } from "@/components/ui/surface-card";
@@ -17,6 +17,9 @@ interface ProductItemProps {
   isCompared: boolean;
   finalPrice: number;
   formatPrice: (p: number) => string;
+  originalPrice?: number;
+  isOffer?: boolean;
+  offerPercent?: number;
   onAddQty: (p: Product, qty: number) => void;
   onRemoveFromCart: (p: Product) => void;
   onToggleFavorite: (id: number) => void;
@@ -36,6 +39,9 @@ export function ProductItem({
   isCompared,
   finalPrice,
   formatPrice,
+  originalPrice,
+  isOffer,
+  offerPercent,
   onAddQty,
   onRemoveFromCart,
   onToggleFavorite,
@@ -142,37 +148,56 @@ export function ProductItem({
             </div>
           </div>
 
-          <div className="flex items-end justify-between gap-2">
-            <div>
-              <div className="text-2xl font-bold leading-none tabular-nums text-primary">{formatPrice(finalPrice)}</div>
-              <p className="mt-1 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Precio neto + IVA {product.iva_rate ?? 21}%</p>
-              {lastPurchaseUnitPriceDelta > 0 ? (
-                <p className="mt-1 text-xs font-semibold text-amber-500">+{lastPurchaseUnitPriceDelta.toFixed(1)}% vs ultima compra</p>
-              ) : null}
-            </div>
-
-            {product.price_tiers?.length ? (
-              <div className="group/tiers relative">
-                <Button variant="soft" size="sm" className="rounded-full border border-primary/20 text-primary">
-                  <TrendingUp size={14} />
-                  Escala
-                </Button>
-                <div className="pointer-events-none absolute bottom-full right-0 mb-2 w-56 rounded-2xl border border-border/60 bg-card p-4 shadow-xl opacity-0 transition-all duration-200 group-hover/tiers:pointer-events-auto group-hover/tiers:-translate-y-1 group-hover/tiers:opacity-100">
-                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Escala especial</p>
-                  <div className="space-y-2 text-sm text-foreground">
-                    {product.price_tiers.map((tier, index) => (
-                      <div key={index} className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">
-                          {tier.min}
-                          {tier.max ? `-${tier.max}` : "+"} unidades
-                        </span>
-                        <span className="font-semibold text-primary">{formatPrice(tier.price)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+          <div className="flex flex-col gap-1.5">
+            {isOffer && offerPercent && offerPercent > 0 ? (
+              <div className="inline-flex max-w-fit items-center gap-1 rounded-lg bg-orange-600 px-2 py-1 text-[10px] font-black uppercase text-white shadow-sm ring-1 ring-orange-500/20">
+                <Flame size={10} fill="currentColor" />
+                {offerPercent.toFixed(1)}% OFF
               </div>
             ) : null}
+
+            <div className="flex items-end justify-between gap-2">
+              <div>
+                {isOffer && originalPrice && originalPrice > finalPrice ? (
+                  <div className="mb-0.5 text-[11px] font-medium leading-none text-muted-foreground/60 line-through tabular-nums">
+                    Antes: {formatPrice(originalPrice)}
+                  </div>
+                ) : null}
+                <div className={cn(
+                  "text-3xl font-extrabold leading-none tabular-nums",
+                  isOffer ? "text-orange-600" : "text-primary"
+                )}>
+                  {formatPrice(finalPrice)}
+                </div>
+                <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Impuestos incluídos</p>
+                {lastPurchaseUnitPriceDelta > 0 ? (
+                  <p className="mt-1 text-xs font-semibold text-amber-500">+{lastPurchaseUnitPriceDelta.toFixed(1)}% vs ultima compra</p>
+                ) : null}
+              </div>
+
+              {product.price_tiers?.length ? (
+                <div className="group/tiers relative">
+                  <Button variant="soft" size="sm" className="rounded-full border border-primary/20 text-primary">
+                    <TrendingUp size={14} />
+                    Escala
+                  </Button>
+                  <div className="pointer-events-none absolute bottom-full right-0 mb-2 w-56 rounded-2xl border border-border/60 bg-card p-4 shadow-xl opacity-0 transition-all duration-200 group-hover/tiers:pointer-events-auto group-hover/tiers:-translate-y-1 group-hover/tiers:opacity-100">
+                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Escala especial</p>
+                    <div className="space-y-2 text-sm text-foreground">
+                      {product.price_tiers.map((tier, index) => (
+                        <div key={index} className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">
+                            {tier.min}
+                            {tier.max ? `-${tier.max}` : "+"} unidades
+                          </span>
+                          <span className="font-semibold text-primary">{formatPrice(tier.price)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
 
@@ -224,12 +249,28 @@ export function ProductItem({
             {product.sku ? <Badge variant="secondary" className="font-mono text-[11px]">{product.sku}</Badge> : null}
           </div>
         </div>
+      </div>
 
-        <div className="hidden min-w-[156px] shrink-0 text-right sm:block">
-          <div className="text-xl font-bold leading-none tabular-nums text-primary">{formatPrice(finalPrice)}</div>
-          <div className="mt-1 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Neto + IVA {product.iva_rate ?? 21}%</div>
-          {lastPurchaseUnitPriceDelta > 0 ? <div className="text-[11px] font-semibold text-amber-500">+{lastPurchaseUnitPriceDelta.toFixed(1)}% vs ultima compra</div> : null}
+      <div className="hidden min-w-[156px] shrink-0 text-right sm:block">
+        {isOffer && offerPercent && offerPercent > 0 ? (
+          <div className="mb-2 inline-flex items-center gap-1 rounded-md bg-orange-600 px-1.5 py-0.5 text-[9px] font-black uppercase text-white shadow-sm ring-1 ring-orange-500/10">
+            <Flame size={8} fill="currentColor" />
+            {offerPercent.toFixed(1)}% OFF
+          </div>
+        ) : null}
+        {isOffer && originalPrice && originalPrice > finalPrice ? (
+          <div className="mb-0.5 text-[10px] font-medium text-muted-foreground/60 line-through tabular-nums">
+            Antes: {formatPrice(originalPrice)}
+          </div>
+        ) : null}
+        <div className={cn(
+          "text-2xl font-black leading-none tabular-nums",
+          isOffer ? "text-orange-600" : "text-primary"
+        )}>
+          {formatPrice(finalPrice)}
         </div>
+        <div className="mt-1 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Incluye impuestos</div>
+        {lastPurchaseUnitPriceDelta > 0 ? <div className="text-[11px] font-semibold text-amber-500">+{lastPurchaseUnitPriceDelta.toFixed(1)}% vs ultima compra</div> : null}
       </div>
 
       <div className="flex shrink-0 items-center gap-1">

@@ -134,6 +134,7 @@ export default function B2BPortal() {
     catalogContext,
     isAdmin: !!isAdmin,
     hiddenProductIds,
+    search,
   });
 
   // Override useProducts search from portal header
@@ -436,30 +437,7 @@ export default function B2BPortal() {
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
 
-        {/* SIDEBAR */}
-        {activeTab === "catalog" && (
-          <PortalSidebar
-            isDark={isDark}
-            hasActiveFilters={catalog.hasActiveFilters}
-            clearFilters={catalog.clearFilters}
-            categoryFilter={catalog.categoryFilter}
-            setCategoryFilter={catalog.setCategoryFilter}
-            categoryCounts={catalog.categoryCounts}
-            categoryTree={catalog.categoryTree}
-            expandedParents={catalog.expandedParents}
-            setExpandedParents={catalog.setExpandedParents}
-            toggleSetValue={toggleSetValue}
-            activeBrandsWithProducts={catalog.activeBrandsWithProducts}
-            brandFilter={catalog.brandFilter}
-            setBrandFilter={catalog.setBrandFilter}
-            brandCounts={catalog.brandCounts}
-            minPrice={catalog.minPrice}
-            setMinPrice={catalog.setMinPrice}
-            maxPrice={catalog.maxPrice}
-            setMaxPrice={catalog.setMaxPrice}
-            totalProductsCount={catalog.totalCount || catalog.products.length}
-          />
-        )}
+        {/* MAIN CONTENT (FULL WIDTH) */}
 
         {/* MAIN CONTENT */}
         <main className="flex-1 overflow-y-auto bg-transparent p-3 md:p-4 lg:p-5">
@@ -475,8 +453,6 @@ export default function B2BPortal() {
               creditUsed={creditUsed}
               onGoTo={(tab) => setActiveTab(tab as PortalTab)}
               onAddToCart={cart.handleSmartAddToCart}
-              projects={projects}
-              onCreateProject={createProject}
               alerts={alerts}
               assignedSeller={assignedSeller}
               activeAgreement={activeAgreement}
@@ -515,6 +491,12 @@ export default function B2BPortal() {
               addedIds={cart.addedIds}
               purchaseHistory={cart.purchaseHistory}
               latestPurchaseUnitPrice={cart.latestPurchaseUnitPrice}
+              page={catalog.page}
+              setPage={catalog.setPage}
+              categoryTree={catalog.categoryTree}
+              categoryFilter={catalog.categoryFilter}
+              setCategoryFilter={catalog.setCategoryFilter}
+              categoryCounts={catalog.categoryCounts}
             />
           )}
 
@@ -546,7 +528,7 @@ export default function B2BPortal() {
               savedCarts={cart.savedCarts}
               onNavigateToTab={setActiveTab}
               onLoadSavedCart={cart.handleLoadSavedCart}
-              onDeleteSavedCart={cart.deleteSavedCart}
+              onDeleteSavedCart={cart.handleDeleteSavedCart}
               isDark={isDark}
               onLoadQuote={cart.handleLoadQuote}
               onUpdateQuoteStatus={updateQuoteStatus}
