@@ -403,9 +403,6 @@ export default function B2BPortal() {
           <span className="rounded-full border border-border/70 bg-card px-2 py-0.5 text-[11px] font-medium capitalize text-muted-foreground">
             {profile.client_type ?? "mayorista"}
           </span>
-          <span className="text-[11px] text-muted-foreground">
-            Margen: <span className="font-semibold text-primary">{defaultMargin}%</span>
-          </span>
           {profile.credit_limit != null && profile.credit_limit > 0 && (() => {
             const fmt = (n: number) => `$${Math.round(n).toLocaleString("es-AR")}`;
             const creditAvail = Math.max(0, profile.credit_limit! - creditUsed);
