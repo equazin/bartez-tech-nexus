@@ -115,11 +115,11 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
       // ── Priority 1: client-specific pactado price ──────────────────────────
       const pactado = customPrices[product.id];
       if (pactado) {
-        // Convert to ARS if the pactado is in USD
-        const unitPriceARS = pactado.currency === "USD"
-          ? pactado.custom_price * exchangeRate.rate
+        // We normalize everything to USD internally
+        const unitPriceUSD = pactado.currency === "ARS"
+          ? pactado.custom_price / exchangeRate.rate
           : pactado.custom_price;
-        const totalPrice   = unitPriceARS * quantity;
+        const totalPrice   = unitPriceUSD * quantity;
         const ivaAmount    = totalPrice * (ivaRate / 100);
         const totalWithIVA = totalPrice + ivaAmount;
         const province = (profile as any)?.provincia || (profile as any)?.iibb_province;
@@ -127,11 +127,11 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
           ? calculatePerception(totalPrice, province as ProvinceCode, (profile as any)?.iibb_aliquot)
           : 0;
         return {
-          cost: unitPriceARS, effectiveCost: unitPriceARS, margin: 0,
-          unitPrice: unitPriceARS, totalPrice, ivaRate, ivaAmount, totalWithIVA,
+          cost: unitPriceUSD, effectiveCost: unitPriceUSD, margin: 0,
+          unitPrice: unitPriceUSD, totalPrice, ivaRate, ivaAmount, totalWithIVA,
           iibbAmount, grandTotal: totalWithIVA + iibbAmount,
           isVolumePricing: false, isCustomPrice: true,
-          originalUnitPrice: unitPriceARS, isOffer: false,
+          originalUnitPrice: unitPriceUSD, isOffer: false,
           calculatedOfferPercent: 0,
         };
       }
@@ -139,8 +139,8 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
       // ── Priority 1.5: per-SKU agreement item fixed price ──────────────────
       const agItem = agreementItems[product.id];
       if (agItem?.fixed_price_usd != null) {
-        const unitPriceARS = agItem.fixed_price_usd * exchangeRate.rate;
-        const totalPrice   = unitPriceARS * quantity;
+        const unitPriceUSD = agItem.fixed_price_usd;
+        const totalPrice   = unitPriceUSD * quantity;
         const ivaAmount    = totalPrice * (ivaRate / 100);
         const totalWithIVA = totalPrice + ivaAmount;
         const province = (profile as any)?.provincia || (profile as any)?.iibb_province;
@@ -148,11 +148,11 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
           ? calculatePerception(totalPrice, province as ProvinceCode, (profile as any)?.iibb_aliquot)
           : 0;
         return {
-          cost: unitPriceARS, effectiveCost: unitPriceARS, margin: 0,
-          unitPrice: unitPriceARS, totalPrice, ivaRate, ivaAmount, totalWithIVA,
+          cost: unitPriceUSD, effectiveCost: unitPriceUSD, margin: 0,
+          unitPrice: unitPriceUSD, totalPrice, ivaRate, ivaAmount, totalWithIVA,
           iibbAmount, grandTotal: totalWithIVA + iibbAmount,
           isVolumePricing: false, isCustomPrice: true,
-          originalUnitPrice: unitPriceARS, isOffer: false,
+          originalUnitPrice: unitPriceUSD, isOffer: false,
           calculatedOfferPercent: 0,
         };
       }
@@ -183,25 +183,24 @@ export function usePricing(profile: UserProfile | null, baseMarginOverride?: num
       let isOffer = false;
       let calculatedOfferPercent = 0;
 
-      // Special Price: specific fixed offer price
+      // Special Price: specific fixed offer price (assume USD in DB)
       if (product.special_price) {
-        // Assume special_price is in USD and needs conversion to ARS
-        const specialPriceARS = product.special_price * exchangeRate.rate;
-        if (specialPriceARS < unitPrice && unitPrice > 0) {
-          calculatedOfferPercent = ((unitPrice - specialPriceARS) / unitPrice) * 100;
-          unitPrice = specialPriceARS;
+        const specialPriceUSD = product.special_price;
+        if (specialPriceUSD < unitPrice && unitPrice > 0) {
+          calculatedOfferPercent = ((unitPrice - specialPriceUSD) / unitPrice) * 100;
+          unitPrice = specialPriceUSD;
           isOffer = true;
         }
       } 
       
       // Offer Percent: specific % discount from calculated price
       if (product.offer_percent && product.offer_percent > 0) {
-        const offerPriceARS = unitPrice * (1 - product.offer_percent / 100);
-        if (offerPriceARS < unitPrice && unitPrice > 0) {
+        const offerPriceUSD = unitPrice * (1 - product.offer_percent / 100);
+        if (offerPriceUSD < unitPrice && unitPrice > 0) {
           calculatedOfferPercent = calculatedOfferPercent > 0 
-            ? ((originalUnitPrice - offerPriceARS) / originalUnitPrice) * 100
+            ? ((originalUnitPrice - offerPriceUSD) / originalUnitPrice) * 100
             : product.offer_percent;
-          unitPrice = offerPriceARS;
+          unitPrice = offerPriceUSD;
           isOffer = true;
         }
       }

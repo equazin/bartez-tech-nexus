@@ -1601,6 +1601,7 @@ function MoneyInput({
 const PAYMENT_TERMS_OPTIONS = [0, 15, 30, 45, 60, 90, 120];
 
 function CreditPanel({ profile, isDark, onRefresh }: { profile: ClientDetailData; isDark: boolean; onRefresh: () => Promise<void> }) {
+  const { formatPrice } = useCurrency();
   const dk = (d: string, l: string) => isDark ? d : l;
   const [approved, setApproved] = useState(profile.credit_approved);
   const [limit, setLimit]       = useState(String(profile.credit_limit ?? 0));

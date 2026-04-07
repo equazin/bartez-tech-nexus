@@ -169,7 +169,7 @@ export function ProductItem({
                 )}>
                   {formatPrice(finalPrice)}
                 </div>
-                <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Impuestos incluídos</p>
+                <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Precio + IVA</p>
                 {lastPurchaseUnitPriceDelta > 0 ? (
                   <p className="mt-1 text-xs font-semibold text-amber-500">+{lastPurchaseUnitPriceDelta.toFixed(1)}% vs ultima compra</p>
                 ) : null}
@@ -269,7 +269,7 @@ export function ProductItem({
         )}>
           {formatPrice(finalPrice)}
         </div>
-        <div className="mt-1 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Incluye impuestos</div>
+        <div className="mt-1 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Precio + IVA</div>
         {lastPurchaseUnitPriceDelta > 0 ? <div className="text-[11px] font-semibold text-amber-500">+{lastPurchaseUnitPriceDelta.toFixed(1)}% vs ultima compra</div> : null}
       </div>
 

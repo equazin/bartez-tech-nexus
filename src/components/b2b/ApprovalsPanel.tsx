@@ -130,7 +130,7 @@ export function ApprovalsPanel({
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatPrice(order.total)}</p>
-                    <p className="text-[10px] text-muted-foreground">Total con impuestos incluidos</p>
+                    <p className="text-[10px] text-muted-foreground">Total sin impuestos</p>
                   </div>
                 </div>
 

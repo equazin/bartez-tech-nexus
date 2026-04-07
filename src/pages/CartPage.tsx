@@ -59,7 +59,7 @@ interface CartItem {
 type PaymentMethod = "transferencia" | "echeq" | "cuenta_corriente" | "efectivo" | "otro";
 type ShippingType  = "retiro" | "envio";
 type Transport     = "andreani" | "oca" | "expreso" | "comisionista" | "otro";
-type EcheqTermDays = 30 | 60 | 90 | 120;
+type EcheqTermDays = 15 | 30 | 45 | 60;
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   transferencia:    "Transferencia bancaria",
@@ -77,12 +77,12 @@ const TRANSPORT_LABELS: Record<Transport, string> = {
   otro:         "Otro",
 };
 
-const ECHEQ_TERM_OPTIONS: EcheqTermDays[] = [30, 60, 90, 120];
+const ECHEQ_TERM_OPTIONS: EcheqTermDays[] = [15, 30, 45, 60];
 const ECHEQ_SURCHARGE_BY_TERM: Record<EcheqTermDays, number> = {
+  15: 2.25,
   30: 4.5,
+  45: 6.75,
   60: 9,
-  90: 13.5,
-  120: 18.5,
 };
 
 // -- Component -----------------------------------------------------------------
@@ -139,6 +139,7 @@ export default function CartPage() {
   const [shippingTransport, setShippingTransport] = useState<Transport>("andreani");
   const [shippingCost,      setShippingCost]      = useState("");
   const [postalCode,        setPostalCode]        = useState("");
+  const [shippingPaymentType, setShippingPaymentType] = useState<"origen" | "destino">("origen");
   const [shippingEstimates, setShippingEstimates] = useState<ShippingEstimate[]>([]);
   const [estimating,        setEstimating]        = useState(false);
 
@@ -199,8 +200,8 @@ export default function CartPage() {
   const paymentSurchargePct = paymentMethod === "echeq" ? ECHEQ_SURCHARGE_BY_TERM[echeqTermDays] : 0;
   const surchargeAmt     = cartBaseTotal * (paymentSurchargePct / 100);
   const shippingCostInputNum = Number(shippingCost || 0);
-  const shippingCostBaseUsd = shippingType === "envio"
-    ? convertPrice(shippingCostInputNum, currency === "ARS" ? "ARS" : "USD")
+  const shippingCostBaseUsd = (shippingType === "envio" && shippingPaymentType === "origen")
+    ? (currency === "ARS" ? shippingCostInputNum / exchangeRate.rate : shippingCostInputNum)
     : 0;
   const grandTotal       = cartBaseTotal + surchargeAmt + shippingCostBaseUsd;
   const resellerProfit   = cartSubtotal * (resellerMargin / 100);
@@ -547,7 +548,10 @@ export default function CartPage() {
     if (errs.length) { setValidationErrors(errs); return; }
     setValidationErrors([]);
     setOrderSubmitting(true);
-    const compiledNotes = [paymentDetailNote, buildOrderNotes(notes, orderMeta)].filter(Boolean).join("\n\n");
+    const shippingNote = shippingPaymentType === "destino" 
+      ? `Envío: Pago en destino por el cliente a través de ${TRANSPORT_LABELS[shippingTransport]}.`
+      : "";
+    const compiledNotes = [paymentDetailNote, shippingNote, buildOrderNotes(notes, orderMeta)].filter(Boolean).join("\n\n");
 
     const orderProducts = cartItems.map((item) => ({
       product_id:  item.product.id,
@@ -1250,7 +1254,7 @@ export default function CartPage() {
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>Plazo de echeq</p>
-                        <p className={`text-[11px] ${dk("text-gray-400", "text-[#737373]")}`}>Recargo fijo del 4,5% por tramo de 30 días.</p>
+                        <p className={`text-[11px] ${dk("text-gray-400", "text-[#737373]")}`}>Recargo del 4,5% cada 30 días (aplicado proporcionalmente).</p>
                       </div>
                       <span className="text-sm font-bold text-amber-400">+ {paymentSurchargePct.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</span>
                     </div>
@@ -1454,10 +1458,10 @@ export default function CartPage() {
                               {address}
                             </button>
                           ))}
-                        </div>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
                       <div>
                         <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>Transporte</label>
                         <select
@@ -1468,6 +1472,7 @@ export default function CartPage() {
                             const nextEstimate = shippingEstimates.find((estimate) => estimate.carrier === nextTransport);
                             if (nextEstimate) {
                               setShippingCost(String(currency === "ARS" ? Math.round(nextEstimate.price_usd * exchangeRate.rate) : nextEstimate.price_usd));
+                              setShippingPaymentType("origen");
                             }
                           }}
                           className={`w-full text-sm outline-none rounded-lg px-3 py-2 border transition
@@ -1478,19 +1483,46 @@ export default function CartPage() {
                           ))}
                         </select>
                       </div>
-                      <div>
-                        <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>
-                          Costo de envío ({currency})
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={shippingCost}
-                          onChange={(e) => setShippingCost(e.target.value)}
-                          placeholder="0"
-                          className={`w-full text-sm outline-none rounded-lg px-3 py-2 border transition
-                            ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A] placeholder-[#525252]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]")}`}
-                        />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>
+                            Costo ({currency})
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={shippingPaymentType === "destino" ? "0" : shippingCost}
+                            onChange={(e) => setShippingCost(e.target.value)}
+                            disabled={shippingPaymentType === "destino" || (shippingTransport !== "otro" && shippingTransport !== "comisionista" && shippingTransport !== "expreso" && !isAdmin)}
+                            className={`w-full text-sm outline-none rounded-lg px-3 py-2 border transition
+                              ${(shippingPaymentType === "destino" || (shippingTransport !== "otro" && shippingTransport !== "comisionista" && shippingTransport !== "expreso" && !isAdmin)) 
+                                ? dk("bg-[#0d0d0d] border-[#1a1a1a] text-gray-600", "bg-[#f9f9f9] border-[#f0f0f0] text-gray-400")
+                                : dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]")}`}
+                          />
+                        </div>
+                        <div>
+                           {(shippingTransport === "comisionista" || shippingTransport === "expreso" || shippingTransport === "otro") ? (
+                             <>
+                                <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>Pago</label>
+                                <select
+                                  value={shippingPaymentType}
+                                  onChange={(e) => setShippingPaymentType(e.target.value as "origen" | "destino")}
+                                  className={`w-full text-sm outline-none rounded-lg px-3 py-2 border transition
+                                    ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]")}`}
+                                >
+                                  <option value="origen">En origen</option>
+                                  <option value="destino">En destino</option>
+                                </select>
+                             </>
+                           ) : (
+                             <>
+                                <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>Pago</label>
+                                <div className={`w-full text-xs rounded-lg px-3 py-2 border ${dk("bg-[#0d0d0d] border-[#1a1a1a] text-gray-600", "bg-[#f9f9f9] border-[#f0f0f0] text-gray-400")}`}>
+                                  En origen
+                                </div>
+                             </>
+                           )}
+                        </div>
                       </div>
                     </div>
                   </div>
