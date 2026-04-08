@@ -51,46 +51,44 @@ const fmtPct = (n: number | null | undefined) =>
 
 // ── Component ─────────────────────────────────────────────────
 
-async function invokeEdgeFunction<T>(functionName: string, body: unknown): Promise<T> {
+async function invokeMarketingAction<T>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
   const { data: { session } } = await supabase.auth.getSession();
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+  const accessToken = session?.access_token;
+  const apiBase = ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "").replace(/\/$/, "");
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Supabase no esta configurado en este entorno.");
+  if (!accessToken) {
+    throw new Error("Tu sesion vencio. Volve a iniciar sesion.");
   }
 
-  const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
+  const response = await fetch(`${apiBase}/api/ai`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      apikey: supabaseAnonKey,
-      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      Authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      action,
+      ...payload,
+    }),
   });
 
   const text = await response.text();
-  let payload: Record<string, unknown> | null = null;
+  let parsedPayload: Record<string, unknown> | null = null;
 
   try {
-    payload = text ? JSON.parse(text) as Record<string, unknown> : null;
+    parsedPayload = text ? JSON.parse(text) as Record<string, unknown> : null;
   } catch {
-    payload = null;
+    parsedPayload = null;
   }
 
-  if (!response.ok) {
-    const message = typeof payload?.message === "string"
-      ? payload.message
-      : typeof payload?.error === "string"
-        ? payload.error
-        : response.status === 404
-          ? `La funcion ${functionName} no esta desplegada en Supabase.`
-          : `Error del servidor (${response.status}).`;
-    throw new Error(message);
+  if (!parsedPayload) {
+    if (!response.ok) {
+      throw new Error(`Error del servidor (${response.status}).`);
+    }
+    throw new Error("Respuesta invalida del servidor.");
   }
 
-  return (payload ?? {}) as T;
+  return parsedPayload as T;
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -413,7 +411,7 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
   async function triggerSync() {
     setSyncing(true); setSyncMsg(null);
     try {
-      const data = await invokeEdgeFunction<{ ok: boolean; message?: string; synced?: number }>("google-ads-sync", {});
+      const data = await invokeMarketingAction<{ ok: boolean; message?: string; synced?: number }>("sync_google_ads");
       setSyncMsg(data.ok ? `OK: ${data.synced ?? 0} registros sincronizados` : (data.message ?? "Sin credenciales configuradas"));
       if (data.ok) void load();
     } catch (error) {
@@ -427,7 +425,7 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
     if (!aiForm.daily_budget_ars) { setGenMsg("Ingresa un presupuesto diario"); return; }
     setGenerating(true); setGenMsg(null);
     try {
-      const data = await invokeEdgeFunction<{ ok: boolean; draft?: CampaignDraft; message?: string }>("generate-campaign", {
+      const data = await invokeMarketingAction<{ ok: boolean; draft?: CampaignDraft; message?: string }>("generate_campaign", {
         objective:        aiForm.objective,
         campaign_type:    aiForm.campaign_type,
         target_segment:   aiForm.target_segment,
@@ -465,7 +463,7 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
   async function launchDraft(id: string) {
     setLaunching(id); setLaunchMsg(null);
     try {
-      const data = await invokeEdgeFunction<{ ok: boolean; message?: string; google_ads_campaign_id?: string }>("launch-campaign", { draft_id: id });
+      const data = await invokeMarketingAction<{ ok: boolean; message?: string; google_ads_campaign_id?: string }>("launch_campaign", { draft_id: id });
       setLaunchMsg(data.ok ? `OK: ${data.message ?? "Campana lanzada."}` : `Error: ${data.message ?? "No se pudo lanzar la campana."}`);
     } catch (error) {
       setLaunchMsg(`Error: ${getErrorMessage(error, "No se pudo lanzar la campana.")}`);
@@ -1016,7 +1014,7 @@ function CopiesSection({ isDark }: { isDark: boolean }) {
     setGenerating(true);
     setGenError(null);
     try {
-      const data = await invokeEdgeFunction<{ ok: boolean; copies?: AdCopy[]; error?: string }>("ad-copy-generator", {
+      const data = await invokeMarketingAction<{ ok: boolean; copies?: AdCopy[]; error?: string }>("generate_copy", {
         category,
         segment,
         count,

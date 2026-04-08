@@ -81,6 +81,236 @@ async function callSupabaseFunction(
   return { ok: res.ok, status: res.status, data: parsed };
 }
 
+const GOOGLE_ADS_DEVELOPER_TOKEN = process.env.GOOGLE_ADS_DEVELOPER_TOKEN || "";
+const GOOGLE_ADS_CLIENT_ID = process.env.GOOGLE_ADS_CLIENT_ID || "";
+const GOOGLE_ADS_CLIENT_SECRET = process.env.GOOGLE_ADS_CLIENT_SECRET || "";
+const GOOGLE_ADS_REFRESH_TOKEN = process.env.GOOGLE_ADS_REFRESH_TOKEN || "";
+const GOOGLE_ADS_CUSTOMER_ID = process.env.GOOGLE_ADS_CUSTOMER_ID || "";
+
+interface LaunchAdGroup {
+  name: string;
+  keywords?: string[];
+  headlines?: string[];
+  descriptions?: string[];
+}
+
+interface LaunchCampaignStructure {
+  name?: string;
+  ad_groups?: LaunchAdGroup[];
+  negative_keywords?: string[];
+  bidding_strategy?: string;
+}
+
+interface CampaignDraftRow {
+  id: string;
+  status: string;
+  name: string;
+  campaign_type: string;
+  target_segment?: string | null;
+  daily_budget_ars?: number | null;
+  campaign_structure: LaunchCampaignStructure;
+}
+
+async function sbSelectSingle<T>(table: string, query: string): Promise<T | null> {
+  const res = await fetch(`${SB_URL()}/rest/v1/${table}?${query}&limit=1`, {
+    headers: {
+      Authorization: `Bearer ${SB_KEY()}`,
+      apikey: SB_KEY(),
+      Accept: "application/json",
+    },
+  });
+  if (!res.ok) return null;
+  const rows = await res.json() as T[];
+  return rows[0] ?? null;
+}
+
+async function sbUpdateWhere(table: string, query: string, data: Record<string, unknown>): Promise<boolean> {
+  const res = await fetch(`${SB_URL()}/rest/v1/${table}?${query}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${SB_KEY()}`,
+      apikey: SB_KEY(),
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify(data),
+  });
+  return res.ok;
+}
+
+async function sbUpsert(table: string, rows: Record<string, unknown> | Record<string, unknown>[], onConflict: string): Promise<boolean> {
+  const res = await fetch(`${SB_URL()}/rest/v1/${table}?on_conflict=${encodeURIComponent(onConflict)}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${SB_KEY()}`,
+      apikey: SB_KEY(),
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates,return=minimal",
+    },
+    body: JSON.stringify(rows),
+  });
+  return res.ok;
+}
+
+function hasGoogleAdsCredentials() {
+  return Boolean(
+    GOOGLE_ADS_DEVELOPER_TOKEN &&
+    GOOGLE_ADS_CLIENT_ID &&
+    GOOGLE_ADS_CLIENT_SECRET &&
+    GOOGLE_ADS_REFRESH_TOKEN &&
+    GOOGLE_ADS_CUSTOMER_ID,
+  );
+}
+
+async function getGoogleAdsAccessToken(): Promise<string> {
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: GOOGLE_ADS_CLIENT_ID,
+      client_secret: GOOGLE_ADS_CLIENT_SECRET,
+      refresh_token: GOOGLE_ADS_REFRESH_TOKEN,
+      grant_type: "refresh_token",
+    }),
+  });
+
+  const data = await res.json() as { access_token?: string; error?: string };
+  if (!data.access_token) throw new Error(`OAuth error: ${data.error ?? "unknown"}`);
+  return data.access_token;
+}
+
+async function createCampaignInGoogleAds(structure: LaunchCampaignStructure, budgetArs: number): Promise<string> {
+  const customerId = GOOGLE_ADS_CUSTOMER_ID.replace(/-/g, "");
+  const baseUrl = `https://googleads.googleapis.com/v17/customers/${customerId}`;
+  const accessToken = await getGoogleAdsAccessToken();
+  const campaignName = structure.name || `Bartez ${new Date().toISOString()}`;
+
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    "developer-token": GOOGLE_ADS_DEVELOPER_TOKEN,
+    "Content-Type": "application/json",
+  };
+
+  const budgetRes = await fetch(`${baseUrl}/campaignBudgets:mutate`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      operations: [{
+        create: {
+          name: `Budget_${campaignName}_${Date.now()}`,
+          amountMicros: Math.round(budgetArs * 1_000_000),
+          deliveryMethod: "STANDARD",
+        },
+      }],
+    }),
+  });
+  const budgetData = await budgetRes.json() as { results?: { resourceName: string }[] };
+  const budgetResource = budgetData.results?.[0]?.resourceName;
+  if (!budgetResource) throw new Error("No se pudo crear el presupuesto en Google Ads");
+
+  const campaignRes = await fetch(`${baseUrl}/campaigns:mutate`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      operations: [{
+        create: {
+          name: campaignName,
+          status: "PAUSED",
+          advertisingChannelType: "SEARCH",
+          campaignBudget: budgetResource,
+          biddingStrategyType: "MAXIMIZE_CONVERSIONS",
+          targetSpend: {},
+          networkSettings: {
+            targetGoogleSearch: true,
+            targetSearchNetwork: true,
+            targetContentNetwork: false,
+            targetPartnerSearchNetwork: false,
+          },
+        },
+      }],
+    }),
+  });
+  const campaignData = await campaignRes.json() as { results?: { resourceName: string }[] };
+  const campaignResource = campaignData.results?.[0]?.resourceName;
+  if (!campaignResource) throw new Error("No se pudo crear la campana en Google Ads");
+
+  const adGroups = structure.ad_groups ?? [];
+  for (const adGroup of adGroups) {
+    const adGroupRes = await fetch(`${baseUrl}/adGroups:mutate`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        operations: [{
+          create: {
+            name: adGroup.name,
+            campaign: campaignResource,
+            status: "ENABLED",
+            type: "SEARCH_STANDARD",
+          },
+        }],
+      }),
+    });
+    const adGroupData = await adGroupRes.json() as { results?: { resourceName: string }[] };
+    const adGroupResource = adGroupData.results?.[0]?.resourceName;
+    if (!adGroupResource) continue;
+
+    const headlines = (adGroup.headlines ?? []).slice(0, 15).map((text) => ({ text: text.slice(0, 30) }));
+    const descriptions = (adGroup.descriptions ?? []).slice(0, 4).map((text) => ({ text: text.slice(0, 90) }));
+    if (headlines.length > 0 && descriptions.length > 0) {
+      await fetch(`${baseUrl}/adGroupAds:mutate`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          operations: [{
+            create: {
+              adGroup: adGroupResource,
+              status: "ENABLED",
+              ad: {
+                finalUrls: ["https://bartez.com.ar/empresas"],
+                responsiveSearchAd: { headlines, descriptions },
+              },
+            },
+          }],
+        }),
+      });
+    }
+
+    const keywordOps = (adGroup.keywords ?? []).slice(0, 20).map((keyword) => ({
+      create: {
+        adGroup: adGroupResource,
+        text: keyword,
+        matchType: "BROAD",
+        status: "ENABLED",
+      },
+    }));
+    if (keywordOps.length > 0) {
+      await fetch(`${baseUrl}/adGroupCriteria:mutate`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ operations: keywordOps }),
+      });
+    }
+  }
+
+  const negativeKeywords = structure.negative_keywords ?? [];
+  if (negativeKeywords.length > 0) {
+    await fetch(`${baseUrl}/campaignCriteria:mutate`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        operations: negativeKeywords.slice(0, 30).map((keyword) => ({
+          create: {
+            campaign: campaignResource,
+            keyword: { text: keyword, matchType: "BROAD" },
+          },
+        })),
+      }),
+    });
+  }
+
+  return campaignResource.split("/").pop() || campaignName;
+}
+
 // ── enrich_content ─────────────────────────────────────────────────────────
 
 type Mode = "only_descriptions" | "only_specs" | "both";
@@ -403,6 +633,16 @@ Respondé SOLO con JSON minificado sin markdown:
 async function handleSyncGoogleAds(request: Request) {
   const authHeader = request.headers.get("Authorization") || "";
   const result = await callSupabaseFunction("google-ads-sync", authHeader);
+  const functionMissing = result.status === 404 || result.data?.code === "NOT_FOUND";
+
+  if (functionMissing) {
+    return json({
+      ok: false,
+      synced: 0,
+      message: "La funcion google-ads-sync no esta desplegada en Supabase.",
+    });
+  }
+
   const message =
     (typeof result.data?.message === "string" && result.data.message) ||
     (typeof result.data?.error === "string" && result.data.error) ||
@@ -418,27 +658,72 @@ async function handleSyncGoogleAds(request: Request) {
   );
 }
 
-async function handleLaunchCampaign(request: Request, body: Record<string, unknown>) {
-  const authHeader = request.headers.get("Authorization") || "";
+async function handleLaunchCampaign(body: Record<string, unknown>, userId: string) {
   const draftId = typeof body.draft_id === "string" ? body.draft_id : "";
   if (!draftId) return json({ ok: false, message: "draft_id requerido" }, 400);
 
-  const result = await callSupabaseFunction("launch-campaign", authHeader, { draft_id: draftId });
-  const message =
-    (typeof result.data?.message === "string" && result.data.message) ||
-    (typeof result.data?.error === "string" && result.data.error) ||
-    (result.ok ? "Campa?a lanzada." : "No se pudo lanzar la campa?a.");
+  const draft = await sbSelectSingle<CampaignDraftRow>("campaign_drafts", `id=eq.${encodeURIComponent(draftId)}&select=*`);
+  if (!draft) return json({ ok: false, message: "Draft no encontrado" }, 404);
+  if (draft.status !== "approved") {
+    return json({ ok: false, message: "El draft debe estar aprobado antes de lanzar" }, 400);
+  }
+
+  let googleAdsCampaignId: string | null = null;
+  let launchError: string | null = null;
+
+  if (hasGoogleAdsCredentials()) {
+    try {
+      googleAdsCampaignId = await createCampaignInGoogleAds(
+        draft.campaign_structure,
+        Number(draft.daily_budget_ars ?? 0),
+      );
+    } catch (error) {
+      launchError = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  const updated = await sbUpdateWhere("campaign_drafts", `id=eq.${encodeURIComponent(draftId)}`, {
+    status: launchError ? "launch_error" : "launched",
+    reviewed_by: userId,
+    reviewed_at: new Date().toISOString(),
+    google_ads_campaign_id: googleAdsCampaignId,
+    launch_error: launchError,
+  });
+
+  if (!updated) {
+    return json({ ok: false, message: "No se pudo actualizar el draft tras el lanzamiento." }, 500);
+  }
+
+  if (googleAdsCampaignId) {
+    await sbUpsert("ad_campaigns", {
+      id: googleAdsCampaignId,
+      name: draft.name,
+      type: draft.campaign_type,
+      target_segment: draft.target_segment ?? null,
+      daily_budget: draft.daily_budget_ars ?? null,
+      source: "google_ads_api",
+      status: "paused",
+    }, "id");
+  }
+
+  if (launchError) {
+    return json({
+      ok: false,
+      message: `Error al crear en Google Ads: ${launchError}`,
+      draft_id: draftId,
+    }, 500);
+  }
 
   return json(
     {
-      ok: result.ok && result.data?.ok !== false,
-      message,
-      google_ads_campaign_id:
-        typeof result.data?.google_ads_campaign_id === "string" ? result.data.google_ads_campaign_id : null,
-      manual_launch: Boolean(result.data?.manual_launch),
+      ok: true,
+      message: hasGoogleAdsCredentials()
+        ? `Campana creada en Google Ads (ID: ${googleAdsCampaignId}). Quedo en PAUSED para revision final.`
+        : "Campana marcada como lanzada. Configura las credenciales de Google Ads en Vercel para publicarla automaticamente.",
+      google_ads_campaign_id: googleAdsCampaignId,
+      manual_launch: !hasGoogleAdsCredentials(),
       draft_id: draftId,
     },
-    result.ok ? 200 : result.status || 500,
   );
 }
 
@@ -569,7 +854,7 @@ export default async function handler(request: Request): Promise<Response> {
     if (!user) return json({ ok: false, error: "Unauthorized" }, 401);
     const profile = await getProfile(user.id);
     if (!profile || profile.role !== "admin") return json({ ok: false, error: "Permisos insuficientes" }, 403);
-    return handleLaunchCampaign(request, body);
+    return handleLaunchCampaign(body, user.id);
   }
 
   return json({ ok: false, error: `Unknown action: ${action}` }, 400);
