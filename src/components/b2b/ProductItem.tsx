@@ -309,14 +309,28 @@ export function ProductItem({
         {lastPurchaseUnitPriceDelta > 0 ? <div className="text-[10px] mt-1 font-semibold text-amber-500">+{lastPurchaseUnitPriceDelta.toFixed(1)}% vs anterior</div> : null}
       </div>
 
-      <div className="flex shrink-0 items-center justify-end gap-1 pr-3 py-2 bg-muted/10 w-[110px] sm:w-[130px]">
+      <div className="flex w-full shrink-0 items-center justify-between gap-2 border-t border-border/50 bg-muted/10 px-3 py-2 sm:w-[130px] sm:justify-end sm:gap-1 sm:border-l sm:border-t-0 sm:pr-3">
+        <div className="min-w-0 sm:hidden">
+          {isOffer && originalPrice && originalPrice > finalPrice ? (
+            <div className="mb-0.5 text-[10px] font-medium text-muted-foreground/60 line-through tabular-nums">
+              {formatPrice(originalPrice)}
+            </div>
+          ) : null}
+          <div className={cn(
+            "text-sm font-black leading-none tabular-nums",
+            isOffer ? "text-orange-600" : "text-primary"
+          )}>
+            {formatPrice(finalPrice)}
+          </div>
+          <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground/70">Precio + IVA</div>
+        </div>
         <Button variant="ghost" size="icon" className={cn("hidden lg:flex h-8 w-8", isCompared && "text-primary")} onClick={() => onToggleCompare(product.id)} title="Comparar">
           <TrendingUp size={13} />
         </Button>
         <Button variant="ghost" size="icon" className={cn("hidden lg:flex h-8 w-8", isFavorite && "text-amber-400")} onClick={() => onToggleFavorite(product.id)} title="Favorito">
           <Star size={13} className={isFavorite ? "fill-current" : undefined} />
         </Button>
-        <div className="scale-[0.85] origin-right">
+        <div className="min-w-0 sm:origin-right sm:scale-[0.85]">
           <QuickAddControl
             inCart={inCart}
             outOfStock={outOfStock}

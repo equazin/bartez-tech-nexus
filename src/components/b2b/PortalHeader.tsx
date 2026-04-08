@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   LogOut,
   Moon,
@@ -54,19 +54,37 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
   const ageMin = Math.floor(ageMs / 60000);
   const ageLabel =
     ageMin < 2 ? "Ahora" : ageMin < 60 ? `hace ${ageMin}m` : `hace ${Math.floor(ageMin / 60)}h`;
+  const headerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const node = headerRef.current;
+    if (!node) return;
+
+    const updateHeaderHeight = () => {
+      const height = Math.ceil(node.getBoundingClientRect().height);
+      document.documentElement.style.setProperty("--header-height", `${height}px`);
+    };
+
+    updateHeaderHeight();
+    const observer = new ResizeObserver(updateHeaderHeight);
+    observer.observe(node);
+    window.addEventListener("resize", updateHeaderHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateHeaderHeight);
+    };
+  }, []);
 
   return (
-    <header
-      className="sticky top-0 z-40 border-b border-border/70 bg-card/95 px-4 py-3 backdrop-blur-xl md:px-6"
-      style={{ "--header-height": "72px" } as React.CSSProperties}
-    >
-      <div className="flex flex-wrap items-center gap-3">
+    <header ref={headerRef} className="sticky top-0 z-40 border-b border-border/70 bg-card/95 px-4 py-3 backdrop-blur-xl md:px-6">
+      <div className="grid gap-3 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
         {/* ── Logo / Identity ────────────────────────────────────────── */}
         <div className="flex shrink-0 items-center gap-3">
           <img
             src="/android-chrome-512x512.png"
             alt="Bartez"
-            className="h-14 w-14 shrink-0 rounded-2xl object-contain"
+            className="h-12 w-12 shrink-0 rounded-2xl object-contain md:h-14 md:w-14"
           />
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
@@ -80,7 +98,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
         </div>
 
         {/* ── Search (flex-grow so it fills available space) ────────── */}
-        <div className="relative min-w-[180px] flex-1">
+        <div className="relative min-w-0 w-full">
           <Search
             size={14}
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -104,7 +122,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
         </div>
 
         {/* ── Right controls ────────────────────────────────────────── */}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 lg:ml-auto lg:w-auto lg:flex-nowrap lg:justify-end">
           {/* Currency toggle */}
           <div className="flex items-center gap-1 rounded-full border border-border/70 bg-surface p-1">
             {(["USD", "ARS"] as const).map((item) => (
@@ -187,7 +205,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
             onClick={onOpenCart}
             variant={cartItemsCount > 0 ? "default" : "outline"}
             className={cn(
-              "h-11 gap-2 rounded-2xl px-4",
+              "h-10 gap-2 rounded-2xl px-3 sm:h-11 sm:px-4",
               cartItemsCount > 0 ? "shadow-lg shadow-primary/20" : "bg-surface",
             )}
           >
@@ -195,7 +213,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
               size={15}
               className={cartItemsCount > 0 ? "animate-bounce-short" : ""}
             />
-            <span className="hidden text-xs font-semibold md:inline">Carrito</span>
+            <span className="hidden text-xs font-semibold sm:inline">Carrito</span>
             {cartItemsCount > 0 ? (
               <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-background px-1 text-[10px] font-bold text-primary">
                 {cartItemsCount}

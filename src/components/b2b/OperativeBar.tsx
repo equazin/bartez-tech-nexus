@@ -1,11 +1,5 @@
 import React from "react";
-import {
-  ClipboardPaste,
-  Download,
-  Keyboard,
-  Plus,
-  Sparkles,
-} from "lucide-react";
+import { Download } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -54,9 +48,9 @@ export const OperativeBar: React.FC<OperativeBarProps> = ({
         "shadow-[0_2px_8px_0_rgba(0,0,0,0.04)]",
       )}
     >
-      <div className="flex flex-wrap items-start gap-3 lg:flex-nowrap">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
         {/* ── LEFT: Fast order input (takes most space) ─────────────────── */}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 w-full flex-1">
           <FastOrderInput
             quickSku={quickSku}
             setQuickSku={setQuickSku}
@@ -71,13 +65,13 @@ export const OperativeBar: React.FC<OperativeBarProps> = ({
 
         {/* ── RIGHT: Export controls (catalog only) ──────────────────────── */}
         {isCatalog && (
-          <div className="flex shrink-0 items-start gap-1 pt-0.5">
-            <div className="flex items-center gap-1 rounded-xl border border-border/60 bg-surface p-1">
+          <div className="w-full lg:w-auto lg:shrink-0">
+            <div className="grid grid-cols-2 gap-2 rounded-xl border border-border/60 bg-surface p-1 lg:flex lg:items-center lg:gap-1">
               <Button
                 type="button"
                 variant="toolbar"
                 size="sm"
-                className="h-9 rounded-lg px-3 text-xs text-muted-foreground hover:text-foreground"
+                className="h-10 rounded-lg px-2.5 text-xs text-muted-foreground hover:text-foreground sm:px-3 lg:h-9"
                 onClick={() => exportCatalogCSV(displayProducts)}
               >
                 <Download size={11} />
@@ -87,7 +81,7 @@ export const OperativeBar: React.FC<OperativeBarProps> = ({
                 type="button"
                 variant="toolbar"
                 size="sm"
-                className="h-9 rounded-lg px-3 text-xs text-muted-foreground hover:text-foreground"
+                className="h-10 rounded-lg px-2.5 text-xs text-muted-foreground hover:text-foreground sm:px-3 lg:h-9"
                 onClick={handleExportCatalogPDF}
               >
                 <Download size={11} />

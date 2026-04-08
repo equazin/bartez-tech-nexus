@@ -31,7 +31,7 @@ export function QuickAddControl({
   };
 
   return (
-    <div className={cn("flex items-center gap-2", compact && "gap-1.5")}>
+    <div className={cn("flex items-center", compact ? "flex-wrap gap-1.5 sm:flex-nowrap" : "flex-wrap gap-2 sm:flex-nowrap")}>
       {inCart > 0 ? (
         <div
           className={cn(

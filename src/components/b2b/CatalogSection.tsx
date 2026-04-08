@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownAZ, ChevronDown, Loader2, Package, Search, Star, Truck, X, LayoutGrid, ChevronRight,
-  Cpu, Zap, HardDrive, Monitor, Globe, Gamepad2, Box, Mouse, Headphones, Printer, Smartphone, Server, Camera, Speaker,
-  Share2, MoreHorizontal, Grid, ArrowRight
+  Cpu, Zap, HardDrive, Monitor, Globe, Gamepad2, Box, Mouse, Headphones, Printer, Smartphone, Server, Speaker,
+  ArrowRight, SlidersHorizontal
 } from "lucide-react";
 
 import type { Product } from "@/models/products";
@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { cn } from "@/lib/utils";
 
 export type ViewMode = "grid" | "list" | "table";
@@ -228,6 +229,73 @@ function SidebarFilterAccordion({ label, options, selected, onToggle }: Advanced
   );
 }
 
+interface AdvancedFiltersPanelProps {
+  brandOptions: string[];
+  ramOptions: string[];
+  storageOptions: string[];
+  refreshRateOptions: string[];
+  screenOptions: string[];
+  effectiveFilters: AdvancedFiltersState;
+  toggleAdvancedFilter: (key: AdvancedFilterKey, value: string) => void;
+}
+
+function AdvancedFiltersPanel({
+  brandOptions,
+  ramOptions,
+  storageOptions,
+  refreshRateOptions,
+  screenOptions,
+  effectiveFilters,
+  toggleAdvancedFilter,
+}: AdvancedFiltersPanelProps) {
+  return (
+    <div className="rounded-[24px] border border-border/70 bg-card/85 p-4 shadow-sm flex flex-col gap-3">
+      <p className="px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Filtros Avanzados</p>
+
+      {brandOptions.length > 0 ? (
+        <SidebarFilterAccordion
+          label="Marca"
+          options={brandOptions}
+          selected={effectiveFilters.brands}
+          onToggle={(value) => toggleAdvancedFilter("brands", value)}
+        />
+      ) : null}
+      {ramOptions.length > 0 ? (
+        <SidebarFilterAccordion
+          label="RAM"
+          options={ramOptions}
+          selected={effectiveFilters.ram}
+          onToggle={(value) => toggleAdvancedFilter("ram", value)}
+        />
+      ) : null}
+      {storageOptions.length > 0 ? (
+        <SidebarFilterAccordion
+          label="Almacenamiento"
+          options={storageOptions}
+          selected={effectiveFilters.storage}
+          onToggle={(value) => toggleAdvancedFilter("storage", value)}
+        />
+      ) : null}
+      {refreshRateOptions.length > 0 ? (
+        <SidebarFilterAccordion
+          label="Tasa de Refresco"
+          options={refreshRateOptions}
+          selected={effectiveFilters.refreshRate}
+          onToggle={(value) => toggleAdvancedFilter("refreshRate", value)}
+        />
+      ) : null}
+      {screenOptions.length > 0 ? (
+        <SidebarFilterAccordion
+          label="Pantalla"
+          options={screenOptions}
+          selected={effectiveFilters.screen}
+          onToggle={(value) => toggleAdvancedFilter("screen", value)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 export interface CatalogSectionProps {
   displayProducts: Product[];
   products: Product[];
@@ -331,6 +399,7 @@ export function CatalogSection({
   }, [categoryTree, activeParentInMenu]);
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFiltersState>(parseStoredFilters);
   const [sortOption, setSortOption] = useState<SortOption>("name_asc");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   useEffect(() => {
     window.localStorage.setItem(ADVANCED_FILTERS_KEY, JSON.stringify(advancedFilters));
@@ -363,6 +432,8 @@ export function CatalogSection({
   }), [advancedFilters, brandOptions, ramOptions, refreshRateOptions, screenOptions, storageOptions]);
 
   const hasAdvancedFilters = Object.values(effectiveFilters).some((values) => values.length > 0);
+  const advancedFilterCount = Object.values(effectiveFilters).reduce((total, values) => total + values.length, 0);
+  const mobileFilterCount = advancedFilterCount + (hasActiveFilters ? 1 : 0);
 
   const filteredProducts = useMemo(
     () =>
@@ -399,23 +470,56 @@ export function CatalogSection({
   return (
     <div className="flex flex-col lg:flex-row gap-5 items-start">
       {/* SIDEBAR PANEL */}
-      <aside className="w-full lg:w-[250px] xl:w-[260px] shrink-0 lg:sticky lg:top-4 grid gap-4 overflow-y-auto max-h-[calc(100vh-6rem)] custom-scrollbar pr-1">
+      <aside className="hidden w-full shrink-0 gap-4 custom-scrollbar lg:grid lg:w-[250px] lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:sticky lg:top-4 lg:pr-1 xl:w-[260px]">
         {(hasActiveFilters || hasAdvancedFilters) && (
           <Button type="button" variant="outline" className="justify-start gap-2 rounded-2xl bg-card text-xs h-10 border-border/70" onClick={() => { clearFilters(); clearAdvancedFilters(); }}>
             <X size={14} /> Limpiar filtros
           </Button>
         )}
 
-        <div className="rounded-[24px] border border-border/70 bg-card/85 p-4 shadow-sm flex flex-col gap-3">
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground px-1">Filtros Avanzados</p>
-          
-          {brandOptions.length > 0 && <SidebarFilterAccordion label="Marca" options={brandOptions} selected={effectiveFilters.brands} onToggle={(val) => toggleAdvancedFilter("brands", val)} />}
-          {ramOptions.length > 0 && <SidebarFilterAccordion label="RAM" options={ramOptions} selected={effectiveFilters.ram} onToggle={(val) => toggleAdvancedFilter("ram", val)} />}
-          {storageOptions.length > 0 && <SidebarFilterAccordion label="Almacenamiento" options={storageOptions} selected={effectiveFilters.storage} onToggle={(val) => toggleAdvancedFilter("storage", val)} />}
-          {refreshRateOptions.length > 0 && <SidebarFilterAccordion label="Tasa de Refresco" options={refreshRateOptions} selected={effectiveFilters.refreshRate} onToggle={(val) => toggleAdvancedFilter("refreshRate", val)} />}
-          {screenOptions.length > 0 && <SidebarFilterAccordion label="Pantalla" options={screenOptions} selected={effectiveFilters.screen} onToggle={(val) => toggleAdvancedFilter("screen", val)} />}
-        </div>
+        <AdvancedFiltersPanel
+          brandOptions={brandOptions}
+          ramOptions={ramOptions}
+          storageOptions={storageOptions}
+          refreshRateOptions={refreshRateOptions}
+          screenOptions={screenOptions}
+          effectiveFilters={effectiveFilters}
+          toggleAdvancedFilter={toggleAdvancedFilter}
+        />
       </aside>
+
+      <Drawer open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen} direction="right">
+        <DrawerContent className="fixed bottom-0 left-auto right-0 top-0 mt-0 h-full w-full max-w-sm rounded-none border-l border-border bg-background p-0">
+          <DrawerHeader className="border-b border-border/70 px-4 py-3 text-left">
+            <DrawerTitle className="text-base font-semibold text-foreground">Filtros avanzados</DrawerTitle>
+          </DrawerHeader>
+          <div className="flex h-[calc(100%-4.5rem)] flex-col gap-3 overflow-y-auto p-4">
+            {(hasActiveFilters || hasAdvancedFilters) ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="justify-start gap-2 rounded-2xl bg-card text-xs h-10 border-border/70"
+                onClick={() => {
+                  clearFilters();
+                  clearAdvancedFilters();
+                }}
+              >
+                <X size={14} /> Limpiar filtros
+              </Button>
+            ) : null}
+
+            <AdvancedFiltersPanel
+              brandOptions={brandOptions}
+              ramOptions={ramOptions}
+              storageOptions={storageOptions}
+              refreshRateOptions={refreshRateOptions}
+              screenOptions={screenOptions}
+              effectiveFilters={effectiveFilters}
+              toggleAdvancedFilter={toggleAdvancedFilter}
+            />
+          </div>
+        </DrawerContent>
+      </Drawer>
 
       {/* MAIN CONTENT */}
       <div className="flex-1 min-w-0 w-full space-y-4 mt-2 lg:mt-0">
@@ -490,8 +594,9 @@ export function CatalogSection({
           </div>
         )}
 
-        <div className="rounded-[20px] border border-border/70 bg-card/85 p-3 shadow-sm mb-4">          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-2">
+        <div className="mb-4 rounded-[20px] border border-border/70 bg-card/85 p-3 shadow-sm">
+          <div className="overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex min-w-max items-center gap-2">
               <CategoryMegaMenu
                 tree={categoryTree}
                 current={categoryFilter}
@@ -508,7 +613,7 @@ export function CatalogSection({
                     key={id}
                     size="sm"
                     variant={isActive ? "soft" : "ghost"}
-                    className="rounded-full border border-border/70"
+                    className="shrink-0 rounded-full border border-border/70 whitespace-nowrap"
                     onClick={() => setCatalogContext(id)}
                   >
                     <Icon size={14} />
@@ -519,7 +624,7 @@ export function CatalogSection({
 
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="toolbar" size="sm" className="h-9 rounded-xl px-3 text-xs font-semibold">
+                  <Button variant="toolbar" size="sm" className="h-9 shrink-0 rounded-xl px-3 text-xs font-semibold">
                     <ArrowDownAZ size={13} className="text-muted-foreground" />
                     Ordenar
                     <ChevronDown size={13} className="text-muted-foreground" />
@@ -553,6 +658,20 @@ export function CatalogSection({
                   </div>
                 </PopoverContent>
               </Popover>
+
+              <Button
+                type="button"
+                variant="toolbar"
+                size="sm"
+                className="h-9 shrink-0 rounded-xl px-3 text-xs font-semibold lg:hidden"
+                onClick={() => setMobileFiltersOpen(true)}
+              >
+                <SlidersHorizontal size={13} className="text-muted-foreground" />
+                Filtros
+                {mobileFilterCount > 0 ? (
+                  <Badge variant="muted" className="rounded-full text-[10px]">{mobileFilterCount}</Badge>
+                ) : null}
+              </Button>
             </div>
           </div>
 
@@ -592,7 +711,7 @@ export function CatalogSection({
             </div>
           )}
 
-          <div className="flex items-center gap-4 mt-3 pt-3 border-t border-border/40">
+          <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-border/40 pt-3">
             <div className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-background p-1 md:hidden">
               {(["list", "grid", "table"] as const).map((mode) => (
                 <button
@@ -617,10 +736,10 @@ export function CatalogSection({
               </div>
             ) : null}
           </div>
-        </div>
-      </div>
 
-      {productsLoading ? (
+        </div>
+
+        {productsLoading ? (
         viewMode === "list" || viewMode === "table" ? (
           <div className="flex flex-col gap-2">
             {Array.from({ length: 6 }).map((_, index) => (
@@ -637,7 +756,7 @@ export function CatalogSection({
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 2xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {Array.from({ length: 8 }).map((_, index) => (
               <div key={index} className="animate-pulse rounded-[22px] border border-border/70 bg-card p-3">
                 <div className="mb-3 h-28 w-full rounded-lg bg-muted" />
@@ -717,7 +836,7 @@ export function CatalogSection({
           />
         )
       ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 2xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           {filteredProducts.map((product) => {
             const price = computePrice(product, Math.max(cart[product.id] || 0, 1));
             return (
@@ -770,7 +889,7 @@ export function CatalogSection({
       )}
 
       {totalCount > 200 && !productsLoading && filteredProducts.length > 0 ? (
-        <div className="mb-12 mt-8 flex items-center justify-center gap-2">
+        <div className="mb-12 mt-8 flex flex-wrap items-center justify-center gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -811,6 +930,7 @@ export function CatalogSection({
           </div>
         </div>
       ) : null}
+      </div>
     </div>
   );
 }
@@ -883,7 +1003,7 @@ function CategoryMegaMenu({
         <Button
           variant="toolbar"
           size="sm"
-          className="group h-10 rounded-xl px-4 text-[13px] font-bold shadow-sm transition-all hover:bg-primary hover:text-primary-foreground"
+          className="group h-10 shrink-0 rounded-xl px-4 text-[13px] font-bold shadow-sm transition-all hover:bg-primary hover:text-primary-foreground"
         >
           <LayoutGrid size={15} className="mr-1.5 transition-transform group-hover:rotate-90" />
           Categorías
@@ -892,11 +1012,11 @@ function CategoryMegaMenu({
       <PopoverContent
         align="start"
         sideOffset={8}
-        className="w-[1080px] max-w-[95vw] overflow-hidden rounded-[24px] p-0 shadow-2xl border border-border/80 bg-background/95 backdrop-blur-md"
+        className="w-[95vw] max-w-[1080px] overflow-hidden rounded-[24px] border border-border/80 bg-background/95 p-0 shadow-2xl backdrop-blur-md"
       >
-        <div className="flex h-[600px] divide-x divide-border/30">
+        <div className="flex h-[600px] flex-col divide-y divide-border/30 overflow-hidden lg:flex-row lg:divide-x lg:divide-y-0">
           {/* Column 1: Main Roots */}
-          <div className="w-[240px] shrink-0 bg-secondary/10 p-3 flex flex-col gap-0.5 overflow-y-auto custom-scrollbar">
+          <div className="w-full shrink-0 bg-secondary/10 p-3 flex max-h-[220px] flex-col gap-0.5 overflow-y-auto custom-scrollbar lg:w-[240px] lg:max-h-none">
             <div className="mb-2 px-4 py-2 flex items-center justify-between">
               <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Departamentos</span>
             </div>
@@ -940,7 +1060,7 @@ function CategoryMegaMenu({
           </div>
 
           {/* Column 2: Level 1 Children */}
-          <div className="w-[280px] shrink-0 bg-secondary/5 p-3 flex flex-col gap-0.5 overflow-y-auto custom-scrollbar">
+          <div className="w-full shrink-0 bg-secondary/5 p-3 flex max-h-[220px] flex-col gap-0.5 overflow-y-auto custom-scrollbar lg:w-[280px] lg:max-h-none">
             {activeParent ? (
               <>
                 <div className="mb-2 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">
@@ -977,7 +1097,7 @@ function CategoryMegaMenu({
           </div>
 
           {/* Column 3: Level 2 Children */}
-          <div className="flex-1 bg-background p-6 overflow-y-auto custom-scrollbar">
+          <div className="min-h-[220px] flex-1 bg-background p-4 overflow-y-auto custom-scrollbar sm:p-6">
             {activeParent && activeSubParent ? (
               <div className="space-y-8 animate-in fade-in slide-in-from-left-4 duration-300">
                 {/* Header/Breadcrumb */}
@@ -987,7 +1107,7 @@ function CategoryMegaMenu({
                     <ChevronRight size={10} className="opacity-40" />
                     <span className="text-primary">{activeSubParent}</span>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <h4 className="text-2xl font-bold tracking-tight text-foreground uppercase border-l-4 border-primary pl-4">
                       {activeSubParent}
                     </h4>
@@ -1007,7 +1127,7 @@ function CategoryMegaMenu({
                 </div>
 
                 {/* Sub-items (Grid) */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {tree.parents
                     .find(p => p.name === activeParent)
                     ?.children.find(c => c.name === activeSubParent)

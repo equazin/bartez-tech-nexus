@@ -348,33 +348,35 @@ export function FastOrderInput({
           ) : null}
         </div>
 
-        <Button type="button" className="h-12 rounded-2xl px-4" onClick={submitCurrentEntry}>
+        <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-3 lg:contents">
+          <Button type="button" className="h-12 w-full rounded-2xl px-4 lg:w-auto" onClick={submitCurrentEntry}>
           <Plus size={13} />
           Añadir
         </Button>
 
-        <Button
-          type="button"
-          variant="toolbar"
-          size="default"
-          className="h-12 rounded-2xl px-4"
-          onClick={() => setShowBulkDialog(true)}
-        >
+          <Button
+            type="button"
+            variant="toolbar"
+            size="default"
+            className="h-12 w-full rounded-2xl px-4 lg:w-auto"
+            onClick={() => setShowBulkDialog(true)}
+          >
           <ClipboardPaste size={13} />
           Pegar lista
-        </Button>
+          </Button>
 
-        <Button
-          type="button"
-          variant={keepFocus ? "soft" : "toolbar"}
-          size="default"
-          className="h-12 rounded-2xl px-4"
-          onClick={() => setKeepFocus((current) => !current)}
-          title="Mantener foco para carga continua"
-        >
+          <Button
+            type="button"
+            variant={keepFocus ? "soft" : "toolbar"}
+            size="default"
+            className="h-12 w-full rounded-2xl px-4 lg:w-auto"
+            onClick={() => setKeepFocus((current) => !current)}
+            title="Mantener foco para carga continua"
+          >
           <Keyboard size={13} />
           {keepFocus ? "Foco fijo" : "Foco manual"}
-        </Button>
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 px-1 text-[11px]">
