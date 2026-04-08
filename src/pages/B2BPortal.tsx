@@ -400,22 +400,12 @@ export default function B2BPortal() {
 
 
       {/* TABS */}
-      <div className="flex overflow-x-auto whitespace-nowrap border-b border-border/70 bg-card/75 px-4 py-1.5 scrollbar-none md:px-6">
+      <div className="flex flex-wrap items-center overflow-x-auto whitespace-nowrap border-b border-border/70 bg-card/75 px-4 py-1.5 scrollbar-none md:px-6">
         {[
           { id: "home",     label: "Inicio",        icon: LayoutGrid },
-          { id: "catalog",  label: "Catálogo",        icon: Package },
+          { id: "catalog",  label: "Catálogo",      icon: Package },
           { id: "quotes",   label: `Cotizaciones${quoteCount ? ` (${quoteCount})` : ""}`, icon: FileText },
           { id: "orders",   label: `Pedidos${highlightedOrders ? ` (${highlightedOrders})` : ""}`, icon: ClipboardList },
-          { id: "invoices", label: `Facturas${myInvoices.length ? ` (${myInvoices.length})` : ""}`, icon: FileText },
-          { id: "cuenta",   label: "Mi Cuenta",      icon: Users },
-          { id: "support",  label: "Soporte",        icon: MessageSquare },
-          { id: "projects", label: "Proyectos",      icon: Briefcase },
-          ...(profile?.b2b_role === "manager" || isAdmin ? [{
-            id: "approvals",
-            label: `Aprobaciones${pendingApprovals ? ` (${pendingApprovals})` : ""}`,
-            icon: ShieldCheck,
-          }] : []),
-          { id: "rma", label: "Devoluciones", icon: RotateCcw },
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -427,6 +417,47 @@ export default function B2BPortal() {
             <Icon size={13} /> {label}
           </button>
         ))}
+
+        <div className="mx-2 h-5 w-px bg-border/60 shrink-0 hidden md:block" />
+
+        {/* Módulos de Gestión (Dropdown Hover) */}
+        <div className="group relative">
+          <button className={`mx-0.5 my-0.5 flex items-center gap-1.5 rounded-2xl px-3.5 py-2 text-sm font-medium transition ${
+            ["invoices", "cuenta", "support", "projects", "approvals", "rma"].includes(activeTab) 
+              ? "bg-accent/50 text-foreground ring-1 ring-border/50" 
+              : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+          }`}>
+            <Users size={13} /> Gestión de Cuenta
+            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-50 transition-transform group-hover:rotate-180 ml-1">
+              <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+          
+          <div className="absolute left-0 top-full z-50 hidden pt-1 group-hover:block">
+            <div className="flex w-[220px] flex-col overflow-hidden rounded-xl border border-border/60 bg-card py-1.5 shadow-xl">
+              {[
+                { id: "cuenta",   label: "Centro de Cuenta", icon: Users },
+                { id: "invoices", label: `Facturas${myInvoices.length ? ` (${myInvoices.length})` : ""}`, icon: FileText },
+                { id: "projects", label: "Proyectos",        icon: Briefcase },
+                ...(profile?.b2b_role === "manager" || isAdmin ? [{
+                  id: "approvals", label: `Aprobaciones${pendingApprovals ? ` (${pendingApprovals})` : ""}`, icon: ShieldCheck,
+                }] : []),
+                { id: "support",  label: "Soporte",          icon: MessageSquare },
+                { id: "rma",      label: "Devoluciones",     icon: RotateCcw },
+              ].map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => setPortalTab(id as PortalTab)}
+                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition ${
+                    activeTab === id ? "bg-accent/60 text-foreground font-semibold" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  <Icon size={14} /> {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* BANNER SOPORTE (Impersonate) */}

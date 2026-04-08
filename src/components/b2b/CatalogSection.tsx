@@ -176,6 +176,58 @@ function parseStoredFilters(): AdvancedFiltersState {
   }
 }
 
+function SidebarFilterAccordion({ label, options, selected, onToggle }: AdvancedFilterDropdownProps) {
+  const [query, setQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(true);
+
+  const visibleOptions = useMemo(() => {
+    const needle = normalizeCompact(query);
+    if (!needle) return options;
+    return options.filter((option) => normalizeCompact(option).includes(needle));
+  }, [options, query]);
+
+  return (
+    <div className="border border-border/70 bg-card/60 overflow-hidden flex flex-col rounded-[16px]">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex w-full items-center justify-between px-4 py-3.5 bg-transparent hover:bg-secondary/40 transition-colors"
+      >
+        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
+        <div className="flex items-center gap-2">
+           {selected.length > 0 && <Badge variant="default" className="h-5 rounded-full px-1.5 text-[10px] bg-primary text-primary-foreground">{selected.length}</Badge>}
+           <ChevronDown size={14} className={cn("text-muted-foreground transition-transform", isOpen && "rotate-180")} />
+        </div>
+      </button>
+      
+      {isOpen && (
+        <div className="p-3 border-t border-border/50 bg-background/40 space-y-3">
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={`Buscar...`}
+            className="h-8 rounded-xl border-border/70 bg-background text-xs"
+          />
+
+          <ScrollArea className="h-48 rounded-xl border border-border/60 bg-background/60">
+            <div className="space-y-0.5 p-1.5">
+              {visibleOptions.map((option) => {
+                const checked = selected.includes(option);
+                return (
+                  <label key={option} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 text-xs transition hover:bg-secondary/60">
+                    <Checkbox checked={checked} onCheckedChange={() => onToggle(option)} className="h-4 w-4 rounded-sm border-border/70" />
+                    <span className="min-w-0 flex-1 truncate text-foreground font-medium">{option}</span>
+                  </label>
+                );
+              })}
+              {visibleOptions.length === 0 ? <p className="px-2 py-4 text-center text-[11px] text-muted-foreground">Sin coincidencias.</p> : null}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export interface CatalogSectionProps {
   displayProducts: Product[];
   products: Product[];
@@ -345,8 +397,28 @@ export function CatalogSection({
   const resultsLabel = `${filteredProducts.length}${totalCount > 0 ? ` de ${totalCount}` : ""} productos`;
 
   return (
-    <>
-      <div className="mb-4 space-y-4">
+    <div className="flex flex-col lg:flex-row gap-5 items-start">
+      {/* SIDEBAR PANEL */}
+      <aside className="w-full lg:w-[250px] xl:w-[260px] shrink-0 lg:sticky lg:top-4 grid gap-4 overflow-y-auto max-h-[calc(100vh-6rem)] custom-scrollbar pr-1">
+        {(hasActiveFilters || hasAdvancedFilters) && (
+          <Button type="button" variant="outline" className="justify-start gap-2 rounded-2xl bg-card text-xs h-10 border-border/70" onClick={() => { clearFilters(); clearAdvancedFilters(); }}>
+            <X size={14} /> Limpiar filtros
+          </Button>
+        )}
+
+        <div className="rounded-[24px] border border-border/70 bg-card/85 p-4 shadow-sm flex flex-col gap-3">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground px-1">Filtros Avanzados</p>
+          
+          {brandOptions.length > 0 && <SidebarFilterAccordion label="Marca" options={brandOptions} selected={effectiveFilters.brands} onToggle={(val) => toggleAdvancedFilter("brands", val)} />}
+          {ramOptions.length > 0 && <SidebarFilterAccordion label="RAM" options={ramOptions} selected={effectiveFilters.ram} onToggle={(val) => toggleAdvancedFilter("ram", val)} />}
+          {storageOptions.length > 0 && <SidebarFilterAccordion label="Almacenamiento" options={storageOptions} selected={effectiveFilters.storage} onToggle={(val) => toggleAdvancedFilter("storage", val)} />}
+          {refreshRateOptions.length > 0 && <SidebarFilterAccordion label="Tasa de Refresco" options={refreshRateOptions} selected={effectiveFilters.refreshRate} onToggle={(val) => toggleAdvancedFilter("refreshRate", val)} />}
+          {screenOptions.length > 0 && <SidebarFilterAccordion label="Pantalla" options={screenOptions} selected={effectiveFilters.screen} onToggle={(val) => toggleAdvancedFilter("screen", val)} />}
+        </div>
+      </aside>
+
+      {/* MAIN CONTENT */}
+      <div className="flex-1 min-w-0 w-full space-y-4 mt-2 lg:mt-0">
         {/* Hierarchical Breadcrumb */}
         {categoryFilter !== "all" && (
           <div className="flex items-center gap-2 px-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 animate-in fade-in slide-in-from-left-2 transition-all">
@@ -470,12 +542,6 @@ export function CatalogSection({
                 );
               })}
 
-              {brandOptions.length > 0 ? <AdvancedFilterDropdown label="Marca" options={brandOptions} selected={effectiveFilters.brands} onToggle={(value) => toggleAdvancedFilter("brands", value)} /> : null}
-              {ramOptions.length > 0 ? <AdvancedFilterDropdown label="RAM" options={ramOptions} selected={effectiveFilters.ram} onToggle={(value) => toggleAdvancedFilter("ram", value)} /> : null}
-              {storageOptions.length > 0 ? <AdvancedFilterDropdown label="SSD / almacenamiento" options={storageOptions} selected={effectiveFilters.storage} onToggle={(value) => toggleAdvancedFilter("storage", value)} /> : null}
-              {refreshRateOptions.length > 0 ? <AdvancedFilterDropdown label="Hz" options={refreshRateOptions} selected={effectiveFilters.refreshRate} onToggle={(value) => toggleAdvancedFilter("refreshRate", value)} /> : null}
-              {screenOptions.length > 0 ? <AdvancedFilterDropdown label="Pantalla" options={screenOptions} selected={effectiveFilters.screen} onToggle={(value) => toggleAdvancedFilter("screen", value)} /> : null}
-
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="toolbar" size="sm" className="h-9 rounded-xl px-3 text-xs font-semibold">
@@ -512,39 +578,10 @@ export function CatalogSection({
                   </div>
                 </PopoverContent>
               </Popover>
-
-              {hasAdvancedFilters ? (
-                <Button type="button" variant="ghost" size="sm" className="h-9 rounded-xl px-3 text-xs" onClick={clearAdvancedFilters}>
-                  <X size={13} />
-                  Limpiar filtros
-                </Button>
-              ) : null}
             </div>
           </div>
 
-          {brandOptions.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/40 pt-3">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Marcas:</span>
-              {brandOptions.slice(0, 10).map((brand) => {
-                const active = effectiveFilters.brands.includes(brand);
-                return (
-                  <button
-                    key={brand}
-                    type="button"
-                    onClick={() => toggleAdvancedFilter("brands", brand)}
-                    className={cn(
-                      "rounded-full border px-3 py-1.5 text-[11px] font-semibold transition",
-                      active
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border/70 bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground",
-                    )}
-                  >
-                    {brand}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+
 
           {activeCategoryChildren.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 border-t border-border/40 py-3 mt-3 animate-in fade-in slide-in-from-top-2">
@@ -799,7 +836,7 @@ export function CatalogSection({
           </div>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }
 

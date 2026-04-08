@@ -1690,18 +1690,19 @@ export default function CartPage() {
 
             {/* Rows */}
             <div className="px-4 py-4 space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">Subtotal s/IVA</span>
-                <span className={`text-xs font-semibold tabular-nums ${dk("text-gray-300", "text-[#525252]")}`}>
+              <div className="flex justify-between items-center mt-1">
+                <span className={`text-sm font-medium ${dk("text-gray-400", "text-[#525252]")}`}>Subtotal s/IVA</span>
+                <span className={`text-sm font-bold tabular-nums ${dk("text-gray-200", "text-[#171717]")}`}>
                   {formatPrice(cartSubtotal)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">IVA</span>
-                <span className={`text-xs font-semibold tabular-nums ${dk("text-gray-300", "text-[#525252]")}`}>
+                <span className={`text-sm font-medium ${dk("text-gray-400", "text-[#525252]")}`}>Impuestos (IVA)</span>
+                <span className={`text-sm font-bold tabular-nums ${dk("text-gray-200", "text-[#171717]")}`}>
                   + {formatPrice(cartIVATotal)}
                 </span>
               </div>
+              <div className={`my-3 border-b border-dashed ${dk("border-[#333]", "border-[#d4d4d4]")}`} />
               {paymentSurchargePct > 0 && (
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-amber-400">Recargo pago {paymentSurchargePct.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</span>
@@ -1760,18 +1761,18 @@ export default function CartPage() {
                   </span>
                 </div>
               )}
-              <div className={`flex justify-between items-start pt-3 mt-1 border-t ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
+              <div className={`flex justify-between items-start p-4 mt-4 rounded-xl border ${dk("bg-[#0f241a] border-[#183a28]", "bg-[#eaf5ef] border-[#d4ebd8]")}`}>
                 <div>
-                  <p className={`text-sm font-semibold ${dk("text-gray-300", "text-[#525252]")}`}>Total c/IVA</p>
-                  <p className="text-[10px] text-gray-600 font-mono mt-0.5">
+                  <p className={`text-[13px] font-black tracking-wide ${dk("text-white", "text-[#102d1f]")}`}>TOTAL FINAL</p>
+                  <p className={`text-[10px] font-mono mt-0.5 ${dk("text-[#7de3ad]", "text-[#25835a]")}`}>
                     @ {exchangeRate.rate.toLocaleString("es-AR")} ARS/USD
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xl font-extrabold text-[#2D9F6A] tabular-nums">
+                  <p className="text-[22px] font-black text-[#2D9F6A] tabular-nums leading-none">
                     {formatPrice(grandTotal)}
                   </p>
-                  <p className="text-[10px] text-gray-600 font-mono">
+                  <p className={`text-[11px] font-mono mt-1 ${dk("text-[#7de3ad]/80", "text-[#25835a]/80")}`}>
                     {currency === "USD" ? formatARS(grandTotal) : formatUSD(grandTotal)}
                   </p>
                 </div>

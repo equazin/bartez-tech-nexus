@@ -102,12 +102,19 @@ export function ProductItem({
               <Badge className="absolute right-3 top-3 rounded-full bg-primary text-primary-foreground shadow-sm">{inCart}</Badge>
             ) : null}
 
-            {product.featured ? (
-              <Badge variant="outline" className="absolute left-3 top-3 gap-1 rounded-full border-primary/40 text-primary shadow-sm">
-                <Star size={12} className="fill-current" />
-                Destacado
-              </Badge>
-            ) : null}
+            <div className="absolute left-3 top-3 flex flex-col gap-1.5 items-start">
+              {product.featured ? (
+                <Badge variant="outline" className="gap-1 rounded-full border-primary/40 text-primary shadow-sm bg-background/90 backdrop-blur-sm px-2 py-0.5 h-auto text-[10px]">
+                  <Star size={10} className="fill-current" />
+                  Destacado
+                </Badge>
+              ) : null}
+              {isOffer && offerPercent && offerPercent > 0 ? (
+                <Badge className="gap-1 rounded-full bg-orange-600 text-white shadow-sm border-none hover:bg-orange-600 px-2 py-0.5 h-auto text-[10px]">
+                  <Flame size={10} fill="currentColor" /> {offerPercent.toFixed(1)}% OFF
+                </Badge>
+              ) : null}
+            </div>
 
             <div className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-2 opacity-0 transition-all duration-200 group-hover:opacity-100">
               <Button
@@ -135,42 +142,41 @@ export function ProductItem({
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <h3 className="line-clamp-2 text-sm font-semibold leading-tight text-foreground">{product.name}</h3>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              {product.brand_name ? <Badge variant="secondary" className="text-[11px]">{product.brand_name}</Badge> : null}
-              <span className="truncate">{product.category}</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              {product.sku ? <Badge variant="outline" className="font-mono text-[11px]">{product.sku}</Badge> : null}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <StockBadge stock={available} />
-              {isPosProduct(product) ? (
-                <Badge variant="outline" className="gap-1">
-                  <Truck size={12} /> POS
-                </Badge>
-              ) : null}
-              {purchaseHistoryCount > 0 ? (
-                <Badge variant="secondary" className="text-[11px]">Compraste {purchaseHistoryCount}u</Badge>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {commercialSignals.map((signal) => (
-                <Badge key={signal} variant="outline" className="rounded-full text-[10px] text-muted-foreground">
-                  {signal}
-                </Badge>
-              ))}
+          <div className="flex flex-col flex-1 mt-2">
+            {product.brand_name ? (
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 mb-1 leading-none">
+                {product.brand_name}
+              </span>
+            ) : null}
+            <h3 className="line-clamp-2 text-sm font-semibold leading-tight text-foreground mb-3">{product.name}</h3>
+            
+            <div className="flex flex-col gap-2.5 mt-auto">
+              <div className="flex flex-wrap items-center gap-2">
+                {product.sku ? <span className="font-mono text-[10px] text-muted-foreground/80 bg-muted/50 border border-border/50 px-1.5 py-0.5 rounded-md">{product.sku}</span> : null}
+                <span className="text-[11px] text-muted-foreground truncate">{product.category}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <StockBadge stock={available} />
+                {isPosProduct(product) ? (
+                  <Badge variant="outline" className="gap-1 bg-background text-[10px]">
+                    <Truck size={10} /> POS
+                  </Badge>
+                ) : null}
+                {purchaseHistoryCount > 0 ? (
+                  <Badge variant="secondary" className="text-[10px] bg-secondary/80">Compraste {purchaseHistoryCount}u</Badge>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {commercialSignals.map((signal) => (
+                  <span key={signal} className="rounded-full bg-secondary/30 px-2 py-0.5 border border-border/40 text-[9px] font-medium text-muted-foreground">
+                    {signal}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            {isOffer && offerPercent && offerPercent > 0 ? (
-              <div className="inline-flex max-w-fit items-center gap-1 rounded-lg bg-orange-600 px-2 py-1 text-[10px] font-black uppercase text-white shadow-sm ring-1 ring-orange-500/20">
-                <Flame size={10} fill="currentColor" />
-                {offerPercent.toFixed(1)}% OFF
-              </div>
-            ) : null}
+          <div className="flex flex-col gap-1.5 mt-3 pt-3 border-t border-border/40">
 
             <div className="flex items-end justify-between gap-2">
               <div>
@@ -233,84 +239,94 @@ export function ProductItem({
   return (
     <SurfaceCard
       tone="default"
-      padding="md"
       className={cn(
-        "group relative flex items-center gap-3 rounded-[22px] transition-all duration-200",
-        product.featured && "border-primary/40 shadow-md shadow-primary/10",
-        outOfStock && "opacity-60",
-        wasAdded && "ring-1 ring-primary/25 shadow-sm shadow-primary/10",
+        "group relative flex items-stretch gap-0 overflow-hidden rounded-xl border transition-all duration-200 border-l-[3px] p-0 shadow-sm hover:shadow-md",
+        product.featured ? "border-l-primary/60 border-t-border/50 border-r-border/50 border-b-border/50" : "border-l-transparent border-border/50",
+        outOfStock && "opacity-60 grayscale-[10%]",
+        wasAdded ? "bg-primary/5 border-primary/20" : "bg-card hover:bg-muted/30"
       )}
       onMouseEnter={handlePreviewIntent}
       onFocusCapture={handlePreviewIntent}
     >
-      <div className="flex min-w-0 flex-1 cursor-pointer items-center gap-3" onClick={() => onSelect(product)}>
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-secondary/60">
-          <img src={imageSrc} alt={product.name} loading="lazy" decoding="async" onError={() => setImageSrc("/placeholder.png")} className="max-h-12 max-w-12 object-contain" />
+      <div 
+        className="flex min-w-0 flex-1 cursor-pointer items-center gap-4 py-2 pl-3 pr-2" 
+        onClick={() => onSelect(product)}
+      >
+        <div className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-lg border border-border/70 bg-white shadow-sm transition-transform group-hover:scale-[1.02]">
+          <img src={imageSrc} alt={product.name} loading="lazy" decoding="async" onError={() => setImageSrc("/placeholder.png")} className="max-h-10 max-w-10 object-contain drop-shadow-sm" />
         </div>
 
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex items-center gap-2">
-            <p className="truncate text-sm font-semibold text-foreground">{product.name}</p>
-            {product.featured ? <Star size={12} className="text-amber-400" fill="currentColor" /> : null}
+        <div className="min-w-0 flex-1 py-1">
+          <div className="flex items-center gap-2 mb-0.5">
+            {product.brand_name ? (
+               <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/80 leading-none">
+                 {product.brand_name}
+               </span>
+            ) : null}
+            {product.sku ? <span className="font-mono text-[9px] bg-muted border border-border/50 px-1 rounded text-muted-foreground">{product.sku}</span> : null}
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            {product.brand_name ? <Badge variant="secondary" className="text-[11px]">{product.brand_name}</Badge> : null}
-            <span>{product.category}</span>
+          
+          <div className="flex items-center gap-2 mb-1">
+            <p className="truncate text-[13px] font-bold text-foreground leading-tight">{product.name}</p>
+            {product.featured ? <Star size={10} className="text-amber-400 shrink-0" fill="currentColor" /> : null}
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-2">
             <StockBadge stock={available} />
+            <span className="text-[10px] text-muted-foreground">{product.category}</span>
             {isPosProduct(product) ? (
-              <Badge variant="outline" className="gap-1 text-[11px]">
-                <Truck size={11} /> POS
+              <Badge variant="outline" className="gap-1 text-[9px] h-4 px-1 bg-background text-muted-foreground">
+                <Truck size={8} /> POS
               </Badge>
             ) : null}
-            {product.sku ? <Badge variant="secondary" className="font-mono text-[11px]">{product.sku}</Badge> : null}
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
             {commercialSignals.map((signal) => (
-              <Badge key={signal} variant="outline" className="rounded-full text-[10px]">
+              <span key={signal} className="rounded-sm bg-secondary/40 px-1 py-0 border border-border/40 text-[9px] font-medium text-muted-foreground">
                 {signal}
-              </Badge>
+              </span>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="hidden min-w-[156px] shrink-0 text-right sm:block">
+      <div className="hidden min-w-[130px] shrink-0 sm:flex flex-col items-end justify-center py-2 px-4 border-l border-border/50 bg-muted/10">
         {isOffer && offerPercent && offerPercent > 0 ? (
-          <div className="mb-2 inline-flex items-center gap-1 rounded-md bg-orange-600 px-1.5 py-0.5 text-[9px] font-black uppercase text-white shadow-sm ring-1 ring-orange-500/10">
+          <div className="mb-0.5 inline-flex items-center gap-1 rounded bg-orange-600 px-1.5 py-0.5 text-[9px] font-black uppercase text-white ring-1 ring-orange-500/20 shadow-sm">
             <Flame size={8} fill="currentColor" />
             {offerPercent.toFixed(1)}% OFF
           </div>
         ) : null}
         {isOffer && originalPrice && originalPrice > finalPrice ? (
           <div className="mb-0.5 text-[10px] font-medium text-muted-foreground/60 line-through tabular-nums">
-            Antes: {formatPrice(originalPrice)}
+            {formatPrice(originalPrice)}
           </div>
         ) : null}
         <div className={cn(
-          "text-2xl font-black leading-none tabular-nums",
+          "text-[17px] font-black leading-none tabular-nums",
           isOffer ? "text-orange-600" : "text-primary"
         )}>
           {formatPrice(finalPrice)}
         </div>
-        <div className="mt-1 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Precio + IVA</div>
-        {lastPurchaseUnitPriceDelta > 0 ? <div className="text-[11px] font-semibold text-amber-500">+{lastPurchaseUnitPriceDelta.toFixed(1)}% vs ultima compra</div> : null}
+        <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground/70">Precio + IVA</div>
+        {lastPurchaseUnitPriceDelta > 0 ? <div className="text-[10px] mt-1 font-semibold text-amber-500">+{lastPurchaseUnitPriceDelta.toFixed(1)}% vs anterior</div> : null}
       </div>
 
-      <div className="flex shrink-0 items-center gap-1">
-        <Button variant="ghost" size="icon" className={cn("hidden sm:flex", isCompared && "text-primary")} onClick={() => onToggleCompare(product.id)} title="Comparar">
-          <TrendingUp size={14} />
+      <div className="flex shrink-0 items-center justify-end gap-1 pr-3 py-2 bg-muted/10 w-[110px] sm:w-[130px]">
+        <Button variant="ghost" size="icon" className={cn("hidden lg:flex h-8 w-8", isCompared && "text-primary")} onClick={() => onToggleCompare(product.id)} title="Comparar">
+          <TrendingUp size={13} />
         </Button>
-        <Button variant="ghost" size="icon" className={cn("hidden sm:flex", isFavorite && "text-amber-400")} onClick={() => onToggleFavorite(product.id)} title="Favorito">
-          <Star size={14} className={isFavorite ? "fill-current" : undefined} />
+        <Button variant="ghost" size="icon" className={cn("hidden lg:flex h-8 w-8", isFavorite && "text-amber-400")} onClick={() => onToggleFavorite(product.id)} title="Favorito">
+          <Star size={13} className={isFavorite ? "fill-current" : undefined} />
         </Button>
-        <QuickAddControl
-          inCart={inCart}
-          outOfStock={outOfStock}
-          wasAdded={wasAdded}
-          compact
-          onAddQty={(qty) => onAddQty(product, qty)}
-          onRemoveOne={() => onRemoveFromCart(product)}
-        />
+        <div className="scale-[0.85] origin-right">
+          <QuickAddControl
+            inCart={inCart}
+            outOfStock={outOfStock}
+            wasAdded={wasAdded}
+            compact
+            onAddQty={(qty) => onAddQty(product, qty)}
+            onRemoveOne={() => onRemoveFromCart(product)}
+          />
+        </div>
       </div>
     </SurfaceCard>
   );

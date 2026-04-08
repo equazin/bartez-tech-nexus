@@ -159,19 +159,61 @@ export function usePortalCart({
   function handleAddToCart(product: Product) {
     const available = getAvailableStock(product);
     const inCart = cart[product.id] || 0;
-    if (inCart >= available) return;
+    
+    if (inCart >= available) {
+      toast.error(`Sin stock suficiente para ${product.sku || product.name}`);
+      return;
+    }
+    
     const minQty = product.min_order_qty ?? 1;
     const newQty = inCart === 0 && minQty > 1 ? minQty : inCart + 1;
     const safeQty = Math.min(newQty, available);
+    
     setCart((prev) => ({ ...prev, [product.id]: safeQty }));
     setAddedIds((prev) => new Set(prev).add(product.id));
+    
+    const remaining = available - safeQty;
+    if (remaining < 5 && remaining >= 0) {
+      toast.warning(`Atención: Quedan solo ${remaining} unidades disponibles.`);
+    } else {
+      toast.success(`Añadiste 1 unidad de ${product.name}`);
+    }
+
     setTimeout(() => {
       setAddedIds((prev) => { const s = new Set(prev); s.delete(product.id); return s; });
     }, 900);
   }
 
   function handleSmartAddToCart(product: Product, qty: number = 1) {
-    for (let i = 0; i < qty; i++) handleAddToCart(product);
+    const available = getAvailableStock(product);
+    const inCart = cart[product.id] || 0;
+    
+    if (inCart >= available) {
+      toast.error(`Sin stock suficiente para ${product.sku || product.name}`);
+      return;
+    }
+
+    const toAdd = Math.min(qty, available - inCart);
+    const minQty = product.min_order_qty ?? 1;
+    const targetQty = inCart + toAdd;
+    const newQty = inCart === 0 && targetQty < minQty ? minQty : targetQty;
+    const safeQty = Math.min(newQty, available);
+    
+    setCart((prev) => ({ ...prev, [product.id]: safeQty }));
+    setAddedIds((prev) => new Set(prev).add(product.id));
+
+    const remaining = available - safeQty;
+    const actuallyAdded = safeQty - inCart;
+
+    if (remaining < 5 && remaining >= 0) {
+      toast.warning(`Atención: Quedan solo ${remaining} unidades disponibles.`);
+    } else {
+      toast.success(`Añadiste ${actuallyAdded} unidades de ${product.name}`);
+    }
+
+    setTimeout(() => {
+      setAddedIds((prev) => { const s = new Set(prev); s.delete(product.id); return s; });
+    }, 900);
   }
 
   const onRemoveFromCart = (product: Product) =>
