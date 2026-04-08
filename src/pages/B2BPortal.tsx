@@ -400,7 +400,7 @@ export default function B2BPortal() {
 
 
       {/* TABS */}
-      <div className="flex flex-wrap items-center overflow-x-auto whitespace-nowrap border-b border-border/70 bg-card/75 px-4 py-1.5 scrollbar-none md:px-6">
+      <div className="flex flex-wrap items-center gap-y-1 relative z-50 border-b border-border/70 bg-card/75 px-4 py-1.5 md:px-6">
         {[
           { id: "home",     label: "Inicio",        icon: LayoutGrid },
           { id: "catalog",  label: "Catálogo",      icon: Package },

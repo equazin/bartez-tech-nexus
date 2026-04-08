@@ -749,7 +749,7 @@ export function CatalogSection({
               <div key={product.id} style={{ contentVisibility: "auto", containIntrinsicSize: "0 240px" }}>
                 <ProductItem
                   product={product}
-                  viewMode="grid"
+                  viewMode={viewMode as "grid" | "list"}
                   inCart={cart[product.id] || 0}
                   isFavorite={favoriteProductIds.includes(product.id)}
                   isCompared={compareList.includes(product.id)}

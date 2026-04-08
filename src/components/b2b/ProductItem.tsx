@@ -237,13 +237,12 @@ export function ProductItem({
   }
 
   return (
-    <SurfaceCard
-      tone="default"
+    <div
       className={cn(
-        "group relative flex items-stretch gap-0 overflow-hidden rounded-xl border transition-all duration-200 border-l-[3px] p-0 shadow-sm hover:shadow-md",
-        product.featured ? "border-l-primary/60 border-t-border/50 border-r-border/50 border-b-border/50" : "border-l-transparent border-border/50",
+        "group relative flex flex-col sm:flex-row items-stretch gap-0 overflow-hidden rounded-xl border transition-all duration-200 border-l-[3px] shadow-sm hover:shadow-md",
+        product.featured ? "border-l-primary/60 border-t-border/50 border-r-border/50 border-b-border/50" : "border-l-primary/0 border-border/50",
         outOfStock && "opacity-60 grayscale-[10%]",
-        wasAdded ? "bg-primary/5 border-primary/20" : "bg-card hover:bg-muted/30"
+        wasAdded ? "bg-primary/5 border-primary/20" : "bg-card hover:bg-white/5"
       )}
       onMouseEnter={handlePreviewIntent}
       onFocusCapture={handlePreviewIntent}
@@ -328,6 +327,6 @@ export function ProductItem({
           />
         </div>
       </div>
-    </SurfaceCard>
+    </div>
   );
 }
