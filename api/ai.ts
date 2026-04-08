@@ -108,7 +108,19 @@ interface CampaignDraftRow {
   campaign_type: string;
   target_segment?: string | null;
   daily_budget_ars?: number | null;
+  google_ads_campaign_id?: string | null;
   campaign_structure: LaunchCampaignStructure;
+}
+
+interface GoogleAdsSnapshotRow {
+  campaign_id: string;
+  campaign_name: string;
+  campaign_status: string;
+  snapshot_date: string;
+  impressions: number;
+  clicks: number;
+  cost_ars: number;
+  conversions: number;
 }
 
 async function sbSelectSingle<T>(table: string, query: string): Promise<T | null> {
@@ -309,6 +321,108 @@ async function createCampaignInGoogleAds(structure: LaunchCampaignStructure, bud
   }
 
   return campaignResource.split("/").pop() || campaignName;
+}
+
+function normalizeGoogleAdsCampaignStatus(status: string): "active" | "paused" | "removed" {
+  if (status === "REMOVED") return "removed";
+  if (status === "PAUSED") return "paused";
+  return "active";
+}
+
+async function fetchGoogleAdsSnapshots(dateRange: { start: string; end: string }): Promise<GoogleAdsSnapshotRow[]> {
+  const customerId = GOOGLE_ADS_CUSTOMER_ID.replace(/-/g, "");
+  const accessToken = await getGoogleAdsAccessToken();
+  const query = `
+    SELECT
+      campaign.id,
+      campaign.name,
+      campaign.status,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.cost_micros,
+      metrics.conversions
+    FROM campaign
+    WHERE segments.date BETWEEN '${dateRange.start}' AND '${dateRange.end}'
+    AND campaign.status != 'REMOVED'
+  `;
+
+  const response = await fetch(`https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "developer-token": GOOGLE_ADS_DEVELOPER_TOKEN,
+      "Content-Type": "application/json",
+      "login-customer-id": customerId,
+    },
+    body: JSON.stringify({ query }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Google Ads API error ${response.status}: ${await response.text()}`);
+  }
+
+  const lines = (await response.text()).trim().split("\n");
+  const rows: GoogleAdsSnapshotRow[] = [];
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const batch = JSON.parse(line) as { results?: Array<{
+      campaign: { id: string; name?: string; status?: string };
+      metrics: { impressions: number; clicks: number; cost_micros: number; conversions: number };
+    }> };
+
+    for (const row of batch.results ?? []) {
+      rows.push({
+        campaign_id: row.campaign.id,
+        campaign_name: row.campaign.name ?? `Campaign ${row.campaign.id}`,
+        campaign_status: row.campaign.status ?? "ENABLED",
+        snapshot_date: dateRange.end,
+        impressions: row.metrics.impressions ?? 0,
+        clicks: row.metrics.clicks ?? 0,
+        cost_ars: (row.metrics.cost_micros ?? 0) / 1_000_000,
+        conversions: row.metrics.conversions ?? 0,
+      });
+    }
+  }
+
+  return rows;
+}
+
+async function syncGoogleAdsSnapshots(date: string) {
+  const snapshots = await fetchGoogleAdsSnapshots({ start: date, end: date });
+
+  if (snapshots.length > 0) {
+    const campaigns = snapshots.map((row) => ({
+      id: row.campaign_id,
+      name: row.campaign_name,
+      source: "google_ads_api",
+      status: normalizeGoogleAdsCampaignStatus(row.campaign_status),
+      updated_at: new Date().toISOString(),
+    }));
+
+    await sbUpsert("ad_campaigns", campaigns, "id");
+    await sbUpsert(
+      "ad_performance_snapshots",
+      snapshots.map((row) => ({
+        campaign_id: row.campaign_id,
+        snapshot_date: row.snapshot_date,
+        impressions: row.impressions,
+        clicks: row.clicks,
+        cost_ars: row.cost_ars,
+        conversions: row.conversions,
+      })),
+      "campaign_id,snapshot_date",
+    );
+  }
+
+  await sbInsert("api_usage_log", {
+    api_name: "google_ads",
+    operation: "sync",
+    units_used: snapshots.length,
+    success: true,
+  });
+
+  return snapshots.length;
 }
 
 // ── enrich_content ─────────────────────────────────────────────────────────
@@ -631,6 +745,36 @@ Respondé SOLO con JSON minificado sin markdown:
 // ── generate_copy ─────────────────────────────────────────────────────────
 
 async function handleSyncGoogleAds(request: Request) {
+  if (hasGoogleAdsCredentials()) {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const date = yesterday.toISOString().slice(0, 10);
+
+    try {
+      const synced = await syncGoogleAdsSnapshots(date);
+      return json({
+        ok: true,
+        synced,
+        message: synced > 0
+          ? `Sincronizacion completada. ${synced} registro(s) actualizados del ${date}.`
+          : `Sincronizacion completada. No hubo cambios para ${date}.`,
+      });
+    } catch (error) {
+      await sbInsert("api_usage_log", {
+        api_name: "google_ads",
+        operation: "sync",
+        success: false,
+        error_msg: error instanceof Error ? error.message : String(error),
+      }).catch(() => {});
+
+      return json({
+        ok: false,
+        synced: 0,
+        message: error instanceof Error ? error.message : "No se pudo sincronizar Google Ads.",
+      }, 500);
+    }
+  }
+
   const authHeader = request.headers.get("Authorization") || "";
   const result = await callSupabaseFunction("google-ads-sync", authHeader);
   const functionMissing = result.status === 404 || result.data?.code === "NOT_FOUND";
@@ -639,7 +783,7 @@ async function handleSyncGoogleAds(request: Request) {
     return json({
       ok: false,
       synced: 0,
-      message: "La funcion google-ads-sync no esta desplegada en Supabase.",
+      message: "La sincronizacion automatica todavia no esta configurada. Carga las credenciales GOOGLE_ADS_* en Vercel para habilitarla.",
     });
   }
 
@@ -664,7 +808,12 @@ async function handleLaunchCampaign(body: Record<string, unknown>, userId: strin
 
   const draft = await sbSelectSingle<CampaignDraftRow>("campaign_drafts", `id=eq.${encodeURIComponent(draftId)}&select=*`);
   if (!draft) return json({ ok: false, message: "Draft no encontrado" }, 404);
-  if (draft.status !== "approved") {
+  const canLaunch =
+    draft.status === "approved" ||
+    draft.status === "launch_error" ||
+    (draft.status === "launched" && !draft.google_ads_campaign_id);
+
+  if (!canLaunch) {
     return json({ ok: false, message: "El draft debe estar aprobado antes de lanzar" }, 400);
   }
 
@@ -719,7 +868,7 @@ async function handleLaunchCampaign(body: Record<string, unknown>, userId: strin
       ok: true,
       message: hasGoogleAdsCredentials()
         ? `Campana creada en Google Ads (ID: ${googleAdsCampaignId}). Quedo en PAUSED para revision final.`
-        : "Campana marcada como lanzada. Configura las credenciales de Google Ads en Vercel para publicarla automaticamente.",
+        : "Borrador listo para publicar. Configura las credenciales de Google Ads en Vercel para enviarlo automaticamente.",
       google_ads_campaign_id: googleAdsCampaignId,
       manual_launch: !hasGoogleAdsCredentials(),
       draft_id: draftId,

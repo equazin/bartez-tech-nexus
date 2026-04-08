@@ -351,6 +351,43 @@ interface CampaignDraft {
   reviewer_notes: string | null;
 }
 
+function isManualLaunchPending(draft: CampaignDraft) {
+  return draft.status === "launched" && !draft.google_ads_campaign_id && !draft.launch_error;
+}
+
+function getDraftStatusMeta(draft: CampaignDraft) {
+  if (isManualLaunchPending(draft)) {
+    return {
+      label: "Lista para publicar",
+      className: "text-amber-400 bg-amber-500/10 border-amber-500/30",
+    };
+  }
+
+  switch (draft.status) {
+    case "pending_review":
+      return { label: "Pendiente revision", className: "text-amber-400 bg-amber-500/10 border-amber-500/30" };
+    case "approved":
+      return { label: "Aprobada", className: "text-blue-400 bg-blue-500/10 border-blue-500/30" };
+    case "rejected":
+      return { label: "Rechazada", className: "text-red-400 bg-red-500/10 border-red-500/30" };
+    case "launch_error":
+      return { label: "Error al lanzar", className: "text-red-400 bg-red-500/10 border-red-500/30" };
+    case "launched":
+    default:
+      return { label: "En Google Ads", className: "text-[#2D9F6A] bg-[#2D9F6A]/10 border-[#2D9F6A]/30" };
+  }
+}
+
+function canLaunchDraft(draft: CampaignDraft) {
+  return draft.status === "approved" || draft.status === "launch_error" || isManualLaunchPending(draft);
+}
+
+function getLaunchButtonLabel(draft: CampaignDraft) {
+  if (draft.status === "launch_error") return "Reintentar envio";
+  if (isManualLaunchPending(draft)) return "Publicar en Google Ads";
+  return "Lanzar en Google Ads";
+}
+
 const EMPTY_AI_FORM = {
   objective:        "leads" as "leads" | "ventas" | "awareness",
   campaign_type:    "search" as "search" | "display" | "remarketing",
@@ -475,21 +512,6 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
 
   const inputCls = `w-full text-xs px-3 py-2 rounded-lg border ${d("bg-[#0d0d0d] border-[#2a2a2a] text-white","bg-white border-[#e5e5e5] text-[#171717]")}`;
 
-  const DRAFT_STATUS_STYLE: Record<string, string> = {
-    pending_review: "text-amber-400 bg-amber-500/10 border-amber-500/30",
-    approved:       "text-blue-400 bg-blue-500/10 border-blue-500/30",
-    rejected:       "text-red-400 bg-red-500/10 border-red-500/30",
-    launched:       "text-[#2D9F6A] bg-[#2D9F6A]/10 border-[#2D9F6A]/30",
-    launch_error:   "text-red-400 bg-red-500/10 border-red-500/30",
-  };
-  const DRAFT_STATUS_LABEL: Record<string, string> = {
-    pending_review: "Pendiente revisión",
-    approved:       "Aprobada",
-    rejected:       "Rechazada",
-    launched:       "Lanzada",
-    launch_error:   "Error al lanzar",
-  };
-
   return (
     <div className="space-y-5">
       {/* ── AI Generator CTA ────────────────────────── */}
@@ -600,8 +622,8 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
                     {draft.google_ads_campaign_id ? ` · ID Google Ads: ${draft.google_ads_campaign_id}` : ""}
                   </p>
                 </div>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${DRAFT_STATUS_STYLE[draft.status]}`}>
-                  {DRAFT_STATUS_LABEL[draft.status]}
+                <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${getDraftStatusMeta(draft).className}`}>
+                  {getDraftStatusMeta(draft).label}
                 </span>
 
                 {/* Action buttons */}
@@ -617,10 +639,10 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
                     </button>
                   </div>
                 )}
-                {draft.status === "approved" && (
+                {canLaunchDraft(draft) && (
                   <button onClick={() => launchDraft(draft.id)} disabled={launching === draft.id}
                     className="flex items-center gap-1 text-[10px] px-3 py-1.5 rounded-lg bg-blue-500/15 text-blue-400 border border-blue-500/30 hover:bg-blue-500/25 transition font-semibold">
-                    {launching === draft.id ? <><RefreshCw size={10} className="animate-spin" /> Lanzando...</> : <><Rocket size={10} /> Lanzar en Google Ads</>}
+                    {launching === draft.id ? <><RefreshCw size={10} className="animate-spin" /> Lanzando...</> : <><Rocket size={10} /> {getLaunchButtonLabel(draft)}</>}
                   </button>
                 )}
 
@@ -633,6 +655,11 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
               {/* Expanded structure preview */}
               {expandedDraft === draft.id && (
                 <div className={`border-t px-4 py-4 space-y-4 ${d("border-[#1f1f1f]","border-[#f0f0f0]")}`}>
+                  {isManualLaunchPending(draft) && (
+                    <p className="text-xs text-amber-300 bg-amber-500/5 border border-amber-500/20 rounded px-3 py-2">
+                      Este borrador quedo listo para publicacion manual. Cuando configures las credenciales de Google Ads, podes usar "Publicar en Google Ads" para enviarlo sin regenerarlo.
+                    </p>
+                  )}
                   {draft.campaign_structure.notes && (
                     <p className="text-xs text-[#737373] italic">{draft.campaign_structure.notes}</p>
                   )}
@@ -703,7 +730,7 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
         </p>
         <button onClick={triggerSync} disabled={syncing}
           className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition ${d("border-[#2a2a2a] text-[#737373] hover:text-white","border-[#e5e5e5] text-[#525252] hover:bg-[#f5f5f5]")}`}>
-          <RefreshCw size={11} className={syncing ? "animate-spin" : ""} /> Sync Google Ads
+          <RefreshCw size={11} className={syncing ? "animate-spin" : ""} /> Sincronizar Google Ads
         </button>
       </div>
 
