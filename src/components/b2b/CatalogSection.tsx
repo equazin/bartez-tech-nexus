@@ -490,32 +490,7 @@ export function CatalogSection({
           </div>
         )}
 
-        <div className="rounded-[24px] border border-border/70 bg-card/85 p-4 shadow-sm">
-          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Compra mayorista</p>
-              <h2 className="mt-2 text-lg font-bold text-foreground">Buscá rápido, evaluá técnico y resolvé por compra o cotización</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Priorizamos marca, atributos técnicos y stock operativo para que el recorrido sea más corto.
-              </p>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[430px]">
-              <div className="rounded-2xl border border-border/70 bg-background/80 px-3 py-3">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">1. Marca</p>
-                <p className="mt-1 text-sm font-semibold text-foreground">Filtrá por partner</p>
-              </div>
-              <div className="rounded-2xl border border-border/70 bg-background/80 px-3 py-3">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">2. Specs</p>
-                <p className="mt-1 text-sm font-semibold text-foreground">Recortá RAM, SSD, Hz o pantalla</p>
-              </div>
-              <div className="rounded-2xl border border-primary/20 bg-primary/5 px-3 py-3">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">3. Acción</p>
-                <p className="mt-1 text-sm font-semibold text-foreground">Abrí producto y definí si comprás o cotizás</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="rounded-[20px] border border-border/70 bg-card/85 p-3 shadow-sm mb-4">          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <CategoryMegaMenu
                 tree={categoryTree}

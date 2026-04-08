@@ -539,56 +539,7 @@ export default function B2BPortal() {
         </div>
       )}
 
-      <div className="mx-4 mt-3 rounded-[28px] border border-border/70 bg-card/80 px-4 py-4 shadow-sm md:mx-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-2">
-            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Ruta comercial</p>
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              {journeySteps.map((step, index) => (
-                <button
-                  key={`${step.label}-${index}`}
-                  type="button"
-                  onClick={() => setPortalTab(step.id)}
-                  className="rounded-2xl border border-border/70 bg-background/60 px-3 py-3 text-left transition hover:border-primary/40 hover:bg-primary/5"
-                >
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{index + 1}. {step.label}</p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">{step.helper}</p>
-                </button>
-              ))}
-            </div>
-          </div>
 
-          <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[420px]">
-            <button
-              type="button"
-              onClick={() => setPortalTab("catalog")}
-              className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-left transition hover:border-primary/40 hover:bg-primary/5"
-            >
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Acción rápida</p>
-              <p className="mt-1 text-sm font-semibold text-foreground">Nuevo pedido</p>
-              <p className="mt-1 text-xs text-muted-foreground">Entrá al catálogo y cargá por SKU o marca.</p>
-            </button>
-            <button
-              type="button"
-              onClick={() => setPortalTab("quotes")}
-              className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-left transition hover:border-primary/40"
-            >
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">Canal B2B</p>
-              <p className="mt-1 text-sm font-semibold text-foreground">Cotización visible</p>
-              <p className="mt-1 text-xs text-muted-foreground">Guardá propuestas y retomá versiones sin entrar a Mi Cuenta.</p>
-            </button>
-            <button
-              type="button"
-              onClick={() => setPortalTab("orders")}
-              className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-left transition hover:border-primary/40 hover:bg-primary/5"
-            >
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Seguimiento</p>
-              <p className="mt-1 text-sm font-semibold text-foreground">Pedidos y facturas</p>
-              <p className="mt-1 text-xs text-muted-foreground">Controlá entregas, comprobantes y estado comercial.</p>
-            </button>
-          </div>
-        </div>
-      </div>
 
       {(activeTab === "catalog" || activeTab === "quotes" || activeTab === "orders") && (
         <OperativeBar
