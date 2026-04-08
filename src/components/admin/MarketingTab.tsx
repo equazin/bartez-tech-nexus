@@ -51,6 +51,58 @@ const fmtPct = (n: number | null | undefined) =>
 
 // ── Component ─────────────────────────────────────────────────
 
+async function invokeEdgeFunction<T>(functionName: string, body: unknown): Promise<T> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Supabase no esta configurado en este entorno.");
+  }
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: supabaseAnonKey,
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  const text = await response.text();
+  let payload: Record<string, unknown> | null = null;
+
+  try {
+    payload = text ? JSON.parse(text) as Record<string, unknown> : null;
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const message = typeof payload?.message === "string"
+      ? payload.message
+      : typeof payload?.error === "string"
+        ? payload.error
+        : response.status === 404
+          ? `La funcion ${functionName} no esta desplegada en Supabase.`
+          : `Error del servidor (${response.status}).`;
+    throw new Error(message);
+  }
+
+  return (payload ?? {}) as T;
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return fallback;
+}
+
+function isSuccessMessage(message: string | null): boolean {
+  return !!message?.startsWith("OK:");
+}
+
 export function MarketingTab({ isDark = true }: MarketingTabProps) {
   const d = dk(isDark);
   const [subTab, setSubTab] = useState<SubTab>("funnel");
@@ -361,49 +413,31 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
   async function triggerSync() {
     setSyncing(true); setSyncMsg(null);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`/api/ai`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ action: "sync_google_ads" }),
-      });
-      const data = await res.json() as { ok: boolean; message?: string; synced?: number };
-      setSyncMsg(data.ok ? `✓ ${data.synced ?? 0} registros sincronizados` : (data.message ?? "Sin credenciales configuradas"));
+      const data = await invokeEdgeFunction<{ ok: boolean; message?: string; synced?: number }>("google-ads-sync", {});
+      setSyncMsg(data.ok ? `OK: ${data.synced ?? 0} registros sincronizados` : (data.message ?? "Sin credenciales configuradas"));
       if (data.ok) void load();
-    } catch { setSyncMsg("Error al conectar con la función de sync"); }
-    setSyncing(false);
+    } catch (error) {
+      setSyncMsg(getErrorMessage(error, "Error al conectar con la funcion de sync"));
+    } finally {
+      setSyncing(false);
+    }
   }
 
   async function generateCampaign() {
-    if (!aiForm.daily_budget_ars) { setGenMsg("Ingresá un presupuesto diario"); return; }
+    if (!aiForm.daily_budget_ars) { setGenMsg("Ingresa un presupuesto diario"); return; }
     setGenerating(true); setGenMsg(null);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`/api/ai`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          action:           "generate_campaign",
-          objective:        aiForm.objective,
-          campaign_type:    aiForm.campaign_type,
-          target_segment:   aiForm.target_segment,
-          daily_budget_ars: Number(aiForm.daily_budget_ars),
-          product_focus:    aiForm.product_focus || undefined,
-          extra_context:    aiForm.extra_context || undefined,
-          num_ad_groups:    Number(aiForm.num_ad_groups),
-        }),
+      const data = await invokeEdgeFunction<{ ok: boolean; draft?: CampaignDraft; message?: string }>("generate-campaign", {
+        objective:        aiForm.objective,
+        campaign_type:    aiForm.campaign_type,
+        target_segment:   aiForm.target_segment,
+        daily_budget_ars: Number(aiForm.daily_budget_ars),
+        product_focus:    aiForm.product_focus || undefined,
+        extra_context:    aiForm.extra_context || undefined,
+        num_ad_groups:    Number(aiForm.num_ad_groups),
       });
-      const text = await res.text();
-      let data: { ok: boolean; draft?: CampaignDraft; message?: string };
-      try { data = JSON.parse(text); } catch { throw new Error(res.status === 504 ? "Tiempo de espera agotado — intentá con menos grupos de anuncios" : `Error del servidor (${res.status})`); }
       if (data.ok && data.draft) {
-        setGenMsg("✓ Campaña generada. Revisá y aprobá abajo.");
+        setGenMsg("OK: Campana generada. Revisa y aproba abajo.");
         setAIForm({ ...EMPTY_AI_FORM });
         setShowAIForm(false);
         setExpandedDraft(data.draft.id);
@@ -411,10 +445,11 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
       } else {
         setGenMsg(`Error: ${data.message ?? "desconocido"}`);
       }
-    } catch (e) {
-      setGenMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
+    } catch (error) {
+      setGenMsg(`Error: ${getErrorMessage(error, "No se pudo generar la campana.")}`);
+    } finally {
+      setGenerating(false);
     }
-    setGenerating(false);
   }
 
   async function approveDraft(id: string) {
@@ -430,22 +465,14 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
   async function launchDraft(id: string) {
     setLaunching(id); setLaunchMsg(null);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`/api/ai`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ action: "launch_campaign", draft_id: id }),
-      });
-      const data = await res.json() as { ok: boolean; message?: string; google_ads_campaign_id?: string };
-      setLaunchMsg(data.message ?? (data.ok ? "Lanzada" : "Error"));
+      const data = await invokeEdgeFunction<{ ok: boolean; message?: string; google_ads_campaign_id?: string }>("launch-campaign", { draft_id: id });
+      setLaunchMsg(data.ok ? `OK: ${data.message ?? "Campana lanzada."}` : `Error: ${data.message ?? "No se pudo lanzar la campana."}`);
+    } catch (error) {
+      setLaunchMsg(`Error: ${getErrorMessage(error, "No se pudo lanzar la campana.")}`);
+    } finally {
       void load();
-    } catch (e) {
-      setLaunchMsg(`Error: ${e instanceof Error ? e.message : String(e)}`);
+      setLaunching(null);
     }
-    setLaunching(null);
   }
 
   const inputCls = `w-full text-xs px-3 py-2 rounded-lg border ${d("bg-[#0d0d0d] border-[#2a2a2a] text-white","bg-white border-[#e5e5e5] text-[#171717]")}`;
@@ -535,7 +562,7 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
             </div>
 
             {genMsg && (
-              <p className={`text-xs px-3 py-2 rounded-lg border ${genMsg.startsWith("✓") ? "text-[#2D9F6A] border-[#2D9F6A]/20 bg-[#2D9F6A]/5" : "text-red-400 border-red-500/20 bg-red-500/5"}`}>
+              <p className={`text-xs px-3 py-2 rounded-lg border ${isSuccessMessage(genMsg) ? "text-[#2D9F6A] border-[#2D9F6A]/20 bg-[#2D9F6A]/5" : "text-red-400 border-red-500/20 bg-red-500/5"}`}>
                 {genMsg}
               </p>
             )}
@@ -559,7 +586,7 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
             Campañas generadas ({drafts.length})
           </p>
           {launchMsg && (
-            <p className={`text-xs px-3 py-2 rounded-lg border ${launchMsg.startsWith("✓") || launchMsg.includes("creada") || launchMsg.includes("lanzada") || launchMsg.includes("Campaña") ? "text-[#2D9F6A] border-[#2D9F6A]/20 bg-[#2D9F6A]/5" : "text-amber-400 border-amber-500/20 bg-amber-500/5"}`}>
+            <p className={`text-xs px-3 py-2 rounded-lg border ${isSuccessMessage(launchMsg) ? "text-[#2D9F6A] border-[#2D9F6A]/20 bg-[#2D9F6A]/5" : "text-amber-400 border-amber-500/20 bg-amber-500/5"}`}>
               {launchMsg}
             </p>
           )}
@@ -683,7 +710,7 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
       </div>
 
       {syncMsg && (
-        <p className={`text-xs px-3 py-2 rounded-lg border ${syncMsg.startsWith("✓") ? "text-[#2D9F6A] border-[#2D9F6A]/20 bg-[#2D9F6A]/5" : "text-amber-400 border-amber-500/20 bg-amber-500/5"}`}>
+        <p className={`text-xs px-3 py-2 rounded-lg border ${isSuccessMessage(syncMsg) ? "text-[#2D9F6A] border-[#2D9F6A]/20 bg-[#2D9F6A]/5" : "text-amber-400 border-amber-500/20 bg-amber-500/5"}`}>
           {syncMsg}
         </p>
       )}
@@ -989,27 +1016,21 @@ function CopiesSection({ isDark }: { isDark: boolean }) {
     setGenerating(true);
     setGenError(null);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch("/api/ai", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${session?.access_token ?? ""}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ action: "generate_copy", category, segment, count }),
+      const data = await invokeEdgeFunction<{ ok: boolean; copies?: AdCopy[]; error?: string }>("ad-copy-generator", {
+        category,
+        segment,
+        count,
       });
-      const text = await res.text();
-      let data: { ok: boolean; copies?: AdCopy[]; error?: string };
-      try { data = JSON.parse(text); } catch { data = { ok: false, error: "Error del servidor" }; }
       if (!data.ok) {
         setGenError(data.error ?? "Error al generar copies");
       } else {
         void loadCopies();
       }
-    } catch {
-      setGenError("Error de conexión con la función de generación");
+    } catch (error) {
+      setGenError(getErrorMessage(error, "Error de conexion con la funcion de generacion"));
+    } finally {
+      setGenerating(false);
     }
-    setGenerating(false);
   }
 
   async function updateStatus(id: number, status: "approved" | "rejected") {

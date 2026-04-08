@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useCatalogSegments } from "@/hooks/useCatalogSegments";
@@ -46,7 +46,6 @@ import { DetailedAccountView } from "@/components/b2b/DetailedAccountView";
 import { usePortalCatalog } from "@/hooks/usePortalCatalog";
 import { usePortalCart } from "@/hooks/usePortalCart";
 import { useAppTheme } from "@/hooks/useAppTheme";
-import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -118,9 +117,9 @@ export default function B2BPortal() {
   const [quickSku, setQuickSku] = useState("");
   const [quickError, setQuickError] = useState("");
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement | null>(null);
 
   const { isDark, toggleTheme: toggleAppTheme } = useAppTheme();
-  const isMobile = useIsMobile();
 
   // â”€â”€ Dynamic dashboard data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const dashboardUserId = profile?.id ?? "";
@@ -250,8 +249,28 @@ export default function B2BPortal() {
 
   useEffect(() => { if (!themeFlash) return; const t = window.setTimeout(() => setThemeFlash(false), 260); return () => window.clearTimeout(t); }, [themeFlash]);
   useEffect(() => { const raf = window.requestAnimationFrame(() => setThemeSwitchReady(true)); return () => window.cancelAnimationFrame(raf); }, []);
-  useEffect(() => { if (!isMobile) setAccountMenuOpen(false); }, [isMobile]);
   useEffect(() => { setAccountMenuOpen(false); }, [activeTab]);
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target || !accountMenuRef.current || accountMenuRef.current.contains(target)) return;
+      setAccountMenuOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAccountMenuOpen(false);
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [accountMenuOpen]);
 
   // â”€â”€ View mode effects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => { setViewMode(viewModeByContext[catalogContext]); }, [catalogContext, viewModeByContext]);
@@ -406,7 +425,7 @@ export default function B2BPortal() {
 
       {/* TABS */}
       <div className="relative z-50 border-b border-border/70 bg-card/75 px-4 py-1.5 md:px-6">
-        <div className="flex items-center gap-1 overflow-x-auto overflow-y-visible pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex items-center gap-1 overflow-x-auto overflow-y-visible pb-1 lg:overflow-visible [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {[
           { id: "home",     label: "Inicio",        icon: LayoutGrid },
           { id: "catalog",  label: "Catálogo",      icon: Package },
@@ -427,13 +446,12 @@ export default function B2BPortal() {
         <div className="mx-2 h-5 w-px bg-border/60 shrink-0 hidden md:block" />
 
         {/* Módulos de Gestión (Dropdown Hover) */}
-        <div className="group relative shrink-0">
+        <div ref={accountMenuRef} className="relative shrink-0">
           <button
             type="button"
-            onClick={() => {
-              if (isMobile) setAccountMenuOpen((current) => !current);
-            }}
-            aria-expanded={isMobile ? accountMenuOpen : undefined}
+            onClick={() => setAccountMenuOpen((current) => !current)}
+            aria-expanded={accountMenuOpen}
+            aria-haspopup="menu"
             className={`mx-0.5 my-0.5 flex items-center gap-1.5 rounded-2xl px-3.5 py-2 text-sm font-medium transition ${
               ["invoices", "cuenta", "support", "projects", "approvals", "rma"].includes(activeTab)
                 ? "bg-accent/50 text-foreground ring-1 ring-border/50"
@@ -447,14 +465,14 @@ export default function B2BPortal() {
               viewBox="0 0 10 6"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
-              className={`ml-1 opacity-50 transition-transform ${isMobile ? (accountMenuOpen ? "rotate-180" : "") : "group-hover:rotate-180"}`}
+              className={`ml-1 opacity-50 transition-transform ${accountMenuOpen ? "rotate-180" : ""}`}
             >
               <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
           
-          <div className={`absolute left-0 top-full z-50 pt-1 ${isMobile ? (accountMenuOpen ? "block" : "hidden") : "hidden group-hover:block"}`}>
-            <div className="flex w-[220px] flex-col overflow-hidden rounded-xl border border-border/60 bg-card py-1.5 shadow-xl">
+          <div className={`absolute right-0 top-full z-50 pt-1 md:left-0 md:right-auto ${accountMenuOpen ? "block" : "hidden"}`}>
+            <div className="flex min-w-[220px] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl border border-border/60 bg-card py-1.5 shadow-xl" role="menu">
               {[
                 { id: "cuenta",   label: "Centro de Cuenta", icon: Users },
                 { id: "invoices", label: `Facturas${myInvoices.length ? ` (${myInvoices.length})` : ""}`, icon: FileText },
@@ -471,6 +489,7 @@ export default function B2BPortal() {
                     setPortalTab(id as PortalTab);
                     setAccountMenuOpen(false);
                   }}
+                  role="menuitem"
                   className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition ${
                     activeTab === id ? "bg-accent/60 text-foreground font-semibold" : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   }`}

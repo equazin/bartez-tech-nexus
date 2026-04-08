@@ -135,7 +135,9 @@ export const EmailNotificationService = {
           tipo: status,
           status: "failed",
         });
-      } catch { }
+      } catch (logError) {
+        console.warn("[EmailService] No se pudo registrar el fallo del email:", logError);
+      }
 
       return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
