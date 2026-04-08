@@ -32,11 +32,72 @@ const GOOGLE_ADS_CLIENT_ID       = Deno.env.get("GOOGLE_ADS_CLIENT_ID");
 const GOOGLE_ADS_CLIENT_SECRET   = Deno.env.get("GOOGLE_ADS_CLIENT_SECRET");
 const GOOGLE_ADS_REFRESH_TOKEN   = Deno.env.get("GOOGLE_ADS_REFRESH_TOKEN");
 const GOOGLE_ADS_CUSTOMER_ID     = Deno.env.get("GOOGLE_ADS_CUSTOMER_ID");
+const GOOGLE_ADS_LOGIN_CUSTOMER_ID = Deno.env.get("GOOGLE_ADS_LOGIN_CUSTOMER_ID")?.replace(/-/g, "") ?? "";
+const GOOGLE_ADS_API_VERSION = Deno.env.get("GOOGLE_ADS_API_VERSION") ?? "v23";
 
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+interface GoogleAdsApiErrorPayload {
+  error?: { message?: string };
+  error_description?: string;
+  message?: string;
+}
+
+function buildGoogleAdsHeaders(accessToken: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`,
+    "developer-token": GOOGLE_ADS_DEVELOPER_TOKEN!,
+    "Content-Type": "application/json",
+  };
+
+  if (GOOGLE_ADS_LOGIN_CUSTOMER_ID) {
+    headers["login-customer-id"] = GOOGLE_ADS_LOGIN_CUSTOMER_ID;
+  }
+
+  return headers;
+}
+
+function buildGoogleAdsCustomerBaseUrl(customerId: string): string {
+  return `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId.replace(/-/g, "")}`;
+}
+
+function summarizeUpstreamBody(raw: string): string {
+  const compact = raw.replace(/\s+/g, " ").trim();
+  if (!compact) return "sin detalle adicional";
+  return compact.length > 240 ? `${compact.slice(0, 240)}...` : compact;
+}
+
+async function readJsonResponse<T>(response: Response, context: string): Promise<T> {
+  const raw = await response.text();
+  let parsed: (T & GoogleAdsApiErrorPayload) | null = null;
+
+  if (raw) {
+    try {
+      parsed = JSON.parse(raw) as T & GoogleAdsApiErrorPayload;
+    } catch {
+      parsed = null;
+    }
+  }
+
+  if (!response.ok) {
+    const upstreamMessage =
+      parsed?.error?.message ||
+      parsed?.error_description ||
+      parsed?.message ||
+      summarizeUpstreamBody(raw);
+    throw new Error(`${context} fallo (${response.status}): ${upstreamMessage}`);
+  }
+
+  if (!parsed) {
+    const contentType = response.headers.get("content-type") || "desconocido";
+    throw new Error(`${context} devolvio una respuesta no JSON (${contentType}): ${summarizeUpstreamBody(raw)}`);
+  }
+
+  return parsed;
+}
 
 async function getAccessToken(): Promise<string> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
@@ -49,8 +110,13 @@ async function getAccessToken(): Promise<string> {
       grant_type:    "refresh_token",
     }),
   });
-  const data = await res.json() as { access_token?: string; error?: string };
-  if (!data.access_token) throw new Error(`OAuth error: ${data.error}`);
+  const data = await readJsonResponse<{ access_token?: string; error?: string; error_description?: string }>(
+    res,
+    "OAuth de Google Ads",
+  );
+  if (!data.access_token) {
+    throw new Error(`OAuth de Google Ads sin token de acceso: ${data.error_description ?? data.error ?? "unknown"}`);
+  }
   return data.access_token;
 }
 
@@ -60,12 +126,8 @@ async function createCampaignInGoogleAds(
   budgetArs:   number,
 ): Promise<string> {
   const customerId = GOOGLE_ADS_CUSTOMER_ID!.replace(/-/g, "");
-  const baseUrl    = `https://googleads.googleapis.com/v17/customers/${customerId}`;
-  const headers = {
-    "Authorization":         `Bearer ${accessToken}`,
-    "developer-token":       GOOGLE_ADS_DEVELOPER_TOKEN!,
-    "Content-Type":          "application/json",
-  };
+  const baseUrl    = buildGoogleAdsCustomerBaseUrl(customerId);
+  const headers = buildGoogleAdsHeaders(accessToken);
 
   // 1. Create campaign budget (in micros)
   const budgetMicros = Math.round(budgetArs * 1_000_000);
@@ -82,7 +144,10 @@ async function createCampaignInGoogleAds(
       }],
     }),
   });
-  const budgetData = await budgetRes.json() as { results?: { resourceName: string }[] };
+  const budgetData = await readJsonResponse<{ results?: { resourceName: string }[] }>(
+    budgetRes,
+    "Creacion de presupuesto en Google Ads",
+  );
   const budgetResource = budgetData.results?.[0]?.resourceName;
   if (!budgetResource) throw new Error("No se pudo crear el presupuesto en Google Ads");
 
@@ -97,8 +162,7 @@ async function createCampaignInGoogleAds(
           status:            "PAUSED",   // always start paused — admin activates manually
           advertisingChannelType: "SEARCH",
           campaignBudget:    budgetResource,
-          biddingStrategyType: "MAXIMIZE_CONVERSIONS",
-          targetSpend:       {},
+          maximizeConversions: {},
           networkSettings: {
             targetGoogleSearch:        true,
             targetSearchNetwork:       true,
@@ -112,7 +176,10 @@ async function createCampaignInGoogleAds(
       }],
     }),
   });
-  const campaignData = await campaignRes.json() as { results?: { resourceName: string }[] };
+  const campaignData = await readJsonResponse<{ results?: { resourceName: string }[] }>(
+    campaignRes,
+    "Creacion de campana en Google Ads",
+  );
   const campaignResource = campaignData.results?.[0]?.resourceName;
   if (!campaignResource) throw new Error("No se pudo crear la campaña en Google Ads");
   const campaignId = campaignResource.split("/").pop()!;
@@ -134,14 +201,17 @@ async function createCampaignInGoogleAds(
         }],
       }),
     });
-    const agData = await agRes.json() as { results?: { resourceName: string }[] };
+    const agData = await readJsonResponse<{ results?: { resourceName: string }[] }>(
+      agRes,
+      `Creacion del grupo de anuncios "${ag.name}" en Google Ads`,
+    );
     const agResource = agData.results?.[0]?.resourceName;
     if (!agResource) continue;
 
     // Create RSA ad
     const headlines     = ag.headlines.slice(0, 15).map((text) => ({ text: text.slice(0, 30) }));
     const descriptions  = ag.descriptions.slice(0, 4).map((text) => ({ text: text.slice(0, 90) }));
-    await fetch(`${baseUrl}/adGroupAds:mutate`, {
+    const adRes = await fetch(`${baseUrl}/adGroupAds:mutate`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -157,6 +227,10 @@ async function createCampaignInGoogleAds(
         }],
       }),
     });
+    await readJsonResponse<Record<string, unknown>>(
+      adRes,
+      `Creacion del anuncio RSA para "${ag.name}" en Google Ads`,
+    );
 
     // Create keywords (broad match by default)
     const kwOps = ag.keywords.slice(0, 20).map((kw) => ({
@@ -168,11 +242,15 @@ async function createCampaignInGoogleAds(
       },
     }));
     if (kwOps.length > 0) {
-      await fetch(`${baseUrl}/adGroupCriteria:mutate`, {
+      const kwRes = await fetch(`${baseUrl}/adGroupCriteria:mutate`, {
         method: "POST",
         headers,
         body: JSON.stringify({ operations: kwOps }),
       });
+      await readJsonResponse<Record<string, unknown>>(
+        kwRes,
+        `Creacion de keywords para "${ag.name}" en Google Ads`,
+      );
     }
   }
 
@@ -184,11 +262,15 @@ async function createCampaignInGoogleAds(
         keyword: { text: kw, matchType: "BROAD" },
       },
     }));
-    await fetch(`${baseUrl}/campaignCriteria:mutate`, {
+    const negRes = await fetch(`${baseUrl}/campaignCriteria:mutate`, {
       method: "POST",
       headers,
       body: JSON.stringify({ operations: negOps }),
     });
+    await readJsonResponse<Record<string, unknown>>(
+      negRes,
+      "Creacion de keywords negativas en Google Ads",
+    );
   }
 
   return campaignId;

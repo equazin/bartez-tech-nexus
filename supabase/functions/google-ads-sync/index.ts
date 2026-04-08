@@ -27,10 +27,11 @@ const CLIENT_ID               = Deno.env.get("GOOGLE_ADS_CLIENT_ID");
 const CLIENT_SECRET           = Deno.env.get("GOOGLE_ADS_CLIENT_SECRET");
 const REFRESH_TOKEN           = Deno.env.get("GOOGLE_ADS_REFRESH_TOKEN");
 const CUSTOMER_ID             = Deno.env.get("GOOGLE_ADS_CUSTOMER_ID");
+const LOGIN_CUSTOMER_ID       = Deno.env.get("GOOGLE_ADS_LOGIN_CUSTOMER_ID")?.replace(/-/g, "") ?? "";
+const GOOGLE_ADS_API_VERSION  = Deno.env.get("GOOGLE_ADS_API_VERSION") ?? "v23";
 
 const GOOGLE_TOKEN_URL        = "https://oauth2.googleapis.com/token";
-const GOOGLE_ADS_API_BASE     = "https://googleads.googleapis.com/v17";
-const API_VERSION             = "v17";
+const GOOGLE_ADS_API_BASE     = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}`;
 
 interface CampaignRow {
   campaign_id: string;
@@ -39,6 +40,61 @@ interface CampaignRow {
   clicks: number;
   cost_ars: number;
   conversions: number;
+}
+
+interface GoogleAdsApiErrorPayload {
+  error?: { message?: string };
+  error_description?: string;
+  message?: string;
+}
+
+function buildGoogleAdsHeaders(accessToken: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`,
+    "developer-token": DEVELOPER_TOKEN!,
+    "Content-Type": "application/json",
+  };
+
+  if (LOGIN_CUSTOMER_ID) {
+    headers["login-customer-id"] = LOGIN_CUSTOMER_ID;
+  }
+
+  return headers;
+}
+
+function summarizeUpstreamBody(raw: string): string {
+  const compact = raw.replace(/\s+/g, " ").trim();
+  if (!compact) return "sin detalle adicional";
+  return compact.length > 240 ? `${compact.slice(0, 240)}...` : compact;
+}
+
+async function readJsonResponse<T>(response: Response, context: string): Promise<T> {
+  const raw = await response.text();
+  let parsed: (T & GoogleAdsApiErrorPayload) | null = null;
+
+  if (raw) {
+    try {
+      parsed = JSON.parse(raw) as T & GoogleAdsApiErrorPayload;
+    } catch {
+      parsed = null;
+    }
+  }
+
+  if (!response.ok) {
+    const upstreamMessage =
+      parsed?.error?.message ||
+      parsed?.error_description ||
+      parsed?.message ||
+      summarizeUpstreamBody(raw);
+    throw new Error(`${context} fallo (${response.status}): ${upstreamMessage}`);
+  }
+
+  if (!parsed) {
+    const contentType = response.headers.get("content-type") || "desconocido";
+    throw new Error(`${context} devolvio una respuesta no JSON (${contentType}): ${summarizeUpstreamBody(raw)}`);
+  }
+
+  return parsed;
 }
 
 // ── OAuth2 access token ───────────────────────────────────────
@@ -54,8 +110,13 @@ async function getAccessToken(): Promise<string> {
       grant_type:    "refresh_token",
     }),
   });
-  const data = await res.json() as { access_token?: string; error?: string };
-  if (!data.access_token) throw new Error(`OAuth2 error: ${data.error ?? "unknown"}`);
+  const data = await readJsonResponse<{ access_token?: string; error?: string; error_description?: string }>(
+    res,
+    "OAuth de Google Ads",
+  );
+  if (!data.access_token) {
+    throw new Error(`OAuth de Google Ads sin token de acceso: ${data.error_description ?? data.error ?? "unknown"}`);
+  }
   return data.access_token;
 }
 
@@ -83,12 +144,7 @@ async function fetchCampaignStats(
     `${GOOGLE_ADS_API_BASE}/customers/${CUSTOMER_ID}/googleAds:searchStream`,
     {
       method: "POST",
-      headers: {
-        "Authorization":        `Bearer ${accessToken}`,
-        "developer-token":      DEVELOPER_TOKEN!,
-        "Content-Type":         "application/json",
-        "login-customer-id":    CUSTOMER_ID!,
-      },
+      headers: buildGoogleAdsHeaders(accessToken),
       body: JSON.stringify({ query }),
     },
   );
