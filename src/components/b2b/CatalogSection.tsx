@@ -422,6 +422,10 @@ export function CatalogSection({
   };
 
   const clearAdvancedFilters = () => setAdvancedFilters(EMPTY_ADVANCED_FILTERS);
+  const clearAllFilters = () => {
+    clearFilters();
+    clearAdvancedFilters();
+  };
 
   const effectiveFilters = useMemo(() => ({
     brands: advancedFilters.brands.filter((item) => brandOptions.includes(item)),
@@ -468,26 +472,7 @@ export function CatalogSection({
   const resultsLabel = `${filteredProducts.length}${totalCount > 0 ? ` de ${totalCount}` : ""} productos`;
 
   return (
-    <div className="flex flex-col lg:flex-row gap-5 items-start">
-      {/* SIDEBAR PANEL */}
-      <aside className="hidden w-full shrink-0 gap-4 custom-scrollbar lg:grid lg:w-[250px] lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:sticky lg:top-4 lg:pr-1 xl:w-[260px]">
-        {(hasActiveFilters || hasAdvancedFilters) && (
-          <Button type="button" variant="outline" className="justify-start gap-2 rounded-2xl bg-card text-xs h-10 border-border/70" onClick={() => { clearFilters(); clearAdvancedFilters(); }}>
-            <X size={14} /> Limpiar filtros
-          </Button>
-        )}
-
-        <AdvancedFiltersPanel
-          brandOptions={brandOptions}
-          ramOptions={ramOptions}
-          storageOptions={storageOptions}
-          refreshRateOptions={refreshRateOptions}
-          screenOptions={screenOptions}
-          effectiveFilters={effectiveFilters}
-          toggleAdvancedFilter={toggleAdvancedFilter}
-        />
-      </aside>
-
+    <div className="flex flex-col gap-5">
       <Drawer open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen} direction="right">
         <DrawerContent className="fixed bottom-0 left-auto right-0 top-0 mt-0 h-full w-full max-w-sm rounded-none border-l border-border bg-background p-0">
           <DrawerHeader className="border-b border-border/70 px-4 py-3 text-left">
@@ -499,10 +484,7 @@ export function CatalogSection({
                 type="button"
                 variant="outline"
                 className="justify-start gap-2 rounded-2xl bg-card text-xs h-10 border-border/70"
-                onClick={() => {
-                  clearFilters();
-                  clearAdvancedFilters();
-                }}
+                onClick={clearAllFilters}
               >
                 <X size={14} /> Limpiar filtros
               </Button>
@@ -659,6 +641,52 @@ export function CatalogSection({
                 </PopoverContent>
               </Popover>
 
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="toolbar"
+                    size="sm"
+                    className="hidden h-9 shrink-0 rounded-xl px-3 text-xs font-semibold lg:inline-flex"
+                  >
+                    <SlidersHorizontal size={13} className="text-muted-foreground" />
+                    Filtros avanzados
+                    {advancedFilterCount > 0 ? (
+                      <Badge variant="muted" className="rounded-full text-[10px]">
+                        {advancedFilterCount}
+                      </Badge>
+                    ) : null}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  className="hidden w-[340px] rounded-[24px] border border-border/70 bg-background/95 p-3 shadow-2xl lg:block"
+                >
+                  <div className="space-y-3">
+                    {(hasActiveFilters || hasAdvancedFilters) ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10 w-full justify-start gap-2 rounded-2xl border-border/70 bg-card text-xs"
+                        onClick={clearAllFilters}
+                      >
+                        <X size={14} /> Limpiar filtros
+                      </Button>
+                    ) : null}
+
+                    <AdvancedFiltersPanel
+                      brandOptions={brandOptions}
+                      ramOptions={ramOptions}
+                      storageOptions={storageOptions}
+                      refreshRateOptions={refreshRateOptions}
+                      screenOptions={screenOptions}
+                      effectiveFilters={effectiveFilters}
+                      toggleAdvancedFilter={toggleAdvancedFilter}
+                    />
+                  </div>
+                </PopoverContent>
+              </Popover>
+
               <Button
                 type="button"
                 variant="toolbar"
@@ -773,10 +801,7 @@ export function CatalogSection({
           description={search || hasActiveFilters || hasAdvancedFilters ? "Revisa la busqueda o resetea los filtros." : undefined}
           icon={<Search size={20} />}
           actionLabel={search || hasActiveFilters || hasAdvancedFilters ? "Limpiar filtros" : undefined}
-          onAction={() => {
-            clearFilters();
-            clearAdvancedFilters();
-          }}
+          onAction={clearAllFilters}
           className="py-16"
         />
       ) : viewMode === "list" ? (

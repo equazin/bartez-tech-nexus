@@ -287,7 +287,7 @@ export function ProductItem({
         </div>
       </div>
 
-      <div className="hidden min-w-[130px] shrink-0 sm:flex flex-col items-end justify-center py-2 px-4 border-l border-border/50 bg-muted/10">
+      <div className="hidden min-w-[136px] shrink-0 border-l border-border/50 bg-muted/10 px-4 py-2 sm:flex sm:flex-col sm:items-end sm:justify-center lg:min-w-[148px]">
         {isOffer && offerPercent && offerPercent > 0 ? (
           <div className="mb-0.5 inline-flex items-center gap-1 rounded bg-orange-600 px-1.5 py-0.5 text-[9px] font-black uppercase text-white ring-1 ring-orange-500/20 shadow-sm">
             <Flame size={8} fill="currentColor" />
@@ -309,7 +309,7 @@ export function ProductItem({
         {lastPurchaseUnitPriceDelta > 0 ? <div className="text-[10px] mt-1 font-semibold text-amber-500">+{lastPurchaseUnitPriceDelta.toFixed(1)}% vs anterior</div> : null}
       </div>
 
-      <div className="flex w-full shrink-0 items-center justify-between gap-2 border-t border-border/50 bg-muted/10 px-3 py-2 sm:w-[130px] sm:justify-end sm:gap-1 sm:border-l sm:border-t-0 sm:pr-3">
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 border-t border-border/50 bg-muted/10 px-3 py-2 sm:w-auto sm:min-w-[184px] sm:justify-end sm:gap-2 sm:border-l sm:border-t-0 sm:px-3 lg:min-w-[190px] xl:min-w-[246px]">
         <div className="min-w-0 sm:hidden">
           {isOffer && originalPrice && originalPrice > finalPrice ? (
             <div className="mb-0.5 text-[10px] font-medium text-muted-foreground/60 line-through tabular-nums">
@@ -324,13 +324,13 @@ export function ProductItem({
           </div>
           <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground/70">Precio + IVA</div>
         </div>
-        <Button variant="ghost" size="icon" className={cn("hidden lg:flex h-8 w-8", isCompared && "text-primary")} onClick={() => onToggleCompare(product.id)} title="Comparar">
+        <Button variant="ghost" size="icon" className={cn("hidden xl:flex h-8 w-8", isCompared && "text-primary")} onClick={() => onToggleCompare(product.id)} title="Comparar">
           <TrendingUp size={13} />
         </Button>
-        <Button variant="ghost" size="icon" className={cn("hidden lg:flex h-8 w-8", isFavorite && "text-amber-400")} onClick={() => onToggleFavorite(product.id)} title="Favorito">
+        <Button variant="ghost" size="icon" className={cn("hidden xl:flex h-8 w-8", isFavorite && "text-amber-400")} onClick={() => onToggleFavorite(product.id)} title="Favorito">
           <Star size={13} className={isFavorite ? "fill-current" : undefined} />
         </Button>
-        <div className="min-w-0 sm:origin-right sm:scale-[0.85]">
+        <div className="shrink-0">
           <QuickAddControl
             inCart={inCart}
             outOfStock={outOfStock}

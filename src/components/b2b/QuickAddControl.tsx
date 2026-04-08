@@ -31,7 +31,7 @@ export function QuickAddControl({
   };
 
   return (
-    <div className={cn("flex items-center", compact ? "flex-wrap gap-1.5 sm:flex-nowrap" : "flex-wrap gap-2 sm:flex-nowrap")}>
+    <div className={cn("flex shrink-0 items-center", compact ? "min-w-max flex-wrap gap-1.5 sm:flex-nowrap" : "flex-wrap gap-2 sm:flex-nowrap")}>
       {inCart > 0 ? (
         <div
           className={cn(
@@ -44,7 +44,7 @@ export function QuickAddControl({
         </div>
       ) : null}
 
-      <div className="flex items-center rounded-xl border border-border/70 bg-background">
+      <div className="flex shrink-0 items-center rounded-xl border border-border/70 bg-background">
         <Button
           type="button"
           variant="ghost"
