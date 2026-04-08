@@ -101,6 +101,34 @@ function isSuccessMessage(message: string | null): boolean {
   return !!message?.startsWith("OK:");
 }
 
+function formatActionFeedback(
+  ok: boolean,
+  message: string | undefined,
+  successFallback: string,
+  errorFallback: string,
+): string {
+  const value = message?.trim();
+
+  if (ok) {
+    if (!value) return `OK: ${successFallback}`;
+    return value.startsWith("OK:") ? value : `OK: ${value}`;
+  }
+
+  if (!value) return `Error: ${errorFallback}`;
+  return /^Error:/i.test(value) ? value : `Error: ${value}`;
+}
+
+function getLaunchErrorHint(error: string | null): string | null {
+  if (!error) return null;
+  if (error.includes("DEVELOPER_TOKEN_NOT_APPROVED")) {
+    return "El developer token actual solo puede usarse con cuentas de prueba. Para cuentas reales, pedi Basic o Standard access en Google Ads API Center.";
+  }
+  if (error.includes("USER_PERMISSION_DENIED")) {
+    return "La cuenta OAuth no tiene acceso suficiente a la cuenta objetivo o falta configurar GOOGLE_ADS_LOGIN_CUSTOMER_ID para operar via una cuenta administradora.";
+  }
+  return null;
+}
+
 export function MarketingTab({ isDark = true }: MarketingTabProps) {
   const d = dk(isDark);
   const [subTab, setSubTab] = useState<SubTab>("funnel");
@@ -501,7 +529,7 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
     setLaunching(id); setLaunchMsg(null);
     try {
       const data = await invokeMarketingAction<{ ok: boolean; message?: string; google_ads_campaign_id?: string }>("launch_campaign", { draft_id: id });
-      setLaunchMsg(data.ok ? `OK: ${data.message ?? "Campana lanzada."}` : `Error: ${data.message ?? "No se pudo lanzar la campana."}`);
+      setLaunchMsg(formatActionFeedback(data.ok, data.message, "Campana lanzada.", "No se pudo lanzar la campana."));
     } catch (error) {
       setLaunchMsg(`Error: ${getErrorMessage(error, "No se pudo lanzar la campana.")}`);
     } finally {
@@ -714,6 +742,11 @@ function CampaignsSection({ isDark }: { isDark: boolean }) {
                   {draft.launch_error && (
                     <p className="text-xs text-red-400 bg-red-500/5 border border-red-500/20 rounded px-3 py-2">
                       Error al lanzar: {draft.launch_error}
+                    </p>
+                  )}
+                  {getLaunchErrorHint(draft.launch_error) && (
+                    <p className="text-xs text-amber-300 bg-amber-500/5 border border-amber-500/20 rounded px-3 py-2">
+                      Accion requerida: {getLaunchErrorHint(draft.launch_error)}
                     </p>
                   )}
                 </div>

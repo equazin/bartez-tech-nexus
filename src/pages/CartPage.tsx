@@ -1,11 +1,13 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/lib/supabase";
 import { useProducts } from "@/hooks/useProducts";
 import { useOrders } from "@/hooks/useOrders";
 import { useQuotes } from "@/hooks/useQuotes";
 import { usePricingRules } from "@/hooks/usePricingRules";
 import { useCurrency } from "@/context/CurrencyContext";
+import { useCartSync } from "@/hooks/useCartSync";
 import { generateQuotePdfOnDemand } from "@/lib/quotePdfClient";
 import { getAvailableStock } from "@/lib/pricing";
 import { resolveMarginWithContext } from "@/lib/pricingEngine";
@@ -89,7 +91,7 @@ const ECHEQ_SURCHARGE_BY_TERM: Record<EcheqTermDays, number> = {
 
 export default function CartPage() {
   const navigate = useNavigate();
-  const { profile, isAdmin } = useAuth();
+  const { profile, isAdmin, user } = useAuth();
   const { products, loading: productsLoading } = useProducts({ isAdmin });
   const { computePrice } = usePricing(profile);
   const { addOrder, orders } = useOrders();
@@ -112,6 +114,7 @@ export default function CartPage() {
   useEffect(() => {
     localStorage.setItem(cartKey, JSON.stringify(cart));
   }, [cart, cartKey]);
+  useCartSync(cart, setCart);
 
   useEffect(() => {
     setFavoriteProductIds(getFavoriteProducts(userId));
@@ -246,6 +249,36 @@ export default function CartPage() {
     const next = { ...cart };
     delete next[productId];
     setCart(next);
+  }
+
+  async function handleClearCart() {
+    if (cartItems.length === 0) return;
+    const confirmed = window.confirm("Esto va a vaciar el carrito completo. ¿Querés continuar?");
+    if (!confirmed) return;
+
+    setCart({});
+    setValidationErrors([]);
+    setOrderSuccess(false);
+    setListSaved(false);
+    setTemplateSaved(false);
+    setDraftSaved(false);
+    setReviewRequested(false);
+
+    if (!user?.id) return;
+
+    try {
+      const { error } = await supabase
+        .from("carts")
+        .upsert({
+          user_id: user.id,
+          items: {},
+          updated_at: new Date().toISOString(),
+        });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error("No se pudo vaciar el carrito remoto:", error);
+    }
   }
 
   // -- Credit limit -------------------------------------------------------------
@@ -814,6 +847,16 @@ export default function CartPage() {
         <div className="flex items-center gap-2">
           <ShoppingCart size={15} className="text-[#2D9F6A]" />
           <span className="text-sm font-bold">Pedido</span>
+          {cartItems.length > 0 && (
+            <button
+              type="button"
+              onClick={() => { void handleClearCart(); }}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${dk("border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/15", "border-red-200 bg-red-50 text-red-700 hover:bg-red-100")}`}
+            >
+              <Trash2 size={12} />
+              Vaciar carrito
+            </button>
+          )}
           {cartItems.length > 0 && (
               <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${dk("bg-[#171717] text-[#737373] border-[#222]", "bg-[#f0f0f0] text-[#737373] border-[#e5e5e5]")}`}>
                 {cartItems.reduce((s, i) => s + i.quantity, 0)} {cartItems.reduce((s, i) => s + i.quantity, 0) === 1 ? "ítem" : "ítems"} · {cartItems.length} {cartItems.length === 1 ? "ref" : "refs"}

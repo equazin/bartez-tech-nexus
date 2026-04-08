@@ -126,7 +126,17 @@ interface GoogleAdsSnapshotRow {
 }
 
 interface GoogleAdsApiErrorPayload {
-  error?: { message?: string };
+  error?: {
+    message?: string;
+    details?: Array<{
+      "@type"?: string;
+      requestId?: string;
+      errors?: Array<{
+        errorCode?: Record<string, string>;
+        message?: string;
+      }>;
+    }>;
+  };
   error_description?: string;
   message?: string;
 }
@@ -206,6 +216,42 @@ function summarizeUpstreamBody(raw: string): string {
   return compact.length > 240 ? `${compact.slice(0, 240)}...` : compact;
 }
 
+function extractGoogleAdsErrorMessage(
+  parsed: GoogleAdsApiErrorPayload | null,
+  raw: string,
+): string {
+  const detail = parsed?.error?.details?.find((entry) => Array.isArray(entry.errors));
+  const errors = detail?.errors ?? [];
+  const requestId = detail?.requestId ? ` Request ID: ${detail.requestId}.` : "";
+  const codes = errors.flatMap((entry) => Object.values(entry.errorCode ?? {}));
+  const detailMessage = errors
+    .map((entry) => entry.message?.trim())
+    .filter((message): message is string => Boolean(message))
+    .join(" ");
+
+  if (codes.includes("DEVELOPER_TOKEN_NOT_APPROVED")) {
+    return `DEVELOPER_TOKEN_NOT_APPROVED: el developer token actual solo tiene acceso a cuentas de prueba. Solicita Basic o Standard access en Google Ads API Center para operar cuentas reales.${requestId}`;
+  }
+
+  if (codes.includes("USER_PERMISSION_DENIED")) {
+    const hint = GOOGLE_ADS_LOGIN_CUSTOMER_ID
+      ? "Verifica que el usuario OAuth tenga acceso directo a la cuenta o que el manager configurado en GOOGLE_ADS_LOGIN_CUSTOMER_ID administre esta cuenta."
+      : "La cuenta OAuth no tiene acceso directo a la cuenta o falta configurar GOOGLE_ADS_LOGIN_CUSTOMER_ID para operar via una cuenta administradora (MCC).";
+    return `USER_PERMISSION_DENIED: ${hint}${requestId}`;
+  }
+
+  if (detailMessage) {
+    return `${detailMessage}${requestId}`.trim();
+  }
+
+  return (
+    parsed?.error?.message ||
+    parsed?.error_description ||
+    parsed?.message ||
+    summarizeUpstreamBody(raw)
+  );
+}
+
 async function readJsonResponse<T>(response: Response, context: string): Promise<T> {
   const raw = await response.text();
   let parsed: (T & GoogleAdsApiErrorPayload) | null = null;
@@ -219,11 +265,7 @@ async function readJsonResponse<T>(response: Response, context: string): Promise
   }
 
   if (!response.ok) {
-    const upstreamMessage =
-      parsed?.error?.message ||
-      parsed?.error_description ||
-      parsed?.message ||
-      summarizeUpstreamBody(raw);
+    const upstreamMessage = extractGoogleAdsErrorMessage(parsed, raw);
     throw new Error(`${context} fallo (${response.status}): ${upstreamMessage}`);
   }
 
@@ -435,10 +477,26 @@ async function fetchGoogleAdsSnapshots(dateRange: { start: string; end: string }
   });
 
   if (!response.ok) {
-    throw new Error(`Google Ads API error ${response.status}: ${await response.text()}`);
+    const raw = await response.text();
+    let parsed: GoogleAdsApiErrorPayload | null = null;
+
+    if (raw) {
+      try {
+        parsed = JSON.parse(raw) as GoogleAdsApiErrorPayload;
+      } catch {
+        parsed = null;
+      }
+    }
+
+    throw new Error(
+      `Lectura de rendimiento en Google Ads fallo (${response.status}): ${extractGoogleAdsErrorMessage(parsed, raw)}`,
+    );
   }
 
-  const lines = (await response.text()).trim().split("\n");
+  const raw = await response.text();
+  if (!raw.trim()) return [];
+
+  const lines = raw.trim().split("\n");
   const rows: GoogleAdsSnapshotRow[] = [];
 
   for (const line of lines) {
