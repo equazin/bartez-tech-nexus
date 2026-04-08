@@ -9,6 +9,14 @@ import { StockBadge } from "./StockBadge";
 import { QuickAddControl } from "./QuickAddControl";
 import type { Product } from "@/models/products";
 
+function resolveCommercialSignals(product: Product, available: number) {
+  return [
+    available > 0 ? `Entrega ${available > 5 ? "inmediata" : "sujeta a confirmación"}` : "Bajo consulta",
+    product.supplier_name ? `Origen ${product.supplier_name}` : "Canal partner",
+    product.min_order_qty && product.min_order_qty > 1 ? `Min. ${product.min_order_qty}u` : "Venta unitaria",
+  ];
+}
+
 interface ProductItemProps {
   product: Product;
   viewMode: "grid" | "list";
@@ -54,6 +62,7 @@ export function ProductItem({
 }: ProductItemProps) {
   const available = Math.max(0, product.stock - (product.stock_reserved ?? 0));
   const outOfStock = available === 0;
+  const commercialSignals = resolveCommercialSignals(product, available);
   const [imageSrc, setImageSrc] = useState(() => resolveProductImageUrl(product.image));
   const handlePreviewIntent = () => preloadProductImage(product.image);
 
@@ -145,6 +154,13 @@ export function ProductItem({
               {purchaseHistoryCount > 0 ? (
                 <Badge variant="secondary" className="text-[11px]">Compraste {purchaseHistoryCount}u</Badge>
               ) : null}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {commercialSignals.map((signal) => (
+                <Badge key={signal} variant="outline" className="rounded-full text-[10px] text-muted-foreground">
+                  {signal}
+                </Badge>
+              ))}
             </div>
           </div>
 
@@ -247,6 +263,13 @@ export function ProductItem({
               </Badge>
             ) : null}
             {product.sku ? <Badge variant="secondary" className="font-mono text-[11px]">{product.sku}</Badge> : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+            {commercialSignals.map((signal) => (
+              <Badge key={signal} variant="outline" className="rounded-full text-[10px]">
+                {signal}
+              </Badge>
+            ))}
           </div>
         </div>
       </div>

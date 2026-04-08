@@ -22,11 +22,11 @@ const WORKSPACE_ITEMS: Array<{
   icon: typeof LayoutDashboard;
 }> = [
   { id: "dashboard", label: "Dashboard", module: "top", tab: "dashboard", icon: LayoutDashboard },
-  { id: "clients", label: "Clientes", module: "clientes", tab: "clients", icon: Users },
-  { id: "products", label: "Productos", module: "catalogo", tab: "products", icon: Package },
-  { id: "sales", label: "Ventas", module: "pedidos", tab: "orders", icon: ClipboardList },
+  { id: "sales", label: "Ventas", module: "pedidos", tab: "quotes_admin", icon: ClipboardList },
+  { id: "clients", label: "Clientes 360", module: "clientes", tab: "clients", icon: Users },
+  { id: "products", label: "Catalogo", module: "catalogo", tab: "products", icon: Package },
   { id: "sellers", label: "Vendedores", module: "vendedores", tab: "seller_mode", icon: DollarSign },
-  { id: "settings", label: "Configuracion", module: "sistema", tab: "suppliers", icon: Settings2 },
+  { id: "settings", label: "Operaciones", module: "sistema", tab: "suppliers", icon: Settings2 },
 ];
 
 export function AdminSidebar({
@@ -53,7 +53,7 @@ export function AdminSidebar({
           {(!collapsed || mobile) && (
             <div className="min-w-0">
               <p className="text-sm font-bold text-foreground">Bartez Admin</p>
-              <p className="text-[11px] text-muted-foreground">Workspace comercial</p>
+              <p className="text-[11px] text-muted-foreground">Centro operativo comercial</p>
             </div>
           )}
         </div>

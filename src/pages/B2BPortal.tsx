@@ -36,6 +36,7 @@ import { CatalogSection } from "@/components/b2b/CatalogSection";
 import { ClientDashboard } from "@/components/b2b/ClientDashboard";
 import type { AssignedSeller } from "@/components/b2b/ClientDashboard";
 import type { ViewMode, CatalogContext } from "@/components/b2b/CatalogSection";
+import { OperativeBar } from "@/components/b2b/OperativeBar";
 import { useClientProjects } from "@/hooks/useClientProjects";
 import { useBusinessAlerts } from "@/hooks/useBusinessAlerts";
 import { useCartSync } from "@/hooks/useCartSync";
@@ -48,6 +49,7 @@ import { useAppTheme } from "@/hooks/useAppTheme";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import { QuoteList } from "@/components/QuoteList";
 import { MapPin } from "lucide-react";
 import { OrderStatusBadge as StatusBadge } from "@/components/OrderStatusBadge";
 
@@ -112,6 +114,8 @@ export default function B2BPortal() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null);
   const [warehouses, setWarehouses] = useState<{ id: string; name: string; address: string; allows_pickup: boolean }[]>([]);
+  const [quickSku, setQuickSku] = useState("");
+  const [quickError, setQuickError] = useState("");
 
   const { isDark, toggleTheme: toggleAppTheme } = useAppTheme();
 
@@ -258,7 +262,7 @@ export default function B2BPortal() {
 
     // Redirect old tabs to Account Hub
     const tabParam = searchParams.get("tab");
-    if (tabParam === "quotes" || tabParam === "express" || tabParam === "payments") {
+    if (tabParam === "express" || tabParam === "payments") {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.set("tab", "cuenta");
@@ -311,6 +315,60 @@ export default function B2BPortal() {
     await exportCatalogPdf(displayProducts, formatPrice, currency);
   }
 
+  const quoteCount = quotes.length;
+  const pendingApprovals = managedOrders.filter((order) => order.status === "pending_approval").length;
+  const highlightedOrders = orders.filter((order) => !["delivered", "rejected"].includes(order.status)).length;
+
+  const setPortalTab = useCallback((tab: PortalTab, options?: { section?: string }) => {
+    setActiveTab(tab);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", tab);
+      if (options?.section) next.set("section", options.section);
+      else next.delete("section");
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const handleQuickOrder = useCallback(() => {
+    const [rawSku, rawQty] = quickSku.trim().split(/\s+/);
+    if (!rawSku) {
+      setQuickError("Ingresá un SKU o una referencia para cargar rápido.");
+      return;
+    }
+
+    const quantity = Math.max(1, Number.parseInt(rawQty ?? "1", 10) || 1);
+    const normalized = normalizePortalText(rawSku);
+    const matchedProduct = catalog.products.find((product) => {
+      const sku = normalizePortalText(product.sku);
+      const name = normalizePortalText(product.name);
+      const brand = normalizePortalText(product.brand_name);
+      return sku === normalized || name.includes(normalized) || brand.includes(normalized);
+    });
+
+    if (!matchedProduct) {
+      setQuickError(`No encontramos ${rawSku} en el catálogo activo.`);
+      return;
+    }
+
+    cart.handleSmartAddToCart(matchedProduct, quantity);
+    setQuickSku("");
+    setQuickError("");
+    setPortalTab("catalog");
+  }, [cart, catalog.products, quickSku, setPortalTab]);
+
+  const handleQuickAddProduct = useCallback((product: Product, qty = 1) => {
+    cart.handleSmartAddToCart(product, qty);
+    setQuickError("");
+  }, [cart]);
+
+  const journeySteps = [
+    { id: "catalog" as PortalTab, label: "Buscar", helper: "Encontrá por SKU, marca o categoría" },
+    { id: "catalog" as PortalTab, label: "Evaluar", helper: "Compará specs, stock y condición comercial" },
+    { id: "quotes" as PortalTab, label: "Cotizar o comprar", helper: "Definí si seguís por pedido o propuesta" },
+    { id: "orders" as PortalTab, label: "Seguir", helper: "Controlá pedido, factura y postventa" },
+  ];
+
   const handleLogout = async () => { await signOut(); navigate("/login"); };
 
   // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -346,20 +404,22 @@ export default function B2BPortal() {
         {[
           { id: "home",     label: "Inicio",        icon: LayoutGrid },
           { id: "catalog",  label: "Catálogo",        icon: Package },
-          { id: "orders",   label: `Mis Pedidos${orders.length ? ` (${orders.length})` : ""}`, icon: ClipboardList },
-          { id: "projects", label: "Proyectos",      icon: Briefcase },
+          { id: "quotes",   label: `Cotizaciones${quoteCount ? ` (${quoteCount})` : ""}`, icon: FileText },
+          { id: "orders",   label: `Pedidos${highlightedOrders ? ` (${highlightedOrders})` : ""}`, icon: ClipboardList },
           { id: "invoices", label: `Facturas${myInvoices.length ? ` (${myInvoices.length})` : ""}`, icon: FileText },
           { id: "cuenta",   label: "Mi Cuenta",      icon: Users },
+          { id: "support",  label: "Soporte",        icon: MessageSquare },
+          { id: "projects", label: "Proyectos",      icon: Briefcase },
           ...(profile?.b2b_role === "manager" || isAdmin ? [{
             id: "approvals",
-            label: `Aprobaciones${managedOrders.filter(o => o.status === "pending_approval").length ? ` (${managedOrders.filter(o => o.status === "pending_approval").length})` : ""}`,
+            label: `Aprobaciones${pendingApprovals ? ` (${pendingApprovals})` : ""}`,
             icon: ShieldCheck,
           }] : []),
           { id: "rma", label: "Devoluciones", icon: RotateCcw },
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
-            onClick={() => setActiveTab(id as PortalTab)}
+            onClick={() => setPortalTab(id as PortalTab)}
             className={`mx-0.5 my-0.5 flex items-center gap-1.5 rounded-2xl px-3.5 py-2 text-sm font-medium transition ${
               activeTab === id ? "bg-accent text-foreground shadow-sm" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
             }`}
@@ -448,6 +508,77 @@ export default function B2BPortal() {
         </div>
       )}
 
+      <div className="mx-4 mt-3 rounded-[28px] border border-border/70 bg-card/80 px-4 py-4 shadow-sm md:mx-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Ruta comercial</p>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {journeySteps.map((step, index) => (
+                <button
+                  key={`${step.label}-${index}`}
+                  type="button"
+                  onClick={() => setPortalTab(step.id)}
+                  className="rounded-2xl border border-border/70 bg-background/60 px-3 py-3 text-left transition hover:border-primary/40 hover:bg-primary/5"
+                >
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{index + 1}. {step.label}</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{step.helper}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[420px]">
+            <button
+              type="button"
+              onClick={() => setPortalTab("catalog")}
+              className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-left transition hover:border-primary/40 hover:bg-primary/5"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Acción rápida</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">Nuevo pedido</p>
+              <p className="mt-1 text-xs text-muted-foreground">Entrá al catálogo y cargá por SKU o marca.</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPortalTab("quotes")}
+              className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-left transition hover:border-primary/40"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">Canal B2B</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">Cotización visible</p>
+              <p className="mt-1 text-xs text-muted-foreground">Guardá propuestas y retomá versiones sin entrar a Mi Cuenta.</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPortalTab("orders")}
+              className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-left transition hover:border-primary/40 hover:bg-primary/5"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Seguimiento</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">Pedidos y facturas</p>
+              <p className="mt-1 text-xs text-muted-foreground">Controlá entregas, comprobantes y estado comercial.</p>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {(activeTab === "catalog" || activeTab === "quotes" || activeTab === "orders") && (
+        <OperativeBar
+          quickSku={quickSku}
+          setQuickSku={(value) => {
+            setQuickSku(value);
+            if (quickError) setQuickError("");
+          }}
+          quickError={quickError}
+          handleQuickOrder={handleQuickOrder}
+          quickProducts={catalog.products}
+          cartSnapshot={cart.cart}
+          onQuickAddProduct={handleQuickAddProduct}
+          formatQuickPrice={formatQuickPrice}
+          activeTab={activeTab}
+          displayProducts={displayProducts}
+          exportCatalogCSV={exportCatalogCSV}
+          handleExportCatalogPDF={handleExportCatalogPDF}
+        />
+      )}
+
       <div className="flex min-h-0 flex-1 overflow-hidden">
 
         {/* MAIN CONTENT (FULL WIDTH) */}
@@ -464,7 +595,7 @@ export default function B2BPortal() {
               products={catalog.products}
               creditLimit={profile.credit_limit ?? 0}
               creditUsed={creditUsed}
-              onGoTo={(tab) => setActiveTab(tab as PortalTab)}
+              onGoTo={(tab) => setPortalTab(tab as PortalTab)}
               onAddToCart={cart.handleSmartAddToCart}
               alerts={alerts}
               assignedSeller={assignedSeller}
@@ -517,7 +648,7 @@ export default function B2BPortal() {
                   return next;
                 });
                 catalog.setCategoryFilter(cat);
-                setActiveTab("catalog");
+                setPortalTab("catalog");
               }}
               subCategoryFilters={catalog.subCategoryFilters}
               setSubCategoryFilters={catalog.setSubCategoryFilters}
@@ -536,10 +667,54 @@ export default function B2BPortal() {
               formatARS={formatARS}
               currency={currency}
               onRepeatOrder={cart.handleRepeatOrder}
-              onGoToCatalog={() => setActiveTab("catalog")}
-              onGoToInvoices={() => setActiveTab("invoices")}
+              onGoToCatalog={() => setPortalTab("catalog")}
+              onGoToInvoices={() => setPortalTab("cuenta", { section: "documentos" })}
               onUpdateOrderProofs={(id, pr) => updateOrder(id, { payment_proofs: pr })}
             />
+          )}
+
+          {/* QUOTES */}
+          {activeTab === "quotes" && (
+            <div className="mx-auto max-w-[1480px] space-y-4">
+              <div className="rounded-[24px] border border-border/70 bg-card px-5 py-4 shadow-sm">
+                <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Cotizaciones</p>
+                <div className="mt-2 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-foreground">Propuestas listas para reutilizar o convertir</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Acá concentrás tus borradores, propuestas enviadas y pedidos nacidos desde una cotización.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPortalTab("catalog")}
+                      className="rounded-xl border border-border/70 bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+                    >
+                      Volver al catálogo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate("/cart")}
+                      className="rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+                    >
+                      Ir al checkout
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <QuoteList
+                quotes={quotes}
+                isDark={isDark}
+                onLoad={cart.handleLoadQuote}
+                onUpdateStatus={updateQuoteStatus}
+                onDelete={deleteQuote}
+                onGoToCatalog={() => setPortalTab("catalog")}
+                onDuplicate={(id) => cart.handleDuplicateQuote(id, quotes)}
+                onConvertToOrder={cart.handleConvertQuoteToOrder}
+              />
+            </div>
           )}
 
           {/* ACCOUNT */}
@@ -552,7 +727,7 @@ export default function B2BPortal() {
               invoices={myInvoices}
               favoriteProducts={favoriteProducts}
               savedCarts={cart.savedCarts}
-              onNavigateToTab={setActiveTab}
+              onNavigateToTab={(tab) => tab === "invoices" ? setPortalTab("cuenta", { section: "documentos" }) : setPortalTab(tab as PortalTab)}
               onLoadSavedCart={cart.handleLoadSavedCart}
               onDeleteSavedCart={cart.handleDeleteSavedCart}
               isDark={isDark}
@@ -572,7 +747,7 @@ export default function B2BPortal() {
               invoices={myInvoices}
               orders={orders}
               loading={loadingInvoices}
-              onGoToOrders={() => setActiveTab("orders")}
+              onGoToOrders={() => setPortalTab("orders")}
             />
           )}
 
@@ -614,7 +789,7 @@ export default function B2BPortal() {
               isDark={isDark}
               onAddAll={(items) => {
                 items.forEach((it) => cart.handleSmartAddToCart(it.product, it.quantity));
-                setActiveTab("catalog");
+                setPortalTab("catalog");
               }}
             />
           )}

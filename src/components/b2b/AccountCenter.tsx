@@ -99,12 +99,18 @@ const SECTIONS: Array<{ id: AccountSection; label: string }> = [
   { id: "credito", label: "Crédito y cuenta" },
   { id: "documentos", label: "Documentación" },
   { id: "quotes", label: "Cotizaciones" },
-  { id: "express", label: "Cotizador Express" },
+  { id: "express", label: "Solicitud guiada" },
   { id: "payments", label: "Pagos y comprobantes" },
   { id: "listas", label: "Listas guardadas" },
   { id: "notificaciones", label: "Notificaciones" },
   { id: "seguridad", label: "Seguridad" },
   { id: "soporte", label: "Soporte y postventa" },
+];
+
+const SECTION_GROUPS: Array<{ label: string; items: AccountSection[] }> = [
+  { label: "Operacion", items: ["resumen", "quotes", "express", "listas", "soporte"] },
+  { label: "Finanzas", items: ["payments", "documentos", "credito", "condiciones"] },
+  { label: "Cuenta", items: ["datos", "usuarios", "sucursales", "notificaciones", "seguridad"] },
 ];
 
 type NotificationPreferences = {
@@ -597,21 +603,80 @@ export function AccountCenter({
         </p>
       </div>
 
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {summaryMetrics.map((metric) => (
+          <div key={metric.label} className="rounded-[22px] border border-border/70 bg-card px-4 py-4 shadow-sm">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{metric.label}</p>
+            <p className={`mt-2 text-xl font-bold ${metric.accent}`}>{metric.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-[22px] border border-border/70 bg-card px-4 py-4 shadow-sm">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Prioridades</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <button type="button" onClick={() => handleSectionChange("quotes")} className="rounded-2xl border border-border/70 bg-background px-3 py-3 text-left transition hover:border-primary/40 hover:bg-primary/5">
+              <p className="text-sm font-semibold text-foreground">Cotizaciones</p>
+              <p className="mt-1 text-xs text-muted-foreground">Retomá propuestas y convertí a pedido.</p>
+            </button>
+            <button type="button" onClick={() => handleSectionChange("payments")} className="rounded-2xl border border-border/70 bg-background px-3 py-3 text-left transition hover:border-primary/40 hover:bg-primary/5">
+              <p className="text-sm font-semibold text-foreground">Pagos y comprobantes</p>
+              <p className="mt-1 text-xs text-muted-foreground">Imputaciones, recibos y movimientos.</p>
+            </button>
+            <button type="button" onClick={() => handleSectionChange("documentos")} className="rounded-2xl border border-border/70 bg-background px-3 py-3 text-left transition hover:border-primary/40 hover:bg-primary/5">
+              <p className="text-sm font-semibold text-foreground">Documentación</p>
+              <p className="mt-1 text-xs text-muted-foreground">Facturas, pedidos y archivos recientes.</p>
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-[22px] border border-border/70 bg-card px-4 py-4 shadow-sm">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Seguimiento financiero</p>
+          <div className="mt-3 space-y-2 text-sm">
+            <div className="flex items-center justify-between rounded-2xl border border-border/70 bg-background px-3 py-3">
+              <span className="text-muted-foreground">Deuda pendiente</span>
+              <span className="font-semibold text-foreground">{formatMoneyAmount(pendingDebt, currency, 0)}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-2xl border border-border/70 bg-background px-3 py-3">
+              <span className="text-muted-foreground">Vencido</span>
+              <span className={overdueDebt > 0 ? "font-semibold text-amber-600 dark:text-amber-400" : "font-semibold text-foreground"}>
+                {formatMoneyAmount(overdueDebt, currency, 0)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between rounded-2xl border border-border/70 bg-background px-3 py-3">
+              <span className="text-muted-foreground">Próximo vencimiento</span>
+              <span className="font-semibold text-foreground">
+                {nextDueInvoice?.due_date ? new Date(nextDueInvoice.due_date).toLocaleDateString("es-AR") : "Sin pendientes"}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid gap-4 xl:grid-cols-[260px_1fr]">
         <aside className="h-fit rounded-[24px] border border-border/70 bg-card p-2 shadow-sm xl:sticky xl:top-4">
-          <div className="space-y-1">
-            {SECTIONS.map((section) => (
-              <button
-                key={section.id}
-                onClick={() => handleSectionChange(section.id)}
-                className={
-                  activeSection === section.id
-                    ? "w-full text-left px-3 py-2 rounded-xl text-sm transition bg-primary text-primary-foreground font-semibold"
-                    : "w-full text-left px-3 py-2 rounded-xl text-sm transition text-muted-foreground hover:text-foreground hover:bg-secondary"
-                }
-              >
-                {section.label}
-              </button>
+          <div className="space-y-4">
+            {SECTION_GROUPS.map((group) => (
+              <div key={group.label} className="space-y-1">
+                <p className="px-3 pt-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{group.label}</p>
+                {group.items
+                  .map((sectionId) => SECTIONS.find((section) => section.id === sectionId))
+                  .filter((section): section is { id: AccountSection; label: string } => Boolean(section))
+                  .map((section) => (
+                    <button
+                      key={section.id}
+                      onClick={() => handleSectionChange(section.id)}
+                      className={
+                        activeSection === section.id
+                          ? "w-full rounded-xl bg-primary px-3 py-2 text-left text-sm font-semibold text-primary-foreground transition"
+                          : "w-full rounded-xl px-3 py-2 text-left text-sm text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+                      }
+                    >
+                      {section.label}
+                    </button>
+                  ))}
+              </div>
             ))}
           </div>
         </aside>

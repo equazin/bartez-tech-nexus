@@ -161,6 +161,12 @@ export default function CartPage() {
   const [orderSuccess,      setOrderSuccess]      = useState(false);
   const [validationErrors,  setValidationErrors]  = useState<string[]>([]);
   const [listSaved,         setListSaved]         = useState(false);
+  const [checkoutMode, setCheckoutMode] = useState<"direct" | "advanced">("direct");
+  const [showSaveTools, setShowSaveTools] = useState(false);
+
+  useEffect(() => {
+    setShowSaveTools(checkoutMode === "advanced");
+  }, [checkoutMode]);
 
   // -- Cart items - per-product pricing rules applied ---------------------------
   const cartItems: CartItem[] = useMemo(() => {
@@ -788,6 +794,7 @@ export default function CartPage() {
 
   const hasBlockingErrors = blockingIssues.length > 0;
   const hasWarnings = warningIssues.length > 0;
+  const showAdvancedSections = checkoutMode === "advanced";
 
   // -- Render --------------------------------------------------------------------
   return (
@@ -824,6 +831,46 @@ export default function CartPage() {
           </span>
         )}
       </header>
+
+      <div className="mx-auto mt-4 max-w-[1680px] px-4 md:px-6">
+        <div className={`rounded-2xl border px-4 py-4 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-gray-500">Flujo principal</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  ["1. Revisar carrito", "Chequeá stock, mínimos y cantidades"],
+                  ["2. Definir entrega", "Retiro o envío con datos operativos"],
+                  ["3. Elegir pago", "Transferencia, eCheq o cuenta corriente"],
+                  ["4. Confirmar o cotizar", "Cerrá pedido o guardá la propuesta"],
+                ].map(([title, helper]) => (
+                  <div key={title} className={`rounded-2xl border px-3 py-3 ${dk("border-[#262626] bg-[#171717]", "border-[#e5e5e5] bg-[#fafafa]")}`}>
+                    <p className={`text-sm font-semibold ${dk("text-white", "text-[#171717]")}`}>{title}</p>
+                    <p className="mt-1 text-xs text-gray-500">{helper}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className={`rounded-2xl border p-1 ${dk("border-[#262626] bg-[#171717]", "border-[#e5e5e5] bg-[#fafafa]")}`}>
+              {([
+                ["direct", "Compra directa", "Dejá visible solo lo necesario para cerrar rápido."],
+                ["advanced", "Caso avanzado", "Mostrá revisión comercial, reventa y herramientas operativas."],
+              ] as const).map(([mode, label, helper]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setCheckoutMode(mode)}
+                  className={`block w-full rounded-xl px-4 py-3 text-left transition ${checkoutMode === mode ? "bg-[#2D9F6A] text-white" : dk("text-gray-300 hover:bg-[#1f1f1f]", "text-[#525252] hover:bg-white")}`}
+                >
+                  <p className="text-sm font-semibold">{label}</p>
+                  <p className={`mt-1 text-xs ${checkoutMode === mode ? "text-white/75" : "text-gray-500"}`}>{helper}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* -- Body ------------------------------------------------------------- */}
       <div className="mx-auto flex max-w-[1680px] flex-col gap-6 px-4 py-6 md:px-6 lg:flex-row">
@@ -1549,17 +1596,23 @@ export default function CartPage() {
                   className={`w-full text-sm outline-none rounded-lg px-3 py-2.5 border resize-none transition
                     ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A] placeholder-[#525252]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A] placeholder-[#a3a3a3]")}`}
                 />
-                <div className="mt-3">
-                  <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>Motivo de revisión / excepción comercial</label>
-                  <textarea
-                    value={orderMeta.approvalReason}
-                    onChange={(e) => updateOrderMeta("approvalReason", e.target.value)}
-                    rows={2}
-                    placeholder="Explicá acá si necesitás una condición especial antes de confirmar"
-                    className={`w-full text-sm outline-none rounded-lg px-3 py-2.5 border resize-none transition
-                      ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A] placeholder-[#525252]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A] placeholder-[#a3a3a3]")}`}
-                  />
-                </div>
+                {showAdvancedSections ? (
+                  <div className="mt-3">
+                    <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>Motivo de revisión / excepción comercial</label>
+                    <textarea
+                      value={orderMeta.approvalReason}
+                      onChange={(e) => updateOrderMeta("approvalReason", e.target.value)}
+                      rows={2}
+                      placeholder="Explicá acá si necesitás una condición especial antes de confirmar"
+                      className={`w-full text-sm outline-none rounded-lg px-3 py-2.5 border resize-none transition
+                        ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A] placeholder-[#525252]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A] placeholder-[#a3a3a3]")}`}
+                    />
+                  </div>
+                ) : (
+                  <div className={`mt-3 rounded-xl border px-3 py-3 text-xs ${dk("border-[#1f1f1f] bg-[#0a0a0a] text-gray-400", "border-[#e5e5e5] bg-[#fafafa] text-[#737373]")}`}>
+                    Si necesitás una excepción comercial o una condición especial, cambiá a <span className="font-semibold">Caso avanzado</span>.
+                  </div>
+                )}
               </div>
             </section>
           )}
@@ -1803,7 +1856,7 @@ export default function CartPage() {
               </div>
             )}
 
-            {cartItems.length > 0 && (
+            {showSaveTools && cartItems.length > 0 && (
               <div className={`mx-3 mb-2 rounded-xl border px-3 py-3 ${dk("border-[#1f1f1f] bg-[#0a0a0a]", "border-[#e5e5e5] bg-[#fafafa]")}`}>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Plantillas de compra</p>
                 <div className="flex flex-col sm:flex-row gap-2">
@@ -1856,6 +1909,21 @@ export default function CartPage() {
 
             {/* Actions */}
             <div className={`px-4 py-4 space-y-2 border-t ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
+              <div className={`rounded-xl border px-3 py-3 ${dk("border-[#1f1f1f] bg-[#0a0a0a]", "border-[#e5e5e5] bg-[#fafafa]")}`}>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Acción principal</p>
+                <p className={`mt-2 text-sm font-semibold ${dk("text-white", "text-[#171717]")}`}>
+                  {checkoutMode === "direct" ? "Cerrá el pedido o guardá la propuesta sin distraerte con herramientas secundarias." : "Tenés activadas las herramientas avanzadas para revisión comercial, reventa y plantillas."}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowSaveTools((current) => !current)}
+                  className={`mt-3 w-full rounded-lg border px-3 py-2 text-xs font-semibold transition ${dk("border-[#262626] text-gray-300 hover:bg-[#171717]", "border-[#e5e5e5] text-[#525252] hover:bg-white")}`}
+                >
+                  {showSaveTools ? "Ocultar herramientas avanzadas" : "Mostrar herramientas avanzadas"}
+                </button>
+              </div>
+              {showSaveTools && (
+                <>
               <button
                 onClick={() => { void handleExportPDF(); }}
                 disabled={cartItems.length === 0}
@@ -1904,24 +1972,28 @@ export default function CartPage() {
                 <Bookmark size={14} />
                 Guardar como lista
               </button>
+                </>
+              )}
               <button
                 onClick={handleSaveQuote}
                 disabled={cartItems.length === 0}
                 className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm border transition-all disabled:opacity-40 disabled:pointer-events-none
-                  ${dk("border-[#1f1f1f] hover:border-[#2e2e2e] text-[#737373] hover:text-gray-200 hover:bg-[#171717]", "border-[#e5e5e5] hover:border-[#d4d4d4] text-gray-500 hover:text-gray-700")}`}
+                  ${dk("border-[#2D9F6A]/40 bg-[#0d1f17] text-[#7de3ad] hover:bg-[#133222]", "border-[#bde5d0] bg-green-50 text-[#1f6c48] hover:bg-green-100")}`}
               >
                 <FileText size={14} />
                 Guardar cotización
               </button>
-              <button
-                onClick={handleRequestReview}
-                disabled={cartItems.length === 0 || reviewSubmitting}
-                className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm border transition-all disabled:opacity-40 disabled:pointer-events-none
-                  ${dk("border-[#3a2c10] hover:border-amber-500/40 text-amber-300 hover:text-amber-200 hover:bg-[#241a08]", "border-amber-200 hover:border-amber-300 text-amber-700 hover:text-amber-800 hover:bg-amber-50")}`}
-              >
-                {reviewSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                Solicitar revisión comercial
-              </button>
+              {showAdvancedSections && (
+                <button
+                  onClick={handleRequestReview}
+                  disabled={cartItems.length === 0 || reviewSubmitting}
+                  className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm border transition-all disabled:opacity-40 disabled:pointer-events-none
+                    ${dk("border-[#3a2c10] hover:border-amber-500/40 text-amber-300 hover:text-amber-200 hover:bg-[#241a08]", "border-amber-200 hover:border-amber-300 text-amber-700 hover:text-amber-800 hover:bg-amber-50")}`}
+                >
+                  {reviewSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                  Solicitar revisión comercial
+                </button>
+              )}
               <button
                 disabled={cartItems.length === 0 || orderSubmitting}
                 onClick={handleConfirmOrder}

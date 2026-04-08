@@ -65,10 +65,10 @@ export const NAV_MODULES: NavModule[] = [
     label: "Ventas",
     icon: ClipboardList,
     items: [
+      { id: "quotes_admin", label: "Cotizaciones", icon: MessageSquare, adminOnly: true },
       { id: "orders",       label: "Pedidos",      icon: ClipboardList, manageOrders: true },
       { id: "kanban",       label: "Kanban",       icon: Layers,        manageOrders: true },
       { id: "approvals",    label: "Aprobaciones", icon: CheckCircle2,  manageOrders: true },
-      { id: "quotes_admin", label: "Cotizaciones", icon: MessageSquare, adminOnly: true },
     ],
   },
   {
@@ -85,10 +85,10 @@ export const NAV_MODULES: NavModule[] = [
   },
   {
     id: "clientes",
-    label: "Clientes",
+    label: "Clientes 360",
     icon: Users,
     items: [
-      { id: "clients",                label: "Clientes",      icon: Users,      adminOnly: true },
+      { id: "clients",                label: "Ficha 360",     icon: Users,      adminOnly: true },
       { id: "registration_requests",  label: "Altas B2B",     icon: UserPlus,   adminOnly: true },
       { id: "users_permissions",      label: "Accesos",       icon: UserPlus,   adminOnly: true },
       { id: "credit",            label: "Crédito",       icon: CreditCard, adminOnly: true },
@@ -97,7 +97,7 @@ export const NAV_MODULES: NavModule[] = [
   },
   {
     id: "finanzas",
-    label: "Finanzas",
+    label: "Finanzas y docs",
     icon: FileText,
     items: [
       { id: "invoices",  label: "Facturas",   icon: FileText,  adminOnly: true },

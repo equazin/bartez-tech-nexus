@@ -111,6 +111,15 @@ function stripHtml(value: string): string {
     .trim();
 }
 
+function findCommercialSpec(product: Product, candidates: string[]) {
+  const entry = Object.entries(product.specs ?? {}).find(([key]) => {
+    const normalized = key.trim().toLowerCase();
+    return candidates.some((candidate) => normalized.includes(candidate));
+  });
+
+  return entry ? formatSpecValue(entry[1]) : null;
+}
+
 export interface ProductDetailModalProps {
   product: Product;
   inCart: number;
@@ -149,6 +158,16 @@ export function ProductDetailModal({
   const { unitPrice, ivaAmount, ivaRate, totalWithIVA, originalUnitPrice, isOffer, calculatedOfferPercent } = priceInfo;
   const availableStock = getAvailableStock(product);
   const outOfStock = availableStock === 0;
+  const warrantyLabel = findCommercialSpec(product, ["garantia", "warranty"]) ?? "Garantía oficial de fábrica";
+  const deliveryLabel = findCommercialSpec(product, ["lead_time", "entrega", "plazo"])
+    ?? (availableStock > 0 ? "Entrega inmediata / stock operativo" : "Entrega bajo confirmación comercial");
+  const priceStatusLabel = isOffer ? "Precio promocional vigente" : "Precio mayorista visible para tu cuenta";
+  const commercialSignals = [
+    { label: "Stock", value: availableStock > 0 ? `${availableStock} unidades operativas` : "Sin stock inmediato" },
+    { label: "Entrega", value: deliveryLabel },
+    { label: "Garantía", value: warrantyLabel },
+    { label: "Condición", value: product.min_order_qty && product.min_order_qty > 1 ? `Pedido mínimo ${product.min_order_qty} unidades` : "Venta directa disponible" },
+  ];
   const [imageSrc, setImageSrc] = useState(() => resolveProductImageUrl(product.image));
   const [isVisible, setIsVisible] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
@@ -351,6 +370,13 @@ export function ProductDetailModal({
                     <div className="font-mono text-[10px] text-muted-foreground">
                       {currency === "USD" ? formatARS(totalWithIVA) : formatUSD(totalWithIVA)}
                     </div>
+                    <div className="rounded-2xl border border-border/70 bg-card/80 px-3 py-3">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Lectura comercial</p>
+                      <p className="mt-2 text-sm font-semibold text-foreground">{priceStatusLabel}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Precio con IVA visible para decidir rápido si avanzás por compra directa o por cotización.
+                      </p>
+                    </div>
                   </div>
 
                   <div className="shrink-0">
@@ -371,6 +397,15 @@ export function ProductDetailModal({
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-2">
+                {commercialSignals.map((signal) => (
+                  <div key={signal.label} className="rounded-2xl border border-border/70 bg-card px-3 py-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{signal.label}</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">{signal.value}</p>
+                  </div>
+                ))}
               </div>
 
               {product.price_tiers?.length ? (

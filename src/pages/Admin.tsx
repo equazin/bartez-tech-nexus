@@ -337,6 +337,16 @@ const Admin = () => {
     setActiveModule(TAB_TO_MODULE[tab as Tab] ?? "top");
   }
 
+  const adminJourneySteps: Array<{ id: Tab; label: string; helper: string; icon: LucideIcon }> = [
+    { id: "quotes_admin", label: "Cotizacion", helper: "Abrir propuestas y moverlas a pedido", icon: MessageSquare },
+    { id: "orders", label: "Pedido", helper: "Control operativo y estado comercial", icon: ClipboardList },
+    { id: "clients", label: "Cliente 360", helper: "Contexto comercial, credito e historial", icon: Users },
+    { id: "documents", label: "Documentos", helper: "Remito, factura y soporte documental", icon: FileText },
+    { id: "credit", label: "Cobro", helper: "Credito, deuda y seguimiento financiero", icon: CreditCard },
+  ];
+
+  const showCommercialJourney = ["dashboard", "quotes_admin", "orders", "kanban", "clients", "documents", "invoices", "credit"].includes(activeTab);
+
   const customerProfiles = useMemo(
     () => clients.filter((client) => !["admin", "vendedor", "sales"].includes(client.role)),
     [clients],
@@ -1494,6 +1504,53 @@ async function handleCreateSeller() {
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#2D9F6A] border-t-transparent" />
           </div>
         }>
+
+        {showCommercialJourney && (
+          <div className={`mb-6 rounded-2xl border p-4 ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")}`}>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className={`text-[10px] font-bold uppercase tracking-[0.22em] ${dk("text-gray-500", "text-[#737373]")}`}>Flujo comercial</p>
+                <h2 className={`mt-2 text-lg font-bold ${dk("text-white", "text-[#171717]")}`}>Cotizacion, pedido, cliente, documentos y cobro en una sola lectura</h2>
+                <p className={`mt-1 text-sm ${dk("text-gray-400", "text-[#525252]")}`}>Usa estos accesos para seguir la operacion completa sin saltar entre modulos desconectados.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigateTab("quotes_admin")}
+                className="rounded-xl bg-[#2D9F6A] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#25835A]"
+              >
+                Ir a cotizaciones
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              {adminJourneySteps.map(({ id, label, helper, icon: Icon }) => {
+                const isActive = activeTab === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => navigateTab(id)}
+                    className={`rounded-2xl border px-4 py-3 text-left transition ${
+                      isActive
+                        ? dk("border-[#2D9F6A]/50 bg-[#0d1f17]", "border-[#bde5d0] bg-green-50")
+                        : dk("border-[#1f1f1f] bg-[#111] hover:border-[#2D9F6A]/30", "border-[#e5e5e5] bg-[#fafafa] hover:border-[#bde5d0]")
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${isActive ? "bg-[#2D9F6A] text-white" : dk("bg-[#171717] text-gray-300", "bg-white text-[#525252]")}`}>
+                        <Icon size={16} />
+                      </div>
+                      <div>
+                        <p className={`text-sm font-semibold ${dk("text-white", "text-[#171717]")}`}>{label}</p>
+                        <p className={`text-xs ${dk("text-gray-500", "text-[#737373]")}`}>{helper}</p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* -- DASHBOARD -- */}
         {activeTab === "dashboard" && (

@@ -23,12 +23,16 @@ export type ViewMode = "grid" | "list" | "table";
 export type CatalogContext = "default" | "featured" | "pos";
 export type SortOption = "price_asc" | "price_desc" | "name_asc" | "name_desc" | "brand_asc" | "brand_desc" | "stock_asc" | "stock_desc";
 
-type AdvancedFilterKey = "brands";
+type AdvancedFilterKey = "brands" | "ram" | "storage" | "refreshRate" | "screen";
 type AdvancedFiltersState = Record<AdvancedFilterKey, string[]>;
 
 const ADVANCED_FILTERS_KEY = "b2b_catalog_advanced_filters";
 const EMPTY_ADVANCED_FILTERS: AdvancedFiltersState = {
   brands: [],
+  ram: [],
+  storage: [],
+  refreshRate: [],
+  screen: [],
 };
 
 const CATALOG_CONTEXTS: { id: CatalogContext; label: string; icon: typeof Package }[] = [
@@ -116,6 +120,44 @@ function uniqueSorted(values: (string | null | undefined)[]): string[] {
   });
 }
 
+function readSpecValue(product: Product, matches: string[]) {
+  const entries = Object.entries(product.specs ?? {});
+  const entry = entries.find(([key]) => {
+    const normalizedKey = normalizeCompact(key);
+    return matches.some((match) => normalizedKey.includes(match));
+  });
+
+  if (!entry) return null;
+
+  const rawValue = String(entry[1] ?? "").trim();
+  if (!rawValue) return null;
+  return rawValue;
+}
+
+function buildTechOptions(products: Product[], key: Exclude<AdvancedFilterKey, "brands">) {
+  const matchMap: Record<Exclude<AdvancedFilterKey, "brands">, string[]> = {
+    ram: ["ram", "memoria"],
+    storage: ["ssd", "hdd", "almacenamiento", "storage", "disco"],
+    refreshRate: ["hz", "refresh"],
+    screen: ["pulgadas", "pantalla", "screen", "display"],
+  };
+
+  return uniqueSorted(products.map((product) => readSpecValue(product, matchMap[key])));
+}
+
+function matchesTechFilter(product: Product, key: Exclude<AdvancedFilterKey, "brands">, selectedValues: string[]) {
+  if (selectedValues.length === 0) return true;
+  const matchMap: Record<Exclude<AdvancedFilterKey, "brands">, string[]> = {
+    ram: ["ram", "memoria"],
+    storage: ["ssd", "hdd", "almacenamiento", "storage", "disco"],
+    refreshRate: ["hz", "refresh"],
+    screen: ["pulgadas", "pantalla", "screen", "display"],
+  };
+
+  const value = readSpecValue(product, matchMap[key]);
+  return value ? selectedValues.includes(value) : false;
+}
+
 function parseStoredFilters(): AdvancedFiltersState {
   if (typeof window === "undefined") return EMPTY_ADVANCED_FILTERS;
   try {
@@ -124,6 +166,10 @@ function parseStoredFilters(): AdvancedFiltersState {
     const parsed = JSON.parse(raw) as Partial<AdvancedFiltersState>;
     return {
       brands: Array.isArray(parsed.brands) ? parsed.brands.filter(Boolean) : [],
+      ram: Array.isArray(parsed.ram) ? parsed.ram.filter(Boolean) : [],
+      storage: Array.isArray(parsed.storage) ? parsed.storage.filter(Boolean) : [],
+      refreshRate: Array.isArray(parsed.refreshRate) ? parsed.refreshRate.filter(Boolean) : [],
+      screen: Array.isArray(parsed.screen) ? parsed.screen.filter(Boolean) : [],
     };
   } catch {
     return EMPTY_ADVANCED_FILTERS;
@@ -242,6 +288,10 @@ export function CatalogSection({
     () => uniqueSorted(displayProducts.map((product) => product.brand_name)),
     [displayProducts],
   );
+  const ramOptions = useMemo(() => buildTechOptions(displayProducts, "ram"), [displayProducts]);
+  const storageOptions = useMemo(() => buildTechOptions(displayProducts, "storage"), [displayProducts]);
+  const refreshRateOptions = useMemo(() => buildTechOptions(displayProducts, "refreshRate"), [displayProducts]);
+  const screenOptions = useMemo(() => buildTechOptions(displayProducts, "screen"), [displayProducts]);
 
   const toggleAdvancedFilter = (key: AdvancedFilterKey, value: string) => {
     setAdvancedFilters((current) => ({
@@ -254,7 +304,11 @@ export function CatalogSection({
 
   const effectiveFilters = useMemo(() => ({
     brands: advancedFilters.brands.filter((item) => brandOptions.includes(item)),
-  }), [advancedFilters, brandOptions]);
+    ram: advancedFilters.ram.filter((item) => ramOptions.includes(item)),
+    storage: advancedFilters.storage.filter((item) => storageOptions.includes(item)),
+    refreshRate: advancedFilters.refreshRate.filter((item) => refreshRateOptions.includes(item)),
+    screen: advancedFilters.screen.filter((item) => screenOptions.includes(item)),
+  }), [advancedFilters, brandOptions, ramOptions, refreshRateOptions, screenOptions, storageOptions]);
 
   const hasAdvancedFilters = Object.values(effectiveFilters).some((values) => values.length > 0);
 
@@ -263,6 +317,10 @@ export function CatalogSection({
       [...displayProducts]
         .filter((product) => {
           if (effectiveFilters.brands.length > 0 && !effectiveFilters.brands.includes(product.brand_name ?? "")) return false;
+          if (!matchesTechFilter(product, "ram", effectiveFilters.ram)) return false;
+          if (!matchesTechFilter(product, "storage", effectiveFilters.storage)) return false;
+          if (!matchesTechFilter(product, "refreshRate", effectiveFilters.refreshRate)) return false;
+          if (!matchesTechFilter(product, "screen", effectiveFilters.screen)) return false;
           return true;
         })
         .sort((a, b) => {
@@ -361,7 +419,30 @@ export function CatalogSection({
         )}
 
         <div className="rounded-[24px] border border-border/70 bg-card/85 p-4 shadow-sm">
-          <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Compra mayorista</p>
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Compra mayorista</p>
+              <h2 className="mt-2 text-lg font-bold text-foreground">Buscá rápido, evaluá técnico y resolvé por compra o cotización</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Priorizamos marca, atributos técnicos y stock operativo para que el recorrido sea más corto.
+              </p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[430px]">
+              <div className="rounded-2xl border border-border/70 bg-background/80 px-3 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">1. Marca</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">Filtrá por partner</p>
+              </div>
+              <div className="rounded-2xl border border-border/70 bg-background/80 px-3 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">2. Specs</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">Recortá RAM, SSD, Hz o pantalla</p>
+              </div>
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 px-3 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">3. Acción</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">Abrí producto y definí si comprás o cotizás</p>
+              </div>
+            </div>
+          </div>
+
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <CategoryMegaMenu
@@ -390,6 +471,10 @@ export function CatalogSection({
               })}
 
               {brandOptions.length > 0 ? <AdvancedFilterDropdown label="Marca" options={brandOptions} selected={effectiveFilters.brands} onToggle={(value) => toggleAdvancedFilter("brands", value)} /> : null}
+              {ramOptions.length > 0 ? <AdvancedFilterDropdown label="RAM" options={ramOptions} selected={effectiveFilters.ram} onToggle={(value) => toggleAdvancedFilter("ram", value)} /> : null}
+              {storageOptions.length > 0 ? <AdvancedFilterDropdown label="SSD / almacenamiento" options={storageOptions} selected={effectiveFilters.storage} onToggle={(value) => toggleAdvancedFilter("storage", value)} /> : null}
+              {refreshRateOptions.length > 0 ? <AdvancedFilterDropdown label="Hz" options={refreshRateOptions} selected={effectiveFilters.refreshRate} onToggle={(value) => toggleAdvancedFilter("refreshRate", value)} /> : null}
+              {screenOptions.length > 0 ? <AdvancedFilterDropdown label="Pantalla" options={screenOptions} selected={effectiveFilters.screen} onToggle={(value) => toggleAdvancedFilter("screen", value)} /> : null}
 
               <Popover>
                 <PopoverTrigger asChild>
@@ -436,6 +521,30 @@ export function CatalogSection({
               ) : null}
             </div>
           </div>
+
+          {brandOptions.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/40 pt-3">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Marcas:</span>
+              {brandOptions.slice(0, 10).map((brand) => {
+                const active = effectiveFilters.brands.includes(brand);
+                return (
+                  <button
+                    key={brand}
+                    type="button"
+                    onClick={() => toggleAdvancedFilter("brands", brand)}
+                    className={cn(
+                      "rounded-full border px-3 py-1.5 text-[11px] font-semibold transition",
+                      active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border/70 bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground",
+                    )}
+                  >
+                    {brand}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {activeCategoryChildren.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 border-t border-border/40 py-3 mt-3 animate-in fade-in slide-in-from-top-2">
