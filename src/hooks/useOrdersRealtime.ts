@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import type { KanbanOrder } from "@/components/admin/OrderKanban";
+import { parseInternalReferenceFromNotes } from "@/lib/cartCheckout";
 import { EmailNotificationService } from "@/lib/api/emailNotifications";
 
 /**
@@ -17,7 +18,7 @@ export function useOrdersRealtime() {
     try {
       const { data, error } = await supabase
         .from("orders")
-        .select("id, order_number, client_id, total, status, products, created_at, notes, shipping_provider, tracking_number")
+        .select("id, order_number, client_id, total, status, products, created_at, notes, shipping_provider, tracking_number, payment_method")
         .order("created_at", { ascending: false });
 
       if (!error && data) {
@@ -110,6 +111,8 @@ function rowToKanban(row: Record<string, unknown>): KanbanOrder {
     status:       (row.status as KanbanOrder["status"]) ?? "pending",
     shipping_provider: row.shipping_provider as string | undefined,
     tracking_number:   row.tracking_number as string | undefined,
+    internal_reference: parseInternalReferenceFromNotes((row.notes as string) ?? ""),
+    payment_method:     row.payment_method as string | undefined,
     products:     products.map((p) => ({
       name:     p.name     ?? "Producto",
       quantity: p.quantity ?? 0,

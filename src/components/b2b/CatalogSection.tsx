@@ -10,6 +10,7 @@ import type { PriceResult } from "@/hooks/usePricing";
 import { ProductItem } from "@/components/b2b/ProductItem";
 import { ProductTable } from "@/components/b2b/ProductTable";
 import { VirtualizedProductList } from "@/components/b2b/VirtualizedProductList";
+import { RecentlyViewed } from "@/components/b2b/RecentlyViewed";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -324,6 +325,8 @@ export interface CatalogSectionProps {
   favoriteProductIds: number[];
   compareList: number[];
   addedIds: Set<number>;
+  recentlyViewedIds?: number[];
+  onClearRecentlyViewed?: () => void;
   purchaseHistory: Record<number, number>;
   latestPurchaseUnitPrice: Record<number, number>;
   page: number;
@@ -378,6 +381,8 @@ export function CatalogSection({
   favoriteProductIds,
   compareList,
   addedIds,
+  recentlyViewedIds = [],
+  onClearRecentlyViewed,
   purchaseHistory,
   latestPurchaseUnitPrice,
   page,
@@ -400,6 +405,7 @@ export function CatalogSection({
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFiltersState>(parseStoredFilters);
   const [sortOption, setSortOption] = useState<SortOption>("name_asc");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [stockFilter, setStockFilter] = useState(false);
 
   useEffect(() => {
     window.localStorage.setItem(ADVANCED_FILTERS_KEY, JSON.stringify(advancedFilters));
@@ -443,6 +449,10 @@ export function CatalogSection({
     () =>
       [...displayProducts]
         .filter((product) => {
+          if (stockFilter) {
+            const available = Math.max(0, (product.stock ?? 0) - (product.stock_reserved ?? 0));
+            if (available === 0) return false;
+          }
           if (effectiveFilters.brands.length > 0 && !effectiveFilters.brands.includes(product.brand_name ?? "")) return false;
           if (!matchesTechFilter(product, "ram", effectiveFilters.ram)) return false;
           if (!matchesTechFilter(product, "storage", effectiveFilters.storage)) return false;
@@ -466,7 +476,7 @@ export function CatalogSection({
             default: return 0;
           }
         }),
-    [effectiveFilters, displayProducts, sortOption, computePrice],
+    [effectiveFilters, displayProducts, sortOption, computePrice, stockFilter],
   );
 
   const resultsLabel = `${filteredProducts.length}${totalCount > 0 ? ` de ${totalCount}` : ""} productos`;
@@ -603,6 +613,16 @@ export function CatalogSection({
                   </Button>
                 );
               })}
+
+              <Button
+                size="sm"
+                variant={stockFilter ? "soft" : "ghost"}
+                className="shrink-0 rounded-full border border-border/70 whitespace-nowrap"
+                onClick={() => setStockFilter((prev) => !prev)}
+              >
+                <Zap size={14} className={stockFilter ? "text-primary" : "text-muted-foreground"} />
+                Stock inmediato
+              </Button>
 
               <Popover>
                 <PopoverTrigger asChild>
@@ -766,6 +786,18 @@ export function CatalogSection({
           </div>
 
         </div>
+
+        {recentlyViewedIds.length > 0 && onClearRecentlyViewed ? (
+          <RecentlyViewed
+            recentIds={recentlyViewedIds}
+            products={products}
+            computePrice={computePrice}
+            formatPrice={formatPrice}
+            onSelect={setSelectedProduct}
+            onAddToCart={handleSmartAddToCart}
+            onClear={onClearRecentlyViewed}
+          />
+        ) : null}
 
         {productsLoading ? (
         viewMode === "list" || viewMode === "table" ? (

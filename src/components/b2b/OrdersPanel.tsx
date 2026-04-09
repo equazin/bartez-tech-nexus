@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ClipboardList, MapPin, Package, Search, Truck, ExternalLink, Copy } from "lucide-react";
 
+import { EmptyOrdersState } from "@/components/b2b/empty-states/EmptyOrdersState";
 import { OrderStatusBadge } from "@/components/OrderStatusBadge";
 import { OrderPaymentProof } from "@/components/OrderPaymentProof";
 import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
@@ -82,6 +83,7 @@ export function OrdersPanel({
         order.order_number,
         String(order.id),
         order.numero_remito,
+        order.internal_reference,
         order.notes,
         order.shipping_type,
         order.shipping_address,
@@ -107,16 +109,7 @@ export function OrdersPanel({
   }, [orders, formatPrice]);
 
   if (orders.length === 0) {
-    return (
-      <EmptyState
-        icon={<ClipboardList size={22} />}
-        title="Todavia no tenes pedidos"
-        description="Cuando confirmes una compra, vas a poder seguir stock, remitos y comprobantes desde aca."
-        actionLabel="Ir al catalogo"
-        onAction={onGoToCatalog}
-        className="rounded-[24px] border border-border/70 bg-card py-20"
-      />
-    );
+    return <EmptyOrdersState onGoToCatalog={onGoToCatalog} />;
   }
 
   return (
@@ -182,6 +175,7 @@ export function OrdersPanel({
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">{order.order_number ?? `#${orderId.slice(-6).toUpperCase()}`}</span>
                         <OrderStatusBadge status={order.status} />
+                        {order.internal_reference ? <Badge variant="outline" className="border-amber-500/30 bg-amber-500/5 text-amber-600 dark:text-amber-400 text-[10px]">PO: {order.internal_reference}</Badge> : null}
                         {order.numero_remito ? <Badge variant="outline" className="text-[10px]">Remito {order.numero_remito}</Badge> : null}
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">

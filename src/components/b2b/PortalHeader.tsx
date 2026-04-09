@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import {
+  CreditCard,
   LogOut,
   Moon,
   RefreshCw,
@@ -14,6 +15,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+
+type PartnerLevel = "cliente" | "silver" | "gold" | "platinum";
+
+const PARTNER_BADGE: Record<PartnerLevel, { label: string; icon: string; class: string } | null> = {
+  cliente: null,
+  silver: { label: "Silver Partner", icon: "⭐", class: "border-slate-400/30 bg-slate-500/10 text-slate-500" },
+  gold: { label: "Gold Partner", icon: "🏆", class: "border-amber-400/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  platinum: { label: "Platinum Partner", icon: "💎", class: "border-violet-400/30 bg-violet-500/10 text-violet-600 dark:text-violet-400" },
+};
 
 interface PortalHeaderProps {
   clientName: string;
@@ -31,6 +41,9 @@ interface PortalHeaderProps {
   cartItemsCount: number;
   onOpenCart: () => void;
   onLogout: () => void;
+  creditLimit?: number;
+  creditAvailable?: number;
+  partnerLevel?: string;
 }
 
 export const PortalHeader: React.FC<PortalHeaderProps> = ({
@@ -49,7 +62,12 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
   cartItemsCount,
   onOpenCart,
   onLogout,
+  creditLimit,
+  creditAvailable,
+  partnerLevel,
 }) => {
+  const effectiveLevel = (partnerLevel as PartnerLevel) || "cliente";
+  const partnerBadge = PARTNER_BADGE[effectiveLevel] ?? null;
   const ageMs = Date.now() - new Date(exchangeRate.updatedAt).getTime();
   const ageMin = Math.floor(ageMs / 60000);
   const ageLabel =
@@ -89,9 +107,15 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold tracking-tight text-foreground">Portal B2B</span>
-              <Badge variant="muted" className="hidden rounded-full lg:inline-flex">
-                Cuenta operativa
-              </Badge>
+              {partnerBadge && (
+                <span className={cn(
+                  "hidden items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-bold lg:inline-flex",
+                  partnerBadge.class,
+                )}>
+                  <span>{partnerBadge.icon}</span>
+                  {partnerBadge.label}
+                </span>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">{clientName}</p>
           </div>
@@ -198,6 +222,40 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
               <RefreshCw size={11} className={isFetchingRate ? "animate-spin" : ""} />
             </button>
           </div>
+
+          {/* Credit chip */}
+          {creditLimit != null && creditLimit > 0 && creditAvailable != null && (() => {
+            const pct = Math.min(100, ((creditLimit - creditAvailable) / creditLimit) * 100);
+            const danger = pct >= 80;
+            const fmt = (n: number) => `$${Math.round(n).toLocaleString("es-AR")}`;
+            return (
+              <div className={cn(
+                "hidden items-center gap-2 rounded-[24px] border px-3 py-2 text-xs xl:flex",
+                danger
+                  ? "border-destructive/30 bg-destructive/10"
+                  : "border-border/70 bg-surface",
+              )}>
+                <div className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-2xl",
+                  danger ? "bg-destructive/20 text-destructive" : "bg-accent text-accent-foreground",
+                )}>
+                  <CreditCard size={13} />
+                </div>
+                <div className="leading-none">
+                  <p className={cn("font-semibold", danger ? "text-destructive" : "text-foreground")}>
+                    {fmt(creditAvailable)}
+                    <span className="ml-1 text-[10px] font-normal text-muted-foreground">/ {fmt(creditLimit)}</span>
+                  </p>
+                  <div className="mt-1 h-1 w-16 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className={cn("h-full rounded-full transition-all", danger ? "bg-destructive" : "bg-primary")}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Cart */}
           <Button

@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bartez B2B Portal — Google Ads API Integration Design Document</title>
+<style>
+  @page {
+    size: A4;
+    margin: 2cm 2.2cm;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.55;
+    color: #1a1a1a;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 24px 32px;
+  }
+  h1 {
+    font-size: 20pt;
+    margin: 0 0 4px 0;
+    color: #0a6e3c;
+    border-bottom: 2px solid #0a6e3c;
+    padding-bottom: 8px;
+  }
+  h2 {
+    font-size: 13pt;
+    color: #0a6e3c;
+    margin-top: 22px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid #d0d0d0;
+    padding-bottom: 3px;
+  }
+  h3 {
+    font-size: 11pt;
+    margin-top: 14px;
+    margin-bottom: 4px;
+    color: #333;
+  }
+  p { margin: 6px 0; text-align: justify; }
+  ul, ol { margin: 6px 0 6px 0; padding-left: 22px; }
+  li { margin: 3px 0; }
+  .subtitle {
+    color: #666;
+    font-size: 10pt;
+    margin-bottom: 16px;
+  }
+  .meta {
+    background: #f5f7f6;
+    border-left: 3px solid #0a6e3c;
+    padding: 10px 14px;
+    margin: 14px 0 18px 0;
+    font-size: 9.5pt;
+  }
+  .meta strong { display: inline-block; min-width: 130px; color: #0a6e3c; }
+  code, .mono {
+    font-family: "Consolas", "Monaco", monospace;
+    font-size: 9.5pt;
+    background: #f0f0f0;
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  pre {
+    background: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 10px 12px;
+    font-family: "Consolas", "Monaco", monospace;
+    font-size: 9pt;
+    line-height: 1.4;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0;
+    font-size: 9.5pt;
+  }
+  th, td {
+    border: 1px solid #d0d0d0;
+    padding: 6px 9px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: #f0f5f2;
+    color: #0a6e3c;
+    font-weight: 600;
+  }
+  .ascii-diagram {
+    font-family: "Consolas", "Monaco", monospace;
+    font-size: 8.5pt;
+    line-height: 1.35;
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 10px 12px;
+    white-space: pre;
+  }
+  .footer {
+    margin-top: 30px;
+    padding-top: 10px;
+    border-top: 1px solid #d0d0d0;
+    font-size: 9pt;
+    color: #666;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<h1>Bartez B2B Portal — Google Ads API Integration</h1>
+<div class="subtitle">Design Document for Basic Access Application</div>
+
+<div class="meta">
+  <div><strong>Company:</strong> Bartez Tecnología</div>
+  <div><strong>Website:</strong> https://bartez.com.ar</div>
+  <div><strong>Country:</strong> Argentina</div>
+  <div><strong>Manager account (MCC):</strong> 897-050-2244</div>
+  <div><strong>Client account:</strong> 969-460-7792</div>
+  <div><strong>Tool type:</strong> Internal B2B admin portal</div>
+  <div><strong>Access level requested:</strong> Basic</div>
+</div>
+
+<h2>1. Company Overview</h2>
+<p>
+Bartez Tecnología is a B2B wholesale distributor of technology products — including laptops,
+desktop computers, PC components, networking equipment, storage, and peripherals — serving
+IT resellers, system integrators, and corporate buyers in Argentina. The company operates a
+proprietary B2B portal at <strong>bartez.com.ar</strong> where registered business customers can
+browse catalog, request quotes, place bulk orders, and manage their accounts.
+</p>
+
+<h2>2. Purpose of the Integration</h2>
+<p>
+We use Google Ads exclusively to acquire new B2B resellers and corporate buyers for our own
+business. We do not manage advertising for third parties, and the tool is not offered as a
+product to external clients. The integration automates two internal workflows that are
+currently handled manually:
+</p>
+<ol>
+  <li><strong>Campaign creation:</strong> our marketing team generates campaign drafts targeted to specific B2B segments (e.g. IT resellers, corporate procurement), reviews them internally, and pushes approved drafts to Google Ads via the API. This eliminates repetitive manual entry of ad groups, keywords, headlines and descriptions in the Google Ads web UI.</li>
+  <li><strong>Performance reporting:</strong> a daily scheduled job pulls impressions, clicks, cost and conversions from Google Ads into our internal analytics dashboard, so we can correlate ad spend with downstream B2B events (registration, first order, repeat purchase) tracked in our own database.</li>
+</ol>
+
+<h2>3. System Architecture</h2>
+<div class="ascii-diagram">
+┌──────────────────────┐         ┌─────────────────────────────┐
+│  Admin UI (React)    │         │  Supabase Edge Functions    │
+│  bartez.com.ar/admin │ ──────▶ │  (Deno runtime)             │
+│  Marketing tab       │         │                             │
+└──────────────────────┘         │  • launch-campaign          │
+         ▲                       │  • google-ads-sync (cron)   │
+         │                       └─────────────┬───────────────┘
+         │                                     │
+         │                                     ▼
+         │                       ┌─────────────────────────────┐
+         │                       │    Google Ads API (REST)    │
+         │                       │  googleads.googleapis.com   │
+         │                       └─────────────┬───────────────┘
+         │                                     │
+         ▼                                     ▼
+┌──────────────────────┐         ┌─────────────────────────────┐
+│  Supabase Postgres   │ ◀────── │  ad_performance_snapshots   │
+│  campaign_drafts     │         │  ad_campaigns               │
+└──────────────────────┘         └─────────────────────────────┘
+</div>
+
+<h3>Components</h3>
+<ul>
+  <li><strong>Admin UI</strong> — React SPA accessible only to authenticated internal admin users. Marketing team generates drafts, reviews them, and triggers launches.</li>
+  <li><strong>launch-campaign (Edge Function)</strong> — Receives an approved draft ID, authenticates the caller, calls Google Ads API to create budget → campaign → ad groups → ads → keywords, and stores the returned campaign ID back in the draft record.</li>
+  <li><strong>google-ads-sync (Edge Function, cron daily)</strong> — Runs once per day (06:00 UTC), reads the previous day's performance via <code>googleAds:searchStream</code>, and upserts the rows into <code>ad_performance_snapshots</code>.</li>
+  <li><strong>Supabase Postgres</strong> — Stores draft structures, campaign metadata, and performance snapshots for our internal analytics.</li>
+</ul>
+
+<h2>4. API Endpoints Used</h2>
+<table>
+  <thead>
+    <tr><th>Endpoint</th><th>Method</th><th>Purpose</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>customers/{id}/campaignBudgets:mutate</code></td><td>POST</td><td>Create daily budget for a new campaign</td></tr>
+    <tr><td><code>customers/{id}/campaigns:mutate</code></td><td>POST</td><td>Create campaign in PAUSED state (Search network, maximize conversions)</td></tr>
+    <tr><td><code>customers/{id}/adGroups:mutate</code></td><td>POST</td><td>Create ad groups within a campaign</td></tr>
+    <tr><td><code>customers/{id}/adGroupAds:mutate</code></td><td>POST</td><td>Create Responsive Search Ads (RSA) with headlines and descriptions</td></tr>
+    <tr><td><code>customers/{id}/adGroupCriteria:mutate</code></td><td>POST</td><td>Add broad-match keywords to ad groups</td></tr>
+    <tr><td><code>customers/{id}/campaignCriteria:mutate</code></td><td>POST</td><td>Add negative keywords at campaign level</td></tr>
+    <tr><td><code>customers/{id}/googleAds:searchStream</code></td><td>POST</td><td>Daily read of campaign performance metrics</td></tr>
+  </tbody>
+</table>
+
+<h2>5. Authentication & Authorization</h2>
+<ul>
+  <li><strong>OAuth 2.0:</strong> Server-side OAuth with refresh token stored as an environment secret in Supabase Edge Functions. Token was issued for an internal Google account with admin access to the MCC.</li>
+  <li><strong>Manager account operation:</strong> The refresh token belongs to the manager account <code>897-050-2244</code> (Bartez Tecnología). Mutations and reads are performed against the client account <code>969-460-7792</code> using the <code>login-customer-id</code> header set to the MCC ID.</li>
+  <li><strong>Internal auth:</strong> Every Edge Function call validates the Supabase session and verifies that the caller has the <code>admin</code> role in the <code>profiles</code> table before invoking Google Ads.</li>
+  <li><strong>No end-user access to API:</strong> End users of bartez.com.ar (B2B customers) never interact with the Google Ads API, directly or indirectly. Only internal marketing/admin staff can trigger API calls.</li>
+</ul>
+
+<h2>6. Safety and Cost Controls</h2>
+<ul>
+  <li>Every campaign created via the API is initialized with <code>status: "PAUSED"</code>. Activation is always done manually by a human inside the Google Ads web UI after visual review.</li>
+  <li>Daily budgets are capped per campaign (configured by the admin in the draft before approval).</li>
+  <li>All draft structures go through a mandatory human approval step before the <code>launch-campaign</code> function becomes callable for that draft.</li>
+  <li>Headlines are truncated to the Google Ads limit (30 characters) and descriptions to 90 characters client-side before the API call, to avoid validation rejections.</li>
+  <li>Negative keywords are applied at campaign level to reduce wasted spend on unrelated searches.</li>
+</ul>
+
+<h2>7. Expected API Usage Volume</h2>
+<table>
+  <thead>
+    <tr><th>Operation</th><th>Estimated volume</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Campaign creations (mutate)</td><td>&lt; 10 per week</td></tr>
+    <tr><td>Ad group / ad / keyword mutates</td><td>&lt; 100 per week</td></tr>
+    <tr><td>Performance reads (searchStream)</td><td>1 per day (scheduled)</td></tr>
+    <tr><td>Total API calls per day (peak)</td><td>&lt; 500</td></tr>
+  </tbody>
+</table>
+
+<h2>8. Data Handling</h2>
+<ul>
+  <li>No personal data of Google Ads end-users (ad viewers/clickers) is stored — only aggregated metrics (impressions, clicks, cost, conversions) at campaign level.</li>
+  <li>Campaign drafts, structures, and snapshots are stored in Supabase Postgres with row-level security restricting access to admin users.</li>
+  <li>OAuth credentials (developer token, client secret, refresh token) are stored as Supabase Edge Function Secrets — never committed to source control and never exposed to the browser.</li>
+</ul>
+
+<h2>9. Privacy &amp; Compliance</h2>
+<ul>
+  <li>The B2B portal bartez.com.ar has a published privacy policy describing data handling.</li>
+  <li>The tool complies with Google Ads API Terms of Service and Required Minimum Functionality (RMF) requirements for internal-use tools: UI provides campaign creation, status visibility, performance reporting, and the ability to pause/review campaigns.</li>
+  <li>No reselling of Google Ads data, no white-labeling, no multi-tenant use.</li>
+</ul>
+
+<h2>10. Summary</h2>
+<p>
+This is a single-company internal tool used exclusively to manage Bartez Tecnología's own
+Google Ads account. It replaces repetitive manual work in the Google Ads UI with an
+approval-based automation pipeline. All campaigns created via the API require human review
+before activation, and all performance data flows into our internal analytics dashboard for
+attribution. We request <strong>Basic Access</strong> to allow the integration to operate
+against our production Google Ads account (969-460-7792), managed through our MCC
+(897-050-2244).
+</p>
+
+<div class="footer">
+  Bartez Tecnología &nbsp;·&nbsp; bartez.com.ar &nbsp;·&nbsp; Google Ads API Design Document
+</div>
+
+</body>
+</html>

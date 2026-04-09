@@ -12,6 +12,8 @@ interface QuickAddControlProps {
   onAddQty: (qty: number) => void;
   onRemoveOne?: () => void;
   compact?: boolean;
+  showShortcuts?: boolean;
+  minOrderQty?: number;
 }
 
 export function QuickAddControl({
@@ -21,6 +23,8 @@ export function QuickAddControl({
   onAddQty,
   onRemoveOne,
   compact = false,
+  showShortcuts = false,
+  minOrderQty = 1,
 }: QuickAddControlProps) {
   const [qty, setQty] = useState(1);
 
@@ -30,8 +34,19 @@ export function QuickAddControl({
     setQty(1);
   };
 
+  const shortcuts = (() => {
+    if (!showShortcuts || compact || outOfStock) return [];
+    const base = minOrderQty > 1 ? minOrderQty : 1;
+    // Generate 3 shortcuts that are meaningful multiples
+    if (base > 1) {
+      return [base, base * 2, base * 4].filter((v) => v <= 100);
+    }
+    return [5, 10, 25];
+  })();
+
   return (
-    <div className={cn("flex shrink-0 items-center", compact ? "min-w-max flex-wrap gap-1.5 sm:flex-nowrap" : "flex-wrap gap-2 sm:flex-nowrap")}>
+    <div className="flex flex-col gap-1.5">
+      <div className={cn("flex shrink-0 items-center", compact ? "min-w-max flex-wrap gap-1.5 sm:flex-nowrap" : "flex-wrap gap-2 sm:flex-nowrap")}>
       {inCart > 0 ? (
         <div
           className={cn(
@@ -89,7 +104,7 @@ export function QuickAddControl({
         variant={wasAdded ? "soft" : "default"}
         className={cn(compact ? "h-8 rounded-xl px-3 text-xs" : "h-10 rounded-xl px-4")}
       >
-        Anadir
+        Añadir
       </Button>
 
       {inCart > 0 && onRemoveOne ? (
@@ -97,6 +112,24 @@ export function QuickAddControl({
           Quitar
         </Button>
       ) : null}
+      </div>
+
+      {shortcuts.length > 0 && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] font-medium text-muted-foreground">Rápido:</span>
+          {shortcuts.map((amount) => (
+            <button
+              key={amount}
+              type="button"
+              onClick={() => onAddQty(amount)}
+              className="rounded-lg border border-border/60 bg-secondary/40 px-2 py-0.5 text-[9px] font-bold tabular-nums text-muted-foreground transition-all hover:border-primary/30 hover:bg-primary/10 hover:text-primary active:scale-95"
+            >
+              +{amount}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
+

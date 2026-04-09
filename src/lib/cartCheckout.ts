@@ -171,3 +171,13 @@ export function buildOrderNotes(baseNotes: string, meta: CheckoutOrderMeta): str
 
   return sections.join("\n\n").trim();
 }
+
+/**
+ * Extracts the internal reference (PO) from the structured notes
+ * Looking for the "Referencia / OC: " pattern.
+ */
+export function parseInternalReferenceFromNotes(notes: string): string | undefined {
+  if (!notes) return undefined;
+  const match = notes.match(/Referencia \/ OC: ([^\n\r]+)/i);
+  return match ? match[1].trim() : undefined;
+}

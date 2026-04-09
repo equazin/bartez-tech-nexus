@@ -6,15 +6,15 @@ import { SurfaceCard } from "@/components/ui/surface-card";
 import { preloadProductImage, resolveProductImageUrl } from "@/lib/productImage";
 import { cn } from "@/lib/utils";
 import { StockBadge } from "./StockBadge";
+import { DeliveryEstimate } from "./DeliveryEstimate";
+import { WarrantyBadge } from "./WarrantyBadge";
 import { QuickAddControl } from "./QuickAddControl";
 import type { Product } from "@/models/products";
 
 function resolveCommercialSignals(product: Product, available: number) {
   return [
-    available > 0 ? `Entrega ${available > 5 ? "inmediata" : "sujeta a confirmación"}` : "Bajo consulta",
-    product.supplier_name ? `Origen ${product.supplier_name}` : "Canal partner",
     product.min_order_qty && product.min_order_qty > 1 ? `Min. ${product.min_order_qty}u` : "Venta unitaria",
-  ];
+  ].filter(Boolean);
 }
 
 interface ProductItemProps {
@@ -155,8 +155,10 @@ export function ProductItem({
                 {product.sku ? <span className="font-mono text-[10px] text-muted-foreground/80 bg-muted/50 border border-border/50 px-1.5 py-0.5 rounded-md">{product.sku}</span> : null}
                 <span className="text-[11px] text-muted-foreground truncate">{product.category}</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <StockBadge stock={available} />
+                <DeliveryEstimate stock={product.stock} stockReserved={product.stock_reserved} compact />
+                <WarrantyBadge product={product} compact />
                 {isPosProduct(product) ? (
                   <Badge variant="outline" className="gap-1 bg-background text-[10px]">
                     <Truck size={10} /> POS
@@ -166,19 +168,21 @@ export function ProductItem({
                   <Badge variant="secondary" className="text-[10px] bg-secondary/80">Compraste {purchaseHistoryCount}u</Badge>
                 ) : null}
               </div>
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                {commercialSignals.map((signal) => (
-                  <span key={signal} className="rounded-full bg-secondary/30 px-2 py-0.5 border border-border/40 text-[9px] font-medium text-muted-foreground">
-                    {signal}
-                  </span>
-                ))}
-              </div>
+              {commercialSignals.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {commercialSignals.map((signal) => (
+                    <span key={signal} className="rounded-full bg-secondary/30 px-2 py-0.5 border border-border/40 text-[9px] font-medium text-muted-foreground">
+                      {signal}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
           <div className="flex flex-col gap-1.5 mt-3 pt-3 border-t border-border/40">
 
-            <div className="flex items-end justify-between gap-2">
+            <div className="flex flex-col gap-2">
               <div>
                 {isOffer && originalPrice && originalPrice > finalPrice ? (
                   <div className="mb-0.5 text-[11px] font-medium leading-none text-muted-foreground/60 line-through tabular-nums">
@@ -198,24 +202,19 @@ export function ProductItem({
               </div>
 
               {product.price_tiers?.length ? (
-                <div className="group/tiers relative">
-                  <Button variant="soft" size="sm" className="rounded-full border border-primary/20 text-primary">
-                    <TrendingUp size={14} />
-                    Escala
-                  </Button>
-                  <div className="pointer-events-none absolute bottom-full right-0 mb-2 w-56 rounded-2xl border border-border/60 bg-card p-4 shadow-xl opacity-0 transition-all duration-200 group-hover/tiers:pointer-events-auto group-hover/tiers:-translate-y-1 group-hover/tiers:opacity-100">
-                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Escala especial</p>
-                    <div className="space-y-2 text-sm text-foreground">
-                      {product.price_tiers.map((tier, index) => (
-                        <div key={index} className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">
-                            {tier.min}
-                            {tier.max ? `-${tier.max}` : "+"} unidades
-                          </span>
-                          <span className="font-semibold text-primary">{formatPrice(tier.price)}</span>
-                        </div>
-                      ))}
-                    </div>
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-2">
+                  <p className="mb-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.18em] text-primary">
+                    <TrendingUp size={10} /> Escala
+                  </p>
+                  <div className="space-y-1">
+                    {product.price_tiers.map((tier, index) => (
+                      <div key={index} className="flex items-center justify-between text-[10px]">
+                        <span className="text-muted-foreground">
+                          {tier.min}{tier.max ? `-${tier.max}` : "+"} u
+                        </span>
+                        <span className="font-bold text-primary">{formatPrice(tier.price)}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ) : null}
@@ -230,6 +229,8 @@ export function ProductItem({
             wasAdded={wasAdded}
             onAddQty={(qty) => onAddQty(product, qty)}
             onRemoveOne={() => onRemoveFromCart(product)}
+            showShortcuts
+            minOrderQty={product.min_order_qty ?? 1}
           />
         </div>
       </SurfaceCard>
@@ -272,13 +273,15 @@ export function ProductItem({
           
           <div className="flex flex-wrap items-center gap-2">
             <StockBadge stock={available} />
+            <DeliveryEstimate stock={product.stock} stockReserved={product.stock_reserved} compact />
+            <WarrantyBadge product={product} compact />
             <span className="text-[10px] text-muted-foreground">{product.category}</span>
             {isPosProduct(product) ? (
               <Badge variant="outline" className="gap-1 text-[9px] h-4 px-1 bg-background text-muted-foreground">
                 <Truck size={8} /> POS
               </Badge>
             ) : null}
-            {commercialSignals.map((signal) => (
+            {commercialSignals.length > 0 && commercialSignals.map((signal) => (
               <span key={signal} className="rounded-sm bg-secondary/40 px-1 py-0 border border-border/40 text-[9px] font-medium text-muted-foreground">
                 {signal}
               </span>

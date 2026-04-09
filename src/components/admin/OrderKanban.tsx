@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import {
   Clock, CheckCircle2, Package, Truck, CheckCheck,
-  XCircle, AlertTriangle,
+  XCircle, AlertTriangle, PackageCheck,
 } from "lucide-react";
 
 export type KanbanStatus =
@@ -11,7 +11,8 @@ export type KanbanStatus =
   | "shipped"
   | "delivered"
   | "rejected"
-  | "dispatched";
+  | "dispatched"
+  | "picked";
 
 export interface KanbanOrder {
   id: string;
@@ -25,6 +26,8 @@ export interface KanbanOrder {
   products: { name: string; quantity: number }[];
   shipping_provider?: string;
   tracking_number?: string;
+  internal_reference?: string;
+  payment_method?: string;
 }
 
 interface Column {
@@ -39,6 +42,7 @@ const COLUMNS: Column[] = [
   { key: "pending",    label: "En revisión",   icon: Clock,        headerClass: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30", cardAccent: "border-l-yellow-400" },
   { key: "approved",   label: "Aprobado",      icon: CheckCircle2, headerClass: "bg-green-500/20 text-green-300 border-green-500/30",   cardAccent: "border-l-green-400"  },
   { key: "preparing",  label: "Preparando",    icon: Package,      headerClass: "bg-orange-500/20 text-orange-300 border-orange-500/30",cardAccent: "border-l-orange-400" },
+  { key: "picked",     label: "Pickeado",      icon: PackageCheck, headerClass: "bg-purple-500/20 text-purple-300 border-purple-500/30", cardAccent: "border-l-purple-400" },
   { key: "shipped",    label: "Enviado",       icon: Truck,        headerClass: "bg-blue-500/20 text-blue-300 border-blue-500/30",      cardAccent: "border-l-blue-400"   },
   { key: "dispatched", label: "Despachado",    icon: CheckCheck,   headerClass: "bg-teal-500/20 text-teal-300 border-teal-500/30",     cardAccent: "border-l-teal-400"   },
   { key: "delivered",  label: "Entregado",     icon: CheckCheck,   headerClass: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30", cardAccent: "border-l-emerald-400" },
@@ -168,6 +172,15 @@ export default function OrderKanban({ orders, onStatusChange, formatPrice, isDar
                       <span className={`text-[10px] ${textMuted}`}>{date}</span>
                     </div>
 
+                    {/* PO / Reference */}
+                    {order.internal_reference && (
+                      <div className="mb-1.5 flex items-center gap-1">
+                        <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-1 py-0.5 text-[9px] font-bold text-amber-500">
+                          PO: {order.internal_reference}
+                        </span>
+                      </div>
+                    )}
+
                     {/* Client */}
                     {order.client_name && (
                       <div className={`text-xs font-medium truncate mb-1 ${textMain}`}>
@@ -189,15 +202,22 @@ export default function OrderKanban({ orders, onStatusChange, formatPrice, isDar
                       <span className={`text-xs font-semibold text-blue-400`}>
                         {formatPrice(order.total)}
                       </span>
-                      <div className="flex items-center gap-1">
-                        {order.margin_pct !== undefined && !isUpdating && (
-                          <span className="text-[10px] font-semibold text-emerald-400">
-                            +{order.margin_pct.toFixed(0)}%
-                          </span>
-                        )}
-                        {isUpdating && (
-                          <span className={`text-[10px] ${textMuted} animate-pulse`}>
-                            Guardando…
+                      <div className="flex flex-col items-end gap-0.5">
+                        <div className="flex items-center gap-1">
+                          {order.margin_pct !== undefined && !isUpdating && (
+                            <span className="text-[10px] font-semibold text-emerald-400">
+                              +{order.margin_pct.toFixed(0)}%
+                            </span>
+                          )}
+                          {isUpdating && (
+                            <span className={`text-[10px] ${textMuted} animate-pulse`}>
+                              Guardando…
+                            </span>
+                          )}
+                        </div>
+                        {order.payment_method && (
+                          <span className={`text-[9px] font-medium opacity-60 ${textMuted}`}>
+                            {order.payment_method.replace(/_/g, " ")}
                           </span>
                         )}
                       </div>

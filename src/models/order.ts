@@ -22,7 +22,8 @@ export type OrderStatus =
   | "shipped"
   | "delivered"
   | "rejected"
-  | "dispatched";
+  | "dispatched"
+  | "picked";
 
 export interface Order {
   id: number | string;

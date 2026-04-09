@@ -31,12 +31,16 @@ import {
   type CheckoutTemplate,
 } from "@/lib/cartCheckout";
 import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
+import { CheckoutWizard } from "@/components/b2b/checkout/CheckoutWizard";
+import type { CartStepProps } from "@/components/b2b/checkout/CartStep";
 import type { Product } from "@/models/products";
+
+type CartStepCartItem = CartStepProps["cartItems"][number];
 import {
   ArrowLeft, ShoppingCart, AlertTriangle, AlertCircle, Minus, Plus,
   Trash2, FileDown, Bookmark, CheckCircle2, Loader2, TrendingUp,
   Truck, MapPin, FileText, Package2, CreditCard, ToggleLeft, ToggleRight,
-  Building2, CalendarDays, UserRound, ShieldAlert, Sparkles, Clock3, Save,
+  Building2, CalendarDays, UserRound, ShieldAlert, Sparkles, Clock3, Save, ChevronDown,
 } from "lucide-react";
 
 // -- Types --------------------------------------------------------------------
@@ -875,1192 +879,218 @@ export default function CartPage() {
         )}
       </header>
 
-      <div className="mx-auto mt-4 max-w-[1680px] px-4 md:px-6">
-        <div className={`rounded-2xl border px-4 py-4 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-gray-500">Flujo principal</p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  ["1. Revisar carrito", "Chequeá stock, mínimos y cantidades"],
-                  ["2. Definir entrega", "Retiro o envío con datos operativos"],
-                  ["3. Elegir pago", "Transferencia, eCheq o cuenta corriente"],
-                  ["4. Confirmar o cotizar", "Cerrá pedido o guardá la propuesta"],
-                ].map(([title, helper]) => (
-                  <div key={title} className={`rounded-2xl border px-3 py-3 ${dk("border-[#262626] bg-[#171717]", "border-[#e5e5e5] bg-[#fafafa]")}`}>
-                    <p className={`text-sm font-semibold ${dk("text-white", "text-[#171717]")}`}>{title}</p>
-                    <p className="mt-1 text-xs text-gray-500">{helper}</p>
-                  </div>
-                ))}
+      {/* -- Draft & Templates Bar ------------------------------------------------ */}
+      {(checkoutTemplates.length > 0 || savedDraftAt) && (
+        <div className="mx-auto max-w-[1680px] px-4 md:px-6 pt-4 flex flex-wrap items-center gap-3">
+          {savedDraftAt && (
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${dk("bg-amber-500/10 border-amber-500/20 text-amber-300", "bg-amber-50 border-amber-200 text-amber-800")} text-[11px] font-medium`}>
+              <Save size={13} className="text-amber-500" />
+              Borrador recuperable: {new Date(savedDraftAt).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
+              <button type="button" onClick={handleRestoreDraft} className="ml-1 px-2 py-0.5 rounded bg-amber-500 text-white font-bold transition hover:bg-amber-600">Cargar</button>
+              <button type="button" onClick={clearSavedDraft} className="ml-1 opacity-70 hover:opacity-100 transition"><Trash2 size={12} /></button>
+            </div>
+          )}
+          {checkoutTemplates.length > 0 && (
+            <div className="relative group">
+              <button type="button" className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-[11px] font-semibold transition ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white hover:border-[#3a3a3a]", "bg-white border-[#e5e5e5] text-[#171717] hover:border-[#ccc]")}`}>
+                <Bookmark size={13} className="text-[#2D9F6A]" />
+                Mis Plantillas ({checkoutTemplates.length})
+                <ChevronDown size={11} className="opacity-50" />
+              </button>
+              <div className={`absolute top-full mt-1 w-64 rounded-xl border shadow-xl z-20 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 ${dk("bg-[#111] border-[#222]", "bg-white border-[#e5e5e5]")}`}>
+                <div className="py-2 flex flex-col max-h-[300px] overflow-y-auto">
+                  {checkoutTemplates.map((t) => (
+                    <div key={t.id} className={`px-4 py-2.5 flex flex-col gap-1 border-b last:border-0 cursor-pointer transition ${dk("hover:bg-white/5 border-[#222]", "hover:bg-black/5 border-[#f5f5f5]")}`} onClick={() => { if(window.confirm("¿Reemplazar carrito actual con la plantilla?")) handleApplyTemplate(t); }}>
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-[12px] text-[#2D9F6A] truncate">{t.name}</span>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(t.id); }} className="text-red-500/70 hover:text-red-500 p-1"><Trash2 size={12}/></button>
+                      </div>
+                      <span className="text-[10px] text-gray-500 text-left">
+                        {Object.keys(t.cart).length} {Object.keys(t.cart).length === 1 ? 'ítem' : 'ítems'} • Creada el {new Date(t.createdAt).toLocaleDateString("es-AR")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
+          )}
+        </div>
+      )}
 
-            <div className={`rounded-2xl border p-1 ${dk("border-[#262626] bg-[#171717]", "border-[#e5e5e5] bg-[#fafafa]")}`}>
-              {([
-                ["direct", "Compra directa", "Dejá visible solo lo necesario para cerrar rápido."],
-                ["advanced", "Caso avanzado", "Mostrá revisión comercial, reventa y herramientas operativas."],
-              ] as const).map(([mode, label, helper]) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setCheckoutMode(mode)}
-                  className={`block w-full rounded-xl px-4 py-3 text-left transition ${checkoutMode === mode ? "bg-[#2D9F6A] text-white" : dk("text-gray-300 hover:bg-[#1f1f1f]", "text-[#525252] hover:bg-white")}`}
-                >
-                  <p className="text-sm font-semibold">{label}</p>
-                  <p className={`mt-1 text-xs ${checkoutMode === mode ? "text-white/75" : "text-gray-500"}`}>{helper}</p>
-                </button>
-              ))}
+      {/* -- Reseller Mode Settings ---------------------------------------------- */}
+      <div className={`mx-auto max-w-[1680px] px-4 md:px-6 ${checkoutTemplates.length > 0 || savedDraftAt ? 'mt-3' : 'mt-4'}`}>
+        <div className={`flex flex-wrap items-center gap-4 px-4 py-3 rounded-xl border transition-all ${resellerMode ? dk("bg-[#2D9F6A]/10 border-[#2D9F6A]/30", "bg-green-50 border-green-200") : dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
+          <div className="flex items-center gap-2">
+            <TrendingUp size={16} className={resellerMode ? "text-[#2D9F6A]" : dk("text-gray-500", "text-gray-400")} />
+            <div>
+              <p className={`text-sm font-semibold ${resellerMode ? dk("text-white", "text-[#102d1f]") : dk("text-gray-400", "text-[#737373]")}`}>Modo Revendedor / Cotizador</p>
+              <p className={`text-[10px] ${resellerMode ? dk("text-gray-400", "text-green-700/70") : dk("text-gray-500", "text-gray-400")}`}>Agrega tu mockup a la opción de exportar PDF.</p>
             </div>
+          </div>
+          <div className="flex items-center gap-3 ml-auto">
+            <button
+              onClick={() => setResellerMode(!resellerMode)}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${resellerMode ? "bg-[#2D9F6A]" : dk("bg-gray-700", "bg-gray-300")}`}
+            >
+              <span aria-hidden="true" className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${resellerMode ? "translate-x-2" : "-translate-x-2"}`} />
+            </button>
+            {resellerMode && (
+              <div className="flex items-center gap-2">
+                <span className={`text-[11px] font-bold ${dk("text-[#2D9F6A]", "text-green-700")}`}>Margen:</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="500"
+                  value={resellerMargin}
+                  onChange={(e) => setResellerMargin(Number(e.target.value))}
+                  className={`w-[60px] text-center text-xs font-bold rounded-md px-2 py-1 outline-none border ${dk("bg-black border-[#2D9F6A]/40 text-white", "bg-white border-green-300 text-[#171717]")}`}
+                />
+                <span className={`text-xs font-bold ${dk("text-[#2D9F6A]", "text-green-700")}`}>%</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* -- Body ------------------------------------------------------------- */}
-      <div className="mx-auto flex max-w-[1680px] flex-col gap-6 px-4 py-6 md:px-6 lg:flex-row">
-
-        {/* -- LEFT COLUMN --------------------------------------------------- */}
-        <div className="flex-1 min-w-0 flex flex-col gap-5">
-
-          {/* Empty state */}
-          {!productsLoading && cartItems.length === 0 && (
-            <div className={`border rounded-xl flex flex-col items-center justify-center py-20 text-center ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
-              <ShoppingCart size={34} className="mb-3 text-gray-700" />
-              <p className="text-sm font-medium text-gray-500">El carrito está vacío</p>
-              <button
-                onClick={() => navigate("/b2b-portal")}
-                className="mt-3 text-xs text-[#2D9F6A] hover:underline"
-              >
-                Ir al catálogo
-              </button>
-            </div>
-          )}
-
-          {/* -- 1. PRODUCTS TABLE ------------------------------------------- */}
-          {cartItems.length > 0 && (
-            <section className={`border rounded-xl overflow-hidden ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
-              <div className={`px-4 py-2.5 border-b flex items-center gap-2 ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
-                <ShieldAlert size={13} className={hasBlockingErrors ? "text-red-400" : "text-amber-400"} />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Alertas del pedido</span>
-              </div>
-              <div className="px-4 py-4 grid gap-3 lg:grid-cols-[1.2fr_1fr]">
-                <div className={`rounded-xl border px-3 py-3 ${hasBlockingErrors ? dk("border-red-500/30 bg-red-500/10", "border-red-200 bg-red-50") : dk("border-[#2a2a2a] bg-[#171717]", "border-[#e5e5e5] bg-[#fafafa]")}`}>
-                  <p className={`text-xs font-semibold mb-2 ${hasBlockingErrors ? "text-red-400" : dk("text-gray-300", "text-[#525252]")}`}>
-                    Bloqueantes {blockingIssues.length > 0 ? `(${blockingIssues.length})` : "(0)"}
-                  </p>
-                  {blockingIssues.length === 0 ? (
-                    <p className="text-xs text-[#2D9F6A]">No hay bloqueos para confirmar el pedido.</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {blockingIssues.map((issue) => (
-                        <p key={issue} className={`text-xs ${hasBlockingErrors ? "text-red-300" : dk("text-gray-300", "text-[#525252]")}`}>- {issue}</p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className={`rounded-xl border px-3 py-3 ${dk("border-[#2a2a2a] bg-[#171717]", "border-[#e5e5e5] bg-[#fafafa]")}`}>
-                  <p className="text-xs font-semibold mb-2 text-amber-400">
-                    Atención comercial {warningIssues.length > 0 ? `(${warningIssues.length})` : "(0)"}
-                  </p>
-                  {warningIssues.length === 0 ? (
-                    <p className={`text-xs ${dk("text-gray-400", "text-[#737373]")}`}>El pedido está limpio y listo para procesar.</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {warningIssues.slice(0, 4).map((issue) => (
-                        <p key={issue} className={`text-xs ${dk("text-gray-300", "text-[#525252]")}`}>- {issue}</p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </section>
-          )}
-
-          {cartItems.length > 0 && (
-            <section className={`border rounded-xl overflow-hidden ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
-              <div className={`px-4 py-2.5 border-b flex items-center gap-2 ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
-                <Building2 size={13} className="text-[#2D9F6A]" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Datos del pedido</span>
-              </div>
-              <div className="px-4 py-4 grid gap-3 md:grid-cols-2">
-                <div>
-                  <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>Referencia / OC interna</label>
-                  <input
-                    type="text"
-                    value={orderMeta.internalReference}
-                    onChange={(e) => updateOrderMeta("internalReference", e.target.value)}
-                    placeholder="Ej: OC-45892 / proyecto cliente"
-                    className={`w-full text-sm outline-none rounded-lg px-3 py-2 border transition ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]")}`}
-                  />
-                </div>
-                <div>
-                  <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>Sucursal / destino</label>
-                  <input
-                    type="text"
-                    value={orderMeta.branchName}
-                    onChange={(e) => updateOrderMeta("branchName", e.target.value)}
-                    placeholder="Casa central, sucursal norte, depósito..."
-                    className={`w-full text-sm outline-none rounded-lg px-3 py-2 border transition ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]")}`}
-                  />
-                </div>
-                <div>
-                  <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>Contacto receptor</label>
-                  <div className="relative">
-                    <UserRound size={13} className={`absolute left-3 top-1/2 -translate-y-1/2 ${dk("text-[#525252]", "text-[#a3a3a3]")}`} />
-                    <input
-                      type="text"
-                      value={orderMeta.receiverContact}
-                      onChange={(e) => updateOrderMeta("receiverContact", e.target.value)}
-                      placeholder="Quién recibe o coordina"
-                      className={`w-full text-sm outline-none rounded-lg pl-9 pr-3 py-2 border transition ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]")}`}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>Fecha requerida</label>
-                  <div className="relative">
-                    <CalendarDays size={13} className={`absolute left-3 top-1/2 -translate-y-1/2 ${dk("text-[#525252]", "text-[#a3a3a3]")}`} />
-                    <input
-                      type="date"
-                      value={orderMeta.requestedDate}
-                      onChange={(e) => updateOrderMeta("requestedDate", e.target.value)}
-                      className={`w-full text-sm outline-none rounded-lg pl-9 pr-3 py-2 border transition ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]")}`}
-                    />
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {cartItems.length > 0 && (
-            <section className={`border rounded-xl overflow-hidden ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
-              {/* Section header */}
-              <div className={`px-4 py-2.5 border-b flex items-center gap-2 ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
-                <Package2 size={13} className="text-[#2D9F6A]" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Productos</span>
-              </div>
-              {/* Column labels - desktop only */}
-              <div className={`hidden md:grid grid-cols-[96px_1fr_64px_100px_96px_100px_32px] gap-x-3 px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-600 border-b ${dk("border-[#1a1a1a]", "border-[#f0f0f0]")}`}>
-                <span>SKU</span>
-                <span>Producto</span>
-                <span className="text-center">Stock</span>
-                <span className="text-center">Cantidad</span>
-                <span className="text-right">Precio unit.</span>
-                <span className="text-right">Total c/IVA</span>
-                <span />
-              </div>
-
-              {/* Rows */}
-              <div className={`divide-y ${dk("divide-[#1a1a1a]", "divide-[#f0f0f0]")}`}>
-                {cartItems.map((item) => {
-                  const {
-                    product, quantity, unitPrice, totalWithIVA,
-                    availableStock, hasStockError, hasStockWarning, hasMOQError,
-                  } = item;
-                  const outOfStock = product.stock === 0;
-                  const minQty = product.min_order_qty ?? product.stock_min ?? 0;
-
-                  return (
-                    <div
-                      key={product.id}
-                      className={`px-4 py-3 flex flex-col gap-2 md:grid md:grid-cols-[96px_1fr_64px_100px_96px_100px_32px] md:gap-x-3 md:items-center transition-colors
-                        ${(hasStockError || outOfStock) ? dk("bg-red-950/20", "bg-red-50/60") : ""}
-                      `}
-                    >
-                      {/* SKU */}
-                      <div>
-                        {product.sku ? (
-                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${dk("bg-[#1a1a1a] text-[#737373]", "bg-[#f0f0f0] text-[#525252]")}`}>
-                            {product.sku}
-                          </span>
-                        ) : (
-                          <span className={`text-[10px] font-mono ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>—</span>
-                        )}
-                      </div>
-
-                      {/* Name + alerts */}
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className={`hidden md:flex h-9 w-9 shrink-0 rounded-lg items-center justify-center border ${dk("bg-[#0a0a0a] border-[#1a1a1a]", "bg-[#f9f9f9] border-[#e5e5e5]")}`}>
-                          <img src={product.image} alt={product.name} className="max-h-7 max-w-7 object-contain" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className={`text-sm font-semibold truncate ${dk("text-white", "text-[#171717]")}`}>
-                            {product.name}
-                          </p>
-                          <p className="text-[11px] text-gray-600">{product.category}</p>
-                          {outOfStock && (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-red-400 mt-0.5">
-                              <AlertCircle size={9} /> Sin stock
-                            </span>
-                          )}
-                          {!outOfStock && hasStockError && (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-red-400 mt-0.5">
-                              <AlertCircle size={9} /> Solo {availableStock} disponibles
-                            </span>
-                          )}
-                          {!hasStockError && hasStockWarning && (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 mt-0.5">
-                              <AlertTriangle size={9} /> Últimas {availableStock}u
-                            </span>
-                          )}
-                          {hasMOQError && (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 mt-0.5">
-                              <AlertTriangle size={9} /> Mín. {minQty}u por pedido
-                            </span>
-                          )}
-                          {/* Mobile totals */}
-                          <div className="flex items-center justify-between mt-1 md:hidden">
-                            <span className="text-xs text-[#2D9F6A] font-bold tabular-nums">
-                              {formatPrice(unitPrice)} c/u s/IVA
-                            </span>
-                            <span className={`text-sm font-extrabold tabular-nums ${dk("text-white", "text-[#171717]")}`}>
-                              {formatPrice(totalWithIVA)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Available stock */}
-                      <div className="hidden md:flex flex-col items-center justify-center">
-                        <span className={`text-[11px] font-semibold tabular-nums
-                          ${outOfStock ? "text-red-400" : hasStockError ? "text-red-400" : hasStockWarning ? "text-amber-400" : dk("text-gray-400", "text-gray-500")}`}>
-                          {availableStock}
-                        </span>
-                        {(product.stock_reserved ?? 0) > 0 && (
-                          <span className="text-[9px] text-gray-600 tabular-nums">
-                            {product.stock_reserved} res.
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Qty controls */}
-                      <div className="flex items-center gap-1 md:justify-center">
-                        <button
-                          onClick={() => removeQty(product.id)}
-                          className={`h-7 w-7 rounded-lg flex items-center justify-center border active:scale-95 transition
-                            ${dk("bg-[#1c1c1c] hover:bg-[#252525] text-white border-[#262626]", "bg-[#f5f5f5] hover:bg-[#ebebeb] text-[#171717] border-[#e5e5e5]")}`}
-                        >
-                          <Minus size={11} />
-                        </button>
-                        <input
-                          type="number"
-                          min={1}
-                          value={quantity}
-                          onChange={(e) => setQty(product.id, parseInt(e.target.value) || 0)}
-                          className={`w-10 text-center text-sm font-bold tabular-nums bg-transparent outline-none ${dk("text-white", "text-[#171717]")}`}
-                        />
-                        <button
-                          onClick={() => addQty(product.id)}
-                          className="h-7 w-7 rounded-lg bg-[#2D9F6A] hover:bg-[#25835A] text-white flex items-center justify-center active:scale-95 transition"
-                        >
-                          <Plus size={11} />
-                        </button>
-                      </div>
-
-                      {/* Unit price */}
-                      <div className="hidden md:block text-right">
-                        <div className="text-sm font-bold text-[#2D9F6A] tabular-nums">{formatPrice(unitPrice)}</div>
-                        <div className={`text-[10px] ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>s/IVA - {item.ivaRate}%</div>
-                      </div>
-
-                      {/* Line total */}
-                      <div className="hidden md:block text-right">
-                        <div className={`text-sm font-extrabold tabular-nums ${dk("text-white", "text-[#171717]")}`}>
-                          {formatPrice(totalWithIVA)}
-                        </div>
-                        <div className={`text-[10px] tabular-nums ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>
-                          s/IVA {formatPrice(item.totalPrice)}
-                        </div>
-                      </div>
-
-                      {/* Remove */}
-                      <div className="hidden md:flex items-center justify-center">
-                        <button
-                          onClick={() => removeItem(product.id)}
-                          className={`p-1 rounded transition ${dk("text-[#525252] hover:text-red-400 hover:bg-red-500/10", "text-[#a3a3a3] hover:text-red-500 hover:bg-red-50")}`}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-
-                      {/* Mobile remove */}
-                      <div className="flex md:hidden">
-                        <button
-                          onClick={() => removeItem(product.id)}
-                          className={`flex items-center gap-1 text-xs transition ${dk("text-[#525252] hover:text-red-400", "text-[#a3a3a3] hover:text-red-500")}`}
-                        >
-                          <Trash2 size={12} /> Eliminar
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {/* -- 2. MODO REVENDEDOR ------------------------------------------- */}
-          {cartItems.length > 0 && (
-            <section className={`border rounded-xl overflow-hidden ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
-              <div className={`px-4 py-2.5 border-b flex items-center justify-between ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
-                <div className="flex items-center gap-2">
-                  <TrendingUp size={13} className="text-[#2D9F6A]" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                    Exportar para tu cliente
-                  </span>
-                </div>
-                <button
-                  onClick={() => setResellerMode((v) => !v)}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border transition
-                    ${resellerMode
-                      ? "bg-[#2D9F6A]/15 text-[#2D9F6A] border-[#2D9F6A]/30"
-                      : dk("text-gray-500 border-[#222] hover:border-[#333] hover:text-gray-300", "text-gray-500 border-[#e5e5e5] hover:text-gray-700")
-                    }`}
-                >
-                  {resellerMode ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
-                  {resellerMode ? "Activado" : "Activar"}
-                </button>
-              </div>
-              {resellerMode ? (
-                <div className="px-4 py-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center flex-wrap">
-                  <div className="flex items-center gap-3">
-                    <label className="text-xs text-gray-500 whitespace-nowrap">Margen adicional</label>
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        min={0}
-                        max={300}
-                        value={resellerMargin}
-                        onChange={(e) => setResellerMargin(Math.max(0, Number(e.target.value)))}
-                        className={`w-16 text-center text-sm font-bold tabular-nums outline-none rounded-lg px-2 py-1.5 border
-                          ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]")}`}
-                      />
-                      <span className="text-sm text-gray-500">%</span>
-                    </div>
-                  </div>
-                  <div className={`flex items-center gap-2.5 px-4 py-2 rounded-xl border
-                    ${dk("bg-[#0d1f17] border-[#1a3a28]", "bg-green-50 border-green-200")}`}>
-                    <TrendingUp size={13} className="text-[#2D9F6A]" />
-                    <span className="text-xs text-gray-500">Tu ganancia estimada:</span>
-                    <span className="text-sm font-extrabold text-[#2D9F6A] tabular-nums">
-                      {formatPrice(resellerProfit)}
-                    </span>
-                  </div>
-                  <div className="grid w-full gap-3 md:grid-cols-3">
-                    <div>
-                      <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>Cliente final</label>
-                      <input
-                        type="text"
-                        value={orderMeta.finalClientName}
-                        onChange={(e) => updateOrderMeta("finalClientName", e.target.value)}
-                        placeholder="Nombre comercial del cliente final"
-                        className={`w-full text-sm outline-none rounded-lg px-3 py-2 border transition ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]")}`}
-                      />
-                    </div>
-                    <div>
-                      <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>Validez (días)</label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={90}
-                        value={orderMeta.quoteValidityDays}
-                        onChange={(e) => updateOrderMeta("quoteValidityDays", Math.max(1, Number(e.target.value) || 1))}
-                        className={`w-full text-sm outline-none rounded-lg px-3 py-2 border transition ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]")}`}
-                      />
-                    </div>
-                    <div className="md:col-span-3">
-                      <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>Mensaje comercial</label>
-                      <textarea
-                        value={orderMeta.commercialMessage}
-                        onChange={(e) => updateOrderMeta("commercialMessage", e.target.value)}
-                        rows={2}
-                        placeholder="Aclaraciones para la cotización del cliente final"
-                        className={`w-full text-sm outline-none rounded-lg px-3 py-2 border resize-none transition ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]")}`}
-                      />
-                    </div>
-                  </div>
-                  <p className={`text-[10px] sm:ml-auto ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>
-                    Solo afecta la exportación PDF - no modifica el pedido real
-                  </p>
-                </div>
-              ) : (
-                <div className="px-4 py-3">
-                  <p className={`text-xs ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>
-                    Activá para generar cotizaciones con tus propios precios para el cliente final.
-                    La ganancia estimada se calcula sobre el subtotal sin IVA.
-                  </p>
-                </div>
-              )}
-            </section>
-          )}
-
-          {/* -- 3. CONDICIONES DE PAGO -------------------------------------- */}
-          {cartItems.length > 0 && (
-            <section className={`border rounded-xl overflow-hidden ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
-              <div className={`px-4 py-2.5 border-b flex items-center gap-2 ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
-                <CreditCard size={13} className="text-[#2D9F6A]" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                  Condiciones de pago
-                </span>
-              </div>
-              <div className="px-4 py-4">
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
-                  {(Object.keys(PAYMENT_LABELS) as PaymentMethod[]).map((method) => (
-                    <label
-                      key={method}
-                      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition
-                        ${paymentMethod === method
-                          ? "border-[#2D9F6A] bg-[#2D9F6A]/10 text-[#2D9F6A]"
-                          : dk("border-[#1f1f1f] hover:border-[#2a2a2a] text-gray-400", "border-[#e5e5e5] hover:border-[#d4d4d4] text-gray-500")
-                        }`}
-                    >
-                      <input
-                        type="radio"
-                        name="paymentMethod"
-                        value={method}
-                        checked={paymentMethod === method}
-                        onChange={() => {
-                          setPaymentMethod(method);
-                          if (method === "echeq" && ECHEQ_TERM_OPTIONS.includes((profile?.payment_terms ?? 30) as EcheqTermDays)) {
-                            setEcheqTermDays((profile?.payment_terms ?? 30) as EcheqTermDays);
-                          }
-                          if (method === "cuenta_corriente") {
-                            setCurrentAccountSharePct((prev) => Math.min(100, Math.max(0, prev || 100)));
-                          }
-                        }}
-                        className="sr-only"
-                      />
-                      <div className={`h-3 w-3 rounded-full border-2 shrink-0 flex items-center justify-center transition
-                        ${paymentMethod === method ? "border-[#2D9F6A]" : dk("border-[#404040]", "border-[#d4d4d4]")}`}>
-                        {paymentMethod === method && (
-                          <div className="h-1.5 w-1.5 rounded-full bg-[#2D9F6A]" />
-                        )}
-                      </div>
-                      <span className="text-xs font-medium leading-tight">{PAYMENT_LABELS[method]}</span>
-                    </label>
-                  ))}
-                </div>
-                {paymentMethod === "echeq" && (
-                  <div className={`rounded-xl border p-3 ${dk("border-[#1f1f1f] bg-[#171717]", "border-[#e5e5e5] bg-[#fafafa]")}`}>
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>Plazo de echeq</p>
-                        <p className={`text-[11px] ${dk("text-gray-400", "text-[#737373]")}`}>Recargo del 4,5% cada 30 días (aplicado proporcionalmente).</p>
-                      </div>
-                      <span className="text-sm font-bold text-amber-400">+ {paymentSurchargePct.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</span>
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
-                      {ECHEQ_TERM_OPTIONS.map((days) => (
-                        <button
-                          key={days}
-                          type="button"
-                          onClick={() => setEcheqTermDays(days)}
-                          className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
-                            echeqTermDays === days
-                              ? "border-[#2D9F6A] bg-[#2D9F6A]/10 text-[#2D9F6A]"
-                              : dk("border-[#262626] text-gray-300 hover:border-[#2D9F6A]/40", "border-[#e5e5e5] text-[#525252] hover:border-[#2D9F6A]/30")
-                          }`}
-                        >
-                          {days} días
-                        </button>
-                      ))}
-                    </div>
-                    <p className={`mt-3 text-xs ${dk("text-gray-400", "text-[#737373]")}`}>
-                      Recargo aplicado: {formatPrice(surchargeAmt)} sobre el total con IVA.
-                    </p>
-                  </div>
-                )}
-                {paymentMethod === "cuenta_corriente" && (
-                  <div className={`rounded-xl border p-3 ${dk("border-[#1f1f1f] bg-[#171717]", "border-[#e5e5e5] bg-[#fafafa]")}`}>
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>Cuenta corriente disponible</p>
-                        <p className={`text-[11px] ${dk("text-gray-400", "text-[#737373]")}`}>Plazo comercial: {clientPaymentTerms === 0 ? "contado" : `${clientPaymentTerms} días`}.</p>
-                      </div>
-                      <span className="text-sm font-bold text-[#2D9F6A]">{creditAvailableDisplay}</span>
-                    </div>
-                    <div className="mt-4">
-                      <div className="flex items-center justify-between text-xs mb-2">
-                        <span className={dk("text-gray-400", "text-[#737373]")}>Cuenta corriente {currentAccountSharePct}%</span>
-                        <span className={dk("text-gray-400", "text-[#737373]")}>Transferencia {100 - currentAccountSharePct}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        step={5}
-                        value={currentAccountSharePct}
-                        onChange={(e) => setCurrentAccountSharePct(Number(e.target.value))}
-                        className="w-full accent-[#2D9F6A]"
-                      />
-                      <div className="mt-3 grid gap-2 md:grid-cols-2">
-                        <div className={`rounded-lg border px-3 py-2 ${dk("border-[#262626] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")}`}>
-                          <p className="text-[11px] text-gray-500">Monto por cuenta corriente</p>
-                          <p className="text-sm font-bold text-[#2D9F6A]">{formatPrice(currentAccountAmount)}</p>
-                        </div>
-                        <div className={`rounded-lg border px-3 py-2 ${dk("border-[#262626] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")}`}>
-                          <p className="text-[11px] text-gray-500">Monto por transferencia</p>
-                          <p className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>{formatPrice(transferAmount)}</p>
-                        </div>
-                      </div>
-                      {creditAvailableArs != null && (
-                        <p className={`mt-3 text-[11px] ${currentAccountSharePct > maxCurrentAccountSharePct ? "text-amber-400" : dk("text-gray-400", "text-[#737373]")}`}>
-                          Máximo cubrible con tu disponible actual: {maxCurrentAccountSharePct}% del pedido.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
-
-          {/* -- 4. LOGÍSTICA ------------------------------------------------ */}
-          {cartItems.length > 0 && (
-            <section className={`border rounded-xl overflow-hidden ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
-              <div className={`px-4 py-2.5 border-b flex items-center gap-2 ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
-                <Truck size={13} className="text-[#2D9F6A]" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                  Logística / Envío
-                </span>
-              </div>
-              <div className="px-4 py-4">
-                <div className="flex gap-3 mb-4">
-                  {[
-                    { value: "retiro" as ShippingType, label: "Retiro en sucursal" },
-                    { value: "envio"  as ShippingType, label: "Envío a destino"    },
-                  ].map(({ value, label }) => (
-                    <label
-                      key={value}
-                      className={`flex-1 flex items-center gap-2.5 px-4 py-2.5 rounded-xl border cursor-pointer transition
-                        ${shippingType === value
-                          ? "border-[#2D9F6A] bg-[#2D9F6A]/10 text-[#2D9F6A]"
-                          : dk("border-[#1f1f1f] hover:border-[#2a2a2a] text-gray-400", "border-[#e5e5e5] hover:border-[#d4d4d4] text-gray-500")
-                        }`}
-                    >
-                      <input
-                        type="radio"
-                        name="shippingType"
-                        value={value}
-                        checked={shippingType === value}
-                        onChange={() => setShippingType(value)}
-                        className="sr-only"
-                      />
-                      <div className={`h-3 w-3 rounded-full border-2 shrink-0 flex items-center justify-center transition
-                        ${shippingType === value ? "border-[#2D9F6A]" : dk("border-[#404040]", "border-[#d4d4d4]")}`}>
-                        {shippingType === value && <div className="h-1.5 w-1.5 rounded-full bg-[#2D9F6A]" />}
-                      </div>
-                      <span className="text-xs font-medium">{label}</span>
-                    </label>
-                  ))}
-                </div>
-
-                {shippingType === "envio" && (
-                  <div className="flex flex-col gap-3">
-                    {/* Postal code + estimate */}
-                    <div className="flex gap-2">
-                      <div className="flex-1">
-                        <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>
-                          Código postal destino
-                        </label>
-                        <input
-                          type="text"
-                          value={postalCode}
-                          onChange={(e) => { setPostalCode(e.target.value); setShippingEstimates([]); }}
-                          placeholder="Ej: 1425"
-                          className={`w-full text-sm outline-none rounded-lg px-3 py-2 border transition
-                            ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A] placeholder-[#525252]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A] placeholder-[#a3a3a3]")}`}
-                        />
-                      </div>
-                      <div className="flex items-end">
-                        <button
-                          type="button"
-                          onClick={handleEstimateShipping}
-                          disabled={!postalCode.trim() || estimating}
-                          className="h-[38px] px-3 bg-[#2D9F6A] hover:bg-[#25835A] text-white text-xs font-bold rounded-lg transition disabled:opacity-40 whitespace-nowrap flex items-center gap-1.5"
-                        >
-                          <Truck size={12} /> Estimar
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Carrier estimate cards */}
-                    {shippingEstimates.length > 0 && (
-                      <div className="flex flex-col gap-2">
-                        <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Tarifas estimadas</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {shippingEstimates.map((est) => {
-                            const isSelected = shippingTransport === est.carrier;
-                            return (
-                              <button
-                                key={est.carrier}
-                                type="button"
-                                onClick={() => {
-                                  setShippingTransport(est.carrier as Transport);
-                                  setShippingCost(String(currency === "ARS" ? Math.round(est.price_usd * exchangeRate.rate) : est.price_usd));
-                                }}
-                                className={`text-left p-2.5 rounded-lg border transition text-xs ${
-                                  isSelected
-                                    ? "border-[#2D9F6A] bg-[#2D9F6A]/10"
-                                    : dk("border-[#2a2a2a] hover:border-[#3a3a3a]", "border-[#e5e5e5] hover:border-[#d4d4d4]")
-                                }`}
-                              >
-                                <p className={`font-bold mb-0.5 ${isSelected ? "text-[#2D9F6A]" : dk("text-white", "text-[#171717]")}`}>
-                                  {est.label}
-                                </p>
-                                <p className="text-[#2D9F6A] font-semibold tabular-nums">
-                                  {formatPrice(est.price_usd)}
-                                </p>
-                                <p className={`text-[10px] mt-0.5 ${dk("text-gray-500", "text-gray-500")}`}>
-                                  {est.days_min}-{est.days_max} días h-biles
-                                </p>
-                                {est.notes && (
-                                  <p className="text-[9px] text-amber-400 mt-0.5">{est.notes}</p>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>
-                        <MapPin size={11} className="inline mr-1" />
-                        Dirección de entrega
-                      </label>
-                      <input
-                        type="text"
-                        value={shippingAddress}
-                        onChange={(e) => setShippingAddress(e.target.value)}
-                        placeholder="Calle, número, ciudad, provincia"
-                        className={`w-full text-sm outline-none rounded-lg px-3 py-2 border transition
-                          ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A] placeholder-[#525252]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A] placeholder-[#a3a3a3]")}`}
-                      />
-                      {recentShippingAddresses.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {recentShippingAddresses.map((address) => (
-                            <button
-                              key={address}
-                              type="button"
-                              onClick={() => setShippingAddress(address)}
-                              className={`text-[11px] px-2.5 py-1 rounded-full border transition ${dk("border-[#2a2a2a] text-gray-400 hover:text-white hover:border-[#3a3a3a]", "border-[#e5e5e5] text-[#737373] hover:text-[#171717] hover:border-[#d4d4d4]")}`}
-                            >
-                              {address}
-                            </button>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-2">
-                      <div>
-                        <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>Transporte</label>
-                        <select
-                          value={shippingTransport}
-                          onChange={(e) => {
-                            const nextTransport = e.target.value as Transport;
-                            setShippingTransport(nextTransport);
-                            const nextEstimate = shippingEstimates.find((estimate) => estimate.carrier === nextTransport);
-                            if (nextEstimate) {
-                              setShippingCost(String(currency === "ARS" ? Math.round(nextEstimate.price_usd * exchangeRate.rate) : nextEstimate.price_usd));
-                              setShippingPaymentType("origen");
-                            }
-                          }}
-                          className={`w-full text-sm outline-none rounded-lg px-3 py-2 border transition
-                            ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]")}`}
-                        >
-                          {(Object.keys(TRANSPORT_LABELS) as Transport[]).map((t) => (
-                            <option key={t} value={t}>{TRANSPORT_LABELS[t]}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>
-                            Costo ({currency})
-                          </label>
-                          <input
-                            type="number"
-                            min={0}
-                            value={shippingPaymentType === "destino" ? "0" : shippingCost}
-                            onChange={(e) => setShippingCost(e.target.value)}
-                            disabled={shippingPaymentType === "destino" || (shippingTransport !== "otro" && shippingTransport !== "comisionista" && shippingTransport !== "expreso" && !isAdmin)}
-                            className={`w-full text-sm outline-none rounded-lg px-3 py-2 border transition
-                              ${(shippingPaymentType === "destino" || (shippingTransport !== "otro" && shippingTransport !== "comisionista" && shippingTransport !== "expreso" && !isAdmin)) 
-                                ? dk("bg-[#0d0d0d] border-[#1a1a1a] text-gray-600", "bg-[#f9f9f9] border-[#f0f0f0] text-gray-400")
-                                : dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]")}`}
-                          />
-                        </div>
-                        <div>
-                           {(shippingTransport === "comisionista" || shippingTransport === "expreso" || shippingTransport === "otro") ? (
-                             <>
-                                <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>Pago</label>
-                                <select
-                                  value={shippingPaymentType}
-                                  onChange={(e) => setShippingPaymentType(e.target.value as "origen" | "destino")}
-                                  className={`w-full text-sm outline-none rounded-lg px-3 py-2 border transition
-                                    ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]")}`}
-                                >
-                                  <option value="origen">En origen</option>
-                                  <option value="destino">En destino</option>
-                                </select>
-                             </>
-                           ) : (
-                             <>
-                                <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>Pago</label>
-                                <div className={`w-full text-xs rounded-lg px-3 py-2 border ${dk("bg-[#0d0d0d] border-[#1a1a1a] text-gray-600", "bg-[#f9f9f9] border-[#f0f0f0] text-gray-400")}`}>
-                                  En origen
-                                </div>
-                             </>
-                           )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
-
-          {/* -- 5. OBSERVACIONES -------------------------------------------- */}
-          {cartItems.length > 0 && (
-            <section className={`border rounded-xl overflow-hidden ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
-              <div className={`px-4 py-2.5 border-b flex items-center gap-2 ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
-                <FileText size={13} className="text-[#2D9F6A]" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                  Observaciones
-                </span>
-              </div>
-              <div className="px-4 py-4">
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={3}
-                  placeholder="Notas del pedido, condiciones de entrega, aclaraciones especiales..."
-                  className={`w-full text-sm outline-none rounded-lg px-3 py-2.5 border resize-none transition
-                    ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A] placeholder-[#525252]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A] placeholder-[#a3a3a3]")}`}
-                />
-                {showAdvancedSections ? (
-                  <div className="mt-3">
-                    <label className={`text-xs block mb-1.5 ${dk("text-gray-500", "text-gray-500")}`}>Motivo de revisión / excepción comercial</label>
-                    <textarea
-                      value={orderMeta.approvalReason}
-                      onChange={(e) => updateOrderMeta("approvalReason", e.target.value)}
-                      rows={2}
-                      placeholder="Explicá acá si necesitás una condición especial antes de confirmar"
-                      className={`w-full text-sm outline-none rounded-lg px-3 py-2.5 border resize-none transition
-                        ${dk("bg-[#1a1a1a] border-[#2a2a2a] text-white focus:border-[#2D9F6A] placeholder-[#525252]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A] placeholder-[#a3a3a3]")}`}
-                    />
-                  </div>
-                ) : (
-                  <div className={`mt-3 rounded-xl border px-3 py-3 text-xs ${dk("border-[#1f1f1f] bg-[#0a0a0a] text-gray-400", "border-[#e5e5e5] bg-[#fafafa] text-[#737373]")}`}>
-                    Si necesitás una excepción comercial o una condición especial, cambiá a <span className="font-semibold">Caso avanzado</span>.
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
-
-          {suggestionSections.length > 0 && (
-            <section className={`border rounded-xl overflow-hidden ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
-              <div className={`px-4 py-2.5 border-b flex items-center gap-2 ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
-                <Sparkles size={13} className="text-[#2D9F6A]" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Recompra inteligente</span>
-              </div>
-              <div className="space-y-4 p-4">
-                {suggestionSections.map((section) => (
-                  <div key={section.key}>
-                    <div className="mb-2">
-                      <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>{section.title}</p>
-                      <p className="text-[11px] text-gray-500">{section.helper}</p>
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      {section.products.map((product) => (
-                        <div
-                          key={`${section.key}-${product.id}`}
-                          className={`rounded-xl border p-3 flex gap-3 ${dk("border-[#1f1f1f] bg-[#171717]", "border-[#e5e5e5] bg-[#fafafa]")}`}
-                        >
-                          <div className={`h-12 w-12 shrink-0 rounded-lg border flex items-center justify-center ${dk("border-[#262626] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")}`}>
-                            <img src={product.image} alt={product.name} className="max-h-9 max-w-9 object-contain" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className={`text-sm font-semibold truncate ${dk("text-white", "text-[#171717]")}`}>{product.name}</p>
-                            <p className="text-[11px] text-gray-500">{product.category}</p>
-                            <div className="mt-1 flex flex-wrap items-center gap-2">
-                              <span className="text-xs font-bold text-[#2D9F6A]">{formatPrice(product.cost_price * (1 + globalMargin / 100))}</span>
-                              {(purchaseHistory[product.id] ?? 0) > 0 && (
-                                <span className="text-[10px] text-blue-400">Ya lo compraste</span>
-                              )}
-                              {favoriteProductIds.includes(product.id) && (
-                                <span className="text-[10px] text-amber-400">Favorito</span>
-                              )}
-                            </div>
-                            <div className="mt-2 flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => addQty(product.id)}
-                                className="flex-1 rounded-lg bg-[#2D9F6A] hover:bg-[#25835A] text-white text-xs font-bold px-3 py-2 transition"
-                              >
-                                Agregar
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleFavorite(product.id)}
-                                className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${dk("border-[#262626] text-gray-300 hover:bg-[#1f1f1f]", "border-[#e5e5e5] text-[#525252] hover:bg-white")}`}
-                              >
-                                {favoriteProductIds.includes(product.id) ? "Quitar fav" : "Favorito"}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-        </div>
-
-        {/* -- RIGHT COLUMN - SUMMARY + ACTIONS ---------------------------- */}
-        <aside className="lg:w-[300px] shrink-0">
-          <div className={`sticky top-[57px] border rounded-xl overflow-hidden ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`}>
-
-            {/* Summary header */}
-            <div className={`px-4 py-2.5 border-b ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Resumen del pedido</span>
-            </div>
-
-            {/* Rows */}
-            <div className="px-4 py-4 space-y-2">
-              <div className="flex justify-between items-center mt-1">
-                <span className={`text-sm font-medium ${dk("text-gray-400", "text-[#525252]")}`}>Subtotal s/IVA</span>
-                <span className={`text-sm font-bold tabular-nums ${dk("text-gray-200", "text-[#171717]")}`}>
-                  {formatPrice(cartSubtotal)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className={`text-sm font-medium ${dk("text-gray-400", "text-[#525252]")}`}>Impuestos (IVA)</span>
-                <span className={`text-sm font-bold tabular-nums ${dk("text-gray-200", "text-[#171717]")}`}>
-                  + {formatPrice(cartIVATotal)}
-                </span>
-              </div>
-              <div className={`my-3 border-b border-dashed ${dk("border-[#333]", "border-[#d4d4d4]")}`} />
-              {paymentSurchargePct > 0 && (
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-amber-400">Recargo pago {paymentSurchargePct.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</span>
-                  <span className="text-xs font-semibold text-amber-400 tabular-nums">
-                    + {formatPrice(surchargeAmt)}
-                  </span>
-                </div>
-              )}
-              {shippingType === "envio" && shippingCostBaseUsd > 0 && (
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-500">Envío</span>
-                  <span className={`text-xs font-semibold tabular-nums ${dk("text-gray-300", "text-[#525252]")}`}>
-                    + {formatPrice(shippingCostBaseUsd)}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">Unidades / peso</span>
-                <span className={`text-xs font-semibold tabular-nums ${dk("text-gray-300", "text-[#525252]")}`}>
-                  {totalUnits} u - {totalWeightKg.toFixed(1)} kg
-                </span>
-              </div>
-              {creditAvailableArs != null && (
-                <>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500">Crédito disponible</span>
-                    <span className={`text-xs font-semibold tabular-nums ${dk("text-gray-300", "text-[#525252]")}`}>
-                      {creditAvailableDisplay}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500">Disponible post pedido</span>
-                    <span className={`text-xs font-semibold tabular-nums ${projectedCreditRemainingArs != null && projectedCreditRemainingArs <= 0 ? "text-red-400" : dk("text-gray-300", "text-[#525252]")}`}>
-                      {projectedCreditRemainingDisplay}
-                    </span>
-                  </div>
-                </>
-              )}
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">Pago</span>
-                <span className={`text-xs font-semibold ${dk("text-gray-300", "text-[#525252]")}`}>
-                  {paymentSummaryLabel}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">Logística</span>
-                <span className={`text-xs font-semibold ${dk("text-gray-300", "text-[#525252]")}`}>
-                  {shippingType === "envio" ? (selectedShippingEstimate?.label || TRANSPORT_LABELS[shippingTransport]) : "Retiro"}
-                </span>
-              </div>
-              {shippingType === "envio" && selectedShippingEstimate && (
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-500">ETA estimado</span>
-                  <span className={`text-xs font-semibold ${dk("text-gray-300", "text-[#525252]")}`}>
-                    {selectedShippingEstimate.days_min}-{selectedShippingEstimate.days_max} días
-                  </span>
-                </div>
-              )}
-              <div className={`flex justify-between items-start p-4 mt-4 rounded-xl border ${dk("bg-[#0f241a] border-[#183a28]", "bg-[#eaf5ef] border-[#d4ebd8]")}`}>
-                <div>
-                  <p className={`text-[13px] font-black tracking-wide ${dk("text-white", "text-[#102d1f]")}`}>TOTAL FINAL</p>
-                  <p className={`text-[10px] font-mono mt-0.5 ${dk("text-[#7de3ad]", "text-[#25835a]")}`}>
-                    @ {exchangeRate.rate.toLocaleString("es-AR")} ARS/USD
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[22px] font-black text-[#2D9F6A] tabular-nums leading-none">
-                    {formatPrice(grandTotal)}
-                  </p>
-                  <p className={`text-[11px] font-mono mt-1 ${dk("text-[#7de3ad]/80", "text-[#25835a]/80")}`}>
-                    {currency === "USD" ? formatARS(grandTotal) : formatUSD(grandTotal)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Currency strip */}
-            <div className={`px-4 py-2 border-t flex items-center justify-between ${dk("border-[#1a1a1a] bg-[#0a0a0a]", "border-[#e5e5e5] bg-[#f9f9f9]")}`}>
-              <span className="text-[10px] text-gray-600">
-                Moneda: <span className="font-bold text-gray-500">{currency}</span>
-              </span>
-              <span className="text-[10px] text-gray-700 font-mono">
-                1 USD = {exchangeRate.rate.toLocaleString("es-AR")} ARS
-              </span>
-            </div>
-
-            {(orderMeta.internalReference || orderMeta.branchName || orderMeta.receiverContact || orderMeta.requestedDate || orderMeta.finalClientName || orderMeta.approvalReason) && (
-              <div className={`mx-3 my-2 rounded-xl border px-3 py-3 ${dk("border-[#1f1f1f] bg-[#0a0a0a]", "border-[#e5e5e5] bg-[#fafafa]")}`}>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Contexto operativo</p>
-                {orderMeta.internalReference && (
-                  <p className={`text-[11px] ${dk("text-gray-300", "text-[#525252]")}`}>OC / referencia: <span className="font-semibold">{orderMeta.internalReference}</span></p>
-                )}
-                {orderMeta.branchName && (
-                  <p className={`text-[11px] ${dk("text-gray-300", "text-[#525252]")}`}>Sucursal: <span className="font-semibold">{orderMeta.branchName}</span></p>
-                )}
-                {orderMeta.receiverContact && (
-                  <p className={`text-[11px] ${dk("text-gray-300", "text-[#525252]")}`}>Recibe: <span className="font-semibold">{orderMeta.receiverContact}</span></p>
-                )}
-                {orderMeta.requestedDate && (
-                  <p className={`text-[11px] ${dk("text-gray-300", "text-[#525252]")}`}>Fecha requerida: <span className="font-semibold">{new Date(orderMeta.requestedDate).toLocaleDateString("es-AR")}</span></p>
-                )}
-                {orderMeta.finalClientName && (
-                  <p className={`text-[11px] ${dk("text-gray-300", "text-[#525252]")}`}>Cliente final: <span className="font-semibold">{orderMeta.finalClientName}</span></p>
-                )}
-                {orderMeta.approvalReason && (
-                  <p className={`text-[11px] ${dk("text-gray-300", "text-[#525252]")}`}>Revisión comercial solicitada</p>
-                )}
-              </div>
-            )}
-
-            {/* Validation errors */}
-            {validationErrors.length > 0 && (
-              <div className="mx-3 my-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <AlertCircle size={12} className="text-red-400 shrink-0" />
-                  <span className="text-[11px] font-bold text-red-400">No se puede confirmar</span>
-                </div>
-                <ul className="space-y-0.5">
-                  {validationErrors.map((e, i) => (
-                    <li key={i} className="text-[11px] text-red-300">• {e}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* List saved feedback */}
-            {listSaved && (
-              <div className="mx-3 mb-2 p-2.5 rounded-lg bg-[#2D9F6A]/10 border border-[#2D9F6A]/20 flex items-center gap-2">
-                <CheckCircle2 size={12} className="text-[#2D9F6A] shrink-0" />
-                <span className="text-[11px] text-[#2D9F6A]">Lista guardada correctamente</span>
-              </div>
-            )}
-
-            {templateSaved && (
-              <div className="mx-3 mb-2 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2">
-                <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
-                <span className="text-[11px] text-emerald-300">Plantilla de compra guardada</span>
-              </div>
-            )}
-
-            {draftSaved && (
-              <div className="mx-3 mb-2 p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center gap-2">
-                <CheckCircle2 size={12} className="text-blue-400 shrink-0" />
-                <span className="text-[11px] text-blue-300">Borrador del checkout guardado</span>
-              </div>
-            )}
-
-            {reviewRequested && (
-              <div className="mx-3 mb-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center gap-2">
-                <Clock3 size={12} className="text-amber-400 shrink-0" />
-                <span className="text-[11px] text-amber-300">Se envió a revisión comercial como cotización</span>
-              </div>
-            )}
-
-            {showSaveTools && cartItems.length > 0 && (
-              <div className={`mx-3 mb-2 rounded-xl border px-3 py-3 ${dk("border-[#1f1f1f] bg-[#0a0a0a]", "border-[#e5e5e5] bg-[#fafafa]")}`}>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Plantillas de compra</p>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <input
-                    type="text"
-                    value={templateName}
-                    onChange={(event) => setTemplateName(event.target.value)}
-                    placeholder="Nombre de plantilla"
-                    className={`w-full min-w-0 sm:flex-1 rounded-lg border px-3 py-2 text-sm outline-none ${dk("bg-[#111] border-[#262626] text-white placeholder:text-[#404040]", "bg-white border-[#e5e5e5] text-[#171717] placeholder:text-[#a3a3a3]")}`}
-                  />
-                  <button
-                    onClick={handleSaveTemplate}
-                    className="w-full sm:w-auto sm:shrink-0 rounded-lg bg-[#2D9F6A] hover:bg-[#25835A] text-white text-xs font-bold px-3 py-2 transition"
-                  >
-                    Guardar
-                  </button>
-                </div>
-                {checkoutTemplates.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    {checkoutTemplates.slice(0, 4).map((template) => (
-                      <div key={template.id} className={`rounded-lg border px-3 py-2 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>{template.name}</p>
-                            <p className="text-[11px] text-gray-500">
-                              {template.branchName} - {template.clientType} - {template.paymentMethod}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleApplyTemplate(template)}
-                              className="text-[11px] font-semibold text-[#2D9F6A]"
-                            >
-                              Aplicar
-                            </button>
-                            <button
-                              onClick={() => handleDeleteTemplate(template.id)}
-                              className="text-[11px] font-semibold text-red-400"
-                            >
-                              Borrar
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className={`px-4 py-4 space-y-2 border-t ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
-              <div className={`rounded-xl border px-3 py-3 ${dk("border-[#1f1f1f] bg-[#0a0a0a]", "border-[#e5e5e5] bg-[#fafafa]")}`}>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Acción principal</p>
-                <p className={`mt-2 text-sm font-semibold ${dk("text-white", "text-[#171717]")}`}>
-                  {checkoutMode === "direct" ? "Cerrá el pedido o guardá la propuesta sin distraerte con herramientas secundarias." : "Tenés activadas las herramientas avanzadas para revisión comercial, reventa y plantillas."}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowSaveTools((current) => !current)}
-                  className={`mt-3 w-full rounded-lg border px-3 py-2 text-xs font-semibold transition ${dk("border-[#262626] text-gray-300 hover:bg-[#171717]", "border-[#e5e5e5] text-[#525252] hover:bg-white")}`}
-                >
-                  {showSaveTools ? "Ocultar herramientas avanzadas" : "Mostrar herramientas avanzadas"}
-                </button>
-              </div>
-              {showSaveTools && (
-                <>
-              <button
-                onClick={() => { void handleExportPDF(); }}
-                disabled={cartItems.length === 0}
-                className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm border transition-all disabled:opacity-40 disabled:pointer-events-none
-                  ${dk("border-[#1f1f1f] hover:border-[#2D9F6A]/40 text-[#737373] hover:text-[#2D9F6A] hover:bg-[#0d1f17]", "border-[#e5e5e5] hover:border-[#2D9F6A]/30 text-gray-500 hover:text-[#2D9F6A] hover:bg-green-50")}`}
-              >
-                <FileDown size={14} />
-                Generar cotización PDF
-              </button>
-              <button
-                onClick={handleSaveDraft}
-                disabled={cartItems.length === 0}
-                className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm border transition-all disabled:opacity-40 disabled:pointer-events-none
-                  ${dk("border-[#1f1f1f] hover:border-blue-500/40 text-[#737373] hover:text-blue-300 hover:bg-[#101826]", "border-[#e5e5e5] hover:border-blue-300 text-gray-500 hover:text-blue-600 hover:bg-blue-50")}`}
-              >
-                <Save size={14} />
-                Guardar borrador
-              </button>
-              {savedDraftAt && (
-                <div className={`rounded-xl border px-3 py-2 ${dk("border-[#1f1f1f] bg-[#0a0a0a]", "border-[#e5e5e5] bg-[#fafafa]")}`}>
-                  <p className="text-[11px] text-gray-500">
-                    Borrador guardado {new Date(savedDraftAt).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                  </p>
-                  <div className="mt-2 flex gap-2">
-                    <button
-                      onClick={handleRestoreDraft}
-                      className={`flex-1 rounded-lg border px-2.5 py-2 text-xs font-semibold transition ${dk("border-[#262626] text-gray-300 hover:bg-[#171717]", "border-[#e5e5e5] text-[#525252] hover:bg-white")}`}
-                    >
-                      Restaurar
-                    </button>
-                    <button
-                      onClick={clearSavedDraft}
-                      className={`flex-1 rounded-lg border px-2.5 py-2 text-xs font-semibold transition ${dk("border-[#262626] text-gray-400 hover:text-red-400 hover:bg-[#171717]", "border-[#e5e5e5] text-[#737373] hover:text-red-600 hover:bg-white")}`}
-                    >
-                      Limpiar
-                    </button>
-                  </div>
-                </div>
-              )}
-              <button
-                onClick={handleSaveList}
-                disabled={cartItems.length === 0}
-                className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm border transition-all disabled:opacity-40 disabled:pointer-events-none
-                  ${dk("border-[#1f1f1f] hover:border-[#2e2e2e] text-[#737373] hover:text-gray-200 hover:bg-[#171717]", "border-[#e5e5e5] hover:border-[#d4d4d4] text-gray-500 hover:text-gray-700")}`}
-              >
-                <Bookmark size={14} />
-                Guardar como lista
-              </button>
-                </>
-              )}
-              <button
-                onClick={handleSaveQuote}
-                disabled={cartItems.length === 0}
-                className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm border transition-all disabled:opacity-40 disabled:pointer-events-none
-                  ${dk("border-[#2D9F6A]/40 bg-[#0d1f17] text-[#7de3ad] hover:bg-[#133222]", "border-[#bde5d0] bg-green-50 text-[#1f6c48] hover:bg-green-100")}`}
-              >
-                <FileText size={14} />
-                Guardar cotización
-              </button>
-              {showAdvancedSections && (
-                <button
-                  onClick={handleRequestReview}
-                  disabled={cartItems.length === 0 || reviewSubmitting}
-                  className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm border transition-all disabled:opacity-40 disabled:pointer-events-none
-                    ${dk("border-[#3a2c10] hover:border-amber-500/40 text-amber-300 hover:text-amber-200 hover:bg-[#241a08]", "border-amber-200 hover:border-amber-300 text-amber-700 hover:text-amber-800 hover:bg-amber-50")}`}
-                >
-                  {reviewSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                  Solicitar revisión comercial
-                </button>
-              )}
-              <button
-                disabled={cartItems.length === 0 || orderSubmitting}
-                onClick={handleConfirmOrder}
-                className="w-full flex items-center justify-center gap-2 bg-[#2D9F6A] hover:bg-[#25835A] active:scale-[0.98] text-white font-bold rounded-xl py-3 text-sm transition-all disabled:opacity-50 disabled:pointer-events-none"
-              >
-                {orderSubmitting ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    Confirmando pedido...
-                  </>
-                ) : (
-                  "Confirmar pedido"
-                )}
-              </button>
-            </div>
-
-          </div>
-        </aside>
-
+      <div className="mx-auto max-w-[1680px] px-4 md:px-6 mt-4">
+        <CheckoutWizard
+          hasCartItems={cartItems.length > 0}
+          hasBlockingErrors={hasBlockingErrors}
+          isDark={isDark}
+          cartStepProps={{
+            cartItems: cartItems as CartStepCartItem[],
+            blockingIssues,
+            warningIssues,
+            orderMeta: {
+              internalReference: orderMeta.internalReference,
+              branchName: orderMeta.branchName,
+              receiverContact: orderMeta.receiverContact,
+              requestedDate: orderMeta.requestedDate,
+            },
+            formatPrice,
+            isDark,
+            onAddQty: addQty,
+            onRemoveQty: removeQty,
+            onSetQty: setQty,
+            onRemoveItem: removeItem,
+            onUpdateMeta: updateOrderMeta,
+          }}
+          shippingStepProps={{
+            shippingType,
+            shippingAddress,
+            shippingTransport,
+            shippingCost,
+            postalCode,
+            shippingPaymentType,
+            shippingEstimates,
+            estimating,
+            recentAddresses: recentShippingAddresses,
+            isAdmin,
+            currency,
+            exchangeRate: exchangeRate.rate,
+            formatPrice,
+            isDark,
+            onSetShippingType: setShippingType,
+            onSetAddress: setShippingAddress,
+            onSetTransport: (t) => {
+              setShippingTransport(t as Transport);
+              const nextEstimate = shippingEstimates.find((estimate) => estimate.carrier === t);
+              if (nextEstimate) {
+                setShippingCost(String(currency === "ARS" ? Math.round(nextEstimate.price_usd * exchangeRate.rate) : nextEstimate.price_usd));
+                setShippingPaymentType("origen");
+              }
+            },
+            onSetCost: setShippingCost,
+            onSetPostalCode: (cp) => { setPostalCode(cp); setShippingEstimates([]); },
+            onSetPaymentType: setShippingPaymentType,
+            onEstimate: handleEstimateShipping,
+            onSelectEstimate: (est) => {
+              setShippingTransport(est.carrier as Transport);
+              setShippingCost(String(currency === "ARS" ? Math.round(est.price_usd * exchangeRate.rate) : est.price_usd));
+            },
+          }}
+          paymentStepProps={{
+            baseTotal: cartBaseTotal,
+            paymentMethod,
+            echeqTermDays,
+            currentAccountSharePct,
+            creditAvailableDisplay: creditAvailableArs != null ? creditAvailableDisplay : null,
+            creditAvailableArs,
+            creditLimitArs: creditLimitArs ?? null,
+            creditUsedArs,
+            maxCurrentAccountSharePct,
+            clientPaymentTerms,
+            currentAccountAmount,
+            transferAmount,
+            formatPrice,
+            isDark,
+            onSetPaymentMethod: (m) => {
+              setPaymentMethod(m as PaymentMethod);
+              if (m === "echeq" && ECHEQ_TERM_OPTIONS.includes((profile?.payment_terms ?? 30) as EcheqTermDays)) {
+                setEcheqTermDays((profile?.payment_terms ?? 30) as EcheqTermDays);
+              }
+              if (m === "cuenta_corriente") {
+                setCurrentAccountSharePct((prev) => Math.min(100, Math.max(0, prev || 100)));
+              }
+            },
+            onSetEcheqTermDays: setEcheqTermDays,
+            onSetCurrentAccountSharePct: setCurrentAccountSharePct,
+          }}
+          confirmStepProps={{
+            internalReference: orderMeta.internalReference,
+            notes,
+            approvalReason: orderMeta.approvalReason,
+            showAdvanced: checkoutMode === "advanced",
+            cartItemCount: cartItems.length,
+            validationErrors,
+            blockingIssues,
+            orderSubmitting,
+            reviewSubmitting,
+            listSaved,
+            draftSaved,
+            templateSaved,
+            reviewRequested,
+            isDark,
+            onSetInternalReference: (r) => updateOrderMeta("internalReference", r),
+            onSetNotes: setNotes,
+            onSetApprovalReason: (r) => updateOrderMeta("approvalReason", r),
+            onConfirmOrder: () => { void handleConfirmOrder(); },
+            onSaveQuote: () => { void handleSaveQuote(); },
+            onExportPDF: () => { void handleExportPDF(); },
+            onSaveDraft: handleSaveDraft,
+            onSaveList: handleSaveList,
+            onRequestReview: () => { void handleRequestReview(); },
+          }}
+          summaryProps={{
+            cartItemCount: cartItems.length,
+            totalUnits,
+            totalWeightKg,
+            subtotal: cartSubtotal,
+            ivaTotal: cartIVATotal,
+            surchargePercent: paymentSurchargePct,
+            surchargeAmount: surchargeAmt,
+            shippingCost: shippingCostBaseUsd,
+            shippingType,
+            shippingLabel: selectedShippingEstimate?.label || TRANSPORT_LABELS[shippingTransport],
+            grandTotal,
+            paymentLabel: paymentSummaryLabel,
+            creditAvailableDisplay: creditAvailableArs != null ? creditAvailableDisplay : null,
+            projectedCreditDisplay: projectedCreditRemainingArs != null ? projectedCreditRemainingDisplay : null,
+            projectedCreditLow: projectedCreditRemainingArs != null && projectedCreditRemainingArs <= 0,
+            exchangeRate: exchangeRate.rate,
+            currency,
+            formatPrice,
+            formatARS,
+            formatUSD,
+            isDark,
+            shippingETA: shippingType === "envio" && selectedShippingEstimate
+              ? `${selectedShippingEstimate.days_min}-${selectedShippingEstimate.days_max} días`
+              : undefined,
+          }}
+        />
       </div>
       </div>
     </div>
   );
 }
-
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
+import { parseInternalReferenceFromNotes } from "@/lib/cartCheckout";
 import { logActivity } from "@/lib/api/activityLog";
 import { trackFirstOrder, trackOrderPlaced } from "@/lib/marketingTracker";
 
@@ -12,6 +13,8 @@ export interface PortalOrder {
   status: "pending_approval" | "pending" | "approved" | "preparing" | "shipped" | "delivered" | "rejected" | "dispatched";
   /** Número correlativo visible: ORD-0001, ORD-0002 … generado server-side */
   order_number?: string;
+  /** Número de PO / Referencia interna del cliente parsed from notes */
+  internal_reference?: string;
   /** Número de remito al despachar */
   numero_remito?: string;
   payment_method?: string;
@@ -68,13 +71,13 @@ export function useOrders() {
 
       if (!error && data) {
         // Merge: prefer order_items rows when available, fall back to JSONB products
-        const merged = (data as (PortalOrder & { order_items?: PortalOrderProduct[] })[]).map((order) => {
-          const normalizedItems = order.order_items;
-          if (normalizedItems && normalizedItems.length > 0) {
-            return { ...order, products: normalizedItems };
-          }
-          // Fallback: keep existing JSONB products array
-          return order;
+        const merged = (data as any[]).map((order) => {
+          const finalOrder = { 
+            ...order, 
+            products: order.order_items && order.order_items.length > 0 ? order.order_items : order.products,
+            internal_reference: parseInternalReferenceFromNotes(order.notes ?? "")
+          };
+          return finalOrder;
         });
         setOrders(merged as PortalOrder[]);
       }
@@ -114,11 +117,11 @@ export function useOrders() {
       if (error) throw error;
 
       const merged = ((data || []) as (PortalOrder & { order_items?: PortalOrderProduct[] })[]).map((order) => {
-        const normalizedItems = order.order_items;
-        if (normalizedItems && normalizedItems.length > 0) {
-          return { ...order, products: normalizedItems };
-        }
-        return order;
+        return { 
+          ...order, 
+          products: order.order_items && order.order_items.length > 0 ? order.order_items : order.products,
+          internal_reference: parseInternalReferenceFromNotes(order.notes ?? "")
+        };
       });
       return merged as PortalOrder[];
     } catch (err) {

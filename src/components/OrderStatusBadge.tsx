@@ -1,5 +1,5 @@
 import type { OrderStatus } from "@/models/order";
-import { CheckCircle2, Clock, Package, Truck, XCircle, type LucideIcon } from "lucide-react";
+import { CheckCircle2, Clock, Package, Truck, XCircle, PackageCheck, type LucideIcon } from "lucide-react";
 
 const STATUS_CONFIG: Record<
   OrderStatus,
@@ -39,6 +39,11 @@ const STATUS_CONFIG: Record<
     label: "Despachado",
     icon: Truck,
     className: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  },
+  picked: {
+    label: "Pickeado para Andreani",
+    icon: PackageCheck,
+    className: "bg-purple-500/15 text-purple-400 border-purple-500/30",
   },
 };
 

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { fetchInvoices, type Invoice } from "@/lib/api/invoices";
+import { parseInternalReferenceFromNotes } from "@/lib/cartCheckout";
 
 interface OrderRow {
   id: string | number;
@@ -26,6 +27,8 @@ interface OrderRow {
   total: number;
   status: string;
   order_number?: string;
+  internal_reference?: string;
+  notes?: string;
   created_at: string;
 }
 
@@ -292,10 +295,10 @@ export function ApprovalsTab({
     setCorporateLoading(true);
     const { data } = await supabase
       .from("orders")
-      .select("id, client_id, total, status, order_number, created_at")
+      .select("id, client_id, total, status, order_number, created_at, notes, payment_method")
       .eq("status", "pending_approval")
-      .order("created_at", { ascending: false })
-      .limit(50);
+      .order("created_at", { ascending: false });
+
     if (data) {
       const enriched = await Promise.all((data as OrderRow[]).map(async (o) => {
         const { data: prof } = await supabase
@@ -303,7 +306,13 @@ export function ApprovalsTab({
           .select("company_name, contact_name, b2b_role, approval_threshold")
           .eq("id", o.client_id)
           .single();
-        return { ...o, buyer_name: (prof as any)?.company_name || (prof as any)?.contact_name || o.client_id, b2b_role: (prof as any)?.b2b_role, approval_threshold: (prof as any)?.approval_threshold };
+        return { 
+          ...o, 
+          buyer_name: (prof as any)?.company_name || (prof as any)?.contact_name || o.client_id, 
+          b2b_role: (prof as any)?.b2b_role, 
+          approval_threshold: (prof as any)?.approval_threshold,
+          internal_reference: parseInternalReferenceFromNotes(o.notes ?? "")
+        };
       }));
       setCorporatePending(enriched);
     }
@@ -326,7 +335,13 @@ export function ApprovalsTab({
     await load();
   }
 
-  const pendingOrders = useMemo(() => orders.filter((order) => order.status === "pending"), [orders]);
+  const pendingOrders = useMemo(() => orders
+    .filter((order) => order.status === "pending")
+    .map(o => ({
+      ...o,
+      internal_reference: o.internal_reference || parseInternalReferenceFromNotes(o.notes ?? "")
+    }))
+  , [orders]);
   const orderExceptions = pendingOrders.filter((order) => orderReasons(order).length > 0);
   const quoteExceptions = quotes.filter((quote) => quoteReasons(quote).length > 0);
 
@@ -591,11 +606,25 @@ export function ApprovalsTab({
           ) : (
             pendingOrders.slice(0, 8).map((order) => {
               const reasons = orderReasons(order);
+              const isCreditRisk = reasons.some(r => r.includes("Crédito usado"));
+              
               return (
-                <div key={order.id} className={`px-4 py-3 border-t space-y-2 ${dk("border-[#1a1a1a]", "border-[#f0f0f0]")}`}>
+                <div key={order.id} className={`px-4 py-3 border-t space-y-2 transition-colors ${isCreditRisk ? dk("bg-amber-500/5", "bg-amber-50/50") : ""} ${dk("border-[#1a1a1a]", "border-[#f0f0f0]")}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className={`text-sm font-semibold ${dk("text-white", "text-[#171717]")}`}>{order.order_number ?? `#${String(order.id).slice(-6).toUpperCase()}`}</p>
+                      <div className="flex items-center gap-2">
+                        <p className={`text-sm font-semibold ${dk("text-white", "text-[#171717]")}`}>
+                          {order.order_number ?? `#${String(order.id).slice(-6).toUpperCase()}`}
+                        </p>
+                        {isCreditRisk && (
+                          <span className="animate-pulse flex h-2 w-2 rounded-full bg-amber-500" title="Riesgo de Crédito" />
+                        )}
+                        {order.internal_reference && (
+                          <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-1 py-0.5 text-[9px] font-bold text-amber-500">
+                            PO: {order.internal_reference}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[11px] text-gray-500 mt-0.5">{clientMap[order.client_id] || order.client_id}</p>
                     </div>
                     <span className="text-xs text-[#2D9F6A] font-semibold">{fmtMoney(order.total)}</span>

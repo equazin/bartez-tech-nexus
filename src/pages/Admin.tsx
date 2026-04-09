@@ -17,7 +17,7 @@ import {
   Users, Package, ClipboardList, LogOut, UserPlus, X, Plus,
   DollarSign, Pencil, Check, LayoutDashboard, Sun, Moon, Phone,
   Truck, Download, Building2, Tag, BarChart2, Activity, Wifi, Bookmark, Flame,
-  Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag, Image, LifeBuoy, Ticket, Globe, RotateCcw, Handshake, ShieldCheck, Bell, type LucideIcon,
+  Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag, Image, LifeBuoy, Ticket, Globe, RotateCcw, Handshake, ShieldCheck, Bell, PackageCheck, type LucideIcon,
 } from "lucide-react";
 import { exportOrdersCSV, exportCatalogCSV, exportReportsCSV } from "@/lib/exportCsv";
 import { exportCatalogPdf, exportRemitoPdf } from "@/lib/exportPdf";
@@ -204,6 +204,7 @@ function LegacyStatusBadge({ status }: { status: string }) {
     delivered:  { label: "Entregado",  icon: CheckCircle2, className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
     rejected:   { label: "Rechazado",  icon: XCircle,      className: "bg-red-500/15 text-red-400 border-red-500/30" },
     dispatched: { label: "Despachado", icon: Truck,        className: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
+    picked:     { label: "Pickeado (Andreani)", icon: PackageCheck, className: "bg-purple-500/15 text-purple-400 border-purple-500/30" },
   };
   const { label, icon: Icon, className } = map[status] ?? map.pending;
   return (

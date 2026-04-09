@@ -7,6 +7,7 @@ import {
   Clock,
   CreditCard,
   FileText,
+  LayoutGrid,
   MessageSquare,
   Package,
   Plus,
@@ -14,6 +15,7 @@ import {
   ShoppingCart,
   ShieldCheck,
   Truck,
+  User,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -30,6 +32,7 @@ import { convertMoneyAmount, formatMoneyAmount, getEffectiveInvoiceAmounts } fro
 import { supabase } from "@/lib/supabase";
 import type { UserProfile } from "@/lib/supabase";
 import type { Product } from "@/models/products";
+import { WelcomeHero } from "@/components/b2b/WelcomeHero";
 
 
 export interface AssignedSeller {
@@ -360,6 +363,36 @@ export function ClientDashboard({
     success: "border-primary/20 bg-primary/5",
   } as const;
 
+  // ── New client detection ──────────────────────────────────────────
+  const isNewClient = orders.length === 0 && invoices.length === 0;
+
+  if (isNewClient) {
+    const creditDisplayStr = creditLimit > 0
+      ? formatMoneyAmount(convertMoneyAmount(Math.max(0, creditLimit - creditUsed), "ARS", currency, exchangeRate.rate), currency, 0)
+      : undefined;
+    return (
+      <WelcomeHero
+        clientName={profile.contact_name ?? ""}
+        companyName={profile.company_name ?? undefined}
+        creditDisplay={creditDisplayStr}
+        activeAgreementName={activeAgreement?.name}
+        sellerName={assignedSeller?.name}
+        sellerUrl={sellerUrl}
+        onGoToCatalog={() => onGoTo("catalog")}
+        onGoToQuotes={() => onGoTo("quotes")}
+        onGoToAccount={() => onGoTo("cuenta")}
+      />
+    );
+  }
+
+  // ── Quick access links ────────────────────────────────────────────
+  const quickAccess = [
+    { icon: Package, label: "Catálogo", hint: "Buscar productos", tab: "catalog" as const, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+    { icon: ShoppingCart, label: "Checkout", hint: "Ir al carrito", tab: "orders" as const, color: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+    { icon: FileText, label: "Cotizaciones", hint: "Ver propuestas", tab: "quotes" as const, color: "bg-violet-500/10 text-violet-600 dark:text-violet-400" },
+    { icon: User, label: "Mi cuenta", hint: "Datos y crédito", tab: "cuenta" as const, color: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  ];
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 animate-in fade-in duration-500">
 
@@ -459,6 +492,26 @@ export function ClientDashboard({
           </div>
         </SurfaceCard>
       )}
+
+      {/* ── QUICK ACCESS GRID ──────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {quickAccess.map(({ icon: Icon, label, hint, tab, color }) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => onGoTo(tab)}
+            className="group flex items-center gap-3 rounded-2xl border border-border/70 bg-card/80 p-3 text-left transition-all hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-md active:scale-[0.98]"
+          >
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${color} transition-transform group-hover:scale-110`}>
+              <Icon size={16} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-foreground">{label}</p>
+              <p className="text-[10px] text-muted-foreground">{hint}</p>
+            </div>
+          </button>
+        ))}
+      </div>
 
       {/* ── SPENDING SUMMARY (only if history) ───────────────────────── */}
       {spendingStats.ytdCount > 0 && (
@@ -595,6 +648,11 @@ export function ClientDashboard({
               <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${ORDER_STATUS_CLASS[lastOrder.status] ?? "border-border bg-muted text-muted-foreground"}`}>
                 {ORDER_STATUS_LABEL[lastOrder.status] ?? lastOrder.status}
               </span>
+              {lastOrder.internal_reference && (
+                <Badge variant="outline" className="border-amber-500/30 bg-amber-500/5 text-amber-600 dark:text-amber-400 text-[10px]">
+                  PO: {lastOrder.internal_reference}
+                </Badge>
+              )}
             </div>
             <p className="text-sm text-muted-foreground">
               {new Date(lastOrder.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })} —{" "}

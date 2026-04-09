@@ -19,14 +19,17 @@ import { exportCatalogCSV } from "@/lib/exportCsv";
 import { exportCatalogPdf } from "@/lib/exportPdf";
 import { useNotifications } from "@/hooks/useNotifications";
 import ProductCompare from "@/components/ProductCompare";
+import { ComparisonBar } from "@/components/b2b/ComparisonBar";
 import { Link } from "react-router-dom";
 import { fetchMyInvoices, type Invoice } from "@/lib/api/invoices";
 import type { Product } from "@/models/products";
+import { getRecentlyViewedIds, addRecentlyViewed, clearRecentlyViewed } from "@/components/b2b/RecentlyViewed";
 import { OrdersPanel } from "@/components/b2b/OrdersPanel";
 import { InvoicesPanel } from "@/components/b2b/InvoicesPanel";
 import { ApprovalsPanel } from "@/components/b2b/ApprovalsPanel";
 import { RmaPanel } from "@/components/b2b/RmaPanel";
 import { PortalHeader } from "@/components/b2b/PortalHeader";
+import WhatsAppFloat from "@/components/WhatsAppFloat";
 import { PortalSidebar } from "@/components/b2b/PortalSidebar";
 import { AccountCenter } from "@/components/b2b/AccountCenter";
 import { SupportCenter } from "@/components/b2b/SupportCenter";
@@ -52,6 +55,7 @@ import {
 import { QuoteList } from "@/components/QuoteList";
 import { MapPin } from "lucide-react";
 import { OrderStatusBadge as StatusBadge } from "@/components/OrderStatusBadge";
+import { EmptyQuotesState } from "@/components/b2b/empty-states/EmptyQuotesState";
 
 // â”€â”€ Theme helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -111,7 +115,9 @@ export default function B2BPortal() {
   const [themeFlash, setThemeFlash] = useState(false);
   const [themeSwitchReady, setThemeSwitchReady] = useState(true);
   const [compareList, setCompareList] = useState<number[]>([]);
+  const [showCompareTable, setShowCompareTable] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [recentlyViewedIds, setRecentlyViewedIds] = useState<number[]>(getRecentlyViewedIds());
   const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null);
   const [warehouses, setWarehouses] = useState<{ id: string; name: string; address: string; allows_pickup: boolean }[]>([]);
   const [quickSku, setQuickSku] = useState("");
@@ -420,6 +426,9 @@ export default function B2BPortal() {
         exchangeRate={exchangeRate}
         onRefreshRate={() => fetchExchangeRate().catch(() => {})}
         isFetchingRate={isFetchingRate}
+        creditLimit={!isAdmin && profile?.credit_limit != null && profile.credit_limit > 0 ? profile.credit_limit : undefined}
+        creditAvailable={!isAdmin && profile?.credit_limit != null && profile.credit_limit > 0 ? Math.max(0, profile.credit_limit - creditUsed) : undefined}
+        partnerLevel={profile?.partner_level as string | undefined}
       />
 
 
@@ -459,6 +468,14 @@ export default function B2BPortal() {
             }`}
           >
             <Users size={13} /> Gestión de Cuenta
+            {(() => {
+              const accountNotifications = myInvoices.filter(i => ["sent", "overdue", "draft"].includes(i.status)).length + pendingApprovals;
+              return accountNotifications > 0 ? (
+                <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">
+                  {accountNotifications}
+                </span>
+              ) : null;
+            })()}
             <svg
               width="10"
               height="6"
@@ -653,11 +670,19 @@ export default function B2BPortal() {
               handleSmartAddToCart={cart.handleSmartAddToCart}
               handleToggleFavorite={cart.handleToggleFavorite}
               toggleCompare={toggleCompare}
-              setSelectedProduct={setSelectedProduct}
+              setSelectedProduct={(p) => {
+                if (p) setRecentlyViewedIds(addRecentlyViewed(p.id));
+                setSelectedProduct(p);
+              }}
               isPosProduct={catalog.isPosProduct}
               favoriteProductIds={cart.favoriteProductIds}
               compareList={compareList}
               addedIds={cart.addedIds}
+              recentlyViewedIds={recentlyViewedIds}
+              onClearRecentlyViewed={() => {
+                clearRecentlyViewed();
+                setRecentlyViewedIds([]);
+              }}
               purchaseHistory={cart.purchaseHistory}
               latestPurchaseUnitPrice={cart.latestPurchaseUnitPrice}
               page={catalog.page}
@@ -700,6 +725,12 @@ export default function B2BPortal() {
 
           {/* QUOTES */}
           {activeTab === "quotes" && (
+            quotes.length === 0 ? (
+              <EmptyQuotesState
+                onGoToCatalog={() => setPortalTab("catalog")}
+                onGoToCart={() => navigate("/cart")}
+              />
+            ) : (
             <div className="mx-auto max-w-[1480px] space-y-4">
               <div className="rounded-[24px] border border-border/70 bg-card px-5 py-4 shadow-sm">
                 <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Cotizaciones</p>
@@ -740,6 +771,7 @@ export default function B2BPortal() {
                 onConvertToOrder={cart.handleConvertQuoteToOrder}
               />
             </div>
+            )
           )}
 
           {/* ACCOUNT */}
@@ -845,12 +877,31 @@ export default function B2BPortal() {
         </main>
       </div>
 
-      {/* COMPARE FLOAT */}
-      {compareList.length > 0 && (
-        <ProductCompare
-          products={catalog.products.filter((p) => compareList.includes(p.id))}
+      {/* COMPARE FLOAT & TABLE */}
+      {compareList.length > 0 && !showCompareTable && (
+        <ComparisonBar
+          compareList={compareList}
+          products={catalog.products}
+          onCompare={() => setShowCompareTable(true)}
           onRemove={(id) => setCompareList((prev) => prev.filter((x) => x !== id))}
           onClear={() => setCompareList([])}
+        />
+      )}
+      
+      {compareList.length > 0 && showCompareTable && (
+        <ProductCompare
+          products={catalog.products.filter((p) => compareList.includes(p.id))}
+          onRemove={(id) => {
+            setCompareList((prev) => {
+              const updated = prev.filter((x) => x !== id);
+              if (updated.length === 0) setShowCompareTable(false);
+              return updated;
+            });
+          }}
+          onClear={() => {
+            setCompareList([]);
+            setShowCompareTable(false);
+          }}
           formatPrice={formatPrice}
           currency={currency}
         />
@@ -871,9 +922,16 @@ export default function B2BPortal() {
           onClose={() => setSelectedProduct(null)}
           onAddToCart={cart.handleAddToCart}
           onRemoveFromCart={cart.onRemoveFromCart}
+          onSelectProduct={(p) => {
+            if (p) setRecentlyViewedIds(addRecentlyViewed(p.id));
+            setSelectedProduct(p);
+          }}
+          allProducts={catalog.products}
         />
       )}
       </div>
+
+      {!isAdmin && <WhatsAppFloat />}
     </div>
   );
 }

@@ -6,6 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { SmartCompatibility } from "@/components/b2b/SmartCompatibility";
 import { StockBadge } from "@/components/b2b/StockBadge";
+import { DeliveryEstimate } from "@/components/b2b/DeliveryEstimate";
+import { WarrantyBadge } from "@/components/b2b/WarrantyBadge";
+import { RelatedProducts } from "@/components/b2b/RelatedProducts";
 import type { PriceResult } from "@/hooks/usePricing";
 import { getAvailableStock } from "@/lib/pricing";
 import { resolveProductImageUrl } from "@/lib/productImage";
@@ -133,6 +136,8 @@ export interface ProductDetailModalProps {
   onClose: () => void;
   onAddToCart: (p: Product) => void;
   onRemoveFromCart: (p: Product) => void;
+  onSelectProduct?: (p: Product) => void;
+  allProducts?: Product[];
 }
 
 export function ProductDetailModal({
@@ -148,6 +153,8 @@ export function ProductDetailModal({
   onClose,
   onAddToCart,
   onRemoveFromCart,
+  onSelectProduct,
+  allProducts = [],
 }: ProductDetailModalProps) {
   const SPEC_PREVIEW_LIMIT = 20;
   const SPEC_VIRTUALIZE_THRESHOLD = 80;
@@ -175,8 +182,10 @@ export function ProductDetailModal({
   const [compatibilityInView, setCompatibilityInView] = useState(true);
   const [showAllSpecs, setShowAllSpecs] = useState(false);
   const [specScrollTop, setSpecScrollTop] = useState(0);
+  const [showStickyBar, setShowStickyBar] = useState(false);
   const modalScrollRef = useRef<HTMLDivElement | null>(null);
   const compatibilityRef = useRef<HTMLDivElement | null>(null);
+  const ctaRef = useRef<HTMLDivElement | null>(null);
 
   const publicSpecs = useMemo(() => (
     product.specs
@@ -248,6 +257,24 @@ export function ProductDetailModal({
     observer.observe(compatibilityRef.current);
     return () => observer.disconnect();
   }, [product.id, compatibilityReady]);
+
+  // Sticky bar observer — watches main CTA to toggle sticky bar
+  useEffect(() => {
+    if (!ctaRef.current || !modalScrollRef.current) return undefined;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setShowStickyBar(!entry.isIntersecting);
+      },
+      {
+        root: modalScrollRef.current,
+        threshold: 0,
+      },
+    );
+
+    observer.observe(ctaRef.current);
+    return () => observer.disconnect();
+  }, [product.id]);
 
   function handleRequestClose() {
     if (isClosing) return;
@@ -399,13 +426,34 @@ export function ProductDetailModal({
                 </div>
               </div>
 
-              <div className="grid gap-2 md:grid-cols-2">
-                {commercialSignals.map((signal) => (
-                  <div key={signal.label} className="rounded-2xl border border-border/70 bg-card px-3 py-3">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{signal.label}</p>
-                    <p className="mt-1 text-sm font-semibold text-foreground">{signal.value}</p>
+              <div className="rounded-2xl border border-border/70 bg-surface/30 overflow-hidden">
+                <div className="px-3 py-2 border-b border-border/50">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Información de compra</p>
+                </div>
+                <div className="divide-y divide-border/40">
+                  <div className="px-3 py-3 flex items-center justify-between gap-3">
+                    <span className="text-[11px] font-medium text-muted-foreground">Entrega</span>
+                    <DeliveryEstimate stock={product.stock} stockReserved={product.stock_reserved} compact />
                   </div>
-                ))}
+                  <div className="px-3 py-3 flex items-center justify-between gap-3">
+                    <span className="text-[11px] font-medium text-muted-foreground">Garantía</span>
+                    <WarrantyBadge product={product} compact />
+                  </div>
+                  <div className="px-3 py-3 flex items-center justify-between gap-3">
+                    <span className="text-[11px] font-medium text-muted-foreground">Stock</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {availableStock > 0 ? `${availableStock} unidades disponibles` : "Sin stock inmediato"}
+                    </span>
+                  </div>
+                  <div className="px-3 py-3 flex items-center justify-between gap-3">
+                    <span className="text-[11px] font-medium text-muted-foreground">Condición</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {product.min_order_qty && product.min_order_qty > 1
+                        ? `Pedido mínimo ${product.min_order_qty} unidades`
+                        : "Venta directa disponible"}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {product.price_tiers?.length ? (
@@ -528,6 +576,26 @@ export function ProductDetailModal({
                 </div>
               ) : null}
             </div>
+
+              {/* Related Products */}
+              {allProducts.length > 0 && (
+                <RelatedProducts
+                  currentProduct={product}
+                  allProducts={allProducts}
+                  computePrice={computePrice}
+                  formatPrice={formatPrice}
+                  onSelect={(p) => {
+                    if (onSelectProduct) {
+                      handleRequestClose();
+                      window.setTimeout(() => onSelectProduct(p), ANIMATION_MS + 50);
+                    }
+                  }}
+                  onAddToCart={(p) => onAddToCart(p)}
+                />
+              )}
+
+              {/* CTA anchor for IntersectionObserver */}
+              <div ref={ctaRef} />
           </div>
         </div>
 
@@ -552,6 +620,31 @@ export function ProductDetailModal({
             </Button>
           )}
         </div>
+
+        {/* Sticky add-to-cart bar — appears when main CTA scrolls out */}
+        {showStickyBar && !outOfStock && (
+          <div className="absolute inset-x-0 bottom-[68px] z-20 animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <div className="mx-3 flex items-center gap-3 rounded-2xl border border-primary/20 bg-background/95 px-4 py-2.5 shadow-xl backdrop-blur-lg">
+              <p className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">{product.name}</p>
+              <span className="shrink-0 text-sm font-bold tabular-nums text-primary">{formatPrice(unitPrice)}</span>
+              {inCart > 0 ? (
+                <div className="flex items-center gap-1.5">
+                  <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => onRemoveFromCart(product)}>
+                    <Minus size={12} />
+                  </Button>
+                  <span className="w-8 text-center text-sm font-bold text-foreground">{inCart}</span>
+                  <Button size="icon" className="h-8 w-8 rounded-lg" onClick={() => onAddToCart(product)}>
+                    <Plus size={12} />
+                  </Button>
+                </div>
+              ) : (
+                <Button size="sm" className="h-8 rounded-xl px-4 text-xs font-bold" onClick={() => onAddToCart(product)}>
+                  Agregar
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
