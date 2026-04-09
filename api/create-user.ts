@@ -248,8 +248,12 @@ async function handleRegistrationRequest(req: VercelRequest, res: VercelResponse
 
   const adminClient = getSupabaseAdmin();
   const normalizedCuit = cuit.replace(/\D/g, "");
+  const normalizedTaxStatus = typeof tax_status === "string" ? tax_status.trim() : "";
   if (normalizedCuit.length !== 11) {
     return fail(res, "El CUIT debe tener 11 digitos.", 400);
+  }
+  if (!normalizedTaxStatus) {
+    return fail(res, "Selecciona la condicion fiscal.", 400);
   }
 
   const assignedExecutive = await resolveAssignedExecutive(adminClient, cuit);
@@ -260,7 +264,7 @@ async function handleRegistrationRequest(req: VercelRequest, res: VercelResponse
     email: (email as string).trim().toLowerCase(),
     requested_password: password,
     entity_type: typeof entity_type === "string" ? entity_type : "empresa",
-    tax_status: typeof tax_status === "string" ? tax_status : "responsable_inscripto",
+    tax_status: normalizedTaxStatus,
     assigned_to: assignedExecutive?.email ?? null,
     assigned_seller_id: assignedExecutive?.id ?? null,
     status: "pending" as const,

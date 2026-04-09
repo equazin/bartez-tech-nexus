@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -22,6 +22,7 @@ import {
   isCuitChecksumValid,
   validateCuit,
   type CuitEntityType,
+  type TaxStatus,
 } from "@/lib/api/afip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,22 +32,26 @@ import { SurfaceCard } from "@/components/ui/surface-card";
 
 type AfipData = {
   companyName: string;
-  taxStatus: string;
   entityType: CuitEntityType;
 };
 
 const steps = [
-  { id: 1, label: "Validación fiscal", icon: Landmark },
+  { id: 1, label: "Validacion fiscal", icon: Landmark },
   { id: 2, label: "Datos de acceso", icon: Lock },
-  { id: 3, label: "Confirmación", icon: CheckCircle2 },
+  { id: 3, label: "Confirmacion", icon: CheckCircle2 },
 ] as const;
 
-const TAX_STATUS_LABELS: Record<string, string> = {
+const TAX_STATUS_LABELS: Record<TaxStatus, string> = {
   responsable_inscripto: "Responsable Inscripto",
   monotributista: "Monotributista",
   exento: "Exento",
   consumidor_final: "Consumidor Final",
 };
+
+const TAX_STATUS_OPTIONS = Object.entries(TAX_STATUS_LABELS).map(([value, label]) => ({
+  value: value as TaxStatus,
+  label,
+}));
 
 const Register = () => {
   const navigate = useNavigate();
@@ -60,27 +65,33 @@ const Register = () => {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
-  const [assignedExecutive, setAssignedExecutive] = useState<string | null>(null);
-  const [assignedExecutiveDetails, setAssignedExecutiveDetails] = useState<{ name: string; role: string; email: string } | null>(null);
+  const [taxStatus, setTaxStatus] = useState<TaxStatus | "">("");
+  const [assignedExecutiveDetails, setAssignedExecutiveDetails] = useState<{
+    name: string;
+    role: string;
+    email: string;
+  } | null>(null);
 
   const executive = assignedExecutiveDetails;
 
-  // Derived from current raw digits
   const rawDigits = cuit.replace(/\D/g, "");
-  const detectedEntity: CuitEntityType | null = rawDigits.length >= 2 ? detectCuitEntityType(rawDigits) : null;
-  const checksumValid = rawDigits.length === 11 ? isCuitChecksumValid(rawDigits) : null;
+  const detectedEntity: CuitEntityType | null =
+    rawDigits.length >= 2 ? detectCuitEntityType(rawDigits) : null;
+  const checksumValid =
+    rawDigits.length === 11 ? isCuitChecksumValid(rawDigits) : null;
 
-  // Auto-lookup when CUIT is complete and valid
   const lookupRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookedUp, setLookedUp] = useState(false);
 
   useEffect(() => {
     if (lookupRef.current) clearTimeout(lookupRef.current);
+
     if (rawDigits.length !== 11 || !isCuitChecksumValid(rawDigits)) {
       setLookedUp(false);
       return;
     }
+
     lookupRef.current = setTimeout(async () => {
       setLookupLoading(true);
       setError("");
@@ -88,18 +99,20 @@ const Register = () => {
         const result = await validateCuit(rawDigits);
         setAfipData({
           companyName: result.companyName,
-          taxStatus: TAX_STATUS_LABELS[result.taxStatus] ?? result.taxStatus.replace(/_/g, " "),
           entityType: result.entityType,
         });
         setName(result.companyName);
         setLookedUp(true);
       } catch {
-        // silently fail — user can still submit manually
+        // Silent fail: the user can still continue manually after validating.
       } finally {
         setLookupLoading(false);
       }
     }, 600);
-    return () => { if (lookupRef.current) clearTimeout(lookupRef.current); };
+
+    return () => {
+      if (lookupRef.current) clearTimeout(lookupRef.current);
+    };
   }, [rawDigits]);
 
   function handleCuitChange(value: string) {
@@ -107,6 +120,7 @@ const Register = () => {
     setError("");
     setLookedUp(false);
     setAfipData(null);
+    setTaxStatus("");
   }
 
   const handleValidateCuit = async (event: FormEvent<HTMLFormElement>) => {
@@ -114,28 +128,34 @@ const Register = () => {
     setError("");
 
     if (rawDigits.length !== 11) {
-      setError("El CUIT debe tener 11 dígitos.");
+      setError("El CUIT debe tener 11 digitos.");
       return;
     }
+
     if (!isCuitChecksumValid(rawDigits)) {
-      setError("El CUIT ingresado no es válido. Verificá los números.");
+      setError("El CUIT ingresado no es valido. Verifica los numeros.");
       return;
     }
 
     setLoading(true);
     try {
-      // Re-use already-fetched data if available
       const existing = lookedUp && afipData ? afipData : null;
-      const result = existing ?? await validateCuit(rawDigits).then((r) => ({
-        companyName: r.companyName,
-        taxStatus: TAX_STATUS_LABELS[r.taxStatus] ?? r.taxStatus.replace(/_/g, " "),
-        entityType: r.entityType,
-      }));
+      const result =
+        existing ??
+        (await validateCuit(rawDigits).then((response) => ({
+          companyName: response.companyName,
+          entityType: response.entityType,
+        })));
+
       setAfipData(result);
       setName(result.companyName);
       setStep(2);
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "No pudimos validar este CUIT en AFIP.");
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "No pudimos validar este CUIT en AFIP.",
+      );
     } finally {
       setLoading(false);
     }
@@ -144,6 +164,12 @@ const Register = () => {
   const handleFinalSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
+
+    if (!taxStatus) {
+      setError("Selecciona tu condicion fiscal.");
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch("/api/create-user", {
@@ -156,16 +182,27 @@ const Register = () => {
           email,
           password,
           entity_type: afipData?.entityType ?? "empresa",
-          tax_status: afipData?.taxStatus ?? "responsable_inscripto",
+          tax_status: taxStatus,
         }),
       });
-      const json = await res.json() as {
+
+      const json = (await res.json()) as {
         ok: boolean;
-        data?: { assigned_to: string | null; assigned_executive?: { name?: string; role?: string; email?: string } | null };
+        data?: {
+          assigned_to: string | null;
+          assigned_executive?: {
+            name?: string;
+            role?: string;
+            email?: string;
+          } | null;
+        };
         error?: string;
       };
-      if (!json.ok) throw new Error(json.error ?? "No pudimos procesar la solicitud.");
-      setAssignedExecutive(json.data?.assigned_to ?? null);
+
+      if (!json.ok) {
+        throw new Error(json.error ?? "No pudimos procesar la solicitud.");
+      }
+
       setAssignedExecutiveDetails(
         json.data?.assigned_executive?.email
           ? {
@@ -177,7 +214,11 @@ const Register = () => {
       );
       setStep(3);
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "No pudimos procesar la solicitud.");
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "No pudimos procesar la solicitud.",
+      );
     } finally {
       setLoading(false);
     }
@@ -198,10 +239,18 @@ const Register = () => {
       >
         <div className="mb-10 text-center">
           <Link to="/" className="mb-6 inline-flex items-center gap-3">
-            <img src="/android-chrome-512x512.png" alt="Bartez" className="h-16 w-16 rounded-2xl object-contain" />
+            <img
+              src="/android-chrome-512x512.png"
+              alt="Bartez"
+              className="h-16 w-16 rounded-2xl object-contain"
+            />
             <div className="text-left">
-              <span className="block font-display text-2xl font-black tracking-tight text-foreground">BARTEZ</span>
-              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Canal empresas</span>
+              <span className="block font-display text-2xl font-black tracking-tight text-foreground">
+                BARTEZ
+              </span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Canal empresas
+              </span>
             </div>
           </Link>
 
@@ -229,20 +278,36 @@ const Register = () => {
                     />
                   </div>
                 ) : null}
+
                 <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-card/80 px-4 py-3 backdrop-blur-sm">
                   <div
                     className={[
                       "flex h-10 w-10 items-center justify-center rounded-2xl border transition-colors",
                       isComplete ? "border-primary bg-primary text-primary-foreground" : "",
                       isActive ? "border-primary bg-primary/10 text-primary" : "",
-                      !isComplete && !isActive ? "border-border bg-muted/50 text-muted-foreground" : "",
+                      !isComplete && !isActive
+                        ? "border-border bg-muted/50 text-muted-foreground"
+                        : "",
                     ].join(" ")}
                   >
-                    {isComplete ? <CheckCircle2 className="h-5 w-5" /> : <Icon className="h-4 w-4" />}
+                    {isComplete ? (
+                      <CheckCircle2 className="h-5 w-5" />
+                    ) : (
+                      <Icon className="h-4 w-4" />
+                    )}
                   </div>
+
                   <div className="space-y-1">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Paso {item.id}</p>
-                    <p className={isActive || isComplete ? "text-sm font-semibold text-foreground" : "text-sm font-medium text-muted-foreground"}>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      Paso {item.id}
+                    </p>
+                    <p
+                      className={
+                        isActive || isComplete
+                          ? "text-sm font-semibold text-foreground"
+                          : "text-sm font-medium text-muted-foreground"
+                      }
+                    >
                       {item.label}
                     </p>
                   </div>
@@ -267,18 +332,24 @@ const Register = () => {
                     <Zap className="h-5 w-5" />
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Fast-track onboarding</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+                      Fast-track onboarding
+                    </p>
                     <p className="text-sm leading-6 text-muted-foreground">
-                      Validación fiscal en tiempo real para destrabar el acceso inicial del canal B2B.
+                      Validacion fiscal en tiempo real para destrabar el acceso inicial del canal B2B.
                     </p>
                   </div>
                 </div>
 
                 <form onSubmit={handleValidateCuit} className="space-y-5">
                   <div>
-                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground" htmlFor="cuit">
+                    <label
+                      className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"
+                      htmlFor="cuit"
+                    >
                       CUIT / CUIL
                     </label>
+
                     <div className="relative">
                       <Landmark className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
@@ -291,7 +362,6 @@ const Register = () => {
                       />
                     </div>
 
-                    {/* Real-time entity detection + AFIP lookup result */}
                     <AnimatePresence>
                       {detectedEntity !== null && (
                         <motion.div
@@ -300,40 +370,71 @@ const Register = () => {
                           exit={{ opacity: 0, height: 0 }}
                           className="mt-2 overflow-hidden"
                         >
-                          {/* Entity type badge */}
                           <div className="flex items-center gap-2">
                             {detectedEntity === "empresa" ? (
-                              <><Building2 className="h-3.5 w-3.5 text-blue-500" /><span className="text-xs font-semibold text-blue-600 dark:text-blue-400">Persona jurídica / Empresa</span></>
+                              <>
+                                <Building2 className="h-3.5 w-3.5 text-blue-500" />
+                                <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                                  Persona juridica / Empresa
+                                </span>
+                              </>
                             ) : (
-                              <><User className="h-3.5 w-3.5 text-primary" /><span className="text-xs font-semibold text-primary">Persona física</span></>
+                              <>
+                                <User className="h-3.5 w-3.5 text-primary" />
+                                <span className="text-xs font-semibold text-primary">
+                                  Persona fisica
+                                </span>
+                              </>
                             )}
-                            {checksumValid === false && <span className="ml-auto text-xs text-destructive">CUIT inválido</span>}
-                            {lookupLoading && <span className="ml-auto text-xs text-muted-foreground animate-pulse">Consultando AFIP...</span>}
-                            {checksumValid === true && !lookupLoading && !lookedUp && <CheckCircle2 className="ml-auto h-3.5 w-3.5 text-emerald-500" />}
+
+                            {checksumValid === false ? (
+                              <span className="ml-auto text-xs text-destructive">
+                                CUIT invalido
+                              </span>
+                            ) : null}
+
+                            {lookupLoading ? (
+                              <span className="ml-auto animate-pulse text-xs text-muted-foreground">
+                                Consultando AFIP...
+                              </span>
+                            ) : null}
+
+                            {checksumValid === true && !lookupLoading && !lookedUp ? (
+                              <CheckCircle2 className="ml-auto h-3.5 w-3.5 text-emerald-500" />
+                            ) : null}
                           </div>
 
-                          {/* AFIP lookup preview card */}
-                          {lookedUp && afipData && (
+                          {lookedUp && afipData ? (
                             <motion.div
                               initial={{ opacity: 0, y: -4 }}
                               animate={{ opacity: 1, y: 0 }}
                               className="mt-3 flex items-center gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3"
                             >
                               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                                {afipData.entityType === "empresa" ? <Building2 className="h-4 w-4" /> : <User className="h-4 w-4" />}
+                                {afipData.entityType === "empresa" ? (
+                                  <Building2 className="h-4 w-4" />
+                                ) : (
+                                  <User className="h-4 w-4" />
+                                )}
                               </div>
+
                               <div className="min-w-0">
-                                <p className="text-sm font-bold text-foreground truncate">
-                                  {afipData.companyName || (afipData.entityType === "empresa" ? "Persona jurídica" : "Persona física")}
+                                <p className="truncate text-sm font-bold text-foreground">
+                                  {afipData.companyName ||
+                                    (afipData.entityType === "empresa"
+                                      ? "Persona juridica"
+                                      : "Persona fisica")}
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                  {afipData.taxStatus}
-                                  {!afipData.companyName && " — completá la razón social en el paso siguiente"}
+                                  {afipData.companyName
+                                    ? "Nombre detectado por el CUIT. Podes corregirlo en el paso siguiente."
+                                    : "CUIT valido. Completa el nombre en el paso siguiente."}
                                 </p>
                               </div>
+
                               <CheckCircle2 className="ml-auto h-4 w-4 shrink-0 text-emerald-500" />
                             </motion.div>
-                          )}
+                          ) : null}
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -342,7 +443,7 @@ const Register = () => {
                   <div className="flex items-start gap-3 rounded-2xl border border-border/70 bg-muted/40 p-4">
                     <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <p className="text-sm leading-6 text-muted-foreground">
-                      Este acceso es solo para empresas con domicilio fiscal en Argentina. La validación usa datos públicos de AFIP.
+                      Este acceso es solo para empresas con domicilio fiscal en Argentina. La validacion usa datos publicos de AFIP.
                     </p>
                   </div>
 
@@ -362,7 +463,7 @@ const Register = () => {
                     className="h-14 w-full rounded-2xl bg-gradient-primary text-base font-semibold shadow-lg shadow-primary/20 hover:opacity-90"
                     disabled={loading || checksumValid === false}
                   >
-                    {loading ? "Validando entidad..." : "Comenzar validación"}
+                    {loading ? "Validando entidad..." : "Comenzar validacion"}
                     <ChevronRight className="ml-1 h-4 w-4" />
                   </Button>
                 </form>
@@ -382,18 +483,28 @@ const Register = () => {
                     <div className="flex items-center gap-2">
                       <Badge variant="success">Entidad validada</Badge>
                       <span className="text-xs text-muted-foreground">
-                        {afipData.entityType === "empresa" ? "Persona jurídica" : "Persona física"}
+                        {afipData.entityType === "empresa"
+                          ? "Persona juridica"
+                          : "Persona fisica"}
                       </span>
                     </div>
-                    {afipData.entityType === "empresa"
-                      ? <Building2 className="h-8 w-8 text-primary/40" />
-                      : <User className="h-8 w-8 text-primary/40" />
-                    }
+                    {afipData.entityType === "empresa" ? (
+                      <Building2 className="h-8 w-8 text-primary/40" />
+                    ) : (
+                      <User className="h-8 w-8 text-primary/40" />
+                    )}
                   </div>
+
                   <h3 className="font-display text-xl font-semibold tracking-tight text-foreground">
-                    {afipData.companyName || (afipData.entityType === "empresa" ? "Empresa / Persona jurídica" : "Persona física")}
+                    {afipData.companyName ||
+                      (afipData.entityType === "empresa"
+                        ? "Empresa / Persona juridica"
+                        : "Persona fisica")}
                   </h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{afipData.taxStatus} · CUIT {cuit}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">CUIT {cuit}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    La condicion fiscal la elegis vos en el formulario de abajo.
+                  </p>
                 </div>
 
                 <form onSubmit={handleFinalSubmit} className="space-y-4">
@@ -402,10 +513,33 @@ const Register = () => {
                     <Input
                       value={name}
                       onChange={(event) => setName(event.target.value)}
-                      placeholder={afipData?.entityType === "empresa" ? "Razón social de la empresa" : "Nombre y apellido"}
+                      placeholder={
+                        afipData.entityType === "empresa"
+                          ? "Razon social de la empresa"
+                          : "Nombre y apellido"
+                      }
                       className="h-14 rounded-2xl pl-12"
                       required
                     />
+                  </div>
+
+                  <div className="relative">
+                    <Landmark className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <select
+                      value={taxStatus}
+                      onChange={(event) =>
+                        setTaxStatus(event.target.value as TaxStatus | "")
+                      }
+                      className="h-14 w-full rounded-2xl border border-border/70 bg-background pl-12 pr-4 text-sm text-foreground outline-none transition focus:border-primary/40"
+                      required
+                    >
+                      <option value="">Selecciona tu condicion fiscal</option>
+                      {TAX_STATUS_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="relative">
@@ -426,19 +560,32 @@ const Register = () => {
                       type="password"
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
-                      placeholder="Creá una contraseña segura"
+                      placeholder="Crea una contrasena segura"
                       className="h-14 rounded-2xl pl-12 font-mono text-sm"
                       required
                     />
                   </div>
 
-                  {error ? <p className="rounded-2xl border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{error}</p> : null}
+                  {error ? (
+                    <p className="rounded-2xl border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+                      {error}
+                    </p>
+                  ) : null}
 
                   <div className="space-y-3 pt-2">
-                    <Button type="submit" className="h-14 w-full rounded-2xl bg-gradient-primary text-base font-semibold shadow-lg shadow-primary/20 hover:opacity-90" disabled={loading}>
+                    <Button
+                      type="submit"
+                      className="h-14 w-full rounded-2xl bg-gradient-primary text-base font-semibold shadow-lg shadow-primary/20 hover:opacity-90"
+                      disabled={loading}
+                    >
                       {loading ? "Procesando alta..." : "Finalizar solicitud"}
                     </Button>
-                    <Button type="button" variant="ghost" className="w-full" onClick={() => setStep(1)}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-full"
+                      onClick={() => setStep(1)}
+                    >
                       Volver a editar CUIT
                     </Button>
                   </div>
@@ -458,27 +605,37 @@ const Register = () => {
                 </div>
 
                 <div className="space-y-3">
-                  <h3 className="font-display text-3xl font-semibold tracking-tight text-foreground">Solicitud en revisión</h3>
+                  <h3 className="font-display text-3xl font-semibold tracking-tight text-foreground">
+                    Solicitud en revision
+                  </h3>
                   <p className="mx-auto max-w-xl text-sm leading-6 text-muted-foreground">
-                    Validamos los datos fiscales y dejamos la solicitud lista para aprobación comercial. El próximo paso sigue siendo incremental.
+                    Validamos los datos fiscales y dejamos la solicitud lista para aprobacion comercial. El proximo paso sigue siendo incremental.
                   </p>
                 </div>
 
                 <div className="rounded-[28px] border border-border/70 bg-card/80 p-6 text-left">
-                  <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">Ejecutivo asignado</p>
+                  <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+                    Ejecutivo asignado
+                  </p>
                   <div className="flex items-center gap-4">
                     <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-muted text-foreground">
                       <Users className="h-6 w-6" />
                     </div>
                     <div className="space-y-1">
-                      <h4 className="font-semibold text-foreground">{executive?.name ?? "Equipo comercial B2B"}</h4>
-                      <p className="text-sm text-muted-foreground">{executive?.role ?? "Asignaci?n pendiente"}</p>
+                      <h4 className="font-semibold text-foreground">
+                        {executive?.name ?? "Equipo comercial B2B"}
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        {executive?.role ?? "Asignacion pendiente"}
+                      </p>
                       <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
                         <span className="inline-flex items-center gap-1 font-semibold text-primary">
                           <Zap className="h-3 w-3" />
                           Online
                         </span>
-                        <span className="text-muted-foreground">{executive?.email ?? "Asignacion pendiente"}</span>
+                        <span className="text-muted-foreground">
+                          {executive?.email ?? "Asignacion pendiente"}
+                        </span>
                       </div>
                     </div>
                     <Building className="ml-auto hidden h-10 w-10 text-primary/20 sm:block" />
@@ -490,11 +647,15 @@ const Register = () => {
                     <Lock className="h-4 w-4" />
                   </div>
                   <p className="text-sm leading-6 text-muted-foreground">
-                    La información cargada queda protegida bajo el esquema de seguridad actual y lista para integrarse con preferencias de usuario más adelante.
+                    La informacion cargada queda protegida bajo el esquema de seguridad actual y lista para integrarse con preferencias de usuario mas adelante.
                   </p>
                 </div>
 
-                <Button variant="outline" className="h-12 w-full rounded-2xl" onClick={() => navigate("/login")}>
+                <Button
+                  variant="outline"
+                  className="h-12 w-full rounded-2xl"
+                  onClick={() => navigate("/login")}
+                >
                   Ir al login
                 </Button>
               </motion.div>
@@ -504,9 +665,9 @@ const Register = () => {
 
         {step < 3 ? (
           <p className="mt-8 text-center text-sm text-muted-foreground">
-            ¿Ya sos partner?{" "}
+            Ya sos partner?{" "}
             <Link to="/login" className="font-semibold text-primary hover:underline">
-              Iniciá sesión
+              Inicia sesion
             </Link>
           </p>
         ) : null}

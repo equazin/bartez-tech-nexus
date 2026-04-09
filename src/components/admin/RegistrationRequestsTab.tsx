@@ -36,6 +36,7 @@ const TAX_LABELS: Record<string, string> = {
   responsable_inscripto: "Resp. Inscripto",
   monotributista: "Monotributista",
   exento: "Exento",
+  consumidor_final: "Consumidor Final",
   no_especificado: "No especificado",
 };
 
