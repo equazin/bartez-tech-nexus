@@ -28,6 +28,7 @@ import type { RmaRequest } from "@/hooks/useRma";
 import type { PortalOrder } from "@/hooks/useOrders";
 import type { BusinessAlert } from "@/hooks/useBusinessAlerts";
 import type { Invoice } from "@/lib/api/invoices";
+import { generateWhatsAppDirectUrl } from "@/lib/api/whatsapp";
 import { convertMoneyAmount, formatMoneyAmount, getEffectiveInvoiceAmounts } from "@/lib/money";
 import { supabase } from "@/lib/supabase";
 import type { UserProfile } from "@/lib/supabase";
@@ -199,8 +200,7 @@ export function ClientDashboard({
 
   const creditPct = creditLimit > 0 ? Math.min(100, (creditUsed / creditLimit) * 100) : 0;
   const sellerName = assignedSeller?.name ?? "Bartez Soporte";
-  const sellerPhone = assignedSeller?.phone ? assignedSeller.phone.replace(/\D/g, "") : "5491100000000";
-  const sellerUrl = `https://wa.me/${sellerPhone}`;
+  const sellerUrl = generateWhatsAppDirectUrl(assignedSeller?.phone);
 
   const spendingStats = useMemo(() => {
     const now = new Date();
@@ -407,18 +407,31 @@ export function ClientDashboard({
           </h1>
         </div>
         <div className="flex items-center gap-3">
-          <Button asChild variant="outline" className="h-auto gap-2.5 rounded-2xl px-3 py-2 text-left">
-            <a href={sellerUrl} target="_blank" rel="noopener noreferrer">
+          {sellerUrl ? (
+            <Button asChild variant="outline" className="h-auto gap-2.5 rounded-2xl px-3 py-2 text-left">
+              <a href={sellerUrl} target="_blank" rel="noopener noreferrer">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                  {sellerName.charAt(0).toUpperCase()}
+                </div>
+                <span className="hidden sm:block">
+                  <span className="block text-xs font-semibold text-foreground leading-tight">{sellerName}</span>
+                  <span className="block text-[10px] text-primary leading-tight">WhatsApp</span>
+                </span>
+                <MessageSquare size={13} className="text-muted-foreground" />
+              </a>
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" disabled className="h-auto gap-2.5 rounded-2xl px-3 py-2 text-left">
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                 {sellerName.charAt(0).toUpperCase()}
               </div>
               <span className="hidden sm:block">
                 <span className="block text-xs font-semibold text-foreground leading-tight">{sellerName}</span>
-                <span className="block text-[10px] text-primary leading-tight">WhatsApp</span>
+                <span className="block text-[10px] text-muted-foreground leading-tight">Celular pendiente</span>
               </span>
               <MessageSquare size={13} className="text-muted-foreground" />
-            </a>
-          </Button>
+            </Button>
+          )}
           <Button
             type="button"
             className="gap-2 rounded-2xl bg-gradient-primary shadow-lg shadow-primary/20"

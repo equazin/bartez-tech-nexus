@@ -194,11 +194,12 @@ export function AccountCenter({
   useEffect(() => {
     fetchMyPayments().then(setPayments).catch(console.error);
 
-    if (profile.vendedor_id) {
+    const sellerId = profile.assigned_seller_id ?? profile.vendedor_id;
+    if (sellerId) {
       supabase
         .from("profiles")
         .select("company_name, contact_name, email, phone")
-        .eq("id", profile.vendedor_id)
+        .eq("id", sellerId)
         .single()
         .then(({ data }) => {
           if (data) {
@@ -209,8 +210,10 @@ export function AccountCenter({
             });
           }
         });
+    } else {
+      setAssignedSeller(undefined);
     }
-  }, [profile.vendedor_id]);
+  }, [profile.assigned_seller_id, profile.vendedor_id]);
 
   useEffect(() => {
     const section = searchParams.get("section") as AccountSection;

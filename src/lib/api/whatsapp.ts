@@ -10,6 +10,28 @@ export interface WhatsAppCartData {
   total: number;
 }
 
+export function normalizeWhatsAppPhone(phone?: string | null): string | null {
+  const digits = String(phone ?? "").replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.startsWith("549")) return digits;
+  if (digits.startsWith("54")) {
+    const nationalNumber = digits.slice(2).replace(/^0+/, "");
+    return nationalNumber.length >= 10 ? `549${nationalNumber}` : null;
+  }
+
+  const localNumber = digits.replace(/^0+/, "");
+  if (localNumber.length >= 10 && localNumber.length <= 11) {
+    return `549${localNumber}`;
+  }
+
+  return digits.length >= 12 ? digits : null;
+}
+
+export function generateWhatsAppDirectUrl(phone?: string | null): string | null {
+  const normalizedPhone = normalizeWhatsAppPhone(phone);
+  return normalizedPhone ? `https://wa.me/${normalizedPhone}` : null;
+}
+
 /**
  * Generates a WhatsApp URL with a formatted message for sharing a cart.
  */

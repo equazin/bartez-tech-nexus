@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { MetricCard } from "@/components/ui/metric-card";
+import { generateWhatsAppDirectUrl } from "@/lib/api/whatsapp";
 import { formatMoneyAmount } from "@/lib/money";
 import type { PortalOrder } from "@/hooks/useOrders";
 import type { Invoice } from "@/lib/api/invoices";
@@ -58,6 +59,7 @@ export function AccountDashboard({
   exchangeRate,
   seller
 }: AccountDashboardProps) {
+  const sellerWhatsAppUrl = generateWhatsAppDirectUrl(seller?.phone);
   
   // Financial Calculations
   const metrics = useMemo(() => {
@@ -270,16 +272,22 @@ export function AccountDashboard({
                   </div>
                </div>
                
-               <div className="space-y-2">
+                <div className="space-y-2">
                   <Button variant="outline" className="w-full justify-start rounded-2xl gap-2 h-11" asChild>
                     <a href={`mailto:${seller?.email}`}><Mail size={16} /> Enviar email</a>
                   </Button>
-                  <Button variant="secondary" className="w-full justify-start rounded-2xl gap-2 h-11 bg-emerald-500 text-white hover:bg-emerald-600 border-none" asChild>
-                    <a href={`https://wa.me/${seller?.phone?.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">
-                      <Phone size={16} /> WhatsApp Directo
-                    </a>
-                  </Button>
-               </div>
+                  {sellerWhatsAppUrl ? (
+                    <Button variant="secondary" className="w-full justify-start rounded-2xl gap-2 h-11 bg-emerald-500 text-white hover:bg-emerald-600 border-none" asChild>
+                      <a href={sellerWhatsAppUrl} target="_blank" rel="noopener noreferrer">
+                        <Phone size={16} /> WhatsApp Directo
+                      </a>
+                    </Button>
+                  ) : (
+                    <Button type="button" variant="secondary" disabled className="w-full justify-start rounded-2xl gap-2 h-11 bg-muted text-muted-foreground border-none">
+                      <Phone size={16} /> Celular pendiente
+                    </Button>
+                  )}
+                </div>
             </SurfaceCard>
           </section>
 
