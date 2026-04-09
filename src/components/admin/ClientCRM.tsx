@@ -8,7 +8,7 @@ import {
   addClientNote,
   fetchClientProfile, fetchClientInvoices, fetchAccountMovements, fetchClientNotes, fetchClientSupportTickets,
   fetchClientRmas, updateClientProfile,
-  type ClientDetail as ClientDetailData, type AccountMovement, type ClientNote, type SupportTicket, type ClientRma,
+  type ClientDetail as ClientDetailData, type AccountMovement, type ClientNote, type SupportTicket, type ClientRma, type ProfileTaxStatus,
 } from "@/lib/api/clientDetail";
 import type { Invoice } from "@/lib/api/invoices";
 import { Client360Header } from "@/components/admin/client360/Client360Header";
@@ -77,6 +77,14 @@ export interface ClientCRMProps {
   onRefreshClients?: () => void;
   onRefreshOrders?: () => Promise<void> | void;
 }
+
+const TAX_STATUS_OPTIONS: Array<{ value: ProfileTaxStatus; label: string }> = [
+  { value: "no_especificado", label: "No especificado" },
+  { value: "responsable_inscripto", label: "Responsable Inscripto" },
+  { value: "monotributista", label: "Monotributista" },
+  { value: "exento", label: "Exento" },
+  { value: "consumidor_final", label: "Consumidor Final" },
+];
 
 // -- Helpers -------------------------------------------------------------------
 const CLIENT_TYPE_LABELS: Record<ClientType, string> = {
@@ -1714,6 +1722,7 @@ function DatosPanel({
   const [form, setForm] = useState({
     razon_social: profile.razon_social ?? "",
     cuit:         profile.cuit ?? "",
+    tax_status:   profile.tax_status ?? "no_especificado",
     direccion:    profile.direccion ?? "",
     ciudad:       profile.ciudad ?? "",
     provincia:    profile.provincia ?? "",
@@ -1797,6 +1806,20 @@ function DatosPanel({
       <div className="grid grid-cols-2 gap-3">
         <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Razon social</label>{field("razon_social")}</div>
         <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">CUIT</label>{field("cuit")}</div>
+        <div>
+          <label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Condicion fiscal</label>
+          <select
+            value={form.tax_status}
+            onChange={(e) => setForm((prev) => ({ ...prev, tax_status: e.target.value as ProfileTaxStatus }))}
+            className={`w-full border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#2D9F6A]/40 transition ${dk("bg-[#0d0d0d] border-[#262626] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}
+          >
+            {TAX_STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Telefono</label>{field("phone")}</div>
         <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Direccion</label>{field("direccion")}</div>
         <div><label className="text-[10px] font-semibold uppercase tracking-widest text-[#525252] mb-1 block">Ciudad</label>{field("ciudad")}</div>

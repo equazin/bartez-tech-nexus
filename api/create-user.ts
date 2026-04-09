@@ -400,6 +400,7 @@ async function approveRegistration(adminClient: ReturnType<typeof getSupabaseAdm
         assigned_seller_id: request.assigned_seller_id ?? undefined,
         active: true,
         cuit: request.cuit,
+        tax_status: request.tax_status,
       })
       .eq("id", existingProfile.id);
 
@@ -427,6 +428,7 @@ async function approveRegistration(adminClient: ReturnType<typeof getSupabaseAdm
       role: "client",
       client_type: "empresa",
       cuit: request.cuit,
+      tax_status: request.tax_status,
     },
   });
 
@@ -451,6 +453,7 @@ async function approveRegistration(adminClient: ReturnType<typeof getSupabaseAdm
       default_margin: 20,
       active: true,
       cuit: request.cuit,
+      tax_status: request.tax_status,
       assigned_seller_id: request.assigned_seller_id,
     },
     { onConflict: "id" },
@@ -594,19 +597,20 @@ async function handleManageUser(req: VercelRequest, res: VercelResponse) {
   const callerRole = await getRoleFromRequest(req, callerClient);
   if (callerRole !== "admin") return fail(res, "Solo los administradores pueden gestionar vendedores.", 403);
 
-  const { id, email, contact_name, company_name, role, active } = req.body as Record<string, unknown>;
+  const { id, email, contact_name, company_name, role, active, phone } = req.body as Record<string, unknown>;
 
   if (!id || typeof id !== "string") return fail(res, "Id de usuario invalido.");
   if (email !== undefined && (typeof email !== "string" || !email.includes("@"))) return fail(res, "Email invalido.");
   if (contact_name !== undefined && (typeof contact_name !== "string" || !contact_name.trim())) return fail(res, "Nombre obligatorio.");
   if (role !== undefined && String(role) !== "sales") return fail(res, "Rol invalido.");
   if (active !== undefined && typeof active !== "boolean") return fail(res, "Estado invalido.");
+  if (phone !== undefined && typeof phone !== "string") return fail(res, "Celular invalido.");
 
   const adminClient = getSupabaseAdmin();
 
   const { data: profile, error: profileError } = await adminClient
     .from("profiles")
-    .select("id, email, contact_name, company_name, role, active")
+    .select("id, email, contact_name, company_name, role, active, phone")
     .eq("id", id)
     .maybeSingle();
 
@@ -617,6 +621,7 @@ async function handleManageUser(req: VercelRequest, res: VercelResponse) {
   const nextContactName = typeof contact_name === "string" ? contact_name.trim() : String(profile.contact_name ?? "");
   const nextCompanyName = typeof company_name === "string" && company_name.trim() ? company_name.trim() : nextContactName;
   const nextActive = typeof active === "boolean" ? active : Boolean(profile.active ?? true);
+  const nextPhone = typeof phone === "string" ? phone.trim() : String(profile.phone ?? "").trim();
 
   const { data: duplicate } = await adminClient
     .from("profiles")
@@ -629,7 +634,7 @@ async function handleManageUser(req: VercelRequest, res: VercelResponse) {
 
   const { error: authError } = await adminClient.auth.admin.updateUserById(id, {
     ...(nextEmail ? { email: nextEmail } : {}),
-    user_metadata: { email: nextEmail, contact_name: nextContactName, company_name: nextCompanyName, role: "sales" },
+    user_metadata: { email: nextEmail, contact_name: nextContactName, company_name: nextCompanyName, role: "sales", phone: nextPhone },
   });
 
   if (authError) {
@@ -639,10 +644,10 @@ async function handleManageUser(req: VercelRequest, res: VercelResponse) {
   }
 
   const { error: updateProfileError } = await adminClient.from("profiles")
-    .update({ email: nextEmail || null, contact_name: nextContactName, company_name: nextCompanyName, role: "vendedor", active: nextActive })
+    .update({ email: nextEmail || null, contact_name: nextContactName, company_name: nextCompanyName, phone: nextPhone || null, role: "vendedor", active: nextActive })
     .eq("id", id);
 
   if (updateProfileError) return fail(res, updateProfileError.message, 500);
 
-  return ok(res, { id, email: nextEmail, contact_name: nextContactName, company_name: nextCompanyName, role: "sales", active: nextActive });
+  return ok(res, { id, email: nextEmail, contact_name: nextContactName, company_name: nextCompanyName, phone: nextPhone, role: "sales", active: nextActive });
 }

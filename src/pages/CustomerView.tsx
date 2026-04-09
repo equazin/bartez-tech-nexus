@@ -22,6 +22,7 @@ import {
   type AccountMovement,
   type ClientNote,
   type PrecioLista,
+  type ProfileTaxStatus,
 } from "@/lib/api/clientDetail";
 import type { Invoice } from "@/lib/api/invoices";
 import { supabase } from "@/lib/supabase";
@@ -76,6 +77,14 @@ const MOV_CONFIG: Record<string, { label: string; sign: string; cls: string }> =
   nota_credito:{ label: "Nota crédito",  sign: "−", cls: "text-blue-400"   },
   ajuste:      { label: "Ajuste",        sign: "±", cls: "text-amber-400"  },
 };
+
+const TAX_STATUS_OPTIONS: Array<{ value: ProfileTaxStatus; label: string }> = [
+  { value: "no_especificado", label: "No especificado" },
+  { value: "responsable_inscripto", label: "Responsable Inscripto" },
+  { value: "monotributista", label: "Monotributista" },
+  { value: "exento", label: "Exento" },
+  { value: "consumidor_final", label: "Consumidor Final" },
+];
 
 function StatusBadge({ label, cls }: { label: string; cls: string }) {
   return (
@@ -775,7 +784,7 @@ function DatosTab({
   onRefresh: () => void;
 }) {
   const dk = (d: string, l: string) => (isDark ? d : l);
-  const [form, setForm]   = useState({ ...client });
+  const [form, setForm]   = useState({ ...client, tax_status: client.tax_status ?? "no_especificado" });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved]   = useState(false);
 
@@ -787,6 +796,7 @@ function DatosTab({
       contact_name:   form.contact_name,
       razon_social:   form.razon_social,
       cuit:           form.cuit,
+      tax_status:     form.tax_status,
       phone:          form.phone,
       direccion:      form.direccion,
       ciudad:         form.ciudad,
@@ -829,6 +839,20 @@ function DatosTab({
         {field("Contacto", "contact_name")}
         {field("Razón social", "razon_social")}
         {field("CUIT", "cuit")}
+        <div>
+          <label className="text-xs text-[#737373] mb-1 block">Condición fiscal</label>
+          <select
+            value={form.tax_status ?? "no_especificado"}
+            onChange={(e) => setForm((f) => ({ ...f, tax_status: e.target.value as ProfileTaxStatus }))}
+            className={`w-full border rounded-lg px-3 py-2 text-sm outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white","bg-[#f5f5f5] border-[#e0e0e0] text-[#171717]")}`}
+          >
+            {TAX_STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
         {field("Teléfono", "phone")}
         {field("Dirección", "direccion")}
         {field("Ciudad", "ciudad")}

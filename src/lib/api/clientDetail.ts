@@ -1,11 +1,13 @@
 import { supabase } from "@/lib/supabase";
 import type { ClientType } from "@/lib/supabase";
 import type { Invoice } from "@/lib/api/invoices";
+import type { TaxStatus } from "@/lib/api/afip";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export type ClientEstado = "activo" | "inactivo" | "bloqueado";
 export type PrecioLista  = "standard" | "mayorista" | "distribuidor" | "especial";
+export type ProfileTaxStatus = TaxStatus | "no_especificado";
 
 export interface ClientDetail {
   id: string;
@@ -24,6 +26,7 @@ export interface ClientDetail {
   precio_lista: PrecioLista;
   razon_social?: string;
   cuit?: string;
+  tax_status?: ProfileTaxStatus;
   direccion?: string;
   ciudad?: string;
   provincia?: string;
@@ -125,7 +128,7 @@ export async function fetchClientProfile(clientId: string): Promise<ClientDetail
     .select(
       "id, company_name, contact_name, client_type, default_margin, role, phone, email, " +
       "credit_limit, credit_used, estado, vendedor_id, precio_lista, partner_level, assigned_seller_id, last_contact_at, last_contact_type, " +
-      "razon_social, cuit, direccion, ciudad, provincia, notas_internas, " +
+      "razon_social, cuit, tax_status, direccion, ciudad, provincia, notas_internas, " +
       "payment_terms, credit_approved, credit_approved_by, credit_approved_at, " +
       "credit_review_date, notas_credito, max_order_value"
     )

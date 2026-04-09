@@ -51,6 +51,15 @@ const EMPTY_FORM = {
   phone: "",
 };
 
+function normalizePhoneForSupabase(rawPhone: string): string {
+  const digits = rawPhone.replace(/\D+/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("549")) return digits;
+  if (digits.startsWith("54")) return `549${digits.slice(2)}`;
+  if (digits.length >= 10 && digits.length <= 11) return `549${digits}`;
+  return digits;
+}
+
 export function SellerManagementTab({
   sellers,
   clients,
@@ -68,6 +77,7 @@ export function SellerManagementTab({
     contact_name: "",
     company_name: "",
     email: "",
+    phone: "",
     active: true,
   });
   const [savingCreate, setSavingCreate] = useState(false);
@@ -108,6 +118,7 @@ export function SellerManagementTab({
       contact_name: seller.contact_name || "",
       company_name: seller.company_name || "",
       email: seller.email || "",
+      phone: seller.phone || "",
       active: seller.active !== false,
     });
   }
@@ -142,9 +153,15 @@ export function SellerManagementTab({
       const password = createForm.password.trim();
       const contactName = createForm.contact_name.trim();
       const companyName = createForm.company_name.trim() || contactName;
+      const phone = normalizePhoneForSupabase(createForm.phone.trim());
 
       if (!contactName || !email || !password) {
         setCreateError("Nombre, email y contraseña son obligatorios.");
+        return;
+      }
+
+      if (phone && phone.length < 10) {
+        setCreateError("Si se ingresa un celular, debe incluir codigo de area y numero.");
         return;
       }
 
@@ -166,7 +183,7 @@ export function SellerManagementTab({
           client_type: "reseller",
           default_margin: 0,
           role: "sales",
-          phone: createForm.phone.trim(),
+          phone,
         }),
       });
 
@@ -195,9 +212,15 @@ export function SellerManagementTab({
       const email = editForm.email.trim().toLowerCase();
       const contactName = editForm.contact_name.trim();
       const companyName = editForm.company_name.trim() || contactName;
+      const phone = normalizePhoneForSupabase(editForm.phone.trim());
 
       if (!contactName || !email) {
         setEditError("Nombre y email son obligatorios.");
+        return;
+      }
+
+      if (phone && phone.length < 10) {
+        setEditError("Si se ingresa un celular, debe incluir codigo de area y numero.");
         return;
       }
 
@@ -212,6 +235,7 @@ export function SellerManagementTab({
           contact_name: contactName,
           company_name: companyName,
           role: "sales",
+          phone,
           active: editForm.active,
         }),
       });
@@ -407,6 +431,9 @@ export function SellerManagementTab({
                 </Field>
                 <Field label="Email *" className="col-span-2">
                   <input type="email" value={editForm.email} onChange={(event) => setEditForm((prev) => ({ ...prev, email: event.target.value }))} className={inputClass(isDark)} />
+                </Field>
+                <Field label="Celular" className="col-span-2">
+                  <input value={editForm.phone} onChange={(event) => setEditForm((prev) => ({ ...prev, phone: event.target.value }))} className={inputClass(isDark)} />
                 </Field>
                 <Field label="Rol">
                   <input value="sales" readOnly className={inputClass(isDark)} />
