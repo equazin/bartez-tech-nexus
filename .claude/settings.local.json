@@ -71,7 +71,12 @@
       "Bash(curl -sL \"https://www.cuitonline.com/detalle/30714295443/\" -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\")",
       "Bash(curl -sL \"https://www.cuitonline.com/detalle/20430083342/\" -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\")",
       "Bash(curl -sL \"https://www.cuitonline.com/detalle/30-71429544-3/\" -A \"Mozilla/5.0\")",
-      "Bash(curl -sL \"https://www.cuitonline.com/detalle/30578411174/\" -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\")"
+      "Bash(curl -sL \"https://www.cuitonline.com/detalle/30578411174/\" -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\")",
+      "Bash(grep -l \"badge\\\\|Badge\\\\|stock\\\\|Stock\\\\|price\\\\|Price\" \"/e/Bartez B2B/bartez-tech-nexus/src/components/ui\"/*.tsx)",
+      "Bash(ls -la src/components/admin/*.tsx)",
+      "Bash(ls src/components/admin/*.tsx)",
+      "Bash(sed 's/\\\\.tsx//')",
+      "Bash(grep -h \"export.*function\\\\|export.*const.*=\" src/components/admin/*.tsx)"
     ]
   }
 }

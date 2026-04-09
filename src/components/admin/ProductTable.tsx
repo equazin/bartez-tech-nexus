@@ -707,7 +707,7 @@ export default function ProductTable({
 
                 return (
                   <tr key={p.id}
-                    className={`border-t transition ${dk("border-[#2a2a2a]", "border-[#f0f0f0]")} ${isSelected ? "bg-[#2D9F6A]/5" : dk("hover:bg-[#2a2a2a]/40", "hover:bg-[#fafafa]")} ${!active ? "opacity-50" : ""}`}>
+                    className={`border-t transition ${dk("border-[#2a2a2a]", "border-[#f0f0f0]")} ${isSelected ? "bg-[#2D9F6A]/5" : noStock ? dk("bg-red-900/8 hover:bg-red-900/12", "bg-red-50/60 hover:bg-red-50") : lowStock ? dk("bg-amber-900/6 hover:bg-amber-900/10", "bg-amber-50/50 hover:bg-amber-50") : dk("hover:bg-[#2a2a2a]/40", "hover:bg-[#fafafa]")} ${!active ? "opacity-50" : ""}`}>
 
                     {/* Checkbox */}
                     <td className="px-3 py-3">

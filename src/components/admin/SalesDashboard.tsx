@@ -5,7 +5,7 @@ import {
   TrendingUp, FileText, Clock, Target, ShoppingBag,
   CheckCircle2, XCircle, AlertTriangle, Send, Eye, Ban,
   ArrowUpRight, ArrowDownRight, Minus as MinusIcon,
-  Package, Users, Trash2, Receipt, CreditCard,
+  Package, Users, Trash2, Receipt, CreditCard, Zap,
   type LucideIcon,
 } from "lucide-react";
 import { 
@@ -163,6 +163,55 @@ const DASHBOARD_TILE =
   "rounded-[22px] border border-border/70 bg-accent/20 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]";
 const DASHBOARD_ROW =
   "rounded-[20px] border border-border/70 bg-background/80 px-4 py-3 transition hover:bg-accent/30";
+
+// ── Focus Bar (Atención inmediata) ────────────────────────────────────────────
+function FocusBar({
+  items,
+  onOpenTab,
+}: {
+  items: Array<{ id: string; label: string; count: number; severity: "high" | "medium" | "low"; tab?: string }>;
+  onOpenTab?: (tab: string) => void;
+}) {
+  const urgent = items.filter((item) => item.count > 0);
+  if (urgent.length === 0) return null;
+
+  const severityStyle = {
+    high: "border-red-500/25 bg-red-500/8 text-red-500",
+    medium: "border-amber-500/25 bg-amber-500/8 text-amber-500",
+    low: "border-border/70 bg-accent/20 text-muted-foreground",
+  };
+  const dotStyle = {
+    high: "bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.7)]",
+    medium: "bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.7)]",
+    low: "bg-muted-foreground/40",
+  };
+
+  return (
+    <div className="rounded-[24px] border border-border/70 bg-card/80 px-5 py-4">
+      <div className="mb-3 flex items-center gap-2">
+        <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-red-500/10 text-red-500">
+          <Zap size={13} />
+        </div>
+        <p className="text-xs font-bold text-foreground">Atención inmediata</p>
+        <span className="ml-auto text-[10px] text-muted-foreground">{urgent.length} item{urgent.length !== 1 ? "s" : ""} requieren acción</span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {urgent.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => item.tab && onOpenTab?.(item.tab)}
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${severityStyle[item.severity]} ${item.tab ? "cursor-pointer hover:opacity-80" : "cursor-default"}`}
+          >
+            <div className={`h-1.5 w-1.5 rounded-full ${dotStyle[item.severity]}`} />
+            <span className="font-extrabold tabular-nums">{item.count}</span>
+            <span className="font-medium opacity-80">{item.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // ── Revenue Sparkline (7-day CSS bars) ───────────────────────────────────────
 function RevenueSparkline({ orders, isDark }: { orders: SupabaseOrder[]; isDark: boolean }) {
@@ -1836,8 +1885,42 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders, onOpe
   }, [approvedOrders, profileRows, quotes, sellerRows]);
 
 
+  const focusItems = useMemo(() => [
+    {
+      id: "pending-orders",
+      label: "pedidos sin aprobar",
+      count: orders.filter((o) => ["pending", "pending_approval"].includes(o.status)).length,
+      severity: "high" as const,
+      tab: "orders",
+    },
+    {
+      id: "expiring-quotes",
+      label: "cotizaciones venciendo",
+      count: expiringQuotes.length,
+      severity: "medium" as const,
+      tab: "quotes_admin",
+    },
+    {
+      id: "low-stock",
+      label: "productos en stock crítico",
+      count: lowStockCount,
+      severity: "medium" as const,
+      tab: "products",
+    },
+    {
+      id: "overdue-invoices",
+      label: "facturas vencidas",
+      count: invoiceKpis?.overdueCount ?? 0,
+      severity: "high" as const,
+      tab: "invoices",
+    },
+  ], [orders, expiringQuotes.length, lowStockCount, invoiceKpis?.overdueCount]);
+
   return (
     <div className="space-y-6">
+
+      {/* ── Atención inmediata ── */}
+      <FocusBar items={focusItems} onOpenTab={onOpenTab} />
 
       {/* ── Delete history ── */}
       <DeleteHistoryPanel isDark={isDark} onRefreshOrders={onRefreshOrders} />

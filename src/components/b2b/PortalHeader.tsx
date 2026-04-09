@@ -39,6 +39,7 @@ interface PortalHeaderProps {
   themeFlash: boolean;
   themeSwitchReady: boolean;
   cartItemsCount: number;
+  cartTotal?: number;
   onOpenCart: () => void;
   onLogout: () => void;
   creditLimit?: number;
@@ -60,6 +61,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
   themeFlash,
   themeSwitchReady,
   cartItemsCount,
+  cartTotal,
   onOpenCart,
   onLogout,
   creditLimit,
@@ -198,17 +200,17 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
             />
           </button>
 
-          {/* Exchange rate chip */}
-          <div className="hidden items-center gap-2 rounded-[24px] border border-border/70 bg-surface px-3 py-2 text-xs xl:flex">
-            <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-accent text-accent-foreground">
-              <TrendingUp size={13} />
+          {/* Exchange rate chip — visible desde md */}
+          <div className="hidden items-center gap-2 rounded-[24px] border border-border/70 bg-surface px-3 py-2 text-xs md:flex">
+            <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+              <TrendingUp size={12} />
             </div>
             <div className="leading-none">
-              <p className="font-semibold text-foreground">
+              <p className="font-semibold text-foreground tabular-nums">
                 $ {exchangeRate.rate.toLocaleString("es-AR")}
-                <span className="ml-1 text-[10px] font-normal text-muted-foreground">oficial</span>
+                <span className="ml-1 hidden text-[10px] font-normal text-muted-foreground xl:inline">oficial</span>
               </p>
-              <p className="mt-1 text-[10px] text-muted-foreground">
+              <p className="mt-0.5 hidden text-[10px] text-muted-foreground xl:block">
                 {exchangeRate.source === "api" ? ageLabel : "manual"}
               </p>
             </div>
@@ -216,7 +218,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
               type="button"
               onClick={onRefreshRate}
               disabled={isFetchingRate}
-              className="rounded-xl p-1 text-muted-foreground transition hover:bg-card hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+              className="hidden rounded-xl p-1 text-muted-foreground transition hover:bg-card hover:text-primary disabled:cursor-not-allowed disabled:opacity-40 xl:block"
               title="Actualizar cotización"
             >
               <RefreshCw size={11} className={isFetchingRate ? "animate-spin" : ""} />
@@ -275,6 +277,11 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
             {cartItemsCount > 0 ? (
               <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-background px-1 text-[10px] font-bold text-primary">
                 {cartItemsCount}
+              </span>
+            ) : null}
+            {cartItemsCount > 0 && cartTotal != null && cartTotal > 0 ? (
+              <span className="hidden text-[10px] font-semibold tabular-nums opacity-85 sm:inline">
+                ${Math.round(cartTotal).toLocaleString("es-AR")}
               </span>
             ) : null}
           </Button>

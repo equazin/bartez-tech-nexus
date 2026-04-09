@@ -338,6 +338,12 @@ export function ClientDashboard({
   );
   const hasPromoContent = promoAlerts.length > 0 || offerProducts.length > 0 || !!activeAgreement;
 
+  const creditAvailable = creditLimit > 0 ? Math.max(0, creditLimit - creditUsed) : null;
+  const thisMonthOrders = useMemo(() => {
+    const start = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+    return orders.filter((o) => new Date(o.created_at).getTime() >= start && o.status === "delivered");
+  }, [orders]);
+
   const kpis = [
     {
       label: "Pedidos activos",
@@ -352,6 +358,24 @@ export function ClientDashboard({
       detail: `${pendingInvoices.length} factura${pendingInvoices.length !== 1 ? "s" : ""} por cobrar`,
       icon: <ReceiptText className="h-5 w-5" />,
       onClick: () => onGoTo("invoices"),
+    },
+    ...(creditAvailable != null
+      ? [{
+          label: "Crédito disponible",
+          value: formatMoneyAmount(convertMoneyAmount(creditAvailable, "ARS", currency, exchangeRate.rate), currency, 0),
+          detail: creditPct >= 80 ? `⚠ ${creditPct.toFixed(0)}% utilizado` : `${creditPct.toFixed(0)}% utilizado`,
+          icon: <CreditCard className="h-5 w-5" />,
+          onClick: () => onGoTo("cuenta"),
+        }]
+      : []),
+    {
+      label: "Entregados (mes)",
+      value: String(thisMonthOrders.length),
+      detail: thisMonthOrders.length > 0
+        ? formatMoneyAmount(thisMonthOrders.reduce((s, o) => s + o.total, 0), currency, 0)
+        : "Sin entregas este mes",
+      icon: <Truck className="h-5 w-5" />,
+      onClick: () => onGoTo("orders"),
     },
   ];
 
@@ -462,8 +486,8 @@ export function ClientDashboard({
         </button>
       )}
 
-      {/* ── 2 KPIs ────────────────────────────────────────────────────── */}
-      <div className="grid gap-3 sm:grid-cols-2">
+      {/* ── KPI strip ─────────────────────────────────────────────────── */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((kpi) => (
           <button key={kpi.label} type="button" className="text-left" onClick={kpi.onClick}>
             <MetricCard
@@ -606,29 +630,71 @@ export function ClientDashboard({
         </SurfaceCard>
       )}
 
-      {/* ── REORDER CANDIDATES (only if history) ─────────────────────── */}
+      {/* ── QUICK REORDER (only if history) ──────────────────────────── */}
       {reorderCandidates.length > 0 && (
         <SurfaceCard tone="default" padding="lg" className="space-y-4">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-foreground">Productos frecuentes para recompra</h2>
-            <Button type="button" variant="ghost" size="sm" className="gap-1 text-primary" onClick={() => onGoTo("catalog")}>
-              Ver catálogo <ArrowRight size={13} />
-            </Button>
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Recompra rápida</h2>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">Basado en tus {orders.length} pedidos anteriores</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1.5 rounded-xl border-primary/30 text-primary hover:bg-primary/10"
+                onClick={() => reorderCandidates.forEach(({ product, suggestedQty }) => onAddToCart(product, suggestedQty))}
+              >
+                <Truck size={13} /> Reordenar todo
+              </Button>
+              <Button type="button" variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={() => onGoTo("catalog")}>
+                Ver más <ArrowRight size={13} />
+              </Button>
+            </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             {reorderCandidates.map(({ product, count, suggestedQty }) => (
               <div
                 key={product.id}
-                className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-card/80 p-3"
+                className="group flex flex-col gap-3 rounded-2xl border border-border/70 bg-card/80 p-3 transition-all hover:border-primary/20 hover:shadow-md"
               >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-foreground">{product.name}</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    {count} {count !== 1 ? "compras" : "compra"} · stock {product.stock ?? 0}
-                  </p>
+                <div className="flex items-start gap-2.5">
+                  {product.image_url ? (
+                    <img
+                      src={product.image_url}
+                      alt={product.name}
+                      className="h-12 w-12 shrink-0 rounded-xl object-contain bg-muted/30 p-1"
+                    />
+                  ) : (
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted/50">
+                      <Package size={18} className="text-muted-foreground/50" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-2 text-xs font-semibold leading-snug text-foreground">{product.name}</p>
+                    {product.brand_name && (
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">{product.brand_name}</p>
+                    )}
+                  </div>
                 </div>
-                <Button type="button" size="sm" className="w-full" onClick={() => onAddToCart(product, suggestedQty)}>
-                  Sumar {suggestedQty} u.
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <ShoppingCart size={9} />
+                    {count} {count !== 1 ? "compras" : "compra"}
+                  </span>
+                  <span className={`font-medium ${(product.stock ?? 0) > 0 ? "text-primary" : "text-destructive"}`}>
+                    Stock: {product.stock ?? 0}
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="w-full gap-1.5 rounded-xl"
+                  disabled={(product.stock ?? 0) === 0}
+                  onClick={() => onAddToCart(product, suggestedQty)}
+                >
+                  <Plus size={12} /> {suggestedQty} u. al carrito
                 </Button>
               </div>
             ))}

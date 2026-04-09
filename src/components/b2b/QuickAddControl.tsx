@@ -13,7 +13,7 @@ interface QuickAddControlProps {
   onRemoveOne?: () => void;
   compact?: boolean;
   showShortcuts?: boolean;
-  minOrderQty?: number;
+  minQty?: number;
 }
 
 export function QuickAddControl({
@@ -24,20 +24,19 @@ export function QuickAddControl({
   onRemoveOne,
   compact = false,
   showShortcuts = false,
-  minOrderQty = 1,
+  minQty = 1,
 }: QuickAddControlProps) {
-  const [qty, setQty] = useState(1);
+  const [qty, setQty] = useState(minQty);
 
   const handleSubmit = () => {
     if (outOfStock) return;
-    onAddQty(Math.max(1, qty));
-    setQty(1);
+    onAddQty(Math.max(minQty, qty));
+    setQty(minQty);
   };
 
   const shortcuts = (() => {
     if (!showShortcuts || compact || outOfStock) return [];
-    const base = minOrderQty > 1 ? minOrderQty : 1;
-    // Generate 3 shortcuts that are meaningful multiples
+    const base = minQty > 1 ? minQty : 1;
     if (base > 1) {
       return [base, base * 2, base * 4].filter((v) => v <= 100);
     }
@@ -65,7 +64,7 @@ export function QuickAddControl({
           variant="ghost"
           size="icon"
           className={cn("rounded-xl border-0", compact ? "h-8 w-8" : "h-10 w-10")}
-          onClick={() => setQty((prev) => Math.max(1, prev - 1))}
+          onClick={() => setQty((prev) => Math.max(minQty, prev - 1))}
           disabled={outOfStock}
         >
           <Minus size={compact ? 11 : 13} />
@@ -73,9 +72,9 @@ export function QuickAddControl({
 
         <Input
           type="number"
-          min={1}
+          min={minQty}
           value={qty}
-          onChange={(event) => setQty(Math.max(1, Number(event.target.value) || 1))}
+          onChange={(event) => setQty(Math.max(minQty, Number(event.target.value) || minQty))}
           onKeyDown={(event) => {
             if (event.key === "Enter") handleSubmit();
           }}

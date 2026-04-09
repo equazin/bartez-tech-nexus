@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Star, TrendingUp, Truck, Flame } from "lucide-react";
+import { Star, TrendingUp, Truck, Flame, CalendarClock, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SurfaceCard } from "@/components/ui/surface-card";
@@ -10,6 +10,24 @@ import { DeliveryEstimate } from "./DeliveryEstimate";
 import { WarrantyBadge } from "./WarrantyBadge";
 import { QuickAddControl } from "./QuickAddControl";
 import type { Product } from "@/models/products";
+
+/** Devuelve el próximo día hábil desde hoy + `daysToAdd` días hábiles */
+function nextBusinessDay(daysToAdd: number): string {
+  const d = new Date();
+  let added = 0;
+  while (added < daysToAdd) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) added++;
+  }
+  return d.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" });
+}
+
+function resolveDeliveryLabel(available: number): string | null {
+  if (available <= 0) return null;
+  const days = available >= 5 ? 1 : 2;
+  return `Llega ${nextBusinessDay(days)}`;
+}
 
 function resolveCommercialSignals(product: Product, available: number) {
   return [
@@ -155,10 +173,33 @@ export function ProductItem({
                 {product.sku ? <span className="font-mono text-[10px] text-muted-foreground/80 bg-muted/50 border border-border/50 px-1.5 py-0.5 rounded-md">{product.sku}</span> : null}
                 <span className="text-[11px] text-muted-foreground truncate">{product.category}</span>
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <StockBadge stock={available} />
-                <DeliveryEstimate stock={product.stock} stockReserved={product.stock_reserved} compact />
-                <WarrantyBadge product={product} compact />
+
+                {resolveDeliveryLabel(available) ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/20 bg-sky-500/8 px-2 py-0.5 text-[10px] font-semibold text-sky-600 dark:text-sky-400 shrink-0">
+                    <CalendarClock size={9} />
+                    {resolveDeliveryLabel(available)}
+                  </span>
+                ) : null}
+
+                {product.supplier_name ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-teal-500/20 bg-teal-500/8 px-2 py-0.5 text-[10px] font-semibold text-teal-600 dark:text-teal-400 shrink-0">
+                    <ShieldCheck size={9} />
+                    Garantía oficial
+                  </span>
+                ) : null}
+
+                {product.min_order_qty && product.min_order_qty > 1 ? (
+                  <span className="inline-flex items-center rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-[10px] font-bold text-violet-600 dark:text-violet-400 shrink-0">
+                    Mín. {product.min_order_qty}u
+                  </span>
+                ) : (
+                  <span className="rounded-full border border-border/50 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+                    Venta unitaria
+                  </span>
+                )}
+
                 {isPosProduct(product) ? (
                   <Badge variant="outline" className="gap-1 bg-background text-[10px]">
                     <Truck size={10} /> POS
@@ -168,53 +209,49 @@ export function ProductItem({
                   <Badge variant="secondary" className="text-[10px] bg-secondary/80">Compraste {purchaseHistoryCount}u</Badge>
                 ) : null}
               </div>
-              {commercialSignals.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  {commercialSignals.map((signal) => (
-                    <span key={signal} className="rounded-full bg-secondary/30 px-2 py-0.5 border border-border/40 text-[9px] font-medium text-muted-foreground">
-                      {signal}
-                    </span>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 
           <div className="flex flex-col gap-1.5 mt-3 pt-3 border-t border-border/40">
 
             <div className="flex flex-col gap-2">
-              <div>
-                {isOffer && originalPrice && originalPrice > finalPrice ? (
-                  <div className="mb-0.5 text-[11px] font-medium leading-none text-muted-foreground/60 line-through tabular-nums">
-                    Antes: {formatPrice(originalPrice)}
+              <div className="flex items-end justify-between gap-2">
+                <div>
+                  {isOffer && originalPrice && originalPrice > finalPrice ? (
+                    <div className="mb-0.5 text-[11px] font-medium leading-none text-muted-foreground/60 line-through tabular-nums">
+                      Antes: {formatPrice(originalPrice)}
+                    </div>
+                  ) : null}
+                  <div className={cn(
+                    "text-3xl font-extrabold leading-none tabular-nums",
+                    isOffer ? "text-orange-600" : "text-primary"
+                  )}>
+                    {formatPrice(finalPrice)}
                   </div>
-                ) : null}
-                <div className={cn(
-                  "text-3xl font-extrabold leading-none tabular-nums",
-                  isOffer ? "text-orange-600" : "text-primary"
-                )}>
-                  {formatPrice(finalPrice)}
+                  <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Precio + IVA</p>
+                  {lastPurchaseUnitPriceDelta > 0 ? (
+                    <p className="mt-1 text-xs font-semibold text-amber-500">+{lastPurchaseUnitPriceDelta.toFixed(1)}% vs ultima compra</p>
+                  ) : null}
                 </div>
-                <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Precio + IVA</p>
-                {lastPurchaseUnitPriceDelta > 0 ? (
-                  <p className="mt-1 text-xs font-semibold text-amber-500">+{lastPurchaseUnitPriceDelta.toFixed(1)}% vs ultima compra</p>
-                ) : null}
               </div>
 
               {product.price_tiers?.length ? (
-                <div className="rounded-xl border border-primary/20 bg-primary/5 p-2">
-                  <p className="mb-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.18em] text-primary">
-                    <TrendingUp size={10} /> Escala
+                <div className="rounded-xl border border-primary/15 bg-primary/5 px-3 py-2">
+                  <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.2em] text-primary/70 flex items-center gap-1">
+                    <TrendingUp size={9} /> Precio por volumen
                   </p>
                   <div className="space-y-1">
-                    {product.price_tiers.map((tier, index) => (
+                    {product.price_tiers.slice(0, 2).map((tier, index) => (
                       <div key={index} className="flex items-center justify-between text-[10px]">
                         <span className="text-muted-foreground">
-                          {tier.min}{tier.max ? `-${tier.max}` : "+"} u
+                          {tier.min}{tier.max ? `–${tier.max}` : "+"} u
                         </span>
-                        <span className="font-bold text-primary">{formatPrice(tier.price)}</span>
+                        <span className="font-bold text-primary tabular-nums">{formatPrice(tier.price)}</span>
                       </div>
                     ))}
+                    {product.price_tiers.length > 2 ? (
+                      <p className="text-[9px] text-muted-foreground/60">+{product.price_tiers.length - 2} escalas más</p>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -227,6 +264,7 @@ export function ProductItem({
             inCart={inCart}
             outOfStock={outOfStock}
             wasAdded={wasAdded}
+            minQty={product.min_order_qty ?? 1}
             onAddQty={(qty) => onAddQty(product, qty)}
             onRemoveOne={() => onRemoveFromCart(product)}
             showShortcuts
@@ -271,21 +309,46 @@ export function ProductItem({
             {product.featured ? <Star size={10} className="text-amber-400 shrink-0" fill="currentColor" /> : null}
           </div>
           
-          <div className="flex flex-wrap items-center gap-2">
-            <StockBadge stock={available} />
-            <DeliveryEstimate stock={product.stock} stockReserved={product.stock_reserved} compact />
-            <WarrantyBadge product={product} compact />
-            <span className="text-[10px] text-muted-foreground">{product.category}</span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <StockBadge stock={available} size="md" />
+
+            {/* Fecha estimada de entrega */}
+            {resolveDeliveryLabel(available) ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/20 bg-sky-500/8 px-2 py-0.5 text-[10px] font-semibold text-sky-600 dark:text-sky-400 shrink-0">
+                <CalendarClock size={10} />
+                {resolveDeliveryLabel(available)}
+              </span>
+            ) : null}
+
+            {/* Garantía oficial — cuando viene de proveedor oficial */}
+            {product.supplier_name ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-teal-500/20 bg-teal-500/8 px-2 py-0.5 text-[10px] font-semibold text-teal-600 dark:text-teal-400 shrink-0">
+                <ShieldCheck size={10} />
+                Garantía oficial
+              </span>
+            ) : null}
+
+            {/* Categoría */}
+            <span className="rounded-full border border-border/50 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+              {product.category}
+            </span>
+
+            {/* MOQ / Venta unitaria */}
+            {product.min_order_qty && product.min_order_qty > 1 ? (
+              <span className="inline-flex items-center rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-[10px] font-bold text-violet-600 dark:text-violet-400 shrink-0">
+                Mín. {product.min_order_qty}u
+              </span>
+            ) : (
+              <span className="rounded-full border border-border/50 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+                Venta unitaria
+              </span>
+            )}
+
             {isPosProduct(product) ? (
               <Badge variant="outline" className="gap-1 text-[9px] h-4 px-1 bg-background text-muted-foreground">
                 <Truck size={8} /> POS
               </Badge>
             ) : null}
-            {commercialSignals.length > 0 && commercialSignals.map((signal) => (
-              <span key={signal} className="rounded-sm bg-secondary/40 px-1 py-0 border border-border/40 text-[9px] font-medium text-muted-foreground">
-                {signal}
-              </span>
-            ))}
           </div>
         </div>
       </div>
@@ -339,6 +402,7 @@ export function ProductItem({
             outOfStock={outOfStock}
             wasAdded={wasAdded}
             compact
+            minQty={product.min_order_qty ?? 1}
             onAddQty={(qty) => onAddQty(product, qty)}
             onRemoveOne={() => onRemoveFromCart(product)}
           />

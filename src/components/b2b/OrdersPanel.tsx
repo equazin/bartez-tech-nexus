@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ClipboardList, MapPin, Package, Search, Truck, ExternalLink, Copy } from "lucide-react";
+import { ClipboardList, Clock, MapPin, Package, Search, Truck, ExternalLink, Copy } from "lucide-react";
 
 import { EmptyOrdersState } from "@/components/b2b/empty-states/EmptyOrdersState";
 import { OrderStatusBadge } from "@/components/OrderStatusBadge";
@@ -44,6 +44,16 @@ const ORDER_STATUS_OPTIONS = [
   { value: "delivered", label: "Entregados" },
   { value: "rejected", label: "Rechazados" },
 ] as const;
+
+function getPendingUrgency(createdAt: string): { label: string; className: string } | null {
+  const ageH = (Date.now() - new Date(createdAt).getTime()) / 3_600_000;
+  if (ageH < 48) return null;
+  const days = Math.floor(ageH / 24);
+  if (ageH >= 120) {
+    return { label: `hace ${days}d`, className: "border-red-500/30 bg-red-500/10 text-red-500" };
+  }
+  return { label: `hace ${days}d`, className: "border-amber-500/30 bg-amber-500/10 text-amber-500" };
+}
 
 const ORDER_STATUS_COPY: Record<string, string> = {
   pending: "Estamos revisando stock y condiciones comerciales.",
@@ -159,6 +169,7 @@ export function OrdersPanel({
             const isExpanded = expandedOrderId === orderId;
             const otherCurrencyValue = currency === "USD" ? formatARS(order.total) : formatUSD(order.total);
             const relatedInvoices = invoices.filter((invoice) => String(invoice.order_id) === orderId);
+            const pendingUrgency = order.status === "pending" ? getPendingUrgency(order.created_at) : null;
             const shippingLabel = order.shipping_type
               ? {
                   retiro: "Retiro en sucursal",
@@ -175,6 +186,12 @@ export function OrdersPanel({
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">{order.order_number ?? `#${orderId.slice(-6).toUpperCase()}`}</span>
                         <OrderStatusBadge status={order.status} />
+                        {pendingUrgency && (
+                          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${pendingUrgency.className}`}>
+                            <Clock size={9} />
+                            {pendingUrgency.label}
+                          </span>
+                        )}
                         {order.internal_reference ? <Badge variant="outline" className="border-amber-500/30 bg-amber-500/5 text-amber-600 dark:text-amber-400 text-[10px]">PO: {order.internal_reference}</Badge> : null}
                         {order.numero_remito ? <Badge variant="outline" className="text-[10px]">Remito {order.numero_remito}</Badge> : null}
                       </div>

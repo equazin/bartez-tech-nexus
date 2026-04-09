@@ -799,6 +799,45 @@ export function CatalogSection({
           />
         ) : null}
 
+        {/* Active filter chip strip */}
+        {(hasActiveFilters || hasAdvancedFilters) && (
+          <div className="flex flex-wrap items-center gap-1.5 px-1">
+            {categoryFilter !== "all" && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/8 px-3 py-1 text-[11px] font-semibold text-primary">
+                {categoryFilter.replace(/-/g, " ")}
+                <button type="button" onClick={() => setCategoryFilter("all")} className="ml-0.5 rounded-full p-0.5 hover:bg-primary/20 transition-colors">
+                  <X size={10} />
+                </button>
+              </span>
+            )}
+            {effectiveFilters.brands.map((brand) => (
+              <span key={brand} className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/60 px-3 py-1 text-[11px] font-medium text-foreground">
+                {brand}
+                <button type="button" onClick={() => toggleAdvancedFilter("brands", brand)} className="ml-0.5 rounded-full p-0.5 hover:bg-secondary transition-colors">
+                  <X size={10} />
+                </button>
+              </span>
+            ))}
+            {(["ram", "storage", "refreshRate", "screen"] as const).flatMap((key) =>
+              effectiveFilters[key].map((val) => (
+                <span key={`${key}-${val}`} className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/60 px-3 py-1 text-[11px] font-medium text-foreground">
+                  {val}
+                  <button type="button" onClick={() => toggleAdvancedFilter(key, val)} className="ml-0.5 rounded-full p-0.5 hover:bg-secondary transition-colors">
+                    <X size={10} />
+                  </button>
+                </span>
+              ))
+            )}
+            <button
+              type="button"
+              onClick={clearAllFilters}
+              className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium text-muted-foreground hover:text-destructive transition-colors"
+            >
+              <X size={10} /> Limpiar
+            </button>
+          </div>
+        )}
+
         {productsLoading ? (
         viewMode === "list" || viewMode === "table" ? (
           <div className="flex flex-col gap-2">

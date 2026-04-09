@@ -144,9 +144,16 @@ export function CartDrawer({
         <DrawerHeader className="flex items-center justify-between border-b border-[#1a1a1a] px-5 py-4 shrink-0">
           <div className="flex items-center gap-2.5">
             <ShoppingCart size={16} className="text-[#2D9F6A]" />
-            <DrawerTitle className="text-base font-bold text-white">
-              {resellerMode ? "Configurar Presupuesto" : "Carrito"}
-            </DrawerTitle>
+            <div>
+              <DrawerTitle className="text-base font-bold text-white leading-none">
+                {resellerMode ? "Configurar Presupuesto" : "Carrito"}
+              </DrawerTitle>
+              {!resellerMode && itemCount > 0 && (
+                <p className="text-[10px] text-gray-500 mt-0.5 leading-none">
+                  {itemCount} {itemCount !== 1 ? "artículos" : "artículo"} · {formatPrice(cartTotal)}
+                </p>
+              )}
+            </div>
           </div>
           <DrawerClose asChild>
             <button className="text-gray-600 hover:text-white transition p-1.5 rounded-lg hover:bg-[#1e1e1e]">
@@ -237,18 +244,30 @@ export function CartDrawer({
                 <p className="text-sm font-medium text-gray-500">El carrito está vacío</p>
               </div>
             ) : (
-              cartItems.map((item) => (
-                <div key={item.product.id} className="bg-[#111] border border-[#1f1f1f] rounded-xl p-3">
+              cartItems.map((item) => {
+                const nextTier = getNextTier(item.product, item.quantity);
+                const prevTierMin = (() => {
+                  if (!item.product.price_tiers?.length) return 1;
+                  const below = item.product.price_tiers.filter((t) => t.min <= item.quantity).sort((a, b) => b.min - a.min);
+                  return below[0]?.min ?? 1;
+                })();
+                const tierProgress = nextTier
+                  ? Math.round(((item.quantity - prevTierMin) / (nextTier.min - prevTierMin)) * 100)
+                  : 100;
+                const unitsToNext = nextTier ? nextTier.min - item.quantity : 0;
+
+                return (
+                <div key={item.product.id} className="bg-[#111] border border-[#1f1f1f] rounded-xl p-3 space-y-2">
                   <div className="flex items-start gap-3">
                     <div className="h-12 w-12 bg-[#0a0a0a] rounded-lg flex items-center justify-center shrink-0 border border-[#1a1a1a]">
                       <img src={item.product.image} alt={item.product.name} className="max-h-10 max-w-10 object-contain" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-white line-clamp-1 leading-tight">{item.product.name}</p>
-                      <p className="text-xs font-bold text-[#2D9F6A] mt-1 tabular-nums">{formatPrice(item.unitPrice)}</p>
+                      <p className="text-xs font-bold text-[#2D9F6A] mt-1 tabular-nums">{formatPrice(item.unitPrice)}<span className="ml-1 text-[10px] font-normal text-gray-600">c/u</span></p>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between mt-2.5">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1">
                       <button onClick={() => onRemoveFromCart(item.product)} className="h-7 w-7 bg-[#1c1c1c] hover:bg-[#252525] text-white rounded-lg flex items-center justify-center border border-[#262626]"><Minus size={11} /></button>
                       <span className="w-8 text-center text-white font-bold text-sm tabular-nums">{item.quantity}</span>
@@ -258,8 +277,26 @@ export function CartDrawer({
                       <div className="text-sm font-extrabold text-white tabular-nums">{formatPrice(item.totalWithIVA)}</div>
                     </div>
                   </div>
+                  {/* Next tier nudge */}
+                  {nextTier && (
+                    <div className="rounded-lg border border-amber-500/15 bg-amber-500/5 px-2.5 py-2 space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-amber-400/80 font-medium">
+                          +{unitsToNext}u → <span className="font-bold text-amber-300">{formatPrice(nextTier.price)}</span>/u
+                        </span>
+                        <span className="text-amber-500/60">escalón de precio</span>
+                      </div>
+                      <div className="h-1 w-full rounded-full bg-amber-500/15 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-amber-400/70 transition-all duration-300"
+                          style={{ width: `${Math.min(tierProgress, 99)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))
+                );
+              })
             )
           )}
         </div>
@@ -375,14 +412,15 @@ export function CartDrawer({
               </div>
             </div>
 
-            {/* Save quote + Export PDF */}
+            {/* Cotización Express + Export PDF */}
             <div className="flex gap-2">
               <button
                 onClick={onSaveQuote}
-                className="flex-1 flex items-center justify-center gap-2 border border-[#1f1f1f] hover:border-[#2D9F6A]/40 text-[#737373] hover:text-[#2D9F6A] bg-transparent hover:bg-[#0d1f17] rounded-xl py-2.5 text-sm transition-all"
+                className="flex-1 flex items-center justify-center gap-2 border border-[#2D9F6A]/40 hover:border-[#2D9F6A]/70 text-[#2D9F6A] bg-[#0d1f17] hover:bg-[#102518] rounded-xl py-2.5 text-sm font-semibold transition-all"
+                title="Genera la cotización al instante. Sin formulario."
               >
-                <BookmarkPlus size={14} />
-                Guardar cotización
+                <Zap size={14} />
+                Cotización Express
               </button>
               <button
                 onClick={() => { void handleExportPDF(); }}

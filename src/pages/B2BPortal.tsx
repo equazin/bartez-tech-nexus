@@ -124,6 +124,8 @@ export default function B2BPortal() {
   const [quickError, setQuickError] = useState("");
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
+  const [ordersMenuOpen, setOrdersMenuOpen] = useState(false);
+  const ordersMenuRef = useRef<HTMLDivElement | null>(null);
 
   const { isDark, toggleTheme: toggleAppTheme } = useAppTheme();
 
@@ -255,7 +257,7 @@ export default function B2BPortal() {
 
   useEffect(() => { if (!themeFlash) return; const t = window.setTimeout(() => setThemeFlash(false), 260); return () => window.clearTimeout(t); }, [themeFlash]);
   useEffect(() => { const raf = window.requestAnimationFrame(() => setThemeSwitchReady(true)); return () => window.cancelAnimationFrame(raf); }, []);
-  useEffect(() => { setAccountMenuOpen(false); }, [activeTab]);
+  useEffect(() => { setAccountMenuOpen(false); setOrdersMenuOpen(false); }, [activeTab]);
   useEffect(() => {
     if (!accountMenuOpen) return;
 
@@ -277,6 +279,22 @@ export default function B2BPortal() {
       document.removeEventListener("keydown", handleEscape);
     };
   }, [accountMenuOpen]);
+
+  useEffect(() => {
+    if (!ordersMenuOpen) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target || !ordersMenuRef.current || ordersMenuRef.current.contains(target)) return;
+      setOrdersMenuOpen(false);
+    };
+    const handleEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setOrdersMenuOpen(false); };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [ordersMenuOpen]);
 
   // â”€â”€ View mode effects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => { setViewMode(viewModeByContext[catalogContext]); }, [catalogContext, viewModeByContext]);
@@ -421,6 +439,7 @@ export default function B2BPortal() {
         themeFlash={themeFlash}
         themeSwitchReady={themeSwitchReady}
         cartItemsCount={cart.cartCount}
+        cartTotal={cart.cartTotal}
         onOpenCart={() => navigate("/cart")}
         onLogout={handleLogout}
         exchangeRate={exchangeRate}
@@ -435,88 +454,119 @@ export default function B2BPortal() {
       {/* TABS */}
       <div className="relative z-50 border-b border-border/70 bg-card/75 px-4 py-1.5 md:px-6">
         <div className="flex items-center gap-1 overflow-x-auto overflow-y-visible pb-1 lg:overflow-visible [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {/* Primary tabs: Inicio + Catálogo */}
           {[
-          { id: "home",     label: "Inicio",        icon: LayoutGrid },
-          { id: "catalog",  label: "Catálogo",      icon: Package },
-          { id: "quotes",   label: `Cotizaciones${quoteCount ? ` (${quoteCount})` : ""}`, icon: FileText },
-          { id: "orders",   label: `Pedidos${highlightedOrders ? ` (${highlightedOrders})` : ""}`, icon: ClipboardList },
-        ].map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => setPortalTab(id as PortalTab)}
-            className={`mx-0.5 my-0.5 flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-2xl px-3.5 py-2 text-sm font-medium transition ${
-              activeTab === id ? "bg-accent text-foreground shadow-sm" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-            }`}
-          >
-            <Icon size={13} /> {label}
-          </button>
-        ))}
-
-        <div className="mx-2 h-5 w-px bg-border/60 shrink-0 hidden md:block" />
-
-        {/* Módulos de Gestión (Dropdown Hover) */}
-        <div ref={accountMenuRef} className="relative shrink-0">
-          <button
-            type="button"
-            onClick={() => setAccountMenuOpen((current) => !current)}
-            aria-expanded={accountMenuOpen}
-            aria-haspopup="menu"
-            className={`mx-0.5 my-0.5 flex items-center gap-1.5 rounded-2xl px-3.5 py-2 text-sm font-medium transition ${
-              ["invoices", "cuenta", "support", "projects", "approvals", "rma"].includes(activeTab)
-                ? "bg-accent/50 text-foreground ring-1 ring-border/50"
-                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-            }`}
-          >
-            <Users size={13} /> Gestión de Cuenta
-            {(() => {
-              const accountNotifications = myInvoices.filter(i => ["sent", "overdue", "draft"].includes(i.status)).length + pendingApprovals;
-              return accountNotifications > 0 ? (
-                <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">
-                  {accountNotifications}
-                </span>
-              ) : null;
-            })()}
-            <svg
-              width="10"
-              height="6"
-              viewBox="0 0 10 6"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className={`ml-1 opacity-50 transition-transform ${accountMenuOpen ? "rotate-180" : ""}`}
+            { id: "home",    label: "Inicio",   icon: LayoutGrid },
+            { id: "catalog", label: "Catálogo", icon: Package },
+          ].map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setPortalTab(id as PortalTab)}
+              className={`mx-0.5 my-0.5 flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-2xl px-3.5 py-2 text-sm font-medium transition ${
+                activeTab === id ? "bg-accent text-foreground shadow-sm" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              }`}
             >
-              <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-          
-          <div className={`absolute right-0 top-full z-50 pt-1 md:left-0 md:right-auto ${accountMenuOpen ? "block" : "hidden"}`}>
-            <div className="flex min-w-[220px] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl border border-border/60 bg-card py-1.5 shadow-xl" role="menu">
-              {[
-                { id: "cuenta",   label: "Centro de Cuenta", icon: Users },
-                { id: "invoices", label: `Facturas${myInvoices.length ? ` (${myInvoices.length})` : ""}`, icon: FileText },
-                { id: "projects", label: "Proyectos",        icon: Briefcase },
-                ...(profile?.b2b_role === "manager" || isAdmin ? [{
-                  id: "approvals", label: `Aprobaciones${pendingApprovals ? ` (${pendingApprovals})` : ""}`, icon: ShieldCheck,
-                }] : []),
-                { id: "support",  label: "Soporte",          icon: MessageSquare },
-                { id: "rma",      label: "Devoluciones",     icon: RotateCcw },
-              ].map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  onClick={() => {
-                    setPortalTab(id as PortalTab);
-                    setAccountMenuOpen(false);
-                  }}
-                  role="menuitem"
-                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition ${
-                    activeTab === id ? "bg-accent/60 text-foreground font-semibold" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  <Icon size={14} /> {label}
-                </button>
-              ))}
+              <Icon size={13} /> {label}
+            </button>
+          ))}
+
+          {/* Pedidos dropdown (orders + quotes + approvals) */}
+          <div ref={ordersMenuRef} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => { setOrdersMenuOpen((c) => !c); setAccountMenuOpen(false); }}
+              aria-expanded={ordersMenuOpen}
+              aria-haspopup="menu"
+              className={`mx-0.5 my-0.5 flex items-center gap-1.5 rounded-2xl px-3.5 py-2 text-sm font-medium transition ${
+                ["orders", "quotes", "approvals"].includes(activeTab)
+                  ? "bg-accent text-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              }`}
+            >
+              <ClipboardList size={13} />
+              Pedidos
+              {(highlightedOrders + quoteCount + pendingApprovals) > 0 && (
+                <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold text-primary leading-none">
+                  {highlightedOrders + quoteCount + (pendingApprovals ?? 0)}
+                </span>
+              )}
+              <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg"
+                className={`ml-0.5 opacity-50 transition-transform ${ordersMenuOpen ? "rotate-180" : ""}`}>
+                <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            <div className={`absolute left-0 top-full z-50 pt-1 ${ordersMenuOpen ? "block" : "hidden"}`}>
+              <div className="flex min-w-[200px] flex-col overflow-hidden rounded-xl border border-border/60 bg-card py-1.5 shadow-xl" role="menu">
+                {[
+                  { id: "orders",   label: `Pedidos${highlightedOrders ? ` (${highlightedOrders})` : ""}`, icon: ClipboardList },
+                  { id: "quotes",   label: `Cotizaciones${quoteCount ? ` (${quoteCount})` : ""}`,          icon: FileText },
+                  ...(profile?.b2b_role === "manager" || isAdmin ? [{
+                    id: "approvals", label: `Aprobaciones${pendingApprovals ? ` (${pendingApprovals})` : ""}`, icon: ShieldCheck,
+                  }] : []),
+                ].map(({ id, label, icon: Icon }) => (
+                  <button key={id} onClick={() => { setPortalTab(id as PortalTab); setOrdersMenuOpen(false); }}
+                    role="menuitem"
+                    className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition ${activeTab === id ? "bg-accent/60 text-foreground font-semibold" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                    <Icon size={14} /> {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+
+          {/* Finanzas (invoices — top level) */}
+          <button
+            onClick={() => setPortalTab("invoices")}
+            className={`mx-0.5 my-0.5 flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-2xl px-3.5 py-2 text-sm font-medium transition ${
+              activeTab === "invoices" ? "bg-accent text-foreground shadow-sm" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            }`}
+          >
+            <FileText size={13} />
+            Finanzas
+            {myInvoices.length > 0 && (
+              <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold text-primary leading-none">{myInvoices.length}</span>
+            )}
+          </button>
+
+          <div className="mx-2 h-5 w-px bg-border/60 shrink-0 hidden md:block" />
+
+          {/* Cuenta dropdown */}
+          <div ref={accountMenuRef} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => { setAccountMenuOpen((c) => !c); setOrdersMenuOpen(false); }}
+              aria-expanded={accountMenuOpen}
+              aria-haspopup="menu"
+              className={`mx-0.5 my-0.5 flex items-center gap-1.5 rounded-2xl px-3.5 py-2 text-sm font-medium transition ${
+                ["cuenta", "support", "projects", "rma", "bulk"].includes(activeTab)
+                  ? "bg-accent/50 text-foreground ring-1 ring-border/50"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              }`}
+            >
+              <Users size={13} /> Cuenta
+              <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg"
+                className={`ml-1 opacity-50 transition-transform ${accountMenuOpen ? "rotate-180" : ""}`}>
+                <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            <div className={`absolute right-0 top-full z-50 pt-1 md:left-0 md:right-auto ${accountMenuOpen ? "block" : "hidden"}`}>
+              <div className="flex min-w-[220px] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl border border-border/60 bg-card py-1.5 shadow-xl" role="menu">
+                {[
+                  { id: "cuenta",   label: "Centro de Cuenta", icon: Users },
+                  { id: "projects", label: "Proyectos",        icon: Briefcase },
+                  { id: "support",  label: "Soporte",          icon: MessageSquare },
+                  { id: "rma",      label: "Devoluciones",     icon: RotateCcw },
+                ].map(({ id, label, icon: Icon }) => (
+                  <button key={id}
+                    onClick={() => { setPortalTab(id as PortalTab); setAccountMenuOpen(false); }}
+                    role="menuitem"
+                    className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition ${activeTab === id ? "bg-accent/60 text-foreground font-semibold" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                    <Icon size={14} /> {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -626,7 +676,7 @@ export default function B2BPortal() {
         {/* MAIN CONTENT (FULL WIDTH) */}
 
         {/* MAIN CONTENT */}
-        <main className="flex-1 overflow-y-auto bg-transparent p-3 md:p-4 lg:p-5">
+        <main className="flex-1 overflow-y-auto bg-transparent p-3 pb-20 md:p-4 md:pb-4 lg:p-5">
 
           {/* HOME */}
           {activeTab === "home" && profile && (
@@ -930,6 +980,44 @@ export default function B2BPortal() {
         />
       )}
       </div>
+
+      {/* MOBILE BOTTOM NAV — visible only on small screens */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex items-stretch border-t border-border/70 bg-card/95 backdrop-blur-xl md:hidden">
+        {[
+          { id: "home",     label: "Inicio",    icon: LayoutGrid,   badge: 0 },
+          { id: "catalog",  label: "Catálogo",  icon: Package,      badge: 0 },
+          { id: "orders",   label: "Pedidos",   icon: ClipboardList, badge: highlightedOrders + quoteCount + (pendingApprovals ?? 0) },
+          { id: "invoices", label: "Finanzas",  icon: FileText,     badge: myInvoices.length },
+          { id: "cuenta",   label: "Cuenta",    icon: Users,        badge: 0 },
+        ].map(({ id, label, icon: Icon, badge }) => {
+          const isActive =
+            id === "orders"
+              ? ["orders", "quotes", "approvals"].includes(activeTab)
+              : id === "cuenta"
+              ? ["cuenta", "projects", "support", "rma", "bulk"].includes(activeTab)
+              : activeTab === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setPortalTab(id as PortalTab)}
+              className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition ${
+                isActive ? "text-primary" : "text-muted-foreground"
+              }`}
+            >
+              <div className="relative">
+                <Icon size={19} strokeWidth={isActive ? 2.2 : 1.7} />
+                {badge > 0 && (
+                  <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-0.5 text-[8px] font-bold text-primary-foreground">
+                    {badge > 99 ? "99+" : badge}
+                  </span>
+                )}
+              </div>
+              <span className={isActive ? "font-semibold" : ""}>{label}</span>
+            </button>
+          );
+        })}
+      </nav>
 
       {!isAdmin && <WhatsAppFloat />}
     </div>

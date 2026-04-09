@@ -3,7 +3,7 @@ import {
   ClipboardList, Layers, CheckCircle2, MessageSquare, Users, UserPlus,
   CreditCard, Bell, FileText, BarChart2, Building2, Bookmark, Wifi,
   ShieldCheck, ShieldAlert, History, ShoppingBag, RotateCcw, Handshake, LifeBuoy,
-  Ticket, Globe, Activity, type LucideIcon,
+  Ticket, Globe, Activity, Megaphone, type LucideIcon,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -18,7 +18,7 @@ export type Tab =
   | "suppliers" | "brands" | "pricing" | "supplier_sync" | "stock" | "serials"
   | "movements" | "purchase_orders" | "rma" | "price_agreements" | "marketing" | "webhooks" | "activity" | "admin_management";
 
-export type ModuleId = "top" | "catalogo" | "pedidos" | "vendedores" | "clientes" | "finanzas" | "sistema";
+export type ModuleId = "top" | "catalogo" | "pedidos" | "vendedores" | "clientes" | "finanzas" | "marketing" | "inventario" | "configuracion" | "sistema";
 
 export interface NavItem {
   id: Tab;
@@ -106,25 +106,46 @@ export const NAV_MODULES: NavModule[] = [
     ],
   },
   {
+    id: "marketing",
+    label: "Marketing",
+    icon: Megaphone,
+    items: [
+      { id: "marketing", label: "Campañas", icon: Ticket,    adminOnly: true },
+      { id: "support",   label: "Soporte",  icon: LifeBuoy,  adminOnly: true },
+    ],
+  },
+  {
+    id: "inventario",
+    label: "Inventario",
+    icon: Layers,
+    items: [
+      { id: "stock",           label: "Stock",           icon: Layers,     adminOnly: true },
+      { id: "movements",       label: "Movimientos",     icon: History,    adminOnly: true },
+      { id: "serials",         label: "Números Serie",   icon: ShieldCheck, adminOnly: true },
+      { id: "purchase_orders", label: "Órdenes Compra",  icon: ShoppingBag, adminOnly: true },
+      { id: "rma",             label: "Devoluciones",    icon: RotateCcw,  adminOnly: true },
+    ],
+  },
+  {
+    id: "configuracion",
+    label: "Configuración",
+    icon: Building2,
+    items: [
+      { id: "suppliers",        label: "Proveedores",     icon: Building2,  adminOnly: true },
+      { id: "brands",           label: "Marcas",          icon: Bookmark,   adminOnly: true },
+      { id: "pricing",          label: "Precios",         icon: Tag,        adminOnly: true },
+      { id: "price_agreements", label: "Acuerdos Precio", icon: Handshake,  adminOnly: true },
+      { id: "supplier_sync",    label: "Sync",            icon: Wifi,       adminOnly: true },
+    ],
+  },
+  {
     id: "sistema",
     label: "Sistema",
     icon: Activity,
     items: [
-      { id: "admin_management", label: "Administradores",  icon: ShieldAlert, adminOnly: true },
-      { id: "suppliers",       label: "Proveedores",     icon: Building2,  adminOnly: true },
-      { id: "brands",          label: "Marcas",          icon: Bookmark,   adminOnly: true },
-      { id: "pricing",         label: "Precios",         icon: Tag,        adminOnly: true },
-      { id: "supplier_sync",   label: "Sync",            icon: Wifi,       adminOnly: true },
-      { id: "stock",           label: "Stock",           icon: Layers,     adminOnly: true },
-      { id: "serials",         label: "Números Serie",   icon: ShieldCheck, adminOnly: true },
-      { id: "movements",       label: "Movimientos",     icon: History,    adminOnly: true },
-      { id: "purchase_orders", label: "Órdenes Compra",  icon: ShoppingBag, adminOnly: true },
-      { id: "rma",             label: "Devoluciones",    icon: RotateCcw,  adminOnly: true },
-      { id: "price_agreements", label: "Acuerdos Precio", icon: Handshake, adminOnly: true },
-      { id: "support",         label: "Soporte",         icon: LifeBuoy,   adminOnly: true },
-      { id: "marketing",       label: "Marketing",       icon: Ticket,     adminOnly: true },
-      { id: "webhooks",        label: "Webhooks",        icon: Globe,      adminOnly: true },
-      { id: "activity",        label: "Actividad",       icon: Activity,   adminOnly: true },
+      { id: "admin_management", label: "Administradores", icon: ShieldAlert, adminOnly: true },
+      { id: "webhooks",         label: "Webhooks",        icon: Globe,       adminOnly: true },
+      { id: "activity",         label: "Actividad",       icon: Activity,    adminOnly: true },
     ],
   },
 ];

@@ -110,6 +110,20 @@ function QuoteStatusBadge({ status }: { status: QuoteStatus }) {
   );
 }
 
+function getExpiryCountdown(expiresAt: string | undefined, status: QuoteStatus): { label: string; className: string } | null {
+  if (!expiresAt || ["expired", "rejected", "converted"].includes(status)) return null;
+  const diffMs = new Date(expiresAt).getTime() - Date.now();
+  if (diffMs <= 0) return null;
+  const diffH = diffMs / 3_600_000;
+  if (diffH > 72) return null;
+  const diffD = Math.floor(diffH / 24);
+  const label = diffH < 24 ? `vence en ${Math.ceil(diffH)}h` : `vence en ${diffD}d`;
+  const className = diffH < 24
+    ? "border-red-500/30 bg-red-500/10 text-red-500"
+    : "border-amber-500/30 bg-amber-500/10 text-amber-500";
+  return { label, className };
+}
+
 const STATUS_OPTIONS: QuoteStatus[] = ["draft", "sent", "viewed", "approved", "rejected", "converted", "expired"];
 
 function StatusDropdown({ current, onSelect }: { current: QuoteStatus; onSelect: (s: QuoteStatus) => void }) {
@@ -179,6 +193,7 @@ export function QuoteList({ quotes, isDark: _isDark, onLoad, onUpdateStatus, onD
     <div className="space-y-3">
       {quotes.map((quote) => {
         const isExpanded = expanded.has(quote.id);
+        const expiryCountdown = getExpiryCountdown(quote.expires_at, quote.status);
         return (
           <SurfaceCard key={quote.id} tone="default" padding="none" className="overflow-hidden rounded-[24px] border border-border/70 bg-card shadow-sm">
             <div className="border-b border-border/70 px-5 pb-2 pt-4">
@@ -196,6 +211,12 @@ export function QuoteList({ quotes, isDark: _isDark, onLoad, onUpdateStatus, onD
                     {quote.version != null && quote.version > 1 ? <Badge variant="outline" className="text-[10px]">v{quote.version}</Badge> : null}
                     {quote.order_id != null ? <Badge variant="secondary" className="text-[10px]">Pedido creado</Badge> : null}
                     <QuoteStatusBadge status={quote.status} />
+                    {expiryCountdown && (
+                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${expiryCountdown.className}`}>
+                        <Clock size={9} />
+                        {expiryCountdown.label}
+                      </span>
+                    )}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {new Date(quote.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}

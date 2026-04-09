@@ -276,7 +276,7 @@ export default function QuoteRequest() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            subject: `Evaluación tecnológica — ${company}`,
+            subject: `Consultoría IT — ${company}`,
             name: `${name} (${company})`,
             email,
             message: msg,
@@ -305,14 +305,14 @@ export default function QuoteRequest() {
             initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
             className="enterprise-badge mb-4 inline-flex"
           >
-            Evaluación Tecnológica · Sin cargo
+            Consultoría IT · Sin cargo
           </motion.span>
           <motion.h1
             initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.08 }}
             className="font-display text-3xl lg:text-5xl font-extrabold tracking-tight text-foreground mb-3"
           >
-            Solicite una evaluación{" "}
+            Consultoría IT{" "}
             <span className="text-gradient">sin cargo</span>
           </motion.h1>
           <motion.p
@@ -320,7 +320,7 @@ export default function QuoteRequest() {
             transition={{ delay: 0.15 }}
             className="text-muted-foreground text-sm lg:text-base max-w-md mx-auto"
           >
-            En menos de 2 minutos evaluamos su infraestructura y detectamos oportunidades de mejora.
+            ¿Necesita asesoramiento? En menos de 2 minutos evaluamos su infraestructura y detectamos oportunidades de mejora.
           </motion.p>
         </div>
       </section>

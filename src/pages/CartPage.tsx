@@ -97,6 +97,36 @@ export default function CartPage() {
   const navigate = useNavigate();
   const { profile, isAdmin, user } = useAuth();
   const { products, loading: productsLoading } = useProducts({ isAdmin });
+
+  // Cart state needs to be declared early so we can use the IDs for targeted fetch
+  const userId0 = profile?.id || "guest";
+  const cartKey0 = `b2b_cart_${userId0}`;
+  const [cartProductsById, setCartProductsById] = useState<Record<number, import("@/models/products").Product>>({});
+  const [cartProductsLoading, setCartProductsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchCartProducts() {
+      setCartProductsLoading(true);
+      try {
+        const storedCart: Record<number, number> = JSON.parse(localStorage.getItem(cartKey0) || "{}");
+        const ids = Object.keys(storedCart).map(Number).filter(Boolean);
+        if (ids.length === 0) { setCartProductsById({}); setCartProductsLoading(false); return; }
+        const tableName = isAdmin ? "products" : "portal_products";
+        const { data } = await supabase.from(tableName).select("*").in("id", ids);
+        if (!cancelled && data) {
+          const byId: Record<number, import("@/models/products").Product> = {};
+          (data as import("@/models/products").Product[]).forEach((p) => { byId[p.id] = p; });
+          setCartProductsById(byId);
+        }
+      } finally {
+        if (!cancelled) setCartProductsLoading(false);
+      }
+    }
+    void fetchCartProducts();
+    return () => { cancelled = true; };
+  }, [cartKey0, isAdmin]);
+
   const { computePrice } = usePricing(profile);
   const { addOrder, orders } = useOrders();
   const { addQuote } = useQuotes(profile?.id || "guest");
@@ -179,7 +209,7 @@ export default function CartPage() {
   const cartItems: CartItem[] = useMemo(() => {
     return Object.entries(cart)
       .map(([id, qty]) => {
-        const product = products.find((p) => p.id === Number(id));
+        const product = cartProductsById[Number(id)] ?? products.find((p) => p.id === Number(id));
         if (!product) return null;
         
         const price = computePrice(product, qty);
@@ -205,7 +235,7 @@ export default function CartPage() {
         };
       })
       .filter((i): i is CartItem => i !== null);
-  }, [cart, products, computePrice]);
+  }, [cart, cartProductsById, products, computePrice]);
 
   const cartSubtotal     = useMemo(() => cartItems.reduce((s, i) => s + i.totalPrice, 0), [cartItems]);
   const cartIVATotal     = useMemo(() => cartItems.reduce((s, i) => s + i.ivaAmount,  0), [cartItems]);
@@ -953,6 +983,24 @@ export default function CartPage() {
       </div>
 
       <div className="mx-auto max-w-[1680px] px-4 md:px-6 mt-4">
+        {cartProductsLoading ? (
+          <div className={`flex flex-col items-center justify-center gap-4 rounded-2xl border py-20 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
+            <Loader2 size={28} className="animate-spin text-[#2D9F6A]" />
+            <p className={`text-sm ${dk("text-gray-400", "text-[#737373]")}`}>Cargando carrito…</p>
+          </div>
+        ) : Object.keys(cart).length > 0 && cartItems.length === 0 ? (
+          <div className={`flex flex-col items-center justify-center gap-4 rounded-2xl border py-20 ${dk("border-[#1f1f1f] bg-[#111]", "border-[#e5e5e5] bg-white")}`}>
+            <AlertTriangle size={28} className="text-amber-400" />
+            <p className={`text-sm font-medium ${dk("text-gray-300", "text-[#525252]")}`}>Algunos productos del carrito ya no están disponibles.</p>
+            <button
+              type="button"
+              onClick={() => navigate("/b2b-portal")}
+              className="rounded-xl bg-[#2D9F6A] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+            >
+              Volver al catálogo
+            </button>
+          </div>
+        ) : (
         <CheckoutWizard
           hasCartItems={cartItems.length > 0}
           hasBlockingErrors={hasBlockingErrors}
@@ -1088,6 +1136,7 @@ export default function CartPage() {
               : undefined,
           }}
         />
+        )}
       </div>
       </div>
     </div>

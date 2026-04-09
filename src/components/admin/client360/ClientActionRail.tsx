@@ -33,6 +33,7 @@ interface ClientActionRailProps {
   notes: ClientNote[];
   timelineItems: TimelineItem[];
   noteTextareaRef?: RefObject<HTMLTextAreaElement | null>;
+  hideTimeline?: boolean;
 }
 
 export function ClientActionRail({
@@ -50,6 +51,7 @@ export function ClientActionRail({
   notes,
   timelineItems,
   noteTextareaRef,
+  hideTimeline = false,
 }: ClientActionRailProps) {
   return (
     <div className="space-y-2">
@@ -180,7 +182,7 @@ export function ClientActionRail({
         )}
       </SurfaceCard>
 
-      <ClientUnifiedTimeline items={timelineItems} />
+      {!hideTimeline && <ClientUnifiedTimeline items={timelineItems} />}
     </div>
   );
 }

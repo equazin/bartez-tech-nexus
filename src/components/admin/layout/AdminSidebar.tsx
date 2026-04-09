@@ -1,4 +1,4 @@
-import { ChevronRight, LayoutDashboard, Package, ClipboardList, Users, DollarSign, Settings2 } from "lucide-react";
+import { ChevronRight, LayoutDashboard, Package, ClipboardList, Users, DollarSign, Settings2, Megaphone } from "lucide-react";
 import { NAV_MODULES, type Tab, type ModuleId, type NavItem } from "./adminNavConfig";
 
 interface AdminSidebarProps {
@@ -26,7 +26,8 @@ const WORKSPACE_ITEMS: Array<{
   { id: "clients", label: "Clientes 360", module: "clientes", tab: "clients", icon: Users },
   { id: "products", label: "Catalogo", module: "catalogo", tab: "products", icon: Package },
   { id: "sellers", label: "Vendedores", module: "vendedores", tab: "seller_mode", icon: DollarSign },
-  { id: "settings", label: "Operaciones", module: "sistema", tab: "suppliers", icon: Settings2 },
+  { id: "marketing", label: "Marketing", module: "marketing", tab: "marketing", icon: Megaphone },
+  { id: "settings", label: "Operaciones", module: "configuracion", tab: "suppliers", icon: Settings2 },
 ];
 
 export function AdminSidebar({
@@ -93,6 +94,13 @@ export function AdminSidebar({
               <div className="flex items-center justify-between px-2">
                 <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">{activeGroup?.label || "Modulo"}</p>
                 <ChevronRight size={12} className="text-muted-foreground" />
+              </div>
+            )}
+            {(collapsed && !mobile) && activeGroup && (
+              <div className="flex justify-center pb-1" title={activeGroup.label}>
+                <span className="rounded-lg bg-primary/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.15em] text-primary/80 text-center leading-tight max-w-[60px] break-words text-wrap">
+                  {activeGroup.label}
+                </span>
               </div>
             )}
             <div className="space-y-1">

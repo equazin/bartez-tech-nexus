@@ -1,6 +1,7 @@
-import { Sun, Moon, LogOut, RefreshCw, LayoutDashboard, Bell, Search, UserCircle2, TrendingUp, Pencil } from "lucide-react";
+import { Sun, Moon, LogOut, RefreshCw, LayoutDashboard, Bell, Search, UserCircle2, TrendingUp, Pencil, Plus, ClipboardList, MessageSquare, Users, Package } from "lucide-react";
 import { AdminSearch } from "@/components/admin/AdminSearch";
 import { NotificationBell } from "@/components/admin/NotificationBell";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getModuleLabel, getTabLabel, type Tab, type ModuleId, type NavItem } from "./adminNavConfig";
 import type { ExchangeRate } from "@/context/CurrencyContext";
 
@@ -147,6 +148,37 @@ export function AdminTopbar({
           <button className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/70 bg-surface text-muted-foreground transition hover:bg-secondary hover:text-foreground sm:hidden">
             <Search size={15} />
           </button>
+
+          {/* Quick action "+" button */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10 text-primary transition hover:bg-primary/20"
+                title="Acción rápida"
+              >
+                <Plus size={16} />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-52 rounded-2xl border border-border/70 p-2 shadow-xl">
+              <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Acción rápida</p>
+              {[
+                { icon: ClipboardList, label: "Nueva orden", tab: "orders" as Tab },
+                { icon: MessageSquare, label: "Nueva cotización", tab: "quotes_admin" as Tab },
+                { icon: Users, label: "Nuevo cliente", tab: "clients" as Tab },
+                { icon: Package, label: "Nuevo producto", tab: "products" as Tab },
+              ].map(({ icon: Icon, label, tab }) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => onNavigateTab(tab)}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-sm text-foreground transition hover:bg-accent"
+                >
+                  <Icon size={14} className="shrink-0 text-muted-foreground" />
+                  {label}
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
 
           <div className="hidden md:block">
             <NotificationBell isDark={isDark} />

@@ -15,6 +15,7 @@ import { Client360Header } from "@/components/admin/client360/Client360Header";
 import { ClientActionRail } from "@/components/admin/client360/ClientActionRail";
 import { ClientBusinessPanel } from "@/components/admin/client360/ClientBusinessPanel";
 import { ClientIdentityRail } from "@/components/admin/client360/ClientIdentityRail";
+import { ClientUnifiedTimeline } from "@/components/admin/client360/ClientUnifiedTimeline";
 import type {
   Client360Alert,
   Client360Metric,
@@ -1162,45 +1163,57 @@ function ClientDetail({
       </div>
 
       {activeTab === "vista360" && (
-        <div className="grid gap-2 xl:grid-cols-[252px_minmax(0,1fr)_320px] 2xl:grid-cols-[268px_minmax(0,1fr)_336px]">
-          <ClientIdentityRail
-            accountName={client.company_name || "Sin empresa"}
-            contactName={client.contact_name || "Sin contacto"}
-            executiveName={executiveName}
-            tags={clientTags}
-            email={client.email || extProfile?.email}
-            phone={client.phone || extProfile?.phone}
-            location={locationLabel}
-            fields={identityFields}
-          />
+        <div className="space-y-2">
+          {/* Metrics strip */}
           <ClientBusinessPanel
             metrics={businessMetrics}
             alerts={businessAlerts}
             reorderSuggestions={reorderSuggestions}
             frequentProducts={frequentProducts}
           />
-          <ClientActionRail
-            executiveName={executiveName}
-            priorities={priorityActions}
-            supportSummary={supportSummary}
-            tickets={activeTickets.slice(0, 3).map((ticket) => ({
-              id: ticket.id,
-              subject: ticket.subject,
-              status: ticket.status,
-              priority: ticket.priority,
-              updated_at: fmtRelativeDate(ticket.updated_at),
-            }))}
-            rmas={activeRmas.slice(0, 3)}
-            noteType={noteType}
-            noteBody={noteBody}
-            onNoteTypeChange={setNoteType}
-            onNoteBodyChange={setNoteBody}
-            onAddNote={() => void handleAddNote()}
-            savingNote={savingNote}
-            notes={notes}
-            timelineItems={timelineItems}
-            noteTextareaRef={noteTextareaRef}
-          />
+
+          {/* 3-zone layout: identity | timeline | actions */}
+          <div className="grid gap-2 xl:grid-cols-[240px_minmax(0,1fr)_308px] 2xl:grid-cols-[256px_minmax(0,1fr)_324px]">
+            {/* Zone 1 — Identity */}
+            <ClientIdentityRail
+              accountName={client.company_name || "Sin empresa"}
+              contactName={client.contact_name || "Sin contacto"}
+              executiveName={executiveName}
+              tags={clientTags}
+              email={client.email || extProfile?.email}
+              phone={client.phone || extProfile?.phone}
+              location={locationLabel}
+              fields={identityFields}
+            />
+
+            {/* Zone 2 — Unified Timeline (center) */}
+            <ClientUnifiedTimeline items={timelineItems} />
+
+            {/* Zone 3 — Actions & CRM (right) */}
+            <ClientActionRail
+              executiveName={executiveName}
+              priorities={priorityActions}
+              supportSummary={supportSummary}
+              tickets={activeTickets.slice(0, 3).map((ticket) => ({
+                id: ticket.id,
+                subject: ticket.subject,
+                status: ticket.status,
+                priority: ticket.priority,
+                updated_at: fmtRelativeDate(ticket.updated_at),
+              }))}
+              rmas={activeRmas.slice(0, 3)}
+              noteType={noteType}
+              noteBody={noteBody}
+              onNoteTypeChange={setNoteType}
+              onNoteBodyChange={setNoteBody}
+              onAddNote={() => void handleAddNote()}
+              savingNote={savingNote}
+              notes={notes}
+              timelineItems={timelineItems}
+              noteTextareaRef={noteTextareaRef}
+              hideTimeline
+            />
+          </div>
         </div>
       )}
 
