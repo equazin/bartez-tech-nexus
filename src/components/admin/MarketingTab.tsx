@@ -8,6 +8,7 @@ import {
   ChevronDown, ChevronUp, Eye,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { createCoupon, updateCoupon, deleteCoupon } from "@/lib/api/ordersApi";
 
 // ── Tipos ─────────────────────────────────────────────────────
 
@@ -1456,24 +1457,39 @@ function CouponsSection({ isDark }: { isDark: boolean }) {
     e.preventDefault();
     if (!code.trim() || value <= 0) return;
     setIsSaving(true);
-    const { error } = await supabase.from("coupons").insert({
-      code: code.trim().toUpperCase(), discount_type: type, discount_value: value,
-      min_purchase: minPurchase, max_uses: maxUses ? parseInt(maxUses) : null,
-      expires_at: expiresAt || null, is_active: true,
-    });
-    if (!error) { setShowForm(false); void fetchCoupons(); setCode(""); setValue(0); setMinPurchase(0); setMaxUses(""); setExpiresAt(""); }
-    setIsSaving(false);
+    try {
+      await createCoupon({
+        code: code.trim().toUpperCase(), discount_type: type, discount_value: value,
+        min_purchase: minPurchase, max_uses: maxUses ? parseInt(maxUses) : null,
+        expires_at: expiresAt || null, is_active: true,
+      });
+      setShowForm(false);
+      void fetchCoupons();
+      setCode(""); setValue(0); setMinPurchase(0); setMaxUses(""); setExpiresAt("");
+    } catch {
+      // error visible al usuario porque el formulario no se cierra
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const toggleActive = async (id: string, current: boolean) => {
-    await supabase.from("coupons").update({ is_active: !current }).eq("id", id);
-    setCoupons(prev => prev.map(c => c.id === id ? { ...c, is_active: !current } : c));
+    try {
+      await updateCoupon({ id, is_active: !current });
+      setCoupons(prev => prev.map(c => c.id === id ? { ...c, is_active: !current } : c));
+    } catch {
+      // silencioso — estado local no cambia si falla
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("¿Eliminar este cupón permanentemente?")) return;
-    await supabase.from("coupons").delete().eq("id", id);
-    setCoupons(prev => prev.filter(c => c.id !== id));
+    try {
+      await deleteCoupon(id);
+      setCoupons(prev => prev.filter(c => c.id !== id));
+    } catch (err) {
+      alert((err as Error).message);
+    }
   };
 
   const inputCls = `w-full rounded-lg border px-3 py-2 text-xs outline-none transition ${d("bg-[#0d0d0d] border-[#2a2a2a] text-white placeholder-[#525252] focus:border-[#2D9F6A]","bg-white border-[#e5e5e5] text-[#171717] focus:border-[#2D9F6A]")}`;

@@ -13,7 +13,7 @@ interface AuthContextType {
   canManageOrders: boolean;
   /** Can create/edit/delete products, pricing rules, suppliers */
   canManageProducts: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: string | null; inactive?: boolean }>;
   signOut: () => Promise<void>;
 }
 
@@ -26,7 +26,7 @@ const AuthContext = createContext<AuthContextType>({
   isSeller: false,
   canManageOrders: false,
   canManageProducts: false,
-  signIn: async () => ({ error: null }),
+  signIn: async () => ({ error: null, inactive: false }),
   signOut: async () => {},
 });
 
@@ -84,15 +84,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
+  const signIn = async (email: string, password: string): Promise<{ error: string | null; inactive?: boolean }> => {
     if (!isSupabaseConfigured) {
       return {
         error: "Supabase no esta configurado en local. Copia .env.example a .env y completa VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.",
       };
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error: error.message };
+
+    // Check if the account is inactive before allowing access
+    const userId = data.user?.id;
+    if (userId) {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("active, role")
+        .eq("id", userId)
+        .single();
+
+      const role = String(profileData?.role ?? "client").toLowerCase();
+      const isPrivileged = role === "admin" || role === "vendedor" || role === "sales";
+
+      if (profileData?.active === false && !isPrivileged) {
+        // Sign them out immediately so the session isn't kept
+        await supabase.auth.signOut();
+        return { error: null, inactive: true };
+      }
+    }
+
     return { error: null };
   };
 

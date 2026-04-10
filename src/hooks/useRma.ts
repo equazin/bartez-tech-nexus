@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { createRmaApi } from "@/lib/api/ordersApi";
 
 export type RmaStatus = "draft" | "submitted" | "reviewing" | "approved" | "rejected" | "resolved";
 export type RmaReason = "defective" | "wrong_item" | "damaged_in_transit" | "not_as_described" | "other";
@@ -66,19 +67,14 @@ export function useRma(clientId: string | undefined) {
   useEffect(() => { fetchRmas(); }, [fetchRmas]);
 
   const createRma = useCallback(async (input: CreateRmaInput): Promise<RmaRequest | null> => {
-    const { data, error: err } = await supabase
-      .from("rma_requests")
-      .insert([{ ...input, status: "submitted" }])
-      .select()
-      .single();
-
-    if (err || !data) {
-      setError(err?.message ?? "Error al crear RMA");
+    try {
+      const rma = await createRmaApi(input) as RmaRequest;
+      setRmas((prev) => [rma, ...prev]);
+      return rma;
+    } catch (err) {
+      setError((err as Error).message ?? "Error al crear RMA");
       return null;
     }
-    const rma = data as RmaRequest;
-    setRmas((prev) => [rma, ...prev]);
-    return rma;
   }, []);
 
   return { rmas, loading, error, createRma, refetch: fetchRmas };

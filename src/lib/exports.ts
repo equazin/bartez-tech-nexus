@@ -217,6 +217,72 @@ export function exportRemitoPDF(order: {
   doc.save(`remito-${label}-${fecha}.pdf`);
 }
 
+// ── Price List PDF ────────────────────────────────────────────────────────────
+
+export function exportPriceListPDF(
+  products: Product[],
+  formatPrice: (v: number) => string,
+  currency: string,
+  clientName: string,
+) {
+  const doc = new jsPDF();
+  const fecha = new Date().toLocaleDateString("es-AR");
+
+  // Header strip
+  doc.setFillColor(45, 159, 106);
+  doc.rect(0, 0, 210, 22, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text("Lista de precios — Bartez Tecnología", 14, 10);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  doc.text(`${clientName} · ${fecha} · ${currency}`, 14, 17);
+  doc.text("Precios sujetos a cambio sin previo aviso.", 210 - 14, 17, { align: "right" });
+
+  doc.setTextColor(0, 0, 0);
+
+  autoTable(doc, {
+    startY: 28,
+    head: [["SKU", "Nombre", "Categoría", "Stock", "Precio unit.", "IVA"]],
+    body: products.map((p) => [
+      p.sku ?? "—",
+      p.name,
+      p.category,
+      getAvailableStock(p),
+      formatPrice(p.cost_price),
+      `${p.iva_rate ?? 21}%`,
+    ]),
+    styles: { fontSize: 8.5, cellPadding: 3 },
+    headStyles: { fillColor: [45, 159, 106], textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [248, 248, 248] },
+    columnStyles: {
+      0: { cellWidth: 28, font: "courier" },
+      1: { cellWidth: 72 },
+      2: { cellWidth: 32 },
+      3: { cellWidth: 18, halign: "center" },
+      4: { cellWidth: 28, halign: "right" },
+      5: { cellWidth: 14, halign: "center" },
+    },
+  });
+
+  // Footer
+  const pageCount = (doc as jsPDF & { internal: { getNumberOfPages: () => number } }).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setTextColor(180, 180, 180);
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.text(
+      `Bartez Tecnología · Lista confidencial para uso exclusivo de ${clientName} · Pág. ${i}/${pageCount}`,
+      14,
+      290,
+    );
+  }
+
+  doc.save(`lista-precios-${fecha}.pdf`);
+}
+
 // ── Orders CSV ────────────────────────────────────────────────────────────────
 
 export function exportOrdersCSV(orders: Array<Pick<PortalOrder, "id" | "order_number" | "numero_remito" | "created_at"> & {

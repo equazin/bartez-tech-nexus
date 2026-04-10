@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { Quote, QuoteStatus } from "@/models/quote";
+import { createQuoteApi, updateQuoteApi, deleteQuoteApi } from "@/lib/api/ordersApi";
 
 // ── One-time localStorage → Supabase migration ──────────────────────────────
 async function migrateLocalStorageQuotes(userId: string): Promise<void> {
@@ -71,13 +72,7 @@ export function useQuotes(userId: string) {
     async (data: Omit<Quote, "id">): Promise<Quote | null> => {
       if (!userId || userId === "guest") return null;
       try {
-        const { data: row, error } = await supabase
-          .from("quotes")
-          .insert([quoteToDb(data, userId)])
-          .select()
-          .single();
-
-        if (error || !row) return null;
+        const row = await createQuoteApi(quoteToDb(data, userId)) as Record<string, unknown>;
         const quote = dbToQuote(row);
         setQuotes((prev) => [quote, ...prev]);
         return quote;
@@ -107,17 +102,9 @@ export function useQuotes(userId: string) {
         if (changes.expires_at  !== undefined) patch.expires_at  = changes.expires_at;
         if (changes.notes       !== undefined) patch.notes       = changes.notes;
 
-        const { data: row, error } = await supabase
-          .from("quotes")
-          .update(patch)
-          .eq("id", id)
-          .select()
-          .single();
-
-        if (!error && row) {
-          const updated = dbToQuote(row);
-          setQuotes((prev) => prev.map((q) => (q.id === id ? updated : q)));
-        }
+        const row = await updateQuoteApi(id, patch) as Record<string, unknown>;
+        const updated = dbToQuote(row);
+        setQuotes((prev) => prev.map((q) => (q.id === id ? updated : q)));
       } catch {
         // Silencioso
       }
@@ -135,7 +122,7 @@ export function useQuotes(userId: string) {
   const deleteQuote = useCallback(
     async (id: number): Promise<void> => {
       try {
-        await supabase.from("quotes").delete().eq("id", id);
+        await deleteQuoteApi(id);
         setQuotes((prev) => prev.filter((q) => q.id !== id));
       } catch {
         // Silencioso

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { updateRmaApi } from "@/lib/api/ordersApi";
 import { CheckCircle2, XCircle, Clock, RefreshCw, ChevronDown, ChevronUp, Package } from "lucide-react";
 import type { RmaRequest, RmaStatus, RmaResolution } from "@/hooks/useRma";
 
@@ -97,17 +98,27 @@ export function RmaAdminTab({ isDark = true }: RmaAdminTabProps) {
   async function updateStatus(rma: RmaWithClient, newStatus: RmaStatus) {
     setActionLoading(rma.id);
     const form = resolutionForm[rma.id];
-    const patch: Partial<RmaRequest> = {
-      status: newStatus,
-      updated_at: new Date().toISOString(),
-      ...(form?.type ? { resolution_type: form.type } : {}),
-      ...(form?.notes ? { resolution_notes: form.notes } : {}),
-      ...(newStatus === "resolved" ? { resolved_at: new Date().toISOString() } : {}),
-    };
-
-    const { error } = await supabase.from("rma_requests").update(patch).eq("id", rma.id);
-    if (!error) {
-      setRmas((prev) => prev.map((r) => r.id === rma.id ? { ...r, ...patch } : r));
+    try {
+      await updateRmaApi({
+        id: rma.id,
+        status: newStatus,
+        ...(form?.type  ? { resolution_type:  form.type  } : {}),
+        ...(form?.notes ? { resolution_notes: form.notes } : {}),
+      });
+      const now = new Date().toISOString();
+      setRmas((prev) => prev.map((r) => r.id === rma.id
+        ? {
+            ...r,
+            status:           newStatus,
+            updated_at:       now,
+            ...(form?.type  ? { resolution_type:  form.type  } : {}),
+            ...(form?.notes ? { resolution_notes: form.notes } : {}),
+            ...(newStatus === "resolved" ? { resolved_at: now } : {}),
+          }
+        : r
+      ));
+    } catch {
+      // Error silencioso — el estado visual no se actualiza si falla
     }
     setActionLoading(null);
   }

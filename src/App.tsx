@@ -27,6 +27,7 @@ const CartPage = lazy(() => import("./pages/CartPage"));
 const QuoteRequest = lazy(() => import("./pages/QuoteRequest"));
 const Admin = lazy(() => import("./pages/Admin"));
 const CustomerView = lazy(() => import("./pages/CustomerView"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -106,6 +107,7 @@ const App = () => (
                     <Route path="/evaluacion-tecnologica" element={<QuoteRequest />} />
                     <Route path="/cotizacion" element={<QuoteRequest />} />
                     <Route path="/login" element={<Login />} />
+                    <Route path="/reset-password" element={<ResetPassword />} />
                     <Route path="/registrarse" element={<Register />} />
                     <Route path="/b2b-portal" element={<RequireAuth><B2BPortal /></RequireAuth>} />
                     <Route path="/catalogo" element={<RequireAuth><B2BPortal /></RequireAuth>} />

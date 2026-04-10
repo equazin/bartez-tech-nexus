@@ -21,6 +21,7 @@ const Login = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const isInactive = (location.state as { inactive?: boolean } | null)?.inactive === true;
+  const didResetPassword = (location.state as { passwordReset?: boolean } | null)?.passwordReset === true;
 
   useEffect(() => {
     if (!loading && session) {
@@ -33,7 +34,13 @@ const Login = () => {
     setError("");
     setSubmitting(true);
 
-    const { error: signInError } = await signIn(email, password);
+    const { error: signInError, inactive } = await signIn(email, password);
+
+    if (inactive) {
+      // Redirect back to login with the inactive banner — no session kept
+      navigate("/login", { replace: true, state: { inactive: true } });
+      return;
+    }
 
     if (signInError) {
       setError(signInError);
@@ -106,9 +113,14 @@ const Login = () => {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground" htmlFor="password">
-                Contrasena
-              </label>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label className="text-sm font-medium text-foreground" htmlFor="password">
+                  Contrasena
+                </label>
+                <Link to="/reset-password" className="text-xs text-muted-foreground transition-colors hover:text-foreground">
+                  ¿Olvidaste tu contraseña?
+                </Link>
+              </div>
               <div className="relative">
                 <Lock size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -140,6 +152,16 @@ const Login = () => {
                 className="rounded-xl border border-[hsl(var(--warning)/0.22)] bg-[hsl(var(--warning)/0.12)] px-3 py-2 text-sm text-[hsl(var(--warning))]"
               >
                 Tu cuenta esta pendiente de aprobacion. Contactanos para activar el acceso.
+              </motion.p>
+            ) : null}
+
+            {didResetPassword ? (
+              <motion.p
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-xl border border-[hsl(var(--success,142_71%_45%)/0.22)] bg-[hsl(var(--success,142_71%_45%)/0.10)] px-3 py-2 text-sm text-emerald-500"
+              >
+                Contraseña actualizada. Ingresa con tu nueva contraseña.
               </motion.p>
             ) : null}
 

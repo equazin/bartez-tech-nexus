@@ -15,23 +15,36 @@ async function listProducts(req: VercelRequest, res: VercelResponse) {
     const supabase = getSupabaseClient(req);
     const { limit, offset } = parsePagination(req);
     const category = req.query.category ? String(req.query.category) : undefined;
-    const sku = req.query.sku ? String(req.query.sku) : undefined;
-    const active = req.query.active ? String(req.query.active) : undefined;
+    const sku      = req.query.sku      ? String(req.query.sku)      : undefined;
+    const active   = req.query.active   ? String(req.query.active)   : undefined;
+    const search   = req.query.search   ? String(req.query.search).trim() : undefined;
+    // public=true → only return name/image/category/sku (no cost_price) for unauthenticated catalog
+    const isPublic = req.query.public === "true";
+
+    const selectFields = isPublic
+      ? "id, name, category, sku, image, active, stock, brand"
+      : "*";
 
     let query = supabase
       .from("products")
-      .select("*")
+      .select(selectFields, { count: "exact" })
       .order("category")
       .order("name")
       .range(offset, offset + limit - 1);
 
     if (category) query = query.eq("category", category);
-    if (sku) query = query.eq("sku", sku);
+    if (sku)      query = query.eq("sku", sku);
     if (active === "true" || active === "false") query = query.eq("active", active === "true");
 
-    const { data, error } = await query;
+    // Full-text search across name and sku using ilike (Supabase Postgres)
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,sku.ilike.%${search}%`);
+    }
+
+    const { data, error, count } = await query;
     if (error) return fail(res, error.message, 500);
-    return ok(res, data ?? []);
+
+    return ok(res, { items: data ?? [], total: count ?? 0, limit, offset });
   } catch (error) {
     return fail(res, (error as Error).message, 500);
   }

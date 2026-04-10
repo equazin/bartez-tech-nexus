@@ -4,6 +4,7 @@ import { CreateQuoteModal } from "@/components/admin/CreateQuoteModal";
 import { Quote, QuoteStatus } from "@/models/quote";
 import { useCurrency } from "@/context/CurrencyContext";
 import { CLIENT_TYPE_MARGINS, ClientType, supabase } from "@/lib/supabase";
+import { patchProfile } from "@/lib/api/ordersApi";
 import {
   addClientNote,
   fetchClientProfile, fetchClientInvoices, fetchAccountMovements, fetchClientNotes, fetchClientSupportTickets,
@@ -1886,9 +1887,12 @@ export function ClientCRM({ clients, orders, products, loading, isDark, selected
   async function toggleActive(client: ClientProfile) {
     setActivating(client.id);
     const newVal = client.active === false;
-    await supabase.from("profiles").update({ active: newVal }).eq("id", client.id);
-    setActivating(null);
-    onRefreshClients?.();
+    try {
+      await patchProfile({ id: client.id, active: newVal });
+    } finally {
+      setActivating(null);
+      onRefreshClients?.();
+    }
   }
 
   const selected = clients.find((c) => c.id === selectedId) ?? null;

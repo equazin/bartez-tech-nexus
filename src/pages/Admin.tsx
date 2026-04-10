@@ -20,6 +20,7 @@ import {
   Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag, Image, LifeBuoy, Ticket, Globe, RotateCcw, Handshake, ShieldCheck, Bell, PackageCheck, type LucideIcon,
 } from "lucide-react";
 import { exportOrdersCSV, exportCatalogCSV, exportReportsCSV } from "@/lib/exportCsv";
+import { patchProfile } from "@/lib/api/ordersApi";
 import { exportCatalogPdf, exportRemitoPdf } from "@/lib/exportPdf";
 import { useOrdersRealtime } from "@/hooks/useOrdersRealtime";
 import { SupplierPriceImport } from "@/components/admin/SupplierPriceImport";
@@ -1279,16 +1280,17 @@ async function handleCreateSeller() {
     const edits = editingClients[id];
     if (!edits) return;
     setSavingClient(id);
-    const { error } = await supabase.from("profiles").update(edits).eq("id", id);
-    setSavingClient(null);
-    if (!error) {
+    try {
+      await patchProfile({ id, ...edits });
       setClients((prev) => prev.map((c) => (c.id === id ? { ...c, ...edits } : c)));
       setEditingClients((prev) => { const { [id]: _, ...rest } = prev; return rest; });
+    } finally {
+      setSavingClient(null);
     }
   }
 
   async function saveClientFields(id: string, changes: { client_type?: ClientType; default_margin?: number }) {
-    await supabase.from("profiles").update(changes).eq("id", id);
+    await patchProfile({ id, ...changes });
     setClients((prev) => prev.map((c) => (c.id === id ? { ...c, ...changes } : c)));
   }
 

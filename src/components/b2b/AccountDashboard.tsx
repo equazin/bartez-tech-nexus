@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Plus,
   Package,
@@ -16,7 +16,8 @@ import {
   Mail,
   User,
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,9 @@ import type { Invoice } from "@/lib/api/invoices";
 import type { Quote } from "@/models/quote";
 import type { PaymentRecord } from "@/lib/api/payments";
 import type { UserProfile } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
+
+const EXPIRY_WARN_DAYS = 30;
 
 interface AccountDashboardProps {
   profile: UserProfile;
@@ -60,6 +64,25 @@ export function AccountDashboard({
   seller
 }: AccountDashboardProps) {
   const sellerWhatsAppUrl = generateWhatsAppDirectUrl(seller?.phone);
+
+  // ── Expiring price agreements ────────────────────────────────────────────────
+  const [expiringAgreements, setExpiringAgreements] = useState<{ id: number; name: string; valid_until: string }[]>([]);
+
+  useEffect(() => {
+    if (!profile.id) return;
+    const warnDate = new Date(Date.now() + EXPIRY_WARN_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    supabase
+      .from("client_price_agreements")
+      .select("id, name, valid_until")
+      .eq("client_id", profile.id)
+      .eq("active", true)
+      .not("valid_until", "is", null)
+      .lt("valid_until", warnDate)
+      .gt("valid_until", new Date().toISOString())
+      .then(({ data }) => {
+        if (data) setExpiringAgreements(data as { id: number; name: string; valid_until: string }[]);
+      });
+  }, [profile.id]);
   
   // Financial Calculations
   const metrics = useMemo(() => {
@@ -133,7 +156,33 @@ export function AccountDashboard({
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
-      
+
+      {/* Expiring price agreements banner */}
+      {expiringAgreements.length > 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-3">
+          <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-400" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-400">
+              {expiringAgreements.length === 1
+                ? "Acuerdo de precio por vencer"
+                : `${expiringAgreements.length} acuerdos de precio por vencer`}
+            </p>
+            <ul className="mt-1 space-y-0.5">
+              {expiringAgreements.map((a) => (
+                <li key={a.id} className="text-xs text-amber-300/80">
+                  <span className="font-medium">{a.name}</span>
+                  {" — vence el "}
+                  {new Date(a.valid_until).toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" })}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-xs text-amber-300/60">
+              Contactá a tu vendedor para renovar las condiciones comerciales.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* 1. Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Save, Search, Shield, UserCog, Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { patchProfile } from "@/lib/api/ordersApi";
 import {
   ACCESS_ROLE_LABELS,
   ACCESS_STATUS_LABELS,
@@ -132,8 +133,7 @@ export function UsersPermissionsTab({ isDark: _isDark = true, clients, onRefresh
     const draft = getDraft(client);
     setSavingId(client.id);
     try {
-      const { error } = await supabase.from("profiles").update({ role: draft.role, active: draft.active }).eq("id", client.id);
-      if (error) throw error;
+      await patchProfile({ id: client.id, role: draft.role, active: draft.active });
       onRefresh();
     } finally {
       setSavingId(null);

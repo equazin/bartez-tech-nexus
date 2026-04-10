@@ -20,6 +20,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { fetchInvoices, type Invoice } from "@/lib/api/invoices";
 import { parseInternalReferenceFromNotes } from "@/lib/cartCheckout";
+import { patchOrder, patchProfile } from "@/lib/api/ordersApi";
 
 interface OrderRow {
   id: string | number;
@@ -329,7 +330,7 @@ export function ApprovalsTab({
 
   async function rejectCorporateOrder(orderId: string | number) {
     const note = corporateNotes[String(orderId)]?.trim();
-    await supabase.from("orders").update({ status: "rejected" }).eq("id", orderId);
+    await patchOrder({ id: Number(orderId), status: "rejected" });
     if (note) await supabase.from("client_notes").insert({ client_id: corporatePending.find(o => String(o.id) === String(orderId))?.client_id, tipo: "seguimiento", body: `[APPROVAL:ORDER:REJECTED] ${approverLabel}${note ? ` · ${note}` : ""}` });
     setCorporatePending(prev => prev.filter(o => String(o.id) !== String(orderId)));
     await load();
@@ -463,21 +464,23 @@ export function ApprovalsTab({
                      onClick={async () => {
                         const credit = prompt("Definir límite de crédito inicial en ARS:", "500000");
                         if (credit === null) return;
-                        const { error } = await supabase.from("profiles").update({ 
-                          estado: "activo", 
-                          active: true,
-                          credit_limit: Number(credit),
-                          client_type: "reseller"
-                        }).eq("id", account.id);
-                        
-                        if (!error) {
+                        try {
+                          await patchProfile({
+                            id: account.id,
+                            estado: "activo",
+                            active: true,
+                            credit_limit: Number(credit),
+                            client_type: "reseller",
+                          });
                           // [Vínculo Proactivo] Notificación por Email
                           await EmailNotificationService.notifyCreditUpdate(
-                            account.email || "", 
-                            Number(credit), 
+                            account.email || "",
+                            Number(credit),
                             account.company_name || account.contact_name
                           );
                           load();
+                        } catch {
+                          // error de API — silencioso por ahora, el usuario ve que no cambió nada
                         }
                      }}
                      className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-[#2D9F6A] text-white text-[10px] font-bold uppercase transition hover:bg-[#25835A]"
@@ -487,8 +490,12 @@ export function ApprovalsTab({
                    <button
                      onClick={async () => {
                         if (!confirm("¿Rechazar solicitud de partner?")) return;
-                        const { error } = await supabase.from("profiles").update({ estado: "rechazado" }).eq("id", account.id);
-                        if (!error) load();
+                        try {
+                          await patchProfile({ id: account.id, estado: "rechazado" });
+                          load();
+                        } catch {
+                          // error de API — silencioso
+                        }
                      }}
                      className={`flex items-center justify-center gap-1.5 py-2 rounded-lg border text-[10px] font-bold uppercase transition ${dk("border-white/10 text-gray-400 hover:bg-white/5", "border-black/10 text-gray-500 hover:bg-black/5")}`}
                    >

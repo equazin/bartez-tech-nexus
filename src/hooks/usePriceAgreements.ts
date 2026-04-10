@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { createPriceAgreementApi, updatePriceAgreementApi } from "@/lib/api/ordersApi";
 
 export interface PriceAgreement {
   id: number;
@@ -23,6 +24,7 @@ export function usePriceAgreements(clientId?: string) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // GET stays as direct Supabase — read-only, RLS scopes to admin/vendedor
   const fetch = useCallback(async () => {
     if (!clientId) {
       setAgreements([]);
@@ -47,33 +49,25 @@ export function usePriceAgreements(clientId?: string) {
   useEffect(() => { void fetch(); }, [fetch]);
 
   const create = useCallback(async (input: CreateAgreementInput): Promise<PriceAgreement | null> => {
-    const { data, error: err } = await supabase
-      .from("client_price_agreements")
-      .insert([input])
-      .select()
-      .single();
-
-    if (err || !data) {
-      setError(err?.message ?? "Error al crear acuerdo");
+    try {
+      const data = await createPriceAgreementApi(input) as PriceAgreement;
+      setAgreements((prev) => [data, ...prev]);
+      return data;
+    } catch (err) {
+      setError((err as Error).message);
       return null;
     }
-    const agreement = data as PriceAgreement;
-    setAgreements((prev) => [agreement, ...prev]);
-    return agreement;
   }, []);
 
   const update = useCallback(async (id: number, patch: Partial<PriceAgreement>): Promise<boolean> => {
-    const { error: err } = await supabase
-      .from("client_price_agreements")
-      .update(patch)
-      .eq("id", id);
-
-    if (err) {
-      setError(err.message);
+    try {
+      const data = await updatePriceAgreementApi(id, patch) as PriceAgreement;
+      setAgreements((prev) => prev.map((a) => (a.id === id ? { ...a, ...data } : a)));
+      return true;
+    } catch (err) {
+      setError((err as Error).message);
       return false;
     }
-    setAgreements((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
-    return true;
   }, []);
 
   const deactivate = useCallback(async (id: number): Promise<boolean> => {

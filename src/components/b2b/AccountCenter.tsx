@@ -50,6 +50,7 @@ import {
 } from "@/lib/money";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { exportPriceListPDF } from "@/lib/exports";
 
 type AccountSection =
   | "resumen"
@@ -1006,6 +1007,34 @@ export function AccountCenter({
 
           {activeSection === "listas" && (
             <div className="grid gap-4 md:grid-cols-2">
+              <div className="border border-border/70 bg-card rounded-2xl p-5 col-span-full">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <FileText size={15} className="text-primary" />
+                    <h3 className="text-sm font-bold text-foreground">Lista de precios</h3>
+                  </div>
+                  {favoriteProducts.length > 0 && (
+                    <button
+                      onClick={() =>
+                        exportPriceListPDF(
+                          favoriteProducts,
+                          (v) => formatMoneyAmount(v, currency, 2),
+                          currency,
+                          profile.company_name || profile.contact_name || "Cliente",
+                        )
+                      }
+                      className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                    >
+                      Descargar PDF
+                    </button>
+                  )}
+                </div>
+                {favoriteProducts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Marcá productos como favoritos para generar tu lista de precios personalizada.</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{favoriteProducts.length} productos en tu lista. Hacé clic en "Descargar PDF" para exportarla.</p>
+                )}
+              </div>
               <div className="border border-border/70 bg-card rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-3">
                   <Star size={15} className="text-yellow-500" />

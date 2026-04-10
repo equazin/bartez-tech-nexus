@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import type { KanbanOrder } from "@/components/admin/OrderKanban";
 import { parseInternalReferenceFromNotes } from "@/lib/cartCheckout";
 import { EmailNotificationService } from "@/lib/api/emailNotifications";
+import { patchOrder } from "@/lib/api/ordersApi";
 
 /**
  * Admin-scoped orders hook with Supabase Realtime subscription.
@@ -71,9 +72,9 @@ export function useOrdersRealtime() {
 
   const updateStatus = useCallback(
     async (orderId: string, status: KanbanOrder["status"]): Promise<void> => {
-      await supabase.from("orders").update({ status }).eq("id", orderId);
+      await patchOrder({ id: Number(orderId), status });
       // Realtime will update local state automatically
-      
+
       // Fire background email notification
       void EmailNotificationService.notifyOrderStatus(orderId, status);
     },
@@ -82,10 +83,8 @@ export function useOrdersRealtime() {
 
   const updateLogistics = useCallback(
     async (orderId: string, provider: string, tracking: string): Promise<void> => {
-      await supabase.from("orders").update({ 
-        shipping_provider: provider, 
-        tracking_number: tracking 
-      }).eq("id", orderId);
+      await patchOrder({ id: Number(orderId), shipping_provider: provider, tracking_number: tracking });
+
     },
     []
   );
