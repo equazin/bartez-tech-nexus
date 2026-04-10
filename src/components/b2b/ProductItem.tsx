@@ -268,7 +268,6 @@ export function ProductItem({
             onAddQty={(qty) => onAddQty(product, qty)}
             onRemoveOne={() => onRemoveFromCart(product)}
             showShortcuts
-            minOrderQty={product.min_order_qty ?? 1}
           />
         </div>
       </SurfaceCard>

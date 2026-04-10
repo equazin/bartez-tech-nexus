@@ -9,7 +9,7 @@ interface FeaturedProduct {
   name: string;
   sku: string | null;
   unit_price: number | null;
-  image_url: string | null;
+  image: string | null;
   brand_name: string | null;
   category: string | null;
 }
@@ -20,7 +20,7 @@ export default function FeaturedProducts() {
   useEffect(() => {
     supabase
       .from("products")
-      .select("id, name, sku, unit_price, image_url, brand_name, category")
+      .select("id, name, sku, unit_price, image, brand_name, category")
       .eq("active", true)
       .eq("featured", true)
       .limit(6)
@@ -52,9 +52,9 @@ export default function FeaturedProducts() {
           {products.map(p => (
             <div key={p.id} className="card-enterprise group rounded-2xl overflow-hidden flex flex-col">
               <div className="aspect-[4/3] bg-secondary/40 flex items-center justify-center overflow-hidden">
-                {p.image_url ? (
+                {p.image ? (
                   <img
-                    src={p.image_url}
+                    src={p.image}
                     alt={p.name}
                     className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-500"
                   />

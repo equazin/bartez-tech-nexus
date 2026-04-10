@@ -2,7 +2,11 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { defineConfig, loadEnv, type PluginOption } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import createUserHandler from "./api/create-user";
+import usersHandler from "./api/users";
+import commerceHandler from "./api/commerce";
+import pricingHandler from "./api/pricing";
+import productsHandler from "./api/products";
+import emailHandler from "./api/email";
 
 const AIR_BASE = "https://api.air-intra.com/v2";
 const ELIT_BASE = "https://clientes.elit.com.ar/v1/api";
@@ -76,7 +80,24 @@ function devApiProxyPlugin(env: Record<string, string>): PluginOption {
         const requestUrl = req.url ? new URL(req.url, "http://localhost") : null;
         const pathname = requestUrl?.pathname ?? "";
 
-        if (pathname === "/api/create-user") {
+        const MAPPING: Record<string, { handler: any; scope?: string; resource?: string }> = {
+          "/api/users":       { handler: usersHandler },
+          "/api/create-user": { handler: usersHandler },
+          "/api/profiles":    { handler: usersHandler,   scope: "profile" },
+          "/api/impersonate": { handler: usersHandler,   scope: "impersonate" },
+          "/api/commerce":    { handler: commerceHandler },
+          "/api/quotes":      { handler: commerceHandler, resource: "quotes" },
+          "/api/rma":         { handler: commerceHandler, resource: "rma" },
+          "/api/pricing":     { handler: pricingHandler },
+          "/api/coupons":     { handler: pricingHandler }, // vercel.json has /api/coupons -> /api/pricing/coupons but local handler checks subpath
+          "/api/products":    { handler: productsHandler },
+          "/api/stock":       { handler: productsHandler, scope: "stock" },
+          "/api/email":       { handler: emailHandler },
+          "/api/contact":     { handler: emailHandler,    scope: "contact" },
+        };
+
+        const matched = MAPPING[pathname];
+        if (matched) {
           try {
             const rawBody = await readRequestBody(req);
             const parsedBody = rawBody ? JSON.parse(rawBody) : {};
@@ -86,10 +107,13 @@ function devApiProxyPlugin(env: Record<string, string>): PluginOption {
             };
 
             vercelReq.body = parsedBody;
-            vercelReq.query = Object.fromEntries(requestUrl?.searchParams.entries() ?? []);
+            const query = Object.fromEntries(requestUrl?.searchParams.entries() ?? []);
+            if (matched.scope)    query.scope = matched.scope;
+            if (matched.resource) query.resource = matched.resource;
+            vercelReq.query = query;
 
             const vercelRes = attachVercelCompat(res);
-            await createUserHandler(vercelReq as never, vercelRes as never);
+            await matched.handler(vercelReq as never, vercelRes as never);
             return;
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);

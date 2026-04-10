@@ -16,7 +16,7 @@ interface MarketingTabProps { isDark?: boolean; }
 
 interface Coupon {
   id: string; code: string;
-  discount_type: "percentage" | "fixed";
+  discount_type: "percent" | "fixed";
   discount_value: number; min_purchase: number;
   max_uses?: number; used_count: number;
   expires_at?: string; is_active: boolean; created_at: string;
@@ -1437,7 +1437,7 @@ function CouponsSection({ isDark }: { isDark: boolean }) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [code, setCode] = useState("");
-  const [type, setType] = useState<"percentage" | "fixed">("percentage");
+  const [type, setType] = useState<"percent" | "fixed">("percent");
   const [value, setValue] = useState(0);
   const [minPurchase, setMinPurchase] = useState(0);
   const [maxUses, setMaxUses] = useState("");
@@ -1517,8 +1517,8 @@ function CouponsSection({ isDark }: { isDark: boolean }) {
             </div>
             <div>
               <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Tipo</label>
-              <select value={type} onChange={e=>setType(e.target.value as "percentage"|"fixed")} className={inputCls}>
-                <option value="percentage">Porcentaje (%)</option>
+              <select value={type} onChange={e=>setType(e.target.value as "percent"|"fixed")} className={inputCls}>
+                <option value="percent">Porcentaje (%)</option>
                 <option value="fixed">Monto fijo ($)</option>
               </select>
             </div>
@@ -1527,7 +1527,7 @@ function CouponsSection({ isDark }: { isDark: boolean }) {
               <div className="relative">
                 <input type="number" value={value} onChange={e=>setValue(parseFloat(e.target.value))} className={inputCls} />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[#525252]">
-                  {type==="percentage" ? <Percent size={11}/> : <DollarSign size={11}/>}
+                  {type==="percent" ? <Percent size={11}/> : <DollarSign size={11}/>}
                 </span>
               </div>
             </div>
@@ -1565,7 +1565,7 @@ function CouponsSection({ isDark }: { isDark: boolean }) {
             <div key={coupon.id} className={`flex items-center gap-3 px-4 py-3 border-t first:border-t-0 text-xs ${d("border-[#1a1a1a] bg-[#111]","border-[#f0f0f0] bg-white")}`}>
               <span className={`font-mono font-bold ${d("text-white","text-[#171717]")}`}>{coupon.code}</span>
               <span className={`text-[#737373]`}>
-                {coupon.discount_type==="percentage" ? `${coupon.discount_value}%` : `$${coupon.discount_value}`}
+                {coupon.discount_type==="percent" ? `${coupon.discount_value}%` : `$${coupon.discount_value}`}
               </span>
               {coupon.expires_at && (
                 <span className="flex items-center gap-1 text-[#525252]">

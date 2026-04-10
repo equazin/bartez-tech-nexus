@@ -660,9 +660,9 @@ export function ClientDashboard({
                 className="group flex flex-col gap-3 rounded-2xl border border-border/70 bg-card/80 p-3 transition-all hover:border-primary/20 hover:shadow-md"
               >
                 <div className="flex items-start gap-2.5">
-                  {product.image_url ? (
+                  {product.image ? (
                     <img
-                      src={product.image_url}
+                      src={product.image}
                       alt={product.name}
                       className="h-12 w-12 shrink-0 rounded-xl object-contain bg-muted/30 p-1"
                     />
