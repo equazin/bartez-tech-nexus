@@ -1,7 +1,26 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { z } from "zod";
 import { fail, methodNotAllowed, ok } from "./_shared/http.js";
+import { getRoleFromRequest, ensureWriteRole } from "./_shared/roles.js";
+import { updateProfileSchema } from "./_shared/schemas.js";
 import { getSupabaseAdmin, getSupabaseClient } from "./_shared/supabaseServer.js";
-import { getRoleFromRequest } from "./_shared/roles.js";
+
+/**
+ * Consolidated users handler — replaces create-user.ts, profiles.ts, impersonate.ts
+ *
+ * Routing via ?scope=
+ *   (no scope)                              → create-user / manage-user logic
+ *   ?scope=registration-requests            → B2B registration requests (admin)
+ *   ?scope=profile                          → update own profile (PATCH)
+ *   ?scope=impersonate                      → start/stop impersonation
+ *
+ * Original URLs preserved 1-to-1 via vercel.json rewrites:
+ *   /api/create-user   → /api/users?scope=create-user   (handled as default)
+ *   /api/profiles      → /api/users?scope=profile
+ *   /api/impersonate   → /api/users?scope=impersonate
+ */
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type RegistrationStatus = "pending" | "approved" | "rejected";
 
@@ -31,44 +50,188 @@ type RegistrationInsertResult = {
   assigned_to: string | null;
 };
 
-/**
- * GET   /api/create-user?cuit=XXXXXXXXXXX                      -> AFIP lookup
- * GET   /api/create-user?scope=registration-requests&status=* -> admin list registration requests
- * PUT   /api/create-user                                       -> submit public B2B registration request
- * POST  /api/create-user                                       -> create user (admin)
- * PATCH /api/create-user                                       -> edit seller (admin)
- * PATCH /api/create-user?scope=registration-requests          -> approve/reject registration request (admin)
- */
+// ─── Impersonate schemas ──────────────────────────────────────────────────────
+
+const startImpersonateSchema = z.object({
+  client_id: z.string().trim().min(1).max(128),
+});
+
+// ─── Main router ──────────────────────────────────────────────────────────────
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const scope = String(req.query.scope ?? "");
 
+    // ── /api/profiles → ?scope=profile ──────────────────────────────────────
+    if (scope === "profile") {
+      if (req.method === "PATCH") return updateProfile(req, res);
+      return methodNotAllowed(res, ["PATCH"]);
+    }
+
+    // ── /api/impersonate → ?scope=impersonate ────────────────────────────────
+    if (scope === "impersonate") {
+      if (req.method === "POST")   return startImpersonation(req, res);
+      if (req.method === "DELETE") return stopImpersonation(req, res);
+      return methodNotAllowed(res, ["POST", "DELETE"]);
+    }
+
+    // ── /api/create-user (default scope) ─────────────────────────────────────
     if (req.method === "GET" && scope === "registration-requests") {
-      return await handleListRegistrationRequests(req, res);
+      return handleListRegistrationRequests(req, res);
     }
     if (req.method === "GET") {
-      return await handleAfipLookup(req, res);
+      return handleAfipLookup(req, res);
     }
     if (req.method === "PUT") {
-      return await handleRegistrationRequest(req, res);
+      return handleRegistrationRequest(req, res);
     }
     if (req.method === "POST") {
-      return await handleCreateUser(req, res);
+      return handleCreateUser(req, res);
     }
     if (req.method === "PATCH" && scope === "registration-requests") {
-      return await handleUpdateRegistrationRequest(req, res);
+      return handleUpdateRegistrationRequest(req, res);
     }
     if (req.method === "PATCH") {
-      return await handleManageUser(req, res);
+      return handleManageUser(req, res);
     }
 
     return methodNotAllowed(res, ["GET", "PUT", "POST", "PATCH"]);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Error interno del servidor.";
-    console.error("[create-user] Unhandled error:", msg);
+    console.error("[users] Unhandled error:", msg);
     return fail(res, msg, 500);
   }
 }
+
+// ─── Profile (ex profiles.ts) ─────────────────────────────────────────────────
+
+async function updateProfile(req: VercelRequest, res: VercelResponse) {
+  try {
+    const supabase = getSupabaseClient(req);
+    const role = await getRoleFromRequest(req, supabase);
+
+    if (role === "anonymous" || role === "client" || role === "cliente") {
+      return fail(res, "Forbidden: insufficient role", 403);
+    }
+
+    const parsed = updateProfileSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return fail(res, "Invalid payload", 400, parsed.error.flatten());
+
+    const { id, role: targetRole, ...fields } = parsed.data;
+
+    if (targetRole !== undefined) {
+      if (role !== "admin") {
+        return fail(res, "Only admin can change user roles", 403);
+      }
+      if (targetRole === "admin") {
+        return fail(res, "Cannot promote to admin via API", 403);
+      }
+    }
+
+    const patch: Record<string, unknown> = { ...fields };
+    if (targetRole !== undefined) patch.role = targetRole;
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .update(patch)
+      .eq("id", id)
+      .select("id, role, active, estado, credit_limit, client_type, default_margin")
+      .single();
+
+    if (error) return fail(res, error.message, 500);
+    return ok(res, data);
+  } catch (error) {
+    return fail(res, (error as Error).message, 500);
+  }
+}
+
+// ─── Impersonation (ex impersonate.ts) ───────────────────────────────────────
+
+async function startImpersonation(req: VercelRequest, res: VercelResponse) {
+  try {
+    const supabase = getSupabaseClient(req);
+    const role     = await getRoleFromRequest(req, supabase);
+
+    if (role !== "admin" && role !== "vendedor" && role !== "sales") {
+      return fail(res, "Forbidden: only admin and sellers can impersonate clients", 403);
+    }
+
+    const parsed = startImpersonateSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return fail(res, "Invalid payload", 400, parsed.error.flatten());
+
+    const { client_id } = parsed.data;
+    const admin = getSupabaseAdmin();
+
+    const { data: clientProfile, error: profileError } = await admin
+      .from("profiles")
+      .select("*")
+      .eq("id", client_id)
+      .single();
+
+    if (profileError || !clientProfile) return fail(res, "Client not found", 404);
+
+    const clientRole = String((clientProfile as { role?: string }).role ?? "client").toLowerCase();
+    if (clientRole === "admin") {
+      return fail(res, "Cannot impersonate an admin account", 403);
+    }
+
+    const { data: authData } = await supabase.auth.getUser(
+      req.headers.authorization?.slice(7) ?? ""
+    );
+    const actorId = authData.user?.id ?? "unknown";
+
+    void admin.from("activity_log").insert({
+      action:    "impersonate_start",
+      entity_id: client_id,
+      metadata: {
+        actor_id:    actorId,
+        actor_role:  role,
+        client_id,
+        client_role: clientRole,
+        timestamp:   new Date().toISOString(),
+      },
+    });
+
+    return ok(res, clientProfile);
+  } catch (error) {
+    return fail(res, (error as Error).message, 500);
+  }
+}
+
+async function stopImpersonation(req: VercelRequest, res: VercelResponse) {
+  try {
+    const supabase = getSupabaseClient(req);
+    const role     = await getRoleFromRequest(req, supabase);
+
+    if (role !== "admin" && role !== "vendedor" && role !== "sales") {
+      return fail(res, "Forbidden", 403);
+    }
+
+    const { client_id } = (req.body ?? {}) as { client_id?: string };
+
+    const { data: authData } = await supabase.auth.getUser(
+      req.headers.authorization?.slice(7) ?? ""
+    );
+    const actorId = authData.user?.id ?? "unknown";
+
+    void getSupabaseAdmin().from("activity_log").insert({
+      action:    "impersonate_stop",
+      entity_id: client_id ?? null,
+      metadata: {
+        actor_id:  actorId,
+        actor_role: role,
+        client_id: client_id ?? null,
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    return ok(res, { stopped: true });
+  } catch (error) {
+    return fail(res, (error as Error).message, 500);
+  }
+}
+
+// ─── Create-user (ex create-user.ts) ─────────────────────────────────────────
 
 async function handleAfipLookup(req: VercelRequest, res: VercelResponse) {
   const cuit = String(req.query.cuit ?? "").replace(/\D/g, "");
@@ -218,9 +381,7 @@ async function insertRegistrationRequest(
 
     lastError = error ? { message: error.message } : { message: "Respuesta vacia al insertar solicitud." };
 
-    if (!error) {
-      continue;
-    }
+    if (!error) continue;
 
     const retryable =
       /Could not find the .* column/i.test(error.message) ||
@@ -407,8 +568,6 @@ async function approveRegistration(adminClient: ReturnType<typeof getSupabaseAdm
     return { userId: String(existingProfile.id), alreadyCreated: true };
   }
 
-  // If no password was stored (legacy requests or schema fallback), generate a
-  // secure temporary one. The client will need to reset via "Forgot password".
   const passwordToUse =
     request.requested_password && request.requested_password.length >= 6
       ? request.requested_password
@@ -566,7 +725,7 @@ async function handleCreateUser(req: VercelRequest, res: VercelResponse) {
     active: true,
   }, { onConflict: "id" });
 
-  if (profileError) console.error("[create-user] Profile upsert failed:", profileError.message);
+  if (profileError) console.error("[users] Profile upsert failed:", profileError.message);
 
   const hasUTM = utm_source || utm_medium || utm_campaign;
   if (hasUTM) {
@@ -585,7 +744,7 @@ async function handleCreateUser(req: VercelRequest, res: VercelResponse) {
       attribution_history: Array.isArray(attribution_history) ? attribution_history : [],
       registered_at: new Date().toISOString(),
     }, { onConflict: "user_id" }).then(({ error }) => {
-      if (error) console.error("[create-user] lead_sources upsert failed:", error.message);
+      if (error) console.error("[users] lead_sources upsert failed:", error.message);
     });
   }
 
@@ -651,3 +810,6 @@ async function handleManageUser(req: VercelRequest, res: VercelResponse) {
 
   return ok(res, { id, email: nextEmail, contact_name: nextContactName, company_name: nextCompanyName, phone: nextPhone, role: "sales", active: nextActive });
 }
+
+// Re-export ensureWriteRole to avoid unused import warning
+void (ensureWriteRole as unknown);

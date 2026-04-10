@@ -15,6 +15,20 @@
     { "source": "/sitemap.xml", "destination": "/sitemap.xml" },
     { "source": "/robots.txt", "destination": "/robots.txt" },
     { "source": "/assets/(.*)", "destination": "/assets/$1" },
+
+    { "source": "/api/create-user", "destination": "/api/users" },
+    { "source": "/api/profiles", "destination": "/api/users?scope=profile" },
+    { "source": "/api/impersonate", "destination": "/api/users?scope=impersonate" },
+    
+    { "source": "/api/quotes", "destination": "/api/commerce?resource=quotes" },
+    { "source": "/api/rma", "destination": "/api/commerce?resource=rma" },
+    
+    { "source": "/api/coupons", "destination": "/api/pricing/coupons" },
+    { "source": "/api/pricing/:path*", "destination": "/api/pricing" },
+    
+    { "source": "/api/stock", "destination": "/api/products?scope=stock" },
+    { "source": "/api/contact", "destination": "/api/email?scope=contact" },
+
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/" }
   ],

@@ -2,26 +2,59 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { fail, methodNotAllowed, ok, parsePagination } from "./_shared/http.js";
 import { getRoleFromRequest } from "./_shared/roles.js";
 import { getSupabaseClient } from "./_shared/supabaseServer.js";
-import { createQuoteSchema, updateQuoteSchema, deleteQuoteSchema } from "./_shared/schemas.js";
+import {
+  createQuoteSchema,
+  updateQuoteSchema,
+  deleteQuoteSchema,
+  createRmaSchema,
+  updateRmaSchema,
+} from "./_shared/schemas.js";
 
 /**
- * GET    /api/quotes?client_id=...   — list quotes
- * POST   /api/quotes                 — create quote
- * PATCH  /api/quotes                 — update quote fields / status
- * DELETE /api/quotes                 — delete quote (only if draft or rejected)
+ * Consolidated commerce handler — replaces quotes.ts + rma.ts
+ *
+ * Routing via ?resource= (set by vercel.json rewrites):
+ *   /api/quotes  → /api/commerce?resource=quotes
+ *   /api/rma     → /api/commerce?resource=rma
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method === "GET")    return listQuotes(req, res);
-  if (req.method === "POST")   return createQuote(req, res);
-  if (req.method === "PATCH")  return updateQuote(req, res);
-  if (req.method === "DELETE") return deleteQuote(req, res);
-  return methodNotAllowed(res, ["GET", "POST", "PATCH", "DELETE"]);
+  try {
+    const resource = String(req.query.resource ?? "");
+
+    if (resource === "quotes") {
+      if (req.method === "GET")    return listQuotes(req, res);
+      if (req.method === "POST")   return createQuote(req, res);
+      if (req.method === "PATCH")  return updateQuote(req, res);
+      if (req.method === "DELETE") return deleteQuote(req, res);
+      return methodNotAllowed(res, ["GET", "POST", "PATCH", "DELETE"]);
+    }
+
+    if (resource === "rma") {
+      if (req.method === "GET")   return listRmas(req, res);
+      if (req.method === "POST")  return createRma(req, res);
+      if (req.method === "PATCH") return updateRma(req, res);
+      return methodNotAllowed(res, ["GET", "POST", "PATCH"]);
+    }
+
+    return fail(res, "Unknown commerce resource", 404);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Error interno del servidor.";
+    console.error("[commerce] Unhandled error:", msg);
+    return fail(res, msg, 500);
+  }
 }
 
-async function resolveUserId(req: VercelRequest, supabase: ReturnType<typeof import("./_shared/supabaseServer.js").getSupabaseClient>): Promise<string | null> {
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+async function resolveUserId(
+  req: VercelRequest,
+  supabase: ReturnType<typeof getSupabaseClient>,
+): Promise<string | null> {
   const { data } = await supabase.auth.getUser(req.headers.authorization?.slice(7) ?? "");
   return data.user?.id ?? null;
 }
+
+// ─── Quotes (ex quotes.ts) ────────────────────────────────────────────────────
 
 async function listQuotes(req: VercelRequest, res: VercelResponse) {
   try {
@@ -65,7 +98,6 @@ async function createQuote(req: VercelRequest, res: VercelResponse) {
 
     const body = parsed.data;
 
-    // Clients can only create quotes for themselves
     if (role === "cliente" || role === "client") {
       const userId = await resolveUserId(req, supabase);
       if (!userId || body.client_id !== userId) {
@@ -117,7 +149,6 @@ async function updateQuote(req: VercelRequest, res: VercelResponse) {
 
     const { id, ...changes } = parsed.data;
 
-    // Fetch quote to validate ownership for clients
     const { data: existing, error: fetchErr } = await supabase
       .from("quotes")
       .select("id, client_id")
@@ -173,7 +204,6 @@ async function deleteQuote(req: VercelRequest, res: VercelResponse) {
 
     const { id } = parsed.data;
 
-    // Fetch quote for ownership and status validation
     const { data: existing, error: fetchErr } = await supabase
       .from("quotes")
       .select("id, client_id, status")
@@ -197,6 +227,112 @@ async function deleteQuote(req: VercelRequest, res: VercelResponse) {
     const { error } = await supabase.from("quotes").delete().eq("id", id);
     if (error) return fail(res, error.message, 500);
     return ok(res, { deleted: true });
+  } catch (error) {
+    return fail(res, (error as Error).message, 500);
+  }
+}
+
+// ─── RMA (ex rma.ts) ──────────────────────────────────────────────────────────
+
+async function listRmas(req: VercelRequest, res: VercelResponse) {
+  try {
+    const supabase = getSupabaseClient(req);
+    const role = await getRoleFromRequest(req, supabase);
+
+    if (role === "anonymous") return fail(res, "Unauthorized", 401);
+
+    const clientId = req.query.client_id ? String(req.query.client_id) : undefined;
+
+    let query = supabase
+      .from("rma_requests")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (role === "cliente" || role === "client") {
+      const { data: authData } = await supabase.auth.getUser(
+        req.headers.authorization?.slice(7) ?? ""
+      );
+      const userId = authData.user?.id;
+      if (!userId) return fail(res, "Unauthorized", 401);
+      query = query.eq("client_id", userId);
+    } else if (clientId) {
+      query = query.eq("client_id", clientId);
+    }
+
+    const { data, error } = await query;
+    if (error) return fail(res, error.message, 500);
+    return ok(res, data ?? []);
+  } catch (error) {
+    return fail(res, (error as Error).message, 500);
+  }
+}
+
+async function createRma(req: VercelRequest, res: VercelResponse) {
+  try {
+    const supabase = getSupabaseClient(req);
+    const role = await getRoleFromRequest(req, supabase);
+
+    if (role === "anonymous") return fail(res, "Unauthorized", 401);
+
+    const parsed = createRmaSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return fail(res, "Invalid payload", 400, parsed.error.flatten());
+
+    const payload = { ...parsed.data, status: "submitted" as const };
+
+    if (role === "cliente" || role === "client") {
+      const { data: authData } = await supabase.auth.getUser(
+        req.headers.authorization?.slice(7) ?? ""
+      );
+      const userId = authData.user?.id;
+      if (!userId || payload.client_id !== userId) {
+        return fail(res, "Cannot create RMA for another client", 403);
+      }
+    }
+
+    const { data, error } = await supabase
+      .from("rma_requests")
+      .insert(payload)
+      .select("*")
+      .single();
+
+    if (error) return fail(res, error.message, 500);
+    return ok(res, data, 201);
+  } catch (error) {
+    return fail(res, (error as Error).message, 500);
+  }
+}
+
+async function updateRma(req: VercelRequest, res: VercelResponse) {
+  try {
+    const supabase = getSupabaseClient(req);
+    const role = await getRoleFromRequest(req, supabase);
+
+    if (role !== "admin" && role !== "vendedor" && role !== "sales") {
+      return fail(res, "Forbidden: only admin and sellers can update RMA status", 403);
+    }
+
+    const parsed = updateRmaSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return fail(res, "Invalid payload", 400, parsed.error.flatten());
+
+    const { id, status, resolution_type, resolution_notes } = parsed.data;
+
+    const patch: Record<string, unknown> = {
+      status,
+      updated_at: new Date().toISOString(),
+    };
+    if (resolution_type)  patch.resolution_type  = resolution_type;
+    if (resolution_notes) patch.resolution_notes = resolution_notes;
+    if (status === "resolved") patch.resolved_at = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from("rma_requests")
+      .update(patch)
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) return fail(res, error.message, 500);
+    return ok(res, data);
   } catch (error) {
     return fail(res, (error as Error).message, 500);
   }

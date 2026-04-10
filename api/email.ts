@@ -1,11 +1,17 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { orderConfirmationHTML, newOrderAlertHTML, quoteStatusHTML, orderPreparingHTML, orderRejectedHTML, orderApprovedHTML, newPaymentHTML } from "./_shared/emailTemplates.js";
 import { createMailerTransport, getDefaultFromEmail, sanitizeHeaderText } from "./_shared/mailer.js";
-import { orderEmailSchema } from "./_shared/schemas.js";
+import { orderEmailSchema, contactRequestSchema } from "./_shared/schemas.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const scope = String(req.query.scope ?? "");
+
+  if (scope === "contact") {
+    return handleContactEmail(req, res);
   }
 
   const parsed = orderEmailSchema.safeParse(req.body ?? {});
@@ -194,5 +200,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const message = err instanceof Error ? err.message : "Email send failed";
     console.error("[email] Error:", message);
     return res.status(500).json({ error: "Email delivery failed" });
+  }
+}
+
+async function handleContactEmail(req: VercelRequest, res: VercelResponse) {
+  try {
+    const parsed = contactRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return res.status(400).json({
+        ok: false,
+        error: "Datos de contacto invalidos",
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const { name, email, message, subject } = parsed.data;
+    const transporter = createMailerTransport();
+    const fromEmail = getDefaultFromEmail();
+
+    const safeSubject =
+      subject ??
+      sanitizeHeaderText(`Nueva solicitud de contacto: ${name}`, "Nueva solicitud de contacto");
+
+    await transporter.sendMail({
+      from: `"Bartez Soluciones IT" <${fromEmail}>`,
+      to: "contacto@bartez.com.ar",
+      replyTo: email,
+      subject: sanitizeHeaderText(safeSubject, "Nueva solicitud de contacto"),
+      text: `Nombre: ${name}\nEmail: ${email}\n\nMensaje:\n${message}`,
+    });
+
+    return res.status(200).json({ ok: true });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "Error";
+    console.error("[contact] Error:", message);
+    return res.status(500).json({ ok: false, error: "No se pudo enviar el mensaje" });
   }
 }

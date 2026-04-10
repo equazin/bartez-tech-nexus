@@ -174,7 +174,7 @@ export const deletePricingRuleSchema = z.object({
 
 const MAX_DISCOUNT_PCT = 60; // business cap
 
-export const createPriceAgreementSchema = z.object({
+const priceAgreementBaseSchema = z.object({
   client_id: z.string().trim().min(1).max(128),
   name: z.string().trim().min(1).max(200),
   margin_pct: z.coerce.number().nullable().optional(),
@@ -184,12 +184,14 @@ export const createPriceAgreementSchema = z.object({
   valid_until: z.string().datetime({ offset: true }).nullable().optional(),
   active: z.boolean().optional().default(true),
   notes: z.string().trim().max(1000).nullable().optional(),
-}).refine(
+});
+
+export const createPriceAgreementSchema = priceAgreementBaseSchema.refine(
   (data) => !data.valid_until || data.valid_until > data.valid_from,
   { message: "valid_until must be after valid_from", path: ["valid_until"] }
 );
 
-export const updatePriceAgreementSchema = createPriceAgreementSchema
+export const updatePriceAgreementSchema = priceAgreementBaseSchema
   .omit({ client_id: true })
   .partial()
   .extend({ id: z.coerce.number().int().positive() })
