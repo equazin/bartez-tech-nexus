@@ -541,7 +541,11 @@ async function handleListRegistrationRequests(req: VercelRequest, res: VercelRes
   );
 }
 
-async function approveRegistration(adminClient: ReturnType<typeof getSupabaseAdmin>, request: RegistrationRow) {
+async function approveRegistration(
+  adminClient: ReturnType<typeof getSupabaseAdmin>,
+  request: RegistrationRow,
+  config?: { client_type?: string; default_margin?: number }
+) {
   if (request.approved_user_id) {
     return { userId: request.approved_user_id, alreadyCreated: true };
   }
@@ -550,7 +554,7 @@ async function approveRegistration(adminClient: ReturnType<typeof getSupabaseAdm
 
   const { data: existingProfile } = await adminClient
     .from("profiles")
-    .select("id, role")
+    .select("id, role, client_type, default_margin")
     .eq("email", normalizedEmail)
     .maybeSingle();
 
@@ -562,6 +566,8 @@ async function approveRegistration(adminClient: ReturnType<typeof getSupabaseAdm
         active: true,
         cuit: request.cuit,
         tax_status: request.tax_status,
+        client_type: config?.client_type ?? existingProfile.client_type ?? "mayorista",
+        default_margin: config?.default_margin ?? existingProfile.default_margin ?? 20,
       })
       .eq("id", existingProfile.id);
 
@@ -585,9 +591,10 @@ async function approveRegistration(adminClient: ReturnType<typeof getSupabaseAdm
       company_name: request.company_name,
       contact_name: request.contact_name,
       role: "client",
-      client_type: "empresa",
+      client_type: config?.client_type ?? "mayorista",
       cuit: request.cuit,
       tax_status: request.tax_status,
+      default_margin: config?.default_margin ?? 20,
     },
   });
 
@@ -608,8 +615,8 @@ async function approveRegistration(adminClient: ReturnType<typeof getSupabaseAdm
       company_name: request.company_name,
       contact_name: request.contact_name,
       role: "client",
-      client_type: "empresa",
-      default_margin: 20,
+      client_type: config?.client_type ?? "mayorista",
+      default_margin: config?.default_margin ?? 20,
       active: true,
       cuit: request.cuit,
       tax_status: request.tax_status,
@@ -630,7 +637,7 @@ async function handleUpdateRegistrationRequest(req: VercelRequest, res: VercelRe
   const adminClient = await ensureAdmin(req, res);
   if (!adminClient) return res;
 
-  const { id, status, notes } = req.body as Record<string, unknown>;
+  const { id, status, notes, client_type, default_margin } = req.body as Record<string, unknown>;
   if (!id || typeof id !== "string") return fail(res, "Id invalido.", 400);
   if (!status || !["pending", "approved", "rejected"].includes(String(status))) {
     return fail(res, "Estado invalido.", 400);
@@ -655,7 +662,10 @@ async function handleUpdateRegistrationRequest(req: VercelRequest, res: VercelRe
   let usedTempPassword = false;
   if (status === "approved") {
     try {
-      const approval = await approveRegistration(adminClient, request as RegistrationRow);
+      const approval = await approveRegistration(adminClient, request as RegistrationRow, {
+        client_type: String(client_type || ""),
+        default_margin: Number(default_margin) || undefined,
+      });
       payload.approved_user_id = approval.userId;
       payload.requested_password = null;
       usedTempPassword = approval.usedTempPassword ?? false;

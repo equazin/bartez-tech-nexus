@@ -69,6 +69,7 @@ export function RegistrationRequestsTab() {
   const [processing, setProcessing] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  const [onboardingForm, setOnboardingForm] = useState<{ id: string; client_type: string; default_margin: number } | null>(null);
 
   async function withSessionHeaders() {
     const {
@@ -128,14 +129,14 @@ export function RegistrationRequestsTab() {
     void fetchRequests();
   }, []);
 
-  async function updateStatus(id: string, status: RegistrationStatus, notes?: string) {
+  async function updateStatus(id: string, status: RegistrationStatus, notes?: string, client_type?: string, default_margin?: number) {
     setProcessing(id);
     try {
       const headers = await withSessionHeaders();
       const response = await fetch("/api/create-user?scope=registration-requests", {
         method: "PATCH",
         headers,
-        body: JSON.stringify({ id, status, ...(notes ? { notes } : {}) }),
+        body: JSON.stringify({ id, status, ...(notes ? { notes } : {}), client_type, default_margin }),
       });
       const result = await readApiResult<{ id: string; status: RegistrationStatus; approved_user_id?: string | null; used_temp_password?: boolean }>(response);
 
@@ -151,6 +152,7 @@ export function RegistrationRequestsTab() {
         } else {
           toast.success("Solicitud rechazada");
         }
+        setOnboardingForm(null);
         await fetchRequests();
       }
     } catch (error) {
@@ -321,21 +323,67 @@ export function RegistrationRequestsTab() {
                 ) : null}
 
                 {request.status === "pending" ? (
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => updateStatus(request.id, "approved")}
-                      disabled={isProcessing}
-                      className="inline-flex min-w-40 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
-                    >
-                      <CheckCircle2 size={15} /> Aprobar y crear cliente
-                    </button>
-                    <button
-                      onClick={() => updateStatus(request.id, "rejected")}
-                      disabled={isProcessing}
-                      className="inline-flex min-w-32 items-center justify-center gap-2 rounded-xl border border-border/70 px-4 py-2 text-sm font-bold text-muted-foreground transition hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-                    >
-                      <XCircle size={15} /> Rechazar
-                    </button>
+                  <div className="mt-4 space-y-4">
+                    {onboardingForm?.id === request.id ? (
+                      <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 space-y-4 animate-in fade-in slide-in-from-top-2">
+                        <div className="flex flex-wrap items-center gap-4">
+                          <div className="flex-1 min-w-[200px]">
+                            <label className="block text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 font-bold">Tipo de cliente</label>
+                            <select
+                              value={onboardingForm.client_type}
+                              onChange={(e) => setOnboardingForm({ ...onboardingForm, client_type: e.target.value })}
+                              className="w-full h-9 rounded-xl border border-border/70 bg-card px-3 text-xs font-semibold focus:border-primary/50 focus:ring-0 outline-none"
+                            >
+                              <option value="mayorista">Mayorista (Normal)</option>
+                              <option value="empresa">Empresa / Corporativo</option>
+                              <option value="reseller">Reseller / Gremio</option>
+                            </select>
+                          </div>
+                          <div className="w-32">
+                            <label className="block text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 font-bold">Margen base (%)</label>
+                            <input
+                              type="number"
+                              value={onboardingForm.default_margin}
+                              onChange={(e) => setOnboardingForm({ ...onboardingForm, default_margin: Number(e.target.value) })}
+                              className="w-full h-9 rounded-xl border border-border/70 bg-card px-3 text-xs font-semibold focus:border-primary/50 focus:ring-0 outline-none"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => updateStatus(request.id, "approved", undefined, onboardingForm.client_type, onboardingForm.default_margin)}
+                            disabled={isProcessing}
+                            className="inline-flex min-w-[140px] items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
+                          >
+                            <CheckCircle2 size={15} /> Confirmar alta
+                          </button>
+                          <button
+                            onClick={() => setOnboardingForm(null)}
+                            disabled={isProcessing}
+                            className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => setOnboardingForm({ id: request.id, client_type: "mayorista", default_margin: 20 })}
+                          disabled={isProcessing}
+                          className="inline-flex min-w-40 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
+                        >
+                          <CheckCircle2 size={15} /> Aprobar y crear cliente
+                        </button>
+                        <button
+                          onClick={() => updateStatus(request.id, "rejected")}
+                          disabled={isProcessing}
+                          className="inline-flex min-w-32 items-center justify-center gap-2 rounded-xl border border-border/70 px-4 py-2 text-sm font-bold text-muted-foreground transition hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                        >
+                          <XCircle size={15} /> Rechazar
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : null}
               </div>
