@@ -11,8 +11,8 @@ import {
   UserCheck,
   XCircle,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { apiRequest } from "@/lib/api/backendClient";
 
 type RegistrationStatus = "pending" | "approved" | "rejected";
 
@@ -71,41 +71,14 @@ export function RegistrationRequestsTab() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [onboardingForm, setOnboardingForm] = useState<{ id: string; client_type: string; default_margin: number } | null>(null);
 
-  async function withSessionHeaders() {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error("Sesion expirada. Volve a iniciar sesion.");
-    }
-    return {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${session.access_token}`,
-    };
-  }
-
-  async function readApiResult<T>(response: Response): Promise<{ ok?: boolean; data?: T; error?: string }> {
-    const raw = await response.text();
-    if (!raw) {
-      return { ok: response.ok, error: response.ok ? undefined : "Respuesta vacia del servidor." };
-    }
-    try {
-      return JSON.parse(raw) as { ok?: boolean; data?: T; error?: string };
-    } catch {
-      return { ok: response.ok, error: raw };
-    }
-  }
-
   async function fetchRequests() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const headers = await withSessionHeaders();
-      const response = await fetch("/api/create-user?scope=registration-requests&status=all", {
+      const { response, result } = await apiRequest<RegistrationRequest[]>("/v1/admin/registration-requests?status=all", {
         method: "GET",
-        headers,
+        auth: "required",
       });
-      const result = await readApiResult<RegistrationRequest[]>(response);
       if (!response.ok || !result.ok) {
         const message = result.error ?? "No se pudieron cargar las solicitudes.";
         setErrorMessage(message);
@@ -132,13 +105,11 @@ export function RegistrationRequestsTab() {
   async function updateStatus(id: string, status: RegistrationStatus, notes?: string, client_type?: string, default_margin?: number) {
     setProcessing(id);
     try {
-      const headers = await withSessionHeaders();
-      const response = await fetch("/api/create-user?scope=registration-requests", {
+      const { response, result } = await apiRequest<{ id: string; status: RegistrationStatus; approved_user_id?: string | null; used_temp_password?: boolean }>(`/v1/admin/registration-requests/${id}`, {
         method: "PATCH",
-        headers,
-        body: JSON.stringify({ id, status, ...(notes ? { notes } : {}), client_type, default_margin }),
+        auth: "required",
+        json: { status, ...(notes ? { notes } : {}), client_type, default_margin },
       });
-      const result = await readApiResult<{ id: string; status: RegistrationStatus; approved_user_id?: string | null; used_temp_password?: boolean }>(response);
 
       if (!response.ok || !result.ok) {
         toast.error(result.error ?? "No se pudo actualizar la solicitud.");

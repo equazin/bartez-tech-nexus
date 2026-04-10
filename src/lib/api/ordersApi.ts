@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/lib/api/backendClient";
 
 interface PatchOrderPayload {
   id: number;
@@ -37,15 +38,14 @@ export async function patchOrder(payload: PatchOrderPayload): Promise<void> {
 }
 
 export async function patchProfile(payload: PatchProfilePayload): Promise<void> {
-  const authHeader = await getAuthHeader();
-  const res = await fetch("/api/profiles", {
+  const { id, ...patch } = payload;
+  const { response, result } = await apiRequest(`/v1/admin/profiles/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...authHeader },
-    body: JSON.stringify(payload),
+    auth: "required",
+    json: patch,
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error((err as { error?: string }).error ?? "Error al actualizar el perfil");
+  if (!response.ok || !result.ok) {
+    throw new Error(result.error ?? "Error al actualizar el perfil");
   }
 }
 

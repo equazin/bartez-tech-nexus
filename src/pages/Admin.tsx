@@ -38,6 +38,7 @@ import { AdminLayout } from "@/components/admin/layout/AdminLayout";
 import { TAB_TO_MODULE, type Tab, type ModuleId, type NavItem } from "@/components/admin/layout/adminNavConfig";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { EmailNotificationService } from "@/lib/api/emailNotifications";
+import { apiRequest } from "@/lib/api/backendClient";
 
 // Lazy loaded tabs
 const SalesDashboard = lazy(() => import("@/components/admin/SalesDashboard").then(m => ({ default: m.SalesDashboard })));
@@ -184,16 +185,6 @@ function normalizePhoneForSupabase(rawPhone: string): string {
   if (digits.startsWith("54")) return `549${digits.slice(2)}`;
   if (digits.length >= 10 && digits.length <= 11) return `549${digits}`;
   return digits;
-}
-
-async function readApiResponse(response: Response): Promise<{ ok?: boolean; error?: string }> {
-  const raw = await response.text();
-  if (!raw) return { ok: response.ok, error: response.ok ? undefined : "Respuesta vacia del servidor." };
-  try {
-    return JSON.parse(raw) as { ok?: boolean; error?: string };
-  } catch {
-    return { ok: response.ok, error: raw };
-  }
 }
 
 function LegacyStatusBadge({ status }: { status: string }) {
@@ -1111,6 +1102,8 @@ async function handleCreateClient() {
     const email = newClient.email.trim().toLowerCase();
     const password = newClient.password;
     const phone = normalizePhoneForSupabase(newClient.phone.trim());
+    const contactName = newClient.contact_name.trim() || newClient.company_name.trim() || email;
+    const companyName = newClient.company_name.trim() || contactName;
 
     if (!email || !password) {
       setCreateError("Email y contraseña son obligatorios.");
@@ -1124,32 +1117,26 @@ async function handleCreateClient() {
 
     setCreatingClient(true);
 
-    // Get current admin session token to authenticate the request
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
+    // Session validation is handled by apiRequest.
+    if (typeof window === "undefined") {
       setCreateError("Sesión expirada. Volvé a iniciar sesión.");
       return;
     }
 
-    const response = await fetch("/api/create-user", {
+    const { response, result } = await apiRequest("/v1/admin/users", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({
+      auth: "required",
+      json: {
         email,
         password,
-        company_name: newClient.company_name,
-        contact_name: newClient.contact_name,
+        company_name: companyName,
+        contact_name: contactName,
         client_type: newClient.client_type,
         default_margin: Number(newClient.default_margin) || 20,
         role: "client",
         phone,
-      }),
+      },
     });
-
-    const result = await readApiResponse(response);
 
     if (!response.ok || !result.ok) {
       const msg = result.error ?? "Error al crear el usuario.";
@@ -1191,8 +1178,10 @@ async function handleCreateSeller() {
     const email = newSeller.email.trim().toLowerCase();
     const password = newSeller.password;
     const phone = normalizePhoneForSupabase(newSeller.phone.trim());
+    const contactName = newSeller.contact_name.trim();
+    const companyName = newSeller.company_name.trim() || contactName;
 
-    if (!email || !password || !newSeller.contact_name.trim()) {
+    if (!email || !password || !contactName) {
       setSellerCreateError("Nombre, email y contraseña son obligatorios.");
       return;
     }
@@ -1204,31 +1193,25 @@ async function handleCreateSeller() {
 
     setCreatingSeller(true);
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
+    if (typeof window === "undefined") {
       setSellerCreateError("Sesión expirada. Volvé a iniciar sesión.");
       return;
     }
 
-    const response = await fetch("/api/create-user", {
+    const { response, result } = await apiRequest("/v1/admin/users", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({
+      auth: "required",
+      json: {
         email,
         password,
-        company_name: newSeller.company_name || newSeller.contact_name,
-        contact_name: newSeller.contact_name,
+        company_name: companyName,
+        contact_name: contactName,
         client_type: "reseller",
         default_margin: 0,
         role: "sales",
         phone,
-      }),
+      },
     });
-
-    const result = await readApiResponse(response);
 
     if (!response.ok || !result.ok) {
       const msg = result.error ?? "Error al crear el vendedor.";
