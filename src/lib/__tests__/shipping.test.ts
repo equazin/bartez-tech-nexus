@@ -79,16 +79,20 @@ describe("estimateShipping", () => {
     }
   });
 
-  it("adds free shipping note for orders over USD 500", () => {
-    const estimates = estimateShipping(singleItem, "1000", RATE, 600);
+  it("bonifies shipping for orders from USD 800", () => {
+    const estimates = estimateShipping(singleItem, "1000", RATE, 800);
     for (const e of estimates) {
+      expect(e.price_ars).toBe(0);
+      expect(e.price_usd).toBe(0);
       expect(e.notes).toBeTruthy();
     }
   });
 
-  it("no free shipping note for orders under USD 500", () => {
-    const estimates = estimateShipping(singleItem, "1000", RATE, 200);
+  it("keeps normal shipping below USD 800", () => {
+    const estimates = estimateShipping(singleItem, "1000", RATE, 799);
     for (const e of estimates) {
+      expect(e.price_ars).toBeGreaterThan(0);
+      expect(e.price_usd).toBeGreaterThan(0);
       expect(e.notes).toBeUndefined();
     }
   });

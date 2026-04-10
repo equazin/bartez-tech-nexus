@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { recordPriceChange } from "@/lib/api/priceHistory";
+import { applyInvidFixedCostUsd } from "@/lib/pricing";
 
 export interface SupplierCatalogRecord {
   supplierName: string;
@@ -133,15 +134,23 @@ function normalizeUsdCost(record: SupplierCatalogRecord): number {
   const sourceCurrency = record.sourceCurrency ?? "USD";
   const sourceCost = record.sourceCostPrice ?? record.costPrice;
   const exchangeRate = record.sourceExchangeRate ?? null;
+  let normalizedCost = 0;
 
   if (sourceCurrency === "ARS") {
     if (!exchangeRate || exchangeRate <= 0) {
-      return record.costPrice;
+      normalizedCost = record.costPrice;
+    } else {
+      normalizedCost = Number((sourceCost / exchangeRate).toFixed(4));
     }
-    return Number((sourceCost / exchangeRate).toFixed(4));
+  } else {
+    normalizedCost = Number(sourceCost.toFixed(4));
   }
 
-  return Number(sourceCost.toFixed(4));
+  if (record.supplierName.trim().toUpperCase().includes("INVID")) {
+    return applyInvidFixedCostUsd(normalizedCost);
+  }
+
+  return normalizedCost;
 }
 
 function normalizeToken(value: string | number | null | undefined): string {

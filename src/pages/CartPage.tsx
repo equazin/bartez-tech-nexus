@@ -13,7 +13,7 @@ import { getAvailableStock } from "@/lib/pricing";
 import { resolveMarginWithContext } from "@/lib/pricingEngine";
 import { usePricing } from "@/hooks/usePricing";
 import { useAppTheme } from "@/hooks/useAppTheme";
-import { estimateShipping, type ShippingEstimate } from "@/lib/shipping";
+import { estimateShipping, isFreeShippingEligible, type ShippingEstimate } from "@/lib/shipping";
 import { getFavoriteProducts, toggleFavoriteProduct } from "@/lib/favoriteProducts";
 import { convertMoneyAmount, formatMoneyInPreferredCurrency } from "@/lib/money";
 import {
@@ -243,7 +243,8 @@ export default function CartPage() {
   const paymentSurchargePct = paymentMethod === "echeq" ? ECHEQ_SURCHARGE_BY_TERM[echeqTermDays] : 0;
   const surchargeAmt     = cartBaseTotal * (paymentSurchargePct / 100);
   const shippingCostInputNum = Number(shippingCost || 0);
-  const shippingCostBaseUsd = (shippingType === "envio" && shippingPaymentType === "origen")
+  const freeShippingApplied = shippingType === "envio" && isFreeShippingEligible(cartSubtotal);
+  const shippingCostBaseUsd = (shippingType === "envio" && shippingPaymentType === "origen" && !freeShippingApplied)
     ? (currency === "ARS" ? shippingCostInputNum / exchangeRate.rate : shippingCostInputNum)
     : 0;
   const grandTotal       = cartBaseTotal + surchargeAmt + shippingCostBaseUsd;
@@ -496,7 +497,7 @@ export default function CartPage() {
         issues.push("La fecha requerida quedó en el pasado. Revisala antes de confirmar.");
       }
     }
-    if (shippingType === "envio" && shippingCostInputNum <= 0) {
+    if (shippingType === "envio" && shippingPaymentType === "origen" && !freeShippingApplied && shippingCostInputNum <= 0) {
       issues.push("Definí el costo de envío o elegí una tarifa estimada antes de cerrar.");
     }
     if (shippingType === "envio" && !orderMeta.receiverContact.trim()) {
@@ -506,7 +507,7 @@ export default function CartPage() {
       issues.push(`El echeq seleccionado supera tu plazo habitual de ${clientPaymentTerms} días.`);
     }
     return issues;
-  }, [cartItems, clientPaymentTerms, creditAvailableArs, echeqTermDays, orderMeta.receiverContact, orderMeta.requestedDate, paymentMethod, postalCode, projectedCreditRemainingArs, shippingCostInputNum, shippingEstimates.length, shippingType]);
+  }, [cartItems, clientPaymentTerms, creditAvailableArs, echeqTermDays, freeShippingApplied, orderMeta.receiverContact, orderMeta.requestedDate, paymentMethod, postalCode, projectedCreditRemainingArs, shippingCostInputNum, shippingEstimates.length, shippingPaymentType, shippingType]);
 
   // -- Shipping estimation ------------------------------------------------------
   function handleEstimateShipping() {
@@ -621,10 +622,18 @@ export default function CartPage() {
     if (errs.length) { setValidationErrors(errs); return; }
     setValidationErrors([]);
     setOrderSubmitting(true);
-    const shippingNote = shippingPaymentType === "destino" 
+    const shippingNote = shippingType !== "envio" ? "" : freeShippingApplied ? `EnvÃ­o: bonificado por Bartez por pedido superior a USD 800 a travÃ©s de ${TRANSPORT_LABELS[shippingTransport]}.` : shippingPaymentType === "destino" 
       ? `Envío: Pago en destino por el cliente a través de ${TRANSPORT_LABELS[shippingTransport]}.`
       : "";
-    const compiledNotes = [paymentDetailNote, shippingNote, buildOrderNotes(notes, orderMeta)].filter(Boolean).join("\n\n");
+    void shippingNote;
+    const shippingNoteText = shippingType !== "envio"
+      ? ""
+      : freeShippingApplied
+        ? `Envio: bonificado por Bartez por pedido superior a USD 800 a traves de ${TRANSPORT_LABELS[shippingTransport]}.`
+        : shippingPaymentType === "destino"
+          ? `Envio: Pago en destino por el cliente a traves de ${TRANSPORT_LABELS[shippingTransport]}.`
+          : "";
+    const compiledNotes = [paymentDetailNote, shippingNoteText, buildOrderNotes(notes, orderMeta)].filter(Boolean).join("\n\n");
 
     const orderProducts = cartItems.map((item) => ({
       product_id:  item.product.id,
@@ -646,7 +655,7 @@ export default function CartPage() {
       shipping_type:         shippingType,
       shipping_address:      shippingType === "envio" ? shippingAddress || undefined : undefined,
       shipping_transport:    shippingType === "envio" ? shippingTransport : undefined,
-      shipping_cost:         shippingType === "envio" && shippingCostBaseUsd > 0 ? Number(shippingCostBaseUsd.toFixed(2)) : undefined,
+      shipping_cost:         shippingType === "envio" ? Number(shippingCostBaseUsd.toFixed(2)) : undefined,
       notes:                 compiledNotes || undefined,
       created_at:            new Date().toISOString(),
     });
@@ -1031,6 +1040,7 @@ export default function CartPage() {
             postalCode,
             shippingPaymentType,
             shippingEstimates,
+            freeShippingApplied,
             estimating,
             recentAddresses: recentShippingAddresses,
             isAdmin,
@@ -1120,6 +1130,7 @@ export default function CartPage() {
             shippingCost: shippingCostBaseUsd,
             shippingType,
             shippingLabel: selectedShippingEstimate?.label || TRANSPORT_LABELS[shippingTransport],
+            freeShippingApplied,
             grandTotal,
             paymentLabel: paymentSummaryLabel,
             creditAvailableDisplay: creditAvailableArs != null ? creditAvailableDisplay : null,

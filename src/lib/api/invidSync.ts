@@ -1,5 +1,6 @@
 import { fetchInvidArticlesPage, type InvidArticle } from "@/lib/api/invidApi";
 import { syncSupplierCatalogRecords, type SupplierCatalogRecord } from "@/lib/api/supplierSync";
+import { INVID_FIXED_COST_USD } from "@/lib/pricing";
 
 export interface SyncProgress {
   phase: "idle" | "checking" | "fetching" | "upserting" | "done" | "error";
@@ -66,6 +67,8 @@ function buildInvidCatalogRecord(article: InvidArticle): SupplierCatalogRecord {
     leadTimeDays: 0,
     priceMultiplier: 1,
     metadata: {
+      invid_extra_cost_applied: true,
+      invid_extra_cost_usd: INVID_FIXED_COST_USD,
       invid_tags: article.TAGS,
       invid_category_id: article.CATEGORY_ID,
       invid_long_desc: article.LONG_DESCRIPTION,

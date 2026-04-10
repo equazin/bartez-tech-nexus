@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  INVID_FIXED_COST_USD,
   getUnitPrice,
   getEffectiveCostPrice,
   getAvailableStock,
@@ -63,6 +64,29 @@ describe("getUnitPrice", () => {
     expect(getUnitPrice(p, 1)).toBe(95);
     expect(getUnitPrice(p, 6)).toBe(90);
     expect(getUnitPrice(p, 25)).toBe(80);
+  });
+
+  it("adds fixed USD cost for INVID products without persisted adjustment", () => {
+    const p = { ...base, supplier_name: "INVID" };
+    expect(getUnitPrice(p, 1)).toBe(100 + INVID_FIXED_COST_USD);
+  });
+
+  it("adds fixed USD cost to INVID volume tiers", () => {
+    const p = {
+      ...base,
+      supplier_name: "INVID",
+      price_tiers: [{ min: 10, max: null, price: 80 }],
+    };
+    expect(getUnitPrice(p, 10)).toBe(80 + INVID_FIXED_COST_USD);
+  });
+
+  it("does not double-apply INVID fixed cost when metadata marks it as persisted", () => {
+    const p = {
+      ...base,
+      supplier_name: "INVID",
+      specs: { invid_extra_cost_applied: "true" },
+    };
+    expect(getUnitPrice(p, 1)).toBe(100);
   });
 });
 
