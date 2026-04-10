@@ -1,11 +1,9 @@
-import { apiRequest } from "@/lib/api/backendClient";
-
 /**
  * AFIP Integration Module (Mocked/Structure)
  * Handles WSFE (Web Services de Facturacion Electronica) logic.
  *
  * In a real production environment, these calls should be proxied
- * via a secure backend to protect AFIP certificates.
+ * via a secure backend (Vercel Functions) to protect AFIP certificates.
  */
 
 export interface AfipInvoiceData {
@@ -63,27 +61,34 @@ export type ValidateCuitResult = {
   active: boolean;
 };
 
-/** Validate a CUIT/CUIL via the backend public lookup. */
+/** Validate a CUIT/CUIL via the /api/afip-cuit proxy (AFIP Padron). */
 export async function validateCuit(cuit: string): Promise<ValidateCuitResult> {
   const digits = cuit.replace(/\D/g, "");
 
   try {
-    const { response, result } = await apiRequest<ValidateCuitResult>(
-      `/v1/public/cuit-lookup?cuit=${digits}`,
-      { method: "GET" },
-    );
+    const res = await fetch(`/api/create-user?cuit=${digits}`);
+    const text = await res.text();
 
-    if (!response.ok || !result.ok || !result.data) {
-      throw new Error(result.error ?? "No se pudo validar el CUIT.");
+    // If response is not JSON (e.g. raw TS source in dev without vercel dev), fall through to mock
+    let json: { ok: boolean; data?: ValidateCuitResult; error?: string };
+    try {
+      json = JSON.parse(text) as typeof json;
+    } catch {
+      throw new Error("__use_mock__");
     }
 
-    return result.data;
+    if (!json.ok || !json.data) {
+      throw new Error(json.error ?? "No se pudo validar el CUIT.");
+    }
+
+    return json.data;
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
-    if (msg.includes("Failed to fetch") || msg.toLowerCase().includes("fetch")) {
+    // In local dev without `vercel dev`, fall back to a mock based on prefix
+    if (msg === "__use_mock__" || msg.includes("Failed to fetch")) {
       const entityType = detectCuitEntityType(digits);
       return {
-        companyName: entityType === "empresa" ? "Empresa de Prueba S.A." : "Juan Carlos Perez",
+        companyName: entityType === "empresa" ? "Empresa de Prueba S.A." : "Juan Carlos Pérez",
         taxStatus: entityType === "empresa" ? "responsable_inscripto" : "monotributista",
         entityType,
         active: true,
@@ -101,10 +106,10 @@ export async function generateElectronicInvoice(data: AfipInvoiceData): Promise<
   console.log(`[AFIP] Generating Invoice Type ${data.type} for CUIT ${data.cuit} Total: $${data.total}`);
 
   // Mock delay
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+  await new Promise(resolve => setTimeout(resolve, 1500));
 
   // Simulating an approval
-  const cae = Math.floor(Math.random() * 100000000000000).toString().padStart(14, "0");
+  const cae = Math.floor(Math.random() * 100000000000000).toString().padStart(14, '0');
   const now = new Date();
   const dueDate = new Date(now.setDate(now.getDate() + 10)).toISOString().slice(0, 10);
 

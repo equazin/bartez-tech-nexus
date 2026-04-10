@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SurfaceCard } from "@/components/ui/surface-card";
-import { apiRequest } from "@/lib/api/backendClient";
+import { supabase } from "@/lib/supabase";
 
 interface AdminProfile {
   id: string;
@@ -42,6 +42,19 @@ export function AdminManagementTab({ admins, isDark, onRefresh }: AdminManagemen
     );
   }, [search, admins]);
 
+  async function getHeaders() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("Sesion expirada.");
+    return { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` };
+  }
+
+  async function readResult(res: Response): Promise<{ ok?: boolean; error?: string }> {
+    const raw = await res.text();
+    if (!raw) return { ok: res.ok };
+    try { return JSON.parse(raw) as { ok?: boolean; error?: string }; }
+    catch { return { ok: res.ok, error: raw }; }
+  }
+
   async function handleCreate() {
     const name = createForm.contact_name.trim();
     const email = createForm.email.trim().toLowerCase();
@@ -50,10 +63,11 @@ export function AdminManagementTab({ admins, isDark, onRefresh }: AdminManagemen
     setSavingCreate(true);
     setCreateError("");
     try {
-      const { response, result } = await apiRequest("/v1/admin/users", {
+      const headers = await getHeaders();
+      const res = await fetch("/api/create-user", {
         method: "POST",
-        auth: "required",
-        json: {
+        headers,
+        body: JSON.stringify({
           email,
           password: pwd,
           contact_name: name,
@@ -61,9 +75,10 @@ export function AdminManagementTab({ admins, isDark, onRefresh }: AdminManagemen
           role: "admin",
           client_type: "empresa",
           default_margin: 0,
-        },
+        }),
       });
-      if (!response.ok || !result.ok) { setCreateError(result.error ?? "No se pudo crear el administrador."); return; }
+      const result = await readResult(res);
+      if (!res.ok || !result.ok) { setCreateError(result.error ?? "No se pudo crear el administrador."); return; }
       setShowCreate(false);
       setCreateForm(EMPTY_FORM);
       await onRefresh?.();
@@ -82,18 +97,21 @@ export function AdminManagementTab({ admins, isDark, onRefresh }: AdminManagemen
     setSavingEdit(true);
     setEditError("");
     try {
-      const { response, result } = await apiRequest(`/v1/admin/users/${editingId}`, {
+      const headers = await getHeaders();
+      const res = await fetch("/api/create-user", {
         method: "PATCH",
-        auth: "required",
-        json: {
+        headers,
+        body: JSON.stringify({
+          id: editingId,
           email,
           contact_name: name,
           company_name: editForm.company_name.trim() || name,
           role: "admin",
           active: editForm.active,
-        },
+        }),
       });
-      if (!response.ok || !result.ok) { setEditError(result.error ?? "No se pudo actualizar."); return; }
+      const result = await readResult(res);
+      if (!res.ok || !result.ok) { setEditError(result.error ?? "No se pudo actualizar."); return; }
       setEditingId(null);
       await onRefresh?.();
     } catch (e) {
