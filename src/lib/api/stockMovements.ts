@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { adjustStockApi } from "@/lib/api/productsApi";
 
 export type MovementType = "sync" | "reserve" | "unreserve" | "fulfill" | "adjust" | "return";
 
@@ -33,20 +34,13 @@ export async function fulfillOrderStock(orderId: string): Promise<void> {
   if (error) throw new Error(`fulfill failed: ${error.message}`);
 }
 
-/** Manual stock adjustment (admin only) */
+/** Manual stock adjustment (admin only) — goes through backend */
 export async function adjustStock(
   productId: number,
   delta: number,
   notes?: string,
-  supplierId?: string
 ): Promise<void> {
-  // Update products table
-  await supabase.rpc("adjust_product_stock", {
-    p_product_id: productId,
-    p_delta:      delta,
-    p_notes:      notes ?? null,
-    p_supplier_id: supplierId ?? null,
-  });
+  await adjustStockApi(productId, delta, notes);
 }
 
 /** Fetch stock movement history for a product */

@@ -79,10 +79,13 @@
       "Bash(grep -h \"export.*function\\\\|export.*const.*=\" src/components/admin/*.tsx)",
       "Bash(npx tsc:*)",
       "Bash(npm run:*)",
-      "Bash(python -c \" import json, sys with open\\(r'C:\\\\Users\\\\NICO\\\\.claude\\\\projects\\\\e--Bartez-B2B-bartez-tech-nexus\\\\08315334-949c-4244-8602-713ed6fdc652.jsonl'\\) as f: lines = f.readlines\\(\\) for line in lines: try: data = json.loads\\(line\\) msg = data.get\\('message', {}\\) role = msg.get\\('role',''\\) content = msg.get\\('content', ''\\) if isinstance\\(content, list\\): for item in content: if isinstance\\(item, dict\\) and item.get\\('type'\\) == 'text': text = item.get\\('text',''\\) if 'Fase 3' in text or '## Fase 3' in text or 'FASE 3' in text: print\\('=== FOUND ==='\\) print\\(text[:4000]\\) print\\(\\) except: pass \")",
-      "Bash(python -c \" import json with open\\(r'C:\\\\Users\\\\NICO\\\\.claude\\\\projects\\\\e--Bartez-B2B-bartez-tech-nexus\\\\08315334-949c-4244-8602-713ed6fdc652.jsonl'\\) as f: lines = f.readlines\\(\\) for line in lines: try: data = json.loads\\(line\\) msg = data.get\\('message', {}\\) content = msg.get\\('content', ''\\) if isinstance\\(content, list\\): for item in content: if isinstance\\(item, dict\\) and item.get\\('type'\\) == 'text': text = item.get\\('text',''\\) if 'fase 3' in text.lower\\(\\) and len\\(text\\) > 500: print\\(repr\\(text[:3000]\\)\\) print\\('---'\\) except: pass \")",
       "Bash(npx vercel:*)",
-      "Bash(ls api/*.ts)"
+      "Bash(ls api/*.ts)",
+      "Bash(wc -l e:/Github/bartez-tech-nexus/src/**/*.ts e:/Github/bartez-tech-nexus/src/**/*.tsx)",
+      "Bash(xargs wc:*)",
+      "Bash(grep -c \"CREATE POLICY\" e:/Github/bartez-tech-nexus/supabase/migrations/*.sql)",
+      "Bash(awk -F: '{sum += $2} END {print sum}')",
+      "Bash(wc -l e:/Github/bartez-tech-nexus/src/components/admin/*.tsx)"
     ]
   }
 }

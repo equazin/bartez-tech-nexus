@@ -51,6 +51,10 @@ import {
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { exportPriceListPDF } from "@/lib/exports";
+import { LoyaltyPanel } from "@/components/b2b/LoyaltyPanel";
+import { CompanyProfileEditor } from "@/components/b2b/CompanyProfileEditor";
+import { NotificationPreferences as NotificationPreferencesPanel } from "@/components/b2b/NotificationPreferences";
+import { exportClientOrders, exportClientInvoices, exportClientQuotes, type ExportDateRange } from "@/lib/exportClientData";
 
 type AccountSection =
   | "resumen"
@@ -242,6 +246,7 @@ export function AccountCenter({
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>(() =>
     readNotificationPreferences(profile.id)
   );
+  const [exportDateRange, setExportDateRange] = useState<ExportDateRange>("all");
   const [supportCategory, setSupportCategory] = useState("CONSULTA");
   const [supportMessage, setSupportMessage] = useState("");
   const [supportSaving, setSupportSaving] = useState(false);
@@ -693,18 +698,25 @@ export function AccountCenter({
           )}
 
           {activeSection === "resumen" && (
-            <AccountDashboard
-              profile={profile}
-              orders={orders}
-              quotes={quotes}
-              invoices={invoices}
-              payments={payments}
-              currency={currency}
-              exchangeRate={exchangeRate.rate}
-              onAction={handleSectionChange}
-              onTabChange={onNavigateToTab}
-              seller={assignedSeller}
-            />
+            <div className="space-y-6">
+              <AccountDashboard
+                profile={profile}
+                orders={orders}
+                quotes={quotes}
+                invoices={invoices}
+                payments={payments}
+                currency={currency}
+                exchangeRate={exchangeRate.rate}
+                onAction={handleSectionChange}
+                onTabChange={onNavigateToTab}
+                seller={assignedSeller}
+              />
+              <LoyaltyPanel
+                partnerLevel={profile.partner_level}
+                ordersCount={orders.length}
+                onGoToAccount={() => handleSectionChange("datos")}
+              />
+            </div>
           )}
 
           {activeSection === "quotes" && (
@@ -740,46 +752,14 @@ export function AccountCenter({
           )}
 
           {activeSection === "datos" && (
-            <div className="border border-border/70 bg-card rounded-2xl p-5">
-              <div className="grid gap-4 md:grid-cols-2">
-                {[
-                  { key: "company_name", label: "Empresa / nombre" },
-                  { key: "contact_name", label: "Contacto principal" },
-                  { key: "razon_social", label: "Razón social" },
-                  { key: "cuit", label: "CUIT" },
-                  { key: "phone", label: "Teléfono" },
-                  { key: "direccion", label: "Dirección" },
-                  { key: "ciudad", label: "Ciudad" },
-                  { key: "provincia", label: "Provincia" },
-                ].map((field) => (
-                  <label key={field.key} className="space-y-1">
-                    <span className={`text-xs text-muted-foreground`}>{field.label}</span>
-                    <input
-                      value={form[field.key as keyof typeof form]}
-                      onChange={(event) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          [field.key]: event.target.value,
-                        }))
-                      }
-                      className={`w-full rounded-lg border px-3 py-2 text-sm outline-none bg-card border border-border/70 text-foreground`}
-                    />
-                  </label>
-                ))}
-              </div>
-
-              <div className="flex items-center gap-3 mt-5">
-                <button
-                  onClick={handleSaveProfile}
-                  disabled={saving}
-                  className="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
-                >
-                  {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                  {saving ? "Guardando..." : "Guardar cambios"}
-                </button>
-                {saveSuccess && <span className="text-xs text-emerald-400">{saveSuccess}</span>}
-              </div>
-            </div>
+            <CompanyProfileEditor
+              profile={profile}
+              initialDetail={clientDetail}
+              onSaved={async () => {
+                const updated = await fetchClientProfile(profile.id);
+                setClientDetail(updated);
+              }}
+            />
           )}
 
           {activeSection === "usuarios" && (
@@ -1087,43 +1067,59 @@ export function AccountCenter({
           )}
 
           {activeSection === "notificaciones" && (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="border border-border/70 bg-card rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <Bell size={15} className="text-primary" />
-                  <h3 className={`text-sm font-bold text-foreground`}>Preferencias</h3>
-                </div>
-                <div className="space-y-3">
-                  {[
-                    ["invoiceDueAlerts", "Alertas de vencimiento de facturas"],
-                    ["orderStatusAlerts", "Alertas por cambios de estado de pedidos"],
-                    ["weeklySummary", "Resumen semanal"],
-                    ["stockAlerts", "Avisos de reposición y stock"],
-                  ].map(([key, label]) => (
-                    <label key={key} className="flex items-center justify-between gap-3">
-                      <span className={`text-sm text-muted-foreground`}>{label}</span>
-                      <button
-                        onClick={() => setNotificationPreferences((prev) => ({ ...prev, [key]: !prev[key as keyof NotificationPreferences] }))}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${notificationPreferences[key as keyof NotificationPreferences] ? "bg-primary" : "bg-muted"}`}
-                      >
-                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${notificationPreferences[key as keyof NotificationPreferences] ? "translate-x-6" : "translate-x-1"}`} />
-                      </button>
-                    </label>
-                  ))}
-                </div>
-              </div>
+            <div className="space-y-4">
+              <NotificationPreferencesPanel profileId={profile.id} />
 
-              <div className="border border-border/70 bg-card rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-3">
+              {/* Export section */}
+              <div className="border border-border/70 bg-card rounded-2xl p-5 space-y-4">
+                <div className="flex items-center gap-2">
                   <Mail size={15} className="text-blue-600 dark:text-blue-400" />
-                  <h3 className={`text-sm font-bold text-foreground`}>Resumen visible</h3>
+                  <h3 className="text-sm font-bold text-foreground">Exportar mis datos</h3>
                 </div>
-                <div className="space-y-2 text-sm">
-                  <p className="text-muted-foreground">Facturas vencidas: <span className="font-semibold text-destructive">{invoices.filter((invoice) => invoice.status === "overdue").length}</span></p>
-                  <p className="text-muted-foreground">Pedidos activos: <span className="font-semibold text-primary">{orders.filter((order) => !["delivered", "rejected"].includes(order.status)).length}</span></p>
-                  <p className="text-muted-foreground">Tickets abiertos: <span className="font-semibold text-blue-600 dark:text-blue-400">{supportNotes.length}</span></p>
-                  <p className="text-muted-foreground">Usuarios delegados: <span className="font-semibold text-emerald-400">{accessRecords.length}</span></p>
-                  <p className="text-muted-foreground">Proximo vencimiento: <span className={`font-semibold text-foreground`}>{nextDueInvoice?.due_date ? new Date(nextDueInvoice.due_date).toLocaleDateString("es-AR") : "Sin fecha"}</span></p>
+
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-xs text-muted-foreground">Período:</span>
+                  {(["3m", "6m", "1y", "all"] as ExportDateRange[]).map((range) => {
+                    const label = range === "3m" ? "3 meses" : range === "6m" ? "6 meses" : range === "1y" ? "1 año" : "Todo";
+                    return (
+                      <button
+                        key={range}
+                        type="button"
+                        onClick={() => setExportDateRange(range)}
+                        className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                          exportDateRange === range
+                            ? "border-primary/40 bg-primary/10 text-primary"
+                            : "border-border/70 bg-card text-muted-foreground hover:border-primary/30"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => exportClientOrders(orders, exportDateRange)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-card px-4 py-2 text-sm text-foreground transition hover:border-primary/30 hover:bg-primary/5"
+                  >
+                    Pedidos (.csv)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => exportClientInvoices(invoices, exportDateRange)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-card px-4 py-2 text-sm text-foreground transition hover:border-primary/30 hover:bg-primary/5"
+                  >
+                    Facturas (.csv)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => exportClientQuotes(quotes, exportDateRange)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-card px-4 py-2 text-sm text-foreground transition hover:border-primary/30 hover:bg-primary/5"
+                  >
+                    Cotizaciones (.csv)
+                  </button>
                 </div>
               </div>
             </div>

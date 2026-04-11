@@ -34,6 +34,7 @@ import { supabase } from "@/lib/supabase";
 import type { UserProfile } from "@/lib/supabase";
 import type { Product } from "@/models/products";
 import { WelcomeHero } from "@/components/b2b/WelcomeHero";
+import { LoyaltyPanel } from "@/components/b2b/LoyaltyPanel";
 
 
 export interface AssignedSeller {
@@ -856,6 +857,13 @@ export function ClientDashboard({
           </div>
         </SurfaceCard>
       )}
+
+      {/* ── LOYALTY PANEL ────────────────────────────────────────────── */}
+      <LoyaltyPanel
+        partnerLevel={profile.partner_level}
+        ordersCount={orders.length}
+        onGoToAccount={() => onGoTo("cuenta")}
+      />
 
       {/* ── ALERTS (conditional) ─────────────────────────────────────── */}
       {alerts.length > 0 && (
