@@ -4,7 +4,7 @@ import { getEffectiveCostPrice } from "../src/lib/pricing.js";
 import type { Product } from "../src/models/products.js";
 import type { PricingRule } from "../src/models/pricingRule.js";
 
-export const config = { maxDuration: 60 };
+export const config = { runtime: "edge", maxDuration: 60 };
 
 interface CheckoutPayload {
   products: { id: number; quantity: number }[];
