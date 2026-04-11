@@ -1,4 +1,4 @@
-import type { Product } from "../models/products";
+import type { Product } from "../models/products.js";
 
 export const INVID_FIXED_COST_USD = 6;
 
