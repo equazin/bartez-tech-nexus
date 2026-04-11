@@ -1,5 +1,5 @@
-import type { Product } from "@/models/products";
-import type { PricingRule, QuantityBreak } from "@/models/pricingRule";
+import type { Product } from "../models/products";
+import type { PricingRule, QuantityBreak } from "../models/pricingRule";
 
 /**
  * Type priority order (higher index = evaluated later, lower index = wins first).

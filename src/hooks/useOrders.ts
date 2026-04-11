@@ -175,8 +175,16 @@ export function useOrders() {
         body: JSON.stringify(payload),
       });
 
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "Error en el checkout");
+      const raw = await res.text();
+      let body: { ok?: boolean; error?: string; data?: unknown } = {};
+      if (raw) {
+        try {
+          body = JSON.parse(raw) as { ok?: boolean; error?: string; data?: unknown };
+        } catch {
+          throw new Error(raw);
+        }
+      }
+      if (!res.ok) throw new Error(body.error || raw || "Error en el checkout");
 
       // checkout returns { ok: true, data: { id, order_number, status } }
       const orderResult = body.data ?? body;

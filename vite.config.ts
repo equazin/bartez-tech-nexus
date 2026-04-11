@@ -7,6 +7,7 @@ import commerceHandler from "./api/commerce";
 import pricingHandler from "./api/pricing";
 import productsHandler from "./api/products";
 import emailHandler from "./api/email";
+import checkoutHandler from "./api/checkout";
 
 const AIR_BASE = "https://api.air-intra.com/v2";
 const ELIT_BASE = "https://clientes.elit.com.ar/v1/api";
@@ -72,6 +73,36 @@ async function sendFetchResponse(res: ServerResponse, upstream: Response) {
   res.end(body);
 }
 
+async function invokeFetchHandler(
+  req: IncomingMessage,
+  res: ServerResponse,
+  requestUrl: URL,
+  handler: (request: Request) => Promise<Response>,
+) {
+  const rawBody = await readRequestBody(req);
+  const headers = new Headers();
+
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (Array.isArray(value)) {
+      headers.set(key, value.join(", "));
+    } else if (value != null) {
+      headers.set(key, value);
+    }
+  }
+
+  const request = new Request(requestUrl, {
+    method: req.method ?? "GET",
+    headers,
+    body:
+      req.method && !["GET", "HEAD"].includes(req.method.toUpperCase()) && rawBody
+        ? rawBody
+        : undefined,
+  });
+
+  const response = await handler(request);
+  await sendFetchResponse(res, response);
+}
+
 function devApiProxyPlugin(env: Record<string, string>): PluginOption {
   return {
     name: "dev-api-proxy",
@@ -79,6 +110,17 @@ function devApiProxyPlugin(env: Record<string, string>): PluginOption {
       server.middlewares.use(async (req, res, next) => {
         const requestUrl = req.url ? new URL(req.url, "http://localhost") : null;
         const pathname = requestUrl?.pathname ?? "";
+
+        if (requestUrl && pathname === "/api/checkout") {
+          try {
+            await invokeFetchHandler(req, res, requestUrl, checkoutHandler);
+            return;
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            sendJson(res, 500, { ok: false, error: message });
+            return;
+          }
+        }
 
         const MAPPING: Record<string, { handler: any; scope?: string; resource?: string }> = {
           "/api/users":       { handler: usersHandler },
