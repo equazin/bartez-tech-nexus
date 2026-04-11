@@ -64,6 +64,37 @@ export async function patchProfile(payload: PatchProfilePayload): Promise<void> 
   await backend.patch<void>(`/v1/admin/profiles/${id}`, body);
 }
 
+async function callVercelApi<T>(
+  path: string,
+  method: "POST" | "PATCH" | "DELETE",
+  body?: unknown,
+): Promise<T> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const res = await fetch(path, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      ...(session?.access_token
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : {}),
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+
+  const json = (await res.json().catch(() => ({ ok: false, error: res.statusText }))) as
+    | { ok: true; data: T }
+    | { ok?: false; error?: string };
+
+  if (!res.ok || !json.ok) {
+    throw new Error(("error" in json && json.error) || "API error");
+  }
+
+  return json.data;
+}
+
 // ─── Coupons ──────────────────────────────────────────────────────────────────
 
 export interface CouponPayload {
@@ -152,6 +183,40 @@ export async function deletePricingRuleApi(id: string): Promise<void> {
 }
 
 // ─── Price resolution ─────────────────────────────────────────────────────────
+
+export interface PriceAgreementPayload {
+  client_id: string;
+  name: string;
+  margin_pct?: number | null;
+  discount_pct: number;
+  price_list: "mayorista" | "distribuidor" | "standard";
+  valid_from: string;
+  valid_until?: string | null;
+  active?: boolean;
+  notes?: string | null;
+}
+
+export interface PriceAgreement extends PriceAgreementPayload {
+  id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createPriceAgreementApi(
+  payload: PriceAgreementPayload,
+): Promise<PriceAgreement> {
+  return callVercelApi<PriceAgreement>("/api/pricing/agreements", "POST", payload);
+}
+
+export async function updatePriceAgreementApi(
+  id: number,
+  patch: Partial<PriceAgreementPayload>,
+): Promise<PriceAgreement> {
+  return callVercelApi<PriceAgreement>("/api/pricing/agreements", "PATCH", {
+    id,
+    ...patch,
+  });
+}
 
 export async function resolveClientPrice(params: {
   client_id: string;
