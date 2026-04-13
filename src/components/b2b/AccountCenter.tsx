@@ -698,6 +698,11 @@ export function AccountCenter({
 
           {activeSection === "resumen" && (
             <div className="space-y-6">
+              <LoyaltyPanel
+                partnerLevel={profile.partner_level}
+                ordersCount={orders.length}
+                onGoToAccount={() => handleSectionChange("datos")}
+              />
               <AccountDashboard
                 profile={profile}
                 orders={orders}
@@ -709,11 +714,6 @@ export function AccountCenter({
                 onAction={handleSectionChange}
                 onTabChange={onNavigateToTab}
                 seller={assignedSeller}
-              />
-              <LoyaltyPanel
-                partnerLevel={profile.partner_level}
-                ordersCount={orders.length}
-                onGoToAccount={() => handleSectionChange("datos")}
               />
             </div>
           )}
