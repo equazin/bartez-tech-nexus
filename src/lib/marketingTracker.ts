@@ -25,6 +25,9 @@ interface UTMParams {
   utm_campaign: string | null;
   utm_term:     string | null;
   utm_content:  string | null;
+  gclid:        string | null;
+  wbraid:       string | null;
+  gbraid:       string | null;
 }
 
 interface TrackPayload {
@@ -108,11 +111,21 @@ function parseUTMsFromURL(): UTMParams {
     utm_campaign: params.get("utm_campaign"),
     utm_term:     params.get("utm_term"),
     utm_content:  params.get("utm_content"),
+    gclid:        params.get("gclid"),
+    wbraid:       params.get("wbraid"),
+    gbraid:       params.get("gbraid"),
   };
 }
 
 function hasAnyUTM(u: UTMParams): boolean {
-  return !!(u.utm_source || u.utm_medium || u.utm_campaign);
+  return !!(
+    u.utm_source ||
+    u.utm_medium ||
+    u.utm_campaign ||
+    u.gclid ||
+    u.wbraid ||
+    u.gbraid
+  );
 }
 
 /**
@@ -142,9 +155,27 @@ export function captureUTMs(): UTMParams {
       try { return JSON.parse(lastRaw) as UTMParams; } catch { /* ignore */ }
     }
 
-    return { utm_source: null, utm_medium: null, utm_campaign: null, utm_term: null, utm_content: null };
+    return {
+      utm_source: null,
+      utm_medium: null,
+      utm_campaign: null,
+      utm_term: null,
+      utm_content: null,
+      gclid: null,
+      wbraid: null,
+      gbraid: null,
+    };
   } catch {
-    return { utm_source: null, utm_medium: null, utm_campaign: null, utm_term: null, utm_content: null };
+    return {
+      utm_source: null,
+      utm_medium: null,
+      utm_campaign: null,
+      utm_term: null,
+      utm_content: null,
+      gclid: null,
+      wbraid: null,
+      gbraid: null,
+    };
   }
 }
 
@@ -166,6 +197,23 @@ export function getLastTouchUTMs(): UTMParams | null {
   } catch {
     return null;
   }
+}
+
+export function getAttributionParams(): Record<string, unknown> {
+  const lastTouch = _currentUTMs ?? captureUTMs();
+  const firstTouch = getFirstTouchUTMs();
+  return {
+    utm_source: lastTouch.utm_source,
+    utm_medium: lastTouch.utm_medium,
+    utm_campaign: lastTouch.utm_campaign,
+    utm_term: lastTouch.utm_term,
+    utm_content: lastTouch.utm_content,
+    gclid: lastTouch.gclid,
+    wbraid: lastTouch.wbraid,
+    gbraid: lastTouch.gbraid,
+    first_touch_attribution: firstTouch,
+    last_touch_attribution: lastTouch,
+  };
 }
 
 // ── Retry Queue ───────────────────────────────────────────────
@@ -226,7 +274,13 @@ export async function track(
     session_id: isValidUUID(session_id) ? session_id : generateId(),
     page:       typeof window !== "undefined" ? window.location.pathname : "",
     ...utms,
-    metadata,
+    metadata: {
+      gclid: utms.gclid,
+      wbraid: utms.wbraid,
+      gbraid: utms.gbraid,
+      first_touch_attribution: getFirstTouchUTMs(),
+      ...metadata,
+    },
     created_at: new Date().toISOString(),
   };
 
@@ -244,22 +298,35 @@ export async function track(
 
 /** Trackear click en CTA "Solicitar cuenta" */
 export function trackCTAClick(ctaLabel: string, userId?: string | null): void {
-  void track("cta_click", { cta_label: ctaLabel }, userId);
+  void track("cta_click", { cta_label: ctaLabel, ...getAttributionParams() }, userId);
 }
 
 /** Trackear inicio de formulario de registro */
-export function trackRegistrationStart(): void {
-  void track("registration_start");
+export function trackRegistrationStart(metadata: Record<string, unknown> = {}): void {
+  void track("registration_start", { ...getAttributionParams(), ...metadata });
 }
 
 /** Trackear registro completado (llamar después de create-user exitoso) */
-export function trackRegistrationComplete(userId: string, company?: string): void {
-  void track("registration_complete", { company: company ?? null }, userId);
+export function trackRegistrationComplete(
+  userId: string,
+  company?: string,
+  metadata: Record<string, unknown> = {},
+): void {
+  void track("registration_complete", { company: company ?? null, ...getAttributionParams(), ...metadata }, userId);
 }
 
 /** Trackear solicitud enviada a revision manual */
-export function trackRegistrationPendingReview(company?: string, reviewFlags: string[] = []): void {
-  void track("registration_pending_review", { company: company ?? null, review_flags: reviewFlags });
+export function trackRegistrationPendingReview(
+  company?: string,
+  reviewFlags: string[] = [],
+  metadata: Record<string, unknown> = {},
+): void {
+  void track("registration_pending_review", {
+    company: company ?? null,
+    review_flags: reviewFlags,
+    ...getAttributionParams(),
+    ...metadata,
+  });
 }
 
 /** Trackear primer orden completada */

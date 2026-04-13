@@ -52,6 +52,8 @@ const REVIEW_FLAG_LABELS: Record<string, string> = {
   blocked_cuit: "CUIT bloqueado",
   blocked_email_domain: "Dominio bloqueado",
   review_email_domain: "Dominio bajo revision",
+  cuit_not_empresa: "CUIT no corresponde a empresa",
+  non_corporate_email: "Email no corporativo",
   existing_profile_email: "Email ya registrado",
   duplicate_cuit: "CUIT duplicado",
   duplicate_email: "Email duplicado",
@@ -76,6 +78,9 @@ function formatDate(value: string) {
 }
 
 function getSuggestedAction(flags: string[]) {
+  if (flags.includes("cuit_not_empresa") || flags.includes("non_corporate_email")) {
+    return "Validar documentacion comercial y aprobar solo si corresponde al canal B2B.";
+  }
   if (flags.includes("blocked_cuit") || flags.includes("blocked_email_domain")) {
     return "Validar con ventas antes de aprobar.";
   }

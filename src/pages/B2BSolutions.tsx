@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import Layout from "@/components/Layout";
 import SectionHeading from "@/components/SectionHeading";
 import EnterpriseCTA from "@/components/EnterpriseCTA";
+import { trackCTAClick } from "@/lib/marketingTracker";
 
 const partnerBenefits = [
   { icon: TrendingUp, title: "Precios de Gremio", desc: "Escalas de precios competitivas y márgenes reales para que su negocio crezca." },
@@ -39,13 +40,17 @@ const B2BSolutions = () => {
             badge="Canal Mayorista & Gremio"
             title="El motor de abastecimiento para"
             highlight="integradores y revendedores"
-            description="Acceda al portal B2B más avanzado del mercado. Potenciamos su capacidad de respuesta con stock real, logística federal y soporte experto."
+            description="Acceda al portal B2B mas avanzado del mercado. Exclusivo para empresas, mayoristas e integradores (no consumidor final)."
             large
           />
           <div className="mt-10 flex justify-center gap-4">
             <Link to="/registrarse">
-              <Button size="lg" className="bg-gradient-primary font-bold text-primary-foreground h-12 px-8">
-                Postularse como Partner <ArrowRight size={16} className="ml-2" />
+              <Button
+                size="lg"
+                className="bg-gradient-primary font-bold text-primary-foreground h-12 px-8"
+                onClick={() => trackCTAClick("b2b_solutions_hero_solicitar_cuenta_b2b")}
+              >
+                Solicitar cuenta B2B <ArrowRight size={16} className="ml-2" />
               </Button>
             </Link>
             <Link to="/login">
@@ -171,8 +176,12 @@ const B2BSolutions = () => {
                 "Apoyamos el crecimiento de integradores en todo el país con las mejores marcas y atención personalizada."
               </p>
               <Link to="/registrarse">
-                <Button size="lg" className="bg-gradient-primary font-bold text-primary-foreground h-14 px-10 shadow-lg glow-sm">
-                  Solicitar Apertura de Cuenta <ArrowRight size={18} className="ml-2" />
+                <Button
+                  size="lg"
+                  className="bg-gradient-primary font-bold text-primary-foreground h-14 px-10 shadow-lg glow-sm"
+                  onClick={() => trackCTAClick("b2b_solutions_middle_solicitar_cuenta_b2b")}
+                >
+                  Solicitar cuenta B2B <ArrowRight size={18} className="ml-2" />
                 </Button>
               </Link>
             </div>
@@ -188,7 +197,7 @@ const B2BSolutions = () => {
             title="Lleve su negocio IT al"
             highlight="próximo nivel"
             description="Únase a la red de partners de Bartez. Disponibilidad inmediata, acompañamiento técnico y el Portal B2B más veloz del país."
-            primaryLabel="Registrar mi Empresa"
+            primaryLabel="Solicitar cuenta B2B"
             primaryTo="/registrarse"
             secondaryLabel="Hablar con un Ejecutivo"
             secondaryTo="/contacto"
@@ -200,3 +209,4 @@ const B2BSolutions = () => {
 };
 
 export default B2BSolutions;
+

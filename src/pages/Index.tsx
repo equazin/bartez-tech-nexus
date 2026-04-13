@@ -15,6 +15,7 @@ import ITSavingsCalculator from "@/components/ITSavingsCalculator";
 import FAQSection from "@/components/FAQSection";
 import WhatsAppFloat from "@/components/WhatsAppFloat";
 import heroBg from "@/assets/hero-bg.png";
+import { trackCTAClick } from "@/lib/marketingTracker";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -108,9 +109,14 @@ const Index = () => {
                   Acceder al Portal B2B <ArrowRight className="ml-2" size={18} />
                 </Button>
               </Link>
-              <Link to="/contacto">
-                <Button size="lg" variant="outline" className="btn-interactive border-primary/20 bg-primary/5 text-foreground hover:bg-primary/10 h-14 px-10 text-base">
-                  Solicitar Cuenta Empresa
+              <Link to="/registrarse">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="btn-interactive border-primary/20 bg-primary/5 text-foreground hover:bg-primary/10 h-14 px-10 text-base"
+                  onClick={() => trackCTAClick("home_hero_solicitar_cuenta_b2b")}
+                >
+                  Solicitar cuenta B2B
                 </Button>
               </Link>
             </motion.div>
@@ -460,11 +466,15 @@ const Index = () => {
                   Ingresar al Portal B2B <ArrowRight size={14} className="ml-2" />
                 </Button>
               </Link>
-              <a href="https://wa.me/5493415104902?text=Hola%2C%20quiero%20ser%20cliente%20B2B." target="_blank" rel="noopener noreferrer">
-                <Button variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-11 px-8 text-sm">
-                  Solicitar acceso
+              <Link to="/registrarse">
+                <Button
+                  variant="outline"
+                  className="border-border/60 text-foreground hover:bg-secondary h-11 px-8 text-sm"
+                  onClick={() => trackCTAClick("home_portal_solicitar_cuenta_b2b")}
+                >
+                  Solicitar cuenta B2B
                 </Button>
-              </a>
+              </Link>
             </div>
           </div>
         </div>

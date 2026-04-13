@@ -23,6 +23,11 @@ import { getSupabaseAdmin, getSupabaseClient } from "./_shared/supabaseServer.js
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type RegistrationStatus = "pending" | "approved" | "rejected";
+type RegistrationWorkflowStatus =
+  | "pending_review"
+  | "auto_approved"
+  | "approved_manual"
+  | "rejected";
 
 type RegistrationRow = {
   id: string;
@@ -39,6 +44,8 @@ type RegistrationRow = {
   approved_user_id: string | null;
   notes: string | null;
   created_at: string;
+  updated_at?: string | null;
+  review_flags?: string[] | null;
 };
 
 type SellerRecord = { id: string; name: string; email: string };
@@ -49,6 +56,26 @@ type RegistrationInsertResult = {
   id: string;
   assigned_to: string | null;
 };
+
+const FREE_EMAIL_DOMAINS = new Set([
+  "gmail.com",
+  "googlemail.com",
+  "hotmail.com",
+  "outlook.com",
+  "live.com",
+  "msn.com",
+  "yahoo.com",
+  "yahoo.com.ar",
+  "icloud.com",
+  "me.com",
+  "aol.com",
+  "proton.me",
+  "protonmail.com",
+  "gmx.com",
+  "mail.com",
+  "yandex.com",
+  "zoho.com",
+]);
 
 // ─── Impersonate schemas ──────────────────────────────────────────────────────
 
@@ -321,6 +348,34 @@ async function resolveAssignedExecutive(adminClient: ReturnType<typeof getSupaba
   return null;
 }
 
+function getEmailDomain(email: string): string | null {
+  const normalized = email.trim().toLowerCase();
+  const atIndex = normalized.lastIndexOf("@");
+  if (atIndex <= 0 || atIndex === normalized.length - 1) return null;
+  return normalized.slice(atIndex + 1);
+}
+
+function isCorporateEmail(email: string): boolean {
+  const domain = getEmailDomain(email);
+  return !!domain && !FREE_EMAIL_DOMAINS.has(domain);
+}
+
+function dedupeFlags(flags: string[]): string[] {
+  return [...new Set(flags.filter(Boolean))];
+}
+
+function deriveWorkflowStatus(
+  status: RegistrationStatus,
+  approvedUserId: string | null | undefined,
+  notes?: string | null,
+): RegistrationWorkflowStatus {
+  if (status === "rejected") return "rejected";
+  if (status === "approved" && approvedUserId) {
+    return notes === "AUTO_APPROVED" ? "auto_approved" : "approved_manual";
+  }
+  return "pending_review";
+}
+
 async function insertRegistrationRequest(
   adminClient: ReturnType<typeof getSupabaseAdmin>,
   payload: {
@@ -333,7 +388,8 @@ async function insertRegistrationRequest(
     tax_status: string;
     assigned_to: string | null;
     assigned_seller_id: string | null;
-    status: "pending";
+    status: RegistrationStatus;
+    review_flags?: string[];
   },
 ): Promise<{ data: RegistrationInsertResult | null; error: { message: string } | null }> {
   const attempts: Array<Record<string, unknown>> = [
@@ -397,7 +453,18 @@ async function insertRegistrationRequest(
 }
 
 async function handleRegistrationRequest(req: VercelRequest, res: VercelResponse) {
-  const { cuit, company_name, contact_name, email, password, entity_type, tax_status } =
+  const {
+    cuit,
+    company_name,
+    contact_name,
+    email,
+    password,
+    entity_type,
+    tax_status,
+    is_corporate_email,
+    force_pending_review,
+    review_flags,
+  } =
     req.body as Record<string, unknown>;
 
   if (!cuit || typeof cuit !== "string") return fail(res, "CUIT requerido.", 400);
@@ -417,18 +484,39 @@ async function handleRegistrationRequest(req: VercelRequest, res: VercelResponse
     return fail(res, "Selecciona la condicion fiscal.", 400);
   }
 
+  const normalizedEmail = (email as string).trim().toLowerCase();
+  const normalizedEntityType =
+    typeof entity_type === "string" && entity_type === "persona_fisica"
+      ? "persona_fisica"
+      : "empresa";
+
+  const derivedReviewFlags: string[] = [];
+  if (normalizedEntityType !== "empresa") derivedReviewFlags.push("cuit_not_empresa");
+
+  const isCorporateEmailFromPayload =
+    typeof is_corporate_email === "boolean" ? is_corporate_email : isCorporateEmail(normalizedEmail);
+  if (!isCorporateEmailFromPayload) derivedReviewFlags.push("non_corporate_email");
+
+  const providedFlags = Array.isArray(review_flags)
+    ? review_flags.filter((flag): flag is string => typeof flag === "string")
+    : [];
+  const mergedReviewFlags = dedupeFlags([...providedFlags, ...derivedReviewFlags]);
+  const manualReviewRequired =
+    Boolean(force_pending_review) || mergedReviewFlags.includes("cuit_not_empresa") || mergedReviewFlags.includes("non_corporate_email");
+
   const assignedExecutive = await resolveAssignedExecutive(adminClient, cuit);
   const insertPayload = {
     cuit: normalizedCuit,
     company_name: (typeof company_name === "string" && company_name.trim()) || (contact_name as string),
     contact_name: (contact_name as string).trim(),
-    email: (email as string).trim().toLowerCase(),
+    email: normalizedEmail,
     requested_password: password,
-    entity_type: typeof entity_type === "string" ? entity_type : "empresa",
+    entity_type: normalizedEntityType,
     tax_status: normalizedTaxStatus,
     assigned_to: assignedExecutive?.email ?? null,
     assigned_seller_id: assignedExecutive?.id ?? null,
     status: "pending" as const,
+    review_flags: mergedReviewFlags,
   };
 
   const { data, error } = await insertRegistrationRequest(adminClient, insertPayload);
@@ -442,11 +530,99 @@ async function handleRegistrationRequest(req: VercelRequest, res: VercelResponse
     return fail(res, "No se pudo guardar la solicitud. Intenta de nuevo.", 500);
   }
 
-  return ok(res, {
-    id: data.id,
-    assigned_to: data.assigned_to,
-    assigned_executive: assignedExecutive,
-  }, 201);
+  if (manualReviewRequired) {
+    return ok(
+      res,
+      {
+        id: data.id,
+        status: "pending_review",
+        assigned_to: data.assigned_to,
+        assigned_executive: assignedExecutive,
+        approved_user_id: null,
+        review_flags: mergedReviewFlags,
+        next_action: "await_review",
+      },
+      201,
+    );
+  }
+
+  try {
+    const approval = await approveRegistration(
+      adminClient,
+      {
+        id: data.id,
+        cuit: normalizedCuit,
+        company_name: insertPayload.company_name,
+        contact_name: insertPayload.contact_name,
+        email: normalizedEmail,
+        requested_password: password,
+        entity_type: normalizedEntityType,
+        tax_status: normalizedTaxStatus,
+        status: "pending",
+        assigned_to: assignedExecutive?.email ?? null,
+        assigned_seller_id: assignedExecutive?.id ?? null,
+        approved_user_id: null,
+        notes: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      {
+        client_type: "mayorista",
+        default_margin: 20,
+      },
+    );
+
+    const approvalPayload = {
+      status: "approved",
+      approved_user_id: approval.userId,
+      requested_password: null,
+      notes: "AUTO_APPROVED",
+    };
+
+    const { error: approvalUpdateError } = await adminClient
+      .from("b2b_registration_requests")
+      .update(approvalPayload)
+      .eq("id", data.id);
+
+    if (approvalUpdateError) {
+      throw new Error(approvalUpdateError.message);
+    }
+
+    return ok(
+      res,
+      {
+        id: data.id,
+        status: "auto_approved",
+        assigned_to: data.assigned_to,
+        assigned_executive: assignedExecutive,
+        approved_user_id: approval.userId,
+        review_flags: mergedReviewFlags,
+        next_action: "auto_login",
+      },
+      201,
+    );
+  } catch (approvalError) {
+    const fallbackFlags = dedupeFlags([...mergedReviewFlags, "auto_approval_failed"]);
+    console.error(
+      "[registration-request] auto approval failed, fallback to manual review:",
+      approvalError instanceof Error ? approvalError.message : String(approvalError),
+    );
+
+    return ok(
+      res,
+      {
+        id: data.id,
+        status: "pending_review",
+        assigned_to: data.assigned_to,
+        assigned_executive: assignedExecutive,
+        approved_user_id: null,
+        review_flags: fallbackFlags,
+        next_action: "await_review",
+      },
+      201,
+    );
+  }
+
 }
 
 async function ensureAdmin(req: VercelRequest, res: VercelResponse) {
@@ -513,14 +689,18 @@ async function handleListRegistrationRequests(req: VercelRequest, res: VercelRes
   const adminClient = await ensureAdmin(req, res);
   if (!adminClient) return res;
 
-  const status = String(req.query.status ?? "pending");
+  const statusFilter = String(req.query.status ?? "pending_review") as RegistrationWorkflowStatus | "all";
   const query = adminClient
     .from("b2b_registration_requests")
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (status !== "all") {
-    query.eq("status", status);
+  if (statusFilter === "pending_review") {
+    query.eq("status", "pending");
+  } else if (statusFilter === "rejected") {
+    query.eq("status", "rejected");
+  } else if (statusFilter === "approved_manual" || statusFilter === "auto_approved") {
+    query.eq("status", "approved");
   }
 
   const { data, error } = await query;
@@ -528,17 +708,43 @@ async function handleListRegistrationRequests(req: VercelRequest, res: VercelRes
 
   const requests = (data as RegistrationRow[] | null) ?? [];
   const sellerMap = await buildSellerMap(adminClient, requests);
+  const mapped = requests.map((request) => {
+    const rawFlags = (request as RegistrationRow & { review_flags?: unknown }).review_flags;
+    const flags = Array.isArray(rawFlags)
+      ? rawFlags.filter((flag): flag is string => typeof flag === "string")
+      : [];
+    if (request.entity_type !== "empresa") flags.push("cuit_not_empresa");
+    if (!isCorporateEmail(request.email)) flags.push("non_corporate_email");
+    const reviewFlags = dedupeFlags(flags);
 
-  return ok(
-    res,
-    requests.map((request) => ({
+    const workflowStatus = deriveWorkflowStatus(
+      request.status,
+      request.approved_user_id,
+      request.notes,
+    );
+
+    return {
       ...request,
+      workflow_status: workflowStatus,
+      review_flags: reviewFlags,
+      approval_mode:
+        workflowStatus === "auto_approved"
+          ? "auto"
+          : workflowStatus === "approved_manual"
+            ? "manual"
+            : null,
       assigned_seller:
         (request.assigned_seller_id ? sellerMap.get(request.assigned_seller_id) : undefined)
         ?? (request.assigned_to ? sellerMap.get(request.assigned_to.trim().toLowerCase()) : undefined)
         ?? null,
-    })),
-  );
+    };
+  });
+
+  const filtered = statusFilter === "all"
+    ? mapped
+    : mapped.filter((request) => request.workflow_status === statusFilter);
+
+  return ok(res, filtered);
 }
 
 async function approveRegistration(
@@ -683,9 +889,15 @@ async function handleUpdateRegistrationRequest(req: VercelRequest, res: VercelRe
     .eq("id", id);
 
   if (error) return fail(res, error.message, 500);
+  const workflowStatus = deriveWorkflowStatus(
+    status as RegistrationStatus,
+    payload.approved_user_id ?? null,
+    payload.notes ?? null,
+  );
   return ok(res, {
     id,
     status,
+    workflow_status: workflowStatus,
     approved_user_id: payload.approved_user_id ?? null,
     used_temp_password: usedTempPassword,
   });
