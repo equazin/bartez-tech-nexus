@@ -29,12 +29,6 @@ const EMPTY_ADDRESS: AddressFields = {
   codigo_postal: "",
 };
 
-const CLIENT_TYPE_LABEL: Record<string, string> = {
-  mayorista: "Mayorista",
-  reseller: "Reseller",
-  empresa: "Empresa",
-};
-
 const PARTNER_LEVEL_LABEL: Record<string, string> = {
   cliente: "Cliente",
   silver: "Silver",
@@ -197,16 +191,8 @@ export function CompanyProfileEditor({ profile, initialDetail, onSaved }: Compan
         </div>
 
         {/* Read-only fields */}
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 pt-1">
+        <div className="grid gap-3 md:grid-cols-2 pt-1">
           <ReadOnlyField label="Email" value={profile.email ?? "—"} />
-          <ReadOnlyField
-            label="Tipo de cliente"
-            value={CLIENT_TYPE_LABEL[profile.client_type] ?? profile.client_type}
-          />
-          <ReadOnlyField
-            label="Margen por defecto"
-            value={`${profile.default_margin ?? 0}%`}
-          />
           <ReadOnlyField
             label="Nivel"
             value={

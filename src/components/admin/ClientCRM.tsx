@@ -1667,8 +1667,15 @@ function CreditPanel({ profile, isDark, onRefresh }: { profile: ClientDetailData
           <Shield size={14} className={approved ? "text-[#2D9F6A]" : "text-[#525252]"} />
           <span className={`text-xs font-semibold ${dk("text-white", "text-[#171717]")}`}>Credito aprobado</span>
         </div>
-        <button onClick={() => setApproved(!approved)} className={`relative h-5 w-9 rounded-full transition-colors ${approved ? "bg-[#2D9F6A]" : dk("bg-[#333]", "bg-[#d4d4d4]")}`}>
-          <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${approved ? "translate-x-4" : "translate-x-0.5"}`} />
+        <button
+          type="button"
+          aria-pressed={approved}
+          onClick={() => setApproved(!approved)}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${approved ? "bg-[#2D9F6A]" : dk("bg-[#333]", "bg-[#d4d4d4]")}`}
+        >
+          <span
+            className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${approved ? "translate-x-5" : "translate-x-0.5"}`}
+          />
         </button>
       </div>
 

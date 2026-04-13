@@ -621,6 +621,9 @@ async function approveRegistration(
       cuit: request.cuit,
       tax_status: request.tax_status,
       assigned_seller_id: request.assigned_seller_id,
+      credit_limit: 0,
+      credit_approved: false,
+      max_order_value: 0,
     },
     { onConflict: "id" },
   );
@@ -702,6 +705,7 @@ async function handleCreateUser(req: VercelRequest, res: VercelResponse) {
   } = req.body as Record<string, unknown>;
 
   const normalizedRole = role === "sales" ? "vendedor" : role;
+  const isClientRole = normalizedRole === "client" || normalizedRole === "cliente";
 
   if (!email || typeof email !== "string" || !email.includes("@")) return fail(res, "Email invalido.");
   if (!password || typeof password !== "string" || password.length < 6) return fail(res, "La contrasena debe tener al menos 6 caracteres.");
@@ -733,6 +737,13 @@ async function handleCreateUser(req: VercelRequest, res: VercelResponse) {
     default_margin: Number(default_margin) || 20,
     role: normalizedRole as string,
     active: true,
+    ...(isClientRole
+      ? {
+          credit_limit: 0,
+          credit_approved: false,
+          max_order_value: 0,
+        }
+      : {}),
   }, { onConflict: "id" });
 
   if (profileError) console.error("[users] Profile upsert failed:", profileError.message);

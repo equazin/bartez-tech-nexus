@@ -426,6 +426,13 @@ export function AccountCenter({
     const activeOrders = orders.filter((order) => !["delivered", "rejected"].includes(order.status));
     const creditLimit = clientDetail?.credit_limit ?? profile.credit_limit ?? 0;
     const creditUsed = clientDetail?.credit_used ?? 0;
+    const creditApproved = clientDetail?.credit_approved ?? false;
+    const creditAvailable = Math.max(0, creditLimit - creditUsed);
+    const creditValue = !creditApproved
+      ? "Crédito desactivado"
+      : creditLimit > 0
+      ? formatMoneyInPreferredCurrency(creditAvailable, "ARS", currency, exchangeRate.rate, 0)
+      : "Sin límite";
     return [
       { label: "Pedidos activos", value: String(activeOrders.length), accent: "text-primary" },
       {
@@ -442,20 +449,12 @@ export function AccountCenter({
       },
       {
         label: "Crédito disponible",
-        value: creditLimit > 0 
-          ? formatMoneyInPreferredCurrency(
-              Math.max(0, creditLimit - creditUsed), 
-              "ARS", 
-              currency, 
-              exchangeRate.rate, 
-              0
-            ) 
-          : "Sin límite",
-        accent: "text-emerald-400",
+        value: creditValue,
+        accent: creditApproved ? "text-emerald-400" : "text-muted-foreground",
       },
       { label: "Cotizaciones", value: String(quotes.length), accent: "text-blue-600 dark:text-blue-400" },
     ];
-  }, [clientDetail?.credit_limit, clientDetail?.credit_used, currency, exchangeRate.rate, orders, pendingInvoices, profile.credit_limit, quotes.length]);
+  }, [clientDetail?.credit_approved, clientDetail?.credit_limit, clientDetail?.credit_used, currency, exchangeRate.rate, orders, pendingInvoices, profile.credit_limit, quotes.length]);
 
   const documentItems = useMemo(() => {
     const invoiceDocs = invoices.map((invoice) => ({
@@ -870,9 +869,8 @@ export function AccountCenter({
                   <h3 className={`text-sm font-bold text-foreground`}>Condición comercial</h3>
                 </div>
                 <div className="space-y-2 text-sm">
-                  <p className="text-muted-foreground">Tipo de cliente: <span className={`font-semibold text-foreground`}>{clientDetail?.client_type || profile.client_type}</span></p>
                   <p className="text-muted-foreground">Lista: <span className={`font-semibold text-foreground`}>{clientDetail?.precio_lista ?? "standard"}</span></p>
-                  <p className="text-muted-foreground">Credito: <span className={`font-semibold text-foreground`}>{clientDetail?.credit_approved ? "Aprobado" : "En revision"}</span></p>
+                  <p className="text-muted-foreground">Credito: <span className={`font-semibold text-foreground`}>{clientDetail?.credit_approved ? "Aprobado" : "Desactivado"}</span></p>
                 </div>
               </div>
               <div className="border border-border/70 bg-card rounded-2xl p-5">
@@ -898,17 +896,21 @@ export function AccountCenter({
                     <Wallet size={15} className="text-primary" />
                     <h3 className={`text-sm font-bold text-foreground`}>Crédito disponible</h3>
                   </div>
-                  <p className="text-2xl font-extrabold text-primary">
-                    {clientDetail?.credit_limit
+                  <p className={`text-2xl font-extrabold ${clientDetail?.credit_approved ? "text-primary" : "text-muted-foreground"}`}>
+                    {!clientDetail?.credit_approved
+                      ? "Crédito desactivado"
+                      : clientDetail?.credit_limit
                       ? formatMoneyInPreferredCurrency(Math.max(0, clientDetail.credit_limit - clientDetail.credit_used), "ARS", currency, exchangeRate.rate, 0)
                       : "Sin límite"}
                   </p>
-                  {clientDetail?.credit_limit ? (
+                  {clientDetail?.credit_approved && clientDetail?.credit_limit ? (
                     <p className="text-xs text-muted-foreground mt-1">
                       Usado {formatMoneyInPreferredCurrency(clientDetail.credit_used, "ARS", currency, exchangeRate.rate, 0)} de {formatMoneyInPreferredCurrency(clientDetail.credit_limit, "ARS", currency, exchangeRate.rate, 0)}
                     </p>
-                  ) : (
+                  ) : clientDetail?.credit_approved ? (
                     <p className="text-xs text-muted-foreground mt-1">No hay límite definido para esta cuenta.</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">Esta cuenta opera sin línea de crédito habilitada.</p>
                   )}
                 </div>
 

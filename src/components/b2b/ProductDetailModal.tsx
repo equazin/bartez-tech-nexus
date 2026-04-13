@@ -577,8 +577,9 @@ export function ProductDetailModal({
               ) : null}
             </div>
 
-              {/* Related Products */}
-              {allProducts.length > 0 && (
+            {/* Related Products */}
+            {allProducts.length > 0 && (
+              <div className="md:col-span-2">
                 <RelatedProducts
                   currentProduct={product}
                   allProducts={allProducts}
@@ -592,10 +593,11 @@ export function ProductDetailModal({
                   }}
                   onAddToCart={(p) => onAddToCart(p)}
                 />
-              )}
+              </div>
+            )}
 
-              {/* CTA anchor for IntersectionObserver */}
-              <div ref={ctaRef} />
+            {/* CTA anchor for IntersectionObserver */}
+            <div ref={ctaRef} />
           </div>
         </div>
 
