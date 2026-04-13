@@ -8,6 +8,7 @@ import { getAvailableStock } from "@/lib/pricing";
 import { getSavedCarts, saveCart, deleteSavedCart, type SavedCart } from "@/lib/savedCarts";
 import { getFavoriteProducts, toggleFavoriteProduct } from "@/lib/favoriteProducts";
 import { puedeComprar } from "@/lib/api/clientDetail";
+import { applyTotalDiscount, getPcBuildCartDiscount, type PcBuildCartMeta } from "@/lib/pcBuilder";
 import type { Product } from "@/models/products";
 import type { PriceResult } from "@/hooks/usePricing";
 import type { Quote } from "@/models/quote";
@@ -71,6 +72,23 @@ export function usePortalCart({
     localStorage.setItem(cartKey, JSON.stringify(cart));
   }, [cart, cartKey]);
 
+  useEffect(() => {
+    const metaKey = `b2b_cart_source_${profile?.id || "guest"}`;
+    try {
+      const raw = localStorage.getItem(metaKey);
+      setPcBuildBundleMeta(raw ? (JSON.parse(raw) as PcBuildCartMeta) : null);
+    } catch {
+      setPcBuildBundleMeta(null);
+    }
+  }, [profile?.id]);
+
+  useEffect(() => {
+    if (Object.keys(cart).length > 0) return;
+    const metaKey = `b2b_cart_source_${profile?.id || "guest"}`;
+    localStorage.removeItem(metaKey);
+    setPcBuildBundleMeta(null);
+  }, [cart, profile?.id]);
+
   // ── Saved carts & favorites ───────────────────────────────────────────────
   const [savedCarts, setSavedCarts] = useState<SavedCart[]>(() =>
     getSavedCarts(profile?.id || "guest")
@@ -90,6 +108,7 @@ export function usePortalCart({
   const [appliedCoupon, setAppliedCoupon] = useState<Record<string, unknown> | null>(null);
   const [couponError, setCouponError] = useState("");
   const [validatingCoupon, setValidatingCoupon] = useState(false);
+  const [pcBuildBundleMeta, setPcBuildBundleMeta] = useState<PcBuildCartMeta | null>(null);
 
   // ── Order state ───────────────────────────────────────────────────────────
   const [orderSubmitting, setOrderSubmitting] = useState(false);
@@ -122,13 +141,34 @@ export function usePortalCart({
   const cartSubtotal = useMemo(() => cartItems.reduce((s, i) => s + i.totalPrice, 0), [cartItems]);
   const cartIVATotal = useMemo(() => cartItems.reduce((s, i) => s + i.ivaAmount, 0), [cartItems]);
 
-  const discountAmount = useMemo(() => {
+  const couponDiscountAmount = useMemo(() => {
     if (!appliedCoupon) return 0;
     if (appliedCoupon.discount_type === "fixed") return appliedCoupon.discount_value as number;
     return (cartSubtotal * (appliedCoupon.discount_value as number)) / 100;
   }, [appliedCoupon, cartSubtotal]);
 
-  const cartTotal = useMemo(() => Math.max(0, cartSubtotal + cartIVATotal - discountAmount), [cartSubtotal, cartIVATotal, discountAmount]);
+  const builderDiscount = useMemo(
+    () =>
+      getPcBuildCartDiscount(
+        pcBuildBundleMeta,
+        cartItems.map((item) => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+          totalWithIVA: item.totalWithIVA,
+        })),
+      ),
+    [cartItems, pcBuildBundleMeta],
+  );
+
+  const discountAmount = useMemo(
+    () => couponDiscountAmount + builderDiscount.amount,
+    [builderDiscount.amount, couponDiscountAmount],
+  );
+
+  const cartTotal = useMemo(
+    () => Math.max(0, cartSubtotal + cartIVATotal - discountAmount),
+    [cartSubtotal, cartIVATotal, discountAmount],
+  );
   const cartCount = useMemo(() => Object.values(cart).reduce((s, q) => s + q, 0), [cart]);
 
   // ── Purchase analytics ────────────────────────────────────────────────────
@@ -408,6 +448,10 @@ export function usePortalCart({
 
   function handleSaveQuote() {
     if (!cartItems.length) return;
+    const discountedTotals = applyTotalDiscount(cartSubtotal, cartIVATotal, discountAmount);
+    const builderDiscountNote = builderDiscount.eligible && builderDiscount.amount > 0
+      ? `Descuento Armador PC aplicado: ${builderDiscount.percentage}% (${currency} ${builderDiscount.amount.toFixed(2)}).`
+      : undefined;
     addQuote({
       client_id: profile?.id || "guest",
       client_name: clientName,
@@ -423,11 +467,12 @@ export function usePortalCart({
         ivaAmount: item.ivaAmount,
         totalWithIVA: item.totalWithIVA,
       })),
-      subtotal: cartSubtotal,
-      ivaTotal: cartIVATotal,
+      subtotal: discountedTotals.subtotal,
+      ivaTotal: discountedTotals.ivaTotal,
       total: cartTotal,
       currency,
       status: "draft",
+      notes: builderDiscountNote,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });

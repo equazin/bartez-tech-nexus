@@ -16,6 +16,7 @@ import { useAppTheme } from "@/hooks/useAppTheme";
 import { estimateShipping, isFreeShippingEligible, type ShippingEstimate } from "@/lib/shipping";
 import { getFavoriteProducts, toggleFavoriteProduct } from "@/lib/favoriteProducts";
 import { convertMoneyAmount, formatMoneyInPreferredCurrency } from "@/lib/money";
+import { applyTotalDiscount, getPcBuildCartDiscount, type PcBuildCartMeta } from "@/lib/pcBuilder";
 import {
   buildOrderNotes,
   clearCheckoutDraft,
@@ -145,10 +146,28 @@ export default function CartPage() {
     try { return JSON.parse(localStorage.getItem(cartKey) || "{}"); }
     catch { return {}; }
   });
+  const [pcBuildBundleMeta, setPcBuildBundleMeta] = useState<PcBuildCartMeta | null>(null);
   useEffect(() => {
     localStorage.setItem(cartKey, JSON.stringify(cart));
   }, [cart, cartKey]);
   useCartSync(cart, setCart);
+
+  useEffect(() => {
+    const metaKey = `b2b_cart_source_${userId}`;
+    try {
+      const raw = localStorage.getItem(metaKey);
+      setPcBuildBundleMeta(raw ? (JSON.parse(raw) as PcBuildCartMeta) : null);
+    } catch {
+      setPcBuildBundleMeta(null);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (Object.keys(cart).length > 0) return;
+    const metaKey = `b2b_cart_source_${userId}`;
+    localStorage.removeItem(metaKey);
+    setPcBuildBundleMeta(null);
+  }, [cart, userId]);
 
   useEffect(() => {
     setFavoriteProductIds(getFavoriteProducts(userId));
@@ -240,14 +259,31 @@ export default function CartPage() {
   const cartSubtotal     = useMemo(() => cartItems.reduce((s, i) => s + i.totalPrice, 0), [cartItems]);
   const cartIVATotal     = useMemo(() => cartItems.reduce((s, i) => s + i.ivaAmount,  0), [cartItems]);
   const cartBaseTotal    = cartSubtotal + cartIVATotal;
+  const builderDiscount  = useMemo(
+    () =>
+      getPcBuildCartDiscount(
+        pcBuildBundleMeta,
+        cartItems.map((item) => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+          totalWithIVA: item.totalWithIVA,
+        })),
+      ),
+    [cartItems, pcBuildBundleMeta],
+  );
+  const discountedTotals = useMemo(
+    () => applyTotalDiscount(cartSubtotal, cartIVATotal, builderDiscount.amount),
+    [builderDiscount.amount, cartIVATotal, cartSubtotal],
+  );
+  const cartDiscountedBaseTotal = discountedTotals.total;
   const paymentSurchargePct = paymentMethod === "echeq" ? ECHEQ_SURCHARGE_BY_TERM[echeqTermDays] : 0;
-  const surchargeAmt     = cartBaseTotal * (paymentSurchargePct / 100);
+  const surchargeAmt     = cartDiscountedBaseTotal * (paymentSurchargePct / 100);
   const shippingCostInputNum = Number(shippingCost || 0);
   const freeShippingApplied = shippingType === "envio" && isFreeShippingEligible(cartSubtotal);
   const shippingCostBaseUsd = (shippingType === "envio" && shippingPaymentType === "origen" && !freeShippingApplied)
     ? (currency === "ARS" ? shippingCostInputNum / exchangeRate.rate : shippingCostInputNum)
     : 0;
-  const grandTotal       = cartBaseTotal + surchargeAmt + shippingCostBaseUsd;
+  const grandTotal       = cartDiscountedBaseTotal + surchargeAmt + shippingCostBaseUsd;
   const resellerProfit   = cartSubtotal * (resellerMargin / 100);
 
   // -- Qty helpers --------------------------------------------------------------
@@ -679,7 +715,10 @@ export default function CartPage() {
   async function handleSaveQuote() {
     if (!cartItems.length) return;
     const now = new Date();
-    const compiledNotes = [paymentDetailNote, buildOrderNotes(notes, orderMeta)].filter(Boolean).join("\n\n");
+    const builderDiscountNote = builderDiscount.eligible && builderDiscount.amount > 0
+      ? `Descuento Armador PC aplicado: ${builderDiscount.percentage}% (${currency} ${builderDiscount.amount.toFixed(2)}).`
+      : "";
+    const compiledNotes = [paymentDetailNote, builderDiscountNote, buildOrderNotes(notes, orderMeta)].filter(Boolean).join("\n\n");
     const expiresAt = new Date(now.getTime() + orderMeta.quoteValidityDays * 24 * 60 * 60 * 1000).toISOString();
     await addQuote({
       client_id:   userId,
@@ -696,9 +735,9 @@ export default function CartPage() {
         ivaAmount:    item.ivaAmount,
         totalWithIVA: item.totalWithIVA,
       })),
-      subtotal:    cartSubtotal,
-      ivaTotal:    cartIVATotal,
-      total:       cartBaseTotal,
+      subtotal:    discountedTotals.subtotal,
+      ivaTotal:    discountedTotals.ivaTotal,
+      total:       cartDiscountedBaseTotal,
       currency,
       status:      "draft",
       notes:       compiledNotes || undefined,
@@ -743,11 +782,11 @@ export default function CartPage() {
       })),
       total:    Number(convertPrice(
         resellerMode
-          ? cartSubtotal * (1 + resellerMargin / 100) + cartIVATotal
-          : cartBaseTotal
+          ? discountedTotals.subtotal * (1 + resellerMargin / 100) + discountedTotals.ivaTotal
+          : cartDiscountedBaseTotal
       ).toFixed(2)),
-      subtotal: Number(convertPrice(cartSubtotal).toFixed(2)),
-      ivaTotal: Number(convertPrice(cartIVATotal).toFixed(2)),
+      subtotal: Number(convertPrice(discountedTotals.subtotal).toFixed(2)),
+      ivaTotal: Number(convertPrice(discountedTotals.ivaTotal).toFixed(2)),
       date:     new Date().toLocaleDateString("es-AR"),
       validityDays: orderMeta.quoteValidityDays,
       paymentTerms,
@@ -762,7 +801,10 @@ export default function CartPage() {
     setReviewRequested(false);
     setReviewSubmitting(true);
     const now = new Date();
-    const compiledNotes = [paymentDetailNote, buildOrderNotes(notes, orderMeta)].filter(Boolean).join("\n\n");
+    const builderDiscountNote = builderDiscount.eligible && builderDiscount.amount > 0
+      ? `Descuento Armador PC aplicado: ${builderDiscount.percentage}% (${currency} ${builderDiscount.amount.toFixed(2)}).`
+      : "";
+    const compiledNotes = [paymentDetailNote, builderDiscountNote, buildOrderNotes(notes, orderMeta)].filter(Boolean).join("\n\n");
     const expiresAt = new Date(now.getTime() + orderMeta.quoteValidityDays * 24 * 60 * 60 * 1000).toISOString();
 
     const quote = await addQuote({
@@ -780,9 +822,9 @@ export default function CartPage() {
         ivaAmount:    item.ivaAmount,
         totalWithIVA: item.totalWithIVA,
       })),
-      subtotal:    cartSubtotal,
-      ivaTotal:    cartIVATotal,
-      total:       cartBaseTotal,
+      subtotal:    discountedTotals.subtotal,
+      ivaTotal:    discountedTotals.ivaTotal,
+      total:       cartDiscountedBaseTotal,
       currency,
       status:      "sent",
       notes:       compiledNotes || undefined,
@@ -1068,7 +1110,7 @@ export default function CartPage() {
             },
           }}
           paymentStepProps={{
-            baseTotal: cartBaseTotal,
+            baseTotal: cartDiscountedBaseTotal,
             paymentMethod,
             echeqTermDays,
             currentAccountSharePct,
@@ -1123,8 +1165,12 @@ export default function CartPage() {
             cartItemCount: cartItems.length,
             totalUnits,
             totalWeightKg,
-            subtotal: cartSubtotal,
-            ivaTotal: cartIVATotal,
+            subtotal: discountedTotals.subtotal,
+            ivaTotal: discountedTotals.ivaTotal,
+            discountAmount: builderDiscount.amount,
+            discountLabel: builderDiscount.eligible && builderDiscount.amount > 0
+              ? `Armador PC ${builderDiscount.percentage}%`
+              : undefined,
             surchargePercent: paymentSurchargePct,
             surchargeAmount: surchargeAmt,
             shippingCost: shippingCostBaseUsd,

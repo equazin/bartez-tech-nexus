@@ -17,7 +17,14 @@ export type TrackEventType =
   | "account_approved"
   | "portal_first_login"
   | "first_order"
-  | "order_placed";
+  | "order_placed"
+  | "builder_open"
+  | "builder_mode_change"
+  | "builder_slot_select"
+  | "builder_compatibility_blocked"
+  | "builder_save_draft"
+  | "builder_quote_created"
+  | "builder_added_to_cart";
 
 interface UTMParams {
   utm_source:   string | null;

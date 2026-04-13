@@ -6,6 +6,8 @@ export interface CheckoutSummaryProps {
   totalWeightKg: number;
   subtotal: number;
   ivaTotal: number;
+  discountAmount?: number;
+  discountLabel?: string;
   surchargePercent: number;
   surchargeAmount: number;
   shippingCost: number;
@@ -32,6 +34,8 @@ export function CheckoutSummary({
   totalWeightKg,
   subtotal,
   ivaTotal,
+  discountAmount = 0,
+  discountLabel,
   surchargePercent,
   surchargeAmount,
   shippingCost,
@@ -70,6 +74,12 @@ export function CheckoutSummary({
       <div className="space-y-2 px-4 py-4">
         <Row label="Subtotal s/IVA" value={formatPrice(subtotal)} isDark={isDark} />
         <Row label="Impuestos (IVA)" value={`+ ${formatPrice(ivaTotal)}`} isDark={isDark} />
+        {discountAmount > 0 && (
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-emerald-600">{discountLabel ?? "Descuento"}</span>
+            <span className="text-xs font-semibold text-emerald-600 tabular-nums">- {formatPrice(discountAmount)}</span>
+          </div>
+        )}
 
         <div className={`my-3 border-b border-dashed ${dk("border-[#333]", "border-[#d4d4d4]")}`} />
 

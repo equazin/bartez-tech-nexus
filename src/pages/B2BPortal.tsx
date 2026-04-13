@@ -12,7 +12,7 @@ import {
   LogOut, ShoppingCart, Search, LayoutGrid, List, Package,
   ClipboardList, ShieldCheck, AlertTriangle, CheckCircle2,
   Star, Sun, Moon, FileText, Table2, Zap, RotateCcw, Truck,
-  Briefcase, Sparkles, Users, MessageSquare, Shield, BadgeCheck,
+  Briefcase, Sparkles, Users, MessageSquare, Shield, BadgeCheck, Cpu,
 } from "lucide-react";
 import { usePricing } from "@/hooks/usePricing";
 import { exportCatalogCSV } from "@/lib/exportCsv";
@@ -56,14 +56,48 @@ import { QuoteList } from "@/components/QuoteList";
 import { MapPin } from "lucide-react";
 import { OrderStatusBadge as StatusBadge } from "@/components/OrderStatusBadge";
 import { EmptyQuotesState } from "@/components/b2b/empty-states/EmptyQuotesState";
+import { PcBuilderPage } from "@/components/b2b/PcBuilderPage";
+import { applyTotalDiscount } from "@/lib/pcBuilder";
 
 // â”€â”€ Theme helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-type PortalTab = "home" | "catalog" | "orders" | "quotes" | "projects" | "express" | "invoices" | "cuenta" | "approvals" | "support" | "rma" | "bulk";
+type PortalTab =
+  | "home"
+  | "catalog"
+  | "builder"
+  | "orders"
+  | "quotes"
+  | "projects"
+  | "express"
+  | "invoices"
+  | "cuenta"
+  | "approvals"
+  | "support"
+  | "rma"
+  | "bulk";
 type ViewModeByContext = Record<CatalogContext, ViewMode>;
 
 const VIEW_MODE_BY_CONTEXT_KEY = "b2b_view_mode_by_context";
 const DEFAULT_VIEW_MODE_BY_CONTEXT: ViewModeByContext = { default: "list", featured: "grid", pos: "grid" };
+const PORTAL_TAB_VALUES: PortalTab[] = [
+  "home",
+  "catalog",
+  "builder",
+  "orders",
+  "quotes",
+  "projects",
+  "express",
+  "invoices",
+  "cuenta",
+  "approvals",
+  "support",
+  "rma",
+  "bulk",
+];
+
+function isPortalTab(value: string | null): value is PortalTab {
+  return value != null && PORTAL_TAB_VALUES.includes(value as PortalTab);
+}
 
 function loadViewModeByContext(): ViewModeByContext {
   try {
@@ -103,9 +137,10 @@ export default function B2BPortal() {
   const [catalogContext, setCatalogContext] = useState<CatalogContext>("default");
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<PortalTab>(() => {
-    const t = searchParams.get("tab") as PortalTab;
-    if (["home", "catalog", "orders", "quotes", "cuenta", "approvals", "support", "rma", "bulk"].includes(t)) return t;
+    const t = searchParams.get("tab");
+    if (isPortalTab(t)) return t;
     if (window.location.pathname === "/catalogo") return "catalog";
+    if (window.location.pathname === "/armador-pc") return "builder";
     if (searchParams.get("category") || searchParams.get("categoria")) return "catalog";
     return "home";
   });
@@ -318,6 +353,11 @@ export default function B2BPortal() {
         return next;
       });
       setActiveTab("cuenta");
+      return;
+    }
+
+    if (isPortalTab(tabParam) && tabParam !== activeTab) {
+      setActiveTab(tabParam);
     }
 
     // Sync URL 'categoria' param with catalog state
@@ -329,7 +369,7 @@ export default function B2BPortal() {
       // If we cleared the URL but hook has state, reset hook
       // catalog.setCategoryFilter("all");
     }
-  }, [searchParams, setSearchParams, catalog.categoryFilter]);
+  }, [searchParams, setSearchParams, catalog.categoryFilter, activeTab]);
 
   function handleViewModeChange(mode: ViewMode) {
     setViewMode(mode);
@@ -458,6 +498,7 @@ export default function B2BPortal() {
           {[
             { id: "home",    label: "Inicio",   icon: LayoutGrid },
             { id: "catalog", label: "Catálogo", icon: Package },
+            { id: "builder", label: "Armador PC", icon: Cpu },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -757,6 +798,63 @@ export default function B2BPortal() {
             />
           )}
 
+          {/* BUILDER */}
+          {activeTab === "builder" && (
+            <PcBuilderPage
+              profileId={profile?.id}
+              clientName={clientName}
+              products={catalog.products}
+              currency={currency}
+              formatPrice={formatPrice}
+              getLineTotal={(product, quantity) => computePrice(product, quantity).totalWithIVA}
+              onAddToCart={(product, quantity) => cart.handleSmartAddToCart(product, quantity)}
+              onCreateQuote={async (items, buildId, discount) => {
+                const quoteItems = items.map(({ product, quantity }) => {
+                  const pricing = computePrice(product, quantity);
+                  return {
+                    product_id: product.id,
+                    name: product.name,
+                    quantity,
+                    cost: pricing.cost,
+                    margin: pricing.margin,
+                    unitPrice: pricing.unitPrice,
+                    totalPrice: pricing.totalPrice,
+                    ivaRate: pricing.ivaRate,
+                    ivaAmount: pricing.ivaAmount,
+                    totalWithIVA: pricing.totalWithIVA,
+                  };
+                });
+
+                const subtotal = quoteItems.reduce((sum, item) => sum + item.totalPrice, 0);
+                const ivaTotal = quoteItems.reduce((sum, item) => sum + item.ivaAmount, 0);
+                const totalWithIva = quoteItems.reduce((sum, item) => sum + item.totalWithIVA, 0);
+                const discountedTotals = applyTotalDiscount(subtotal, ivaTotal, discount?.amount ?? 0);
+                const builderDiscountNote = discount && discount.amount > 0
+                  ? ` Incluye descuento bundle Armador PC de ${discount.percentage}% (${formatPrice(discount.amount)}).`
+                  : "";
+
+                const created = await addQuote({
+                  client_id: profile?.id || "guest",
+                  client_name: clientName,
+                  items: quoteItems,
+                  subtotal: discountedTotals.subtotal,
+                  ivaTotal: discountedTotals.ivaTotal,
+                  total: discount?.amount ? discountedTotals.total : totalWithIva,
+                  currency,
+                  status: "draft",
+                  notes: `Creada desde Armador PC.${builderDiscountNote}`,
+                  build_id: buildId,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                });
+
+                if (!created) return false;
+                setPortalTab("quotes");
+                return true;
+              }}
+            />
+          )}
+
           {/* ORDERS */}
           {activeTab === "orders" && (
             <OrdersPanel
@@ -986,6 +1084,7 @@ export default function B2BPortal() {
         {[
           { id: "home",     label: "Inicio",    icon: LayoutGrid,   badge: 0 },
           { id: "catalog",  label: "Catálogo",  icon: Package,      badge: 0 },
+          { id: "builder",  label: "Armador",   icon: Cpu,          badge: 0 },
           { id: "orders",   label: "Pedidos",   icon: ClipboardList, badge: highlightedOrders + quoteCount + (pendingApprovals ?? 0) },
           { id: "invoices", label: "Finanzas",  icon: FileText,     badge: myInvoices.length },
           { id: "cuenta",   label: "Cuenta",    icon: Users,        badge: 0 },

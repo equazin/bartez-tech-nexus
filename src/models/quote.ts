@@ -44,4 +44,6 @@ export interface Quote {
   expires_at?: string;
   /** Commercial / operational notes */
   notes?: string;
+  /** Optional linkage to PC Builder draft */
+  build_id?: string;
 }

@@ -105,6 +105,7 @@ export function useQuotes(userId: string) {
         if (changes.valid_days  !== undefined) patch.valid_days  = changes.valid_days;
         if (changes.expires_at  !== undefined) patch.expires_at  = changes.expires_at;
         if (changes.notes       !== undefined) patch.notes       = changes.notes;
+        if (changes.build_id    !== undefined) patch.build_id    = changes.build_id;
 
         const { data: updatedRow, error } = await supabase
           .from("quotes")
@@ -205,6 +206,7 @@ function dbToQuote(row: Record<string, unknown>): Quote {
     valid_days:  row.valid_days as number | undefined,
     expires_at:  row.expires_at as string | undefined,
     notes:       row.notes as string | undefined,
+    build_id:    row.build_id as string | undefined,
     created_at:  row.created_at as string,
     updated_at:  row.updated_at as string,
   };
@@ -226,6 +228,7 @@ function quoteToDb(q: Omit<Quote, "id">, userId: string): Record<string, unknown
     valid_days:  q.valid_days ?? null,
     expires_at:  q.expires_at ?? null,
     notes:       q.notes ?? null,
+    build_id:    q.build_id ?? null,
     created_at:  q.created_at,
     updated_at:  q.updated_at,
   };
