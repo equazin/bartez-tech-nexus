@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { Quote, QuoteStatus } from "@/models/quote";
-import { createQuoteApi, updateQuoteApi, deleteQuoteApi } from "@/lib/api/ordersApi";
 
 // ── One-time localStorage → Supabase migration ──────────────────────────────
 async function migrateLocalStorageQuotes(userId: string): Promise<void> {
@@ -72,8 +71,13 @@ export function useQuotes(userId: string) {
     async (data: Omit<Quote, "id">): Promise<Quote | null> => {
       if (!userId || userId === "guest") return null;
       try {
-        const row = await createQuoteApi(quoteToDb(data, userId)) as Record<string, unknown>;
-        const quote = dbToQuote(row);
+        const { data: inserted, error } = await supabase
+          .from("quotes")
+          .insert(quoteToDb(data, userId))
+          .select("*")
+          .single();
+        if (error || !inserted) return null;
+        const quote = dbToQuote(inserted as Record<string, unknown>);
         setQuotes((prev) => [quote, ...prev]);
         return quote;
       } catch {
@@ -85,7 +89,7 @@ export function useQuotes(userId: string) {
 
   // ── updateQuote ────────────────────────────────────────────────────────────
   const updateQuote = useCallback(
-    async (id: number, changes: Partial<Quote>): Promise<void> => {
+    async (id: number | string, changes: Partial<Quote>): Promise<void> => {
       try {
         const patch: Record<string, unknown> = {};
         if (changes.client_name !== undefined) patch.client_name = changes.client_name;
@@ -102,9 +106,15 @@ export function useQuotes(userId: string) {
         if (changes.expires_at  !== undefined) patch.expires_at  = changes.expires_at;
         if (changes.notes       !== undefined) patch.notes       = changes.notes;
 
-        const row = await updateQuoteApi(id, patch) as Record<string, unknown>;
-        const updated = dbToQuote(row);
-        setQuotes((prev) => prev.map((q) => (q.id === id ? updated : q)));
+        const { data: updatedRow, error } = await supabase
+          .from("quotes")
+          .update(patch)
+          .eq("id", id)
+          .select("*")
+          .single();
+        if (error || !updatedRow) return;
+        const updated = dbToQuote(updatedRow as Record<string, unknown>);
+        setQuotes((prev) => prev.map((q) => (String(q.id) === String(id) ? updated : q)));
       } catch {
         // Silencioso
       }
@@ -114,16 +124,18 @@ export function useQuotes(userId: string) {
 
   // ── updateStatus ───────────────────────────────────────────────────────────
   const updateStatus = useCallback(
-    (id: number, status: QuoteStatus) => updateQuote(id, { status }),
+    (id: number | string, status: QuoteStatus) => updateQuote(id, { status }),
     [updateQuote]
   );
 
   // ── deleteQuote ────────────────────────────────────────────────────────────
   const deleteQuote = useCallback(
-    async (id: number): Promise<void> => {
+    async (id: number | string): Promise<void> => {
       try {
-        await deleteQuoteApi(id);
-        setQuotes((prev) => prev.filter((q) => q.id !== id));
+        const { error } = await supabase.from("quotes").delete().eq("id", id);
+        if (!error) {
+          setQuotes((prev) => prev.filter((q) => String(q.id) !== String(id)));
+        }
       } catch {
         // Silencioso
       }
@@ -137,7 +149,7 @@ export function useQuotes(userId: string) {
   // ── duplicateQuote ─────────────────────────────────────────────────────────
   const duplicateQuote = useCallback(
     async (id: number): Promise<Quote | null> => {
-      const original = quotes.find((q) => q.id === id);
+      const original = quotes.find((q) => String(q.id) === String(id));
       if (!original || !userId || userId === "guest") return null;
       const now = new Date().toISOString();
       return addQuote({
@@ -178,7 +190,7 @@ export function useQuotes(userId: string) {
 
 function dbToQuote(row: Record<string, unknown>): Quote {
   return {
-    id:          row.id as number,
+    id:          Number(row.id ?? 0),
     client_id:   row.client_id as string,
     client_name: (row.client_name as string) ?? "",
     items:       (row.items as Quote["items"]) ?? [],

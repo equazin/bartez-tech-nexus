@@ -68,9 +68,37 @@ export function useRma(clientId: string | undefined) {
 
   const createRma = useCallback(async (input: CreateRmaInput): Promise<RmaRequest | null> => {
     try {
-      const rma = await createRmaApi(input) as RmaRequest;
-      setRmas((prev) => [rma, ...prev]);
-      return rma;
+      const rma = await createRmaApi({
+        client_id: input.client_id,
+        order_id: input.order_id,
+        reason: input.reason,
+        description: input.description,
+        items: input.items.map((item) => ({
+          product_id: item.product_id,
+          sku: item.sku,
+          name: item.name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          line_total: item.unit_price * item.quantity,
+        })),
+      });
+      const normalized: RmaRequest = {
+        id: Number(rma.id),
+        rma_number: `RMA-${String(rma.id)}`,
+        client_id: rma.client_id ?? input.client_id,
+        order_id: rma.order_id,
+        status: (rma.status === "pending" ? "submitted" : rma.status) as RmaStatus,
+        reason: input.reason,
+        description: rma.description ?? input.description,
+        items: input.items,
+        resolution_type: rma.resolution_type as RmaResolution | undefined,
+        resolution_notes: rma.resolution_notes ?? undefined,
+        created_at: rma.created_at,
+        updated_at: rma.updated_at,
+        resolved_at: rma.resolved_at ?? undefined,
+      };
+      setRmas((prev) => [normalized, ...prev]);
+      return normalized;
     } catch (err) {
       setError((err as Error).message ?? "Error al crear RMA");
       return null;

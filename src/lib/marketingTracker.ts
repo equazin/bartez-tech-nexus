@@ -13,6 +13,7 @@ export type TrackEventType =
   | "cta_click"
   | "registration_start"
   | "registration_complete"
+  | "registration_pending_review"
   | "account_approved"
   | "portal_first_login"
   | "first_order"
@@ -254,6 +255,11 @@ export function trackRegistrationStart(): void {
 /** Trackear registro completado (llamar después de create-user exitoso) */
 export function trackRegistrationComplete(userId: string, company?: string): void {
   void track("registration_complete", { company: company ?? null }, userId);
+}
+
+/** Trackear solicitud enviada a revision manual */
+export function trackRegistrationPendingReview(company?: string, reviewFlags: string[] = []): void {
+  void track("registration_pending_review", { company: company ?? null, review_flags: reviewFlags });
 }
 
 /** Trackear primer orden completada */

@@ -14,6 +14,12 @@ export interface OrderItem {
 
 export type OrderStatus =
   | "pending"
+  | "pending_approval"
+  | "approved"
+  | "rejected"
+  | "preparing"
+  | "dispatched"
+  | "picked"
   | "confirmed"
   | "processing"
   | "shipped"
@@ -37,13 +43,19 @@ export interface Order {
 // ─── Orders ───────────────────────────────────────────────────────────────────
 
 export async function patchOrder(payload: {
-  id: string;
-  status: OrderStatus;
+  id: string | number;
+  status?: OrderStatus;
   notes?: string | null;
+  shipping_provider?: string;
+  tracking_number?: string;
 }): Promise<Order> {
-  return backend.patch<Order>(`/v1/orders/${payload.id}/status`, {
-    status: payload.status,
-    notes: payload.notes,
+  return backend.patch<Order>(`/v1/orders/${String(payload.id)}/status`, {
+    ...(payload.status ? { status: payload.status } : {}),
+    ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
+    ...(payload.shipping_provider !== undefined
+      ? { shipping_provider: payload.shipping_provider }
+      : {}),
+    ...(payload.tracking_number !== undefined ? { tracking_number: payload.tracking_number } : {}),
   });
 }
 
@@ -100,13 +112,16 @@ async function callVercelApi<T>(
 export interface CouponPayload {
   code: string;
   description?: string | null;
-  discount_type: "percentage" | "fixed";
+  discount_type: "percentage" | "fixed" | "percent";
   discount_value: number;
   min_order_amount?: number | null;
+  min_purchase?: number | null;
   max_uses?: number | null;
   valid_from?: string | null;
   valid_until?: string | null;
+  expires_at?: string | null;
   active?: boolean;
+  is_active?: boolean;
   client_id?: string | null;
   client_type?: "mayorista" | "reseller" | "empresa" | null;
 }
@@ -114,17 +129,30 @@ export interface CouponPayload {
 export interface Coupon extends CouponPayload {
   id: string;
   uses_count: number;
+  used_count?: number;
   created_at: string;
 }
 
+function normalizeCouponPayload(payload: CouponPayload | (Partial<CouponPayload> & { id?: string })) {
+  return {
+    ...payload,
+    discount_type: payload.discount_type === "percent" ? "percentage" : payload.discount_type,
+    ...(payload.min_purchase !== undefined ? { min_order_amount: payload.min_purchase } : {}),
+    ...(payload.expires_at !== undefined ? { valid_until: payload.expires_at } : {}),
+    ...(payload.is_active !== undefined ? { active: payload.is_active } : {}),
+  };
+}
+
 export async function createCoupon(payload: CouponPayload): Promise<Coupon> {
-  return backend.post<Coupon>("/v1/coupons", payload);
+  return backend.post<Coupon>("/v1/coupons", normalizeCouponPayload(payload));
 }
 
 export async function updateCoupon(
-  id: string,
-  patch: Partial<CouponPayload>,
+  idOrPayload: string | ({ id: string } & Partial<CouponPayload>),
+  patch?: Partial<CouponPayload>,
 ): Promise<Coupon> {
+  const id = typeof idOrPayload === "string" ? idOrPayload : idOrPayload.id;
+  const nextPatch = typeof idOrPayload === "string" ? (patch ?? {}) : idOrPayload;
   return backend.patch<Coupon>(`/v1/coupons/${id}`, patch);
 }
 
@@ -235,33 +263,39 @@ export async function resolveClientPrice(params: {
 // ─── RMA ─────────────────────────────────────────────────────────────────────
 
 export interface RmaItem {
-  product_id: string;
+  product_id: string | number;
   sku: string;
   name: string;
   quantity: number;
   unit_price: number;
-  line_total: number;
+  line_total?: number;
 }
 
 export interface CreateRmaPayload {
+  client_id?: string;
   order_id: string;
   items: RmaItem[];
   reason: string;
+  description?: string;
   notes?: string | null;
 }
 
 export interface Rma {
-  id: string;
+  id: string | number;
   order_id: string;
   client_id: string;
   seller_id: string | null;
-  status: "pending" | "approved" | "rejected" | "resolved";
+  status: "draft" | "submitted" | "reviewing" | "approved" | "rejected" | "resolved" | "pending";
   reason: string;
   items: RmaItem[];
+  description?: string | null;
   resolution: string | null;
+  resolution_type?: string | null;
+  resolution_notes?: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
+  resolved_at?: string | null;
 }
 
 export async function createRmaApi(payload: CreateRmaPayload): Promise<Rma> {
@@ -269,10 +303,32 @@ export async function createRmaApi(payload: CreateRmaPayload): Promise<Rma> {
 }
 
 export async function updateRmaApi(
-  id: string,
-  patch: { status: Rma["status"]; resolution?: string | null; notes?: string | null },
+  idOrPayload:
+    | string
+    | ({
+        id: string | number;
+      } & {
+        status: Rma["status"];
+        resolution?: string | null;
+        notes?: string | null;
+        resolution_type?: string | null;
+        resolution_notes?: string | null;
+      }),
+  patch?: {
+    status: Rma["status"];
+    resolution?: string | null;
+    notes?: string | null;
+    resolution_type?: string | null;
+    resolution_notes?: string | null;
+  },
 ): Promise<Rma> {
-  return backend.patch<Rma>(`/v1/rma/${id}`, patch);
+  const id = typeof idOrPayload === "string" ? idOrPayload : String(idOrPayload.id);
+  const nextPatch = typeof idOrPayload === "string" ? patch : { ...idOrPayload };
+  if (!nextPatch) {
+    throw new Error("Missing RMA patch payload.");
+  }
+  const { id: _ignoredId, ...body } = nextPatch as typeof nextPatch & { id?: string | number };
+  return backend.patch<Rma>(`/v1/rma/${id}`, body);
 }
 
 // ─── Quotes ───────────────────────────────────────────────────────────────────

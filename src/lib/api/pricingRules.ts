@@ -1,6 +1,5 @@
 import { supabase } from "@/lib/supabase";
 import type { PricingRule, PricingRuleInsert, PricingRuleUpdate } from "@/models/pricingRule";
-import { createPricingRuleApi, updatePricingRuleApi, deletePricingRuleApi } from "@/lib/api/ordersApi";
 
 // GET remains a direct Supabase call — read-only, safe with RLS, and used for display only
 export async function fetchPricingRules(): Promise<PricingRule[]> {
@@ -14,13 +13,23 @@ export async function fetchPricingRules(): Promise<PricingRule[]> {
 }
 
 export async function createPricingRule(input: PricingRuleInsert): Promise<PricingRule> {
-  return createPricingRuleApi(input) as Promise<PricingRule>;
+  const { data, error } = await supabase.from("pricing_rules").insert(input).select("*").single();
+  if (error || !data) throw new Error(error?.message ?? "No se pudo crear la regla.");
+  return data as PricingRule;
 }
 
 export async function updatePricingRule(id: string, input: PricingRuleUpdate): Promise<PricingRule> {
-  return updatePricingRuleApi(id, input) as Promise<PricingRule>;
+  const { data, error } = await supabase
+    .from("pricing_rules")
+    .update(input)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error || !data) throw new Error(error?.message ?? "No se pudo actualizar la regla.");
+  return data as PricingRule;
 }
 
 export async function deletePricingRule(id: string): Promise<void> {
-  await deletePricingRuleApi(id);
+  const { error } = await supabase.from("pricing_rules").delete().eq("id", id);
+  if (error) throw new Error(error.message);
 }

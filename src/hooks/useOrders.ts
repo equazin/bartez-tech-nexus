@@ -187,7 +187,7 @@ export function useOrders() {
       if (!res.ok) throw new Error(body.error || raw || "Error en el checkout");
 
       // checkout returns { ok: true, data: { id, order_number, status } }
-      const orderResult = body.data ?? body;
+      const orderResult = (body.data ?? body) as { id?: string | number; order_number?: string };
       const orderId = orderResult.id;
       const orderNumber = orderResult.order_number;
 

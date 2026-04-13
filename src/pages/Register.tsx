@@ -20,15 +20,17 @@ import {
   detectCuitEntityType,
   formatCuit,
   isCuitChecksumValid,
-  validateCuit,
   type CuitEntityType,
   type TaxStatus,
 } from "@/lib/api/afip";
+import { createRegistrationRequest, lookupCuit } from "@/lib/api/registrationApi";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { SurfaceCard } from "@/components/ui/surface-card";
+import { trackRegistrationComplete, trackRegistrationPendingReview, trackRegistrationStart } from "@/lib/marketingTracker";
+import { supabase } from "@/lib/supabase";
 
 type AfipData = {
   companyName: string;
@@ -71,8 +73,13 @@ const Register = () => {
     role: string;
     email: string;
   } | null>(null);
+  const [finalState, setFinalState] = useState<{
+    mode: "auto_approved" | "pending_review";
+    reviewFlags: string[];
+  } | null>(null);
 
   const executive = assignedExecutiveDetails;
+  const hasTrackedStartRef = useRef(false);
 
   const rawDigits = cuit.replace(/\D/g, "");
   const detectedEntity: CuitEntityType | null =
@@ -96,7 +103,7 @@ const Register = () => {
       setLookupLoading(true);
       setError("");
       try {
-        const result = await validateCuit(rawDigits);
+        const result = await lookupCuit(rawDigits);
         setAfipData({
           companyName: result.companyName,
           entityType: result.entityType,
@@ -142,13 +149,17 @@ const Register = () => {
       const existing = lookedUp && afipData ? afipData : null;
       const result =
         existing ??
-        (await validateCuit(rawDigits).then((response) => ({
+        (await lookupCuit(rawDigits).then((response) => ({
           companyName: response.companyName,
           entityType: response.entityType,
         })));
 
       setAfipData(result);
       setName(result.companyName);
+      if (!hasTrackedStartRef.current) {
+        trackRegistrationStart();
+        hasTrackedStartRef.current = true;
+      }
       setStep(2);
     } catch (caughtError) {
       setError(
@@ -172,46 +183,52 @@ const Register = () => {
 
     setLoading(true);
     try {
-      const res = await fetch("/api/create-user", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cuit: rawDigits,
-          company_name: name,
-          contact_name: name,
-          email,
-          password,
-          entity_type: afipData?.entityType ?? "empresa",
-          tax_status: taxStatus,
-        }),
+      const result = await createRegistrationRequest({
+        cuit: rawDigits,
+        company_name: name,
+        contact_name: name,
+        email,
+        password,
+        entity_type: afipData?.entityType ?? "empresa",
+        tax_status: taxStatus,
       });
 
-      const json = (await res.json()) as {
-        ok: boolean;
-        data?: {
-          assigned_to: string | null;
-          assigned_executive?: {
-            name?: string;
-            role?: string;
-            email?: string;
-          } | null;
-        };
-        error?: string;
-      };
-
-      if (!json.ok) {
-        throw new Error(json.error ?? "No pudimos procesar la solicitud.");
-      }
-
       setAssignedExecutiveDetails(
-        json.data?.assigned_executive?.email
+        result.assigned_executive?.email
           ? {
-              name: json.data.assigned_executive.name ?? "Ejecutivo comercial",
-              role: json.data.assigned_executive.role ?? "Equipo de ventas B2B",
-              email: json.data.assigned_executive.email,
+              name: result.assigned_executive.name ?? "Ejecutivo comercial",
+              role: result.assigned_executive.role ?? "Equipo de ventas B2B",
+              email: result.assigned_executive.email,
             }
           : null,
       );
+
+      if (result.status === "auto_approved") {
+        trackRegistrationComplete(result.approved_user_id ?? result.id, name);
+
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (!authError && authData.session) {
+          navigate("/b2b-portal", { replace: true });
+          return;
+        }
+
+        setFinalState({
+          mode: "auto_approved",
+          reviewFlags: result.review_flags,
+        });
+        setStep(3);
+        return;
+      }
+
+      trackRegistrationPendingReview(name, result.review_flags);
+      setFinalState({
+        mode: "pending_review",
+        reviewFlags: result.review_flags,
+      });
       setStep(3);
     } catch (caughtError) {
       setError(
@@ -606,16 +623,22 @@ const Register = () => {
 
                 <div className="space-y-3">
                   <h3 className="font-display text-3xl font-semibold tracking-tight text-foreground">
-                    Solicitud en revision
+                    {finalState?.mode === "auto_approved"
+                      ? "Cuenta creada"
+                      : "Solicitud en revision"}
                   </h3>
                   <p className="mx-auto max-w-xl text-sm leading-6 text-muted-foreground">
-                    Validamos los datos fiscales y dejamos la solicitud lista para aprobacion comercial. El proximo paso sigue siendo incremental.
+                    {finalState?.mode === "auto_approved"
+                      ? "La cuenta ya quedo aprobada y lista para ingresar. Si el acceso automatico no se completo, podes usar el login con las credenciales que acabas de crear."
+                      : "Validamos los datos fiscales y dejamos la solicitud en cola de excepciones para revision comercial cuando hace falta."}
                   </p>
                 </div>
 
                 <div className="rounded-[28px] border border-border/70 bg-card/80 p-6 text-left">
                   <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-                    Ejecutivo asignado
+                    {finalState?.mode === "auto_approved"
+                      ? "Mesa comercial asignada"
+                      : "Ejecutivo asignado"}
                   </p>
                   <div className="flex items-center gap-4">
                     <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-muted text-foreground">
@@ -647,16 +670,33 @@ const Register = () => {
                     <Lock className="h-4 w-4" />
                   </div>
                   <p className="text-sm leading-6 text-muted-foreground">
-                    La informacion cargada queda protegida bajo el esquema de seguridad actual y lista para integrarse con preferencias de usuario mas adelante.
+                    {finalState?.mode === "auto_approved"
+                      ? "La cuenta quedo creada sobre Supabase Auth y el backend central. El proximo login ya entra al portal B2B con tu perfil activo."
+                      : "La informacion cargada queda protegida y lista para validacion operativa. Solo las altas con excepciones requieren intervencion manual."}
                   </p>
                 </div>
+
+                {finalState?.mode === "pending_review" && finalState.reviewFlags.length > 0 ? (
+                  <div className="rounded-2xl border border-border/70 bg-muted/40 p-4 text-left">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      Revision detectada
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {finalState.reviewFlags.map((flag) => (
+                        <Badge key={flag} variant="outline" className="rounded-full">
+                          {flag.replace(/_/g, " ")}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
 
                 <Button
                   variant="outline"
                   className="h-12 w-full rounded-2xl"
                   onClick={() => navigate("/login")}
                 >
-                  Ir al login
+                  {finalState?.mode === "auto_approved" ? "Ingresar al login" : "Ir al login"}
                 </Button>
               </motion.div>
             ) : null}
