@@ -23,6 +23,18 @@ export interface UseProductsOptions {
   sortBy?: "name" | "featured"; // Nueva opción (Phase 5.4)
 }
 
+type QueryBuilderLike = {
+  eq: (column: string, value: unknown) => QueryBuilderLike;
+  in: (column: string, values: readonly unknown[]) => QueryBuilderLike;
+  gte: (column: string, value: number) => QueryBuilderLike;
+  lte: (column: string, value: number) => QueryBuilderLike;
+  order: (column: string, options?: { ascending?: boolean }) => QueryBuilderLike;
+  range: (
+    from: number,
+    to: number,
+  ) => Promise<{ data: unknown[] | null; count: number | null; error: { message: string } | null }>;
+};
+
 export function useProducts(options: UseProductsOptions = {}) {
   const {
     category = "all",
@@ -43,6 +55,13 @@ export function useProducts(options: UseProductsOptions = {}) {
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
 
+  const sanitizeSearchTerm = useCallback((value: string) => {
+    return value
+      .replace(/[%_*,.;:|()[\]{}"']/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }, []);
+
   const fetchProducts = useCallback(async (isNextPage = false) => {
     setLoading(true);
     
@@ -56,61 +75,114 @@ export function useProducts(options: UseProductsOptions = {}) {
       }
       
       const tableName = isAdmin ? "products" : "portal_products";
-      let query = supabase
-        .from(tableName)
-        .select("*", { count: "exact" })
-        .eq("active", true);
+      const normalizedSearch = search?.trim() ?? "";
 
-      // 1. Text Search (FTS)
-      if (search && search.trim().length > 0) {
-        query = query.textSearch("fts", search.trim(), {
-          config: "spanish",
-          type: "websearch"
-        });
-      }
+      const applyCommonFilters = (sourceQuery: QueryBuilderLike): QueryBuilderLike => {
+        let query = sourceQuery.eq("active", true);
 
-      // 2. Category Filter
-      if (category && category !== "all") {
-        if (Array.isArray(category)) {
-          query = query.in("category", category);
-        } else {
-          query = query.eq("category", category);
+        if (category && category !== "all") {
+          if (Array.isArray(category)) {
+            query = query.in("category", category);
+          } else {
+            query = query.eq("category", category);
+          }
         }
-      }
 
-      // 3. Brand Filter
-      if (brand && brand !== "all") {
-        query = query.eq("brand_id", brand);
-      }
+        if (brand && brand !== "all") {
+          query = query.eq("brand_id", brand);
+        }
 
-      // 3.5. Featured Filter
-      if (isFeatured) {
-        query = query.eq("featured", true);
-      }
+        if (isFeatured) {
+          query = query.eq("featured", true);
+        }
 
-      // 4. Price range
-      if (minPrice != null && minPrice > 0) query = query.gte("cost_price", minPrice);
-      if (maxPrice != null && maxPrice > 0) query = query.lte("cost_price", maxPrice);
+        if (minPrice != null && minPrice > 0) query = query.gte("cost_price", minPrice);
+        if (maxPrice != null && maxPrice > 0) query = query.lte("cost_price", maxPrice);
+
+        return query;
+      };
+
+      const applySort = (sourceQuery: QueryBuilderLike): QueryBuilderLike => {
+        if (sortBy === "featured") {
+          return sourceQuery
+            .order("featured", { ascending: false })
+            .order("name", { ascending: true });
+        }
+        return sourceQuery.order("name", { ascending: true });
+      };
 
       // 5. Pagination
       const from = currentPage * pageSize;
       const to = from + pageSize - 1;
 
-      let queryOrdered = query;
-      
-      if (sortBy === "featured") {
-        queryOrdered = queryOrdered
-          .order("featured", { ascending: false })
-          .order("name", { ascending: true });
-      } else {
-        queryOrdered = queryOrdered.order("name", { ascending: true });
-      }
+      // Primary search: FTS
+      let data: Product[] | null = null;
+      let count: number | null = null;
+      let fetchError: { message: string } | null = null;
 
-      const { data, error: fetchError, count } = await queryOrdered.range(from, to);
+      if (normalizedSearch.length > 0) {
+        const ftsQuery = applySort(
+          applyCommonFilters(
+            supabase
+              .from(tableName)
+              .select("*", { count: "exact" })
+              .textSearch("fts", normalizedSearch, {
+                config: "spanish",
+                type: "websearch",
+              }) as unknown as QueryBuilderLike,
+          ),
+        );
+
+        const ftsResult = await ftsQuery.range(from, to);
+        data = (ftsResult.data as Product[] | null) ?? [];
+        count = ftsResult.count;
+        fetchError = ftsResult.error;
+
+        // Fallback search: SKU / external_id / description / name
+        const shouldFallback = !!fetchError || (data?.length ?? 0) === 0;
+        if (shouldFallback) {
+          const safeTerm = sanitizeSearchTerm(normalizedSearch);
+          if (safeTerm.length > 0) {
+            const fallbackQuery = applySort(
+              applyCommonFilters(
+                supabase
+                  .from(tableName)
+                  .select("*", { count: "exact" })
+                  .or(
+                    [
+                      `name.ilike.%${safeTerm}%`,
+                      `sku.ilike.%${safeTerm}%`,
+                      `external_id.ilike.%${safeTerm}%`,
+                      `description.ilike.%${safeTerm}%`,
+                    ].join(","),
+                  ) as unknown as QueryBuilderLike,
+              ),
+            );
+
+            const fallbackResult = await fallbackQuery.range(from, to);
+            if (!fallbackResult.error) {
+              data = (fallbackResult.data as Product[] | null) ?? [];
+              count = fallbackResult.count;
+              fetchError = null;
+            }
+          }
+        }
+      } else {
+        const defaultQuery = applySort(
+          applyCommonFilters(
+            supabase.from(tableName).select("*", { count: "exact" }) as unknown as QueryBuilderLike,
+          ),
+        );
+
+        const defaultResult = await defaultQuery.range(from, to);
+        data = (defaultResult.data as Product[] | null) ?? [];
+        count = defaultResult.count;
+        fetchError = defaultResult.error;
+      }
 
       if (fetchError) throw fetchError;
 
-      const newProducts = (data as Product[]) || [];
+      const newProducts = data ?? [];
       
       setProducts(prev => {
         if (!isNextPage && page === undefined) return newProducts;
@@ -125,14 +197,15 @@ export function useProducts(options: UseProductsOptions = {}) {
       // Si recibimos menos de lo pedido, no hay más
       setHasMore(newProducts.length === pageSize);
       setError(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error fetching products:", err);
-      setError(err.message);
+      const message = err instanceof Error ? err.message : "Error inesperado al cargar productos.";
+      setError(message);
       if (!isNextPage) setProducts(mockProducts);
     } finally {
       setLoading(false);
     }
-  }, [category, brand, search, minPrice, maxPrice, pageSize, page, isAdmin, products.length]);
+  }, [category, brand, search, minPrice, maxPrice, pageSize, page, isAdmin, isFeatured, sortBy, products.length, sanitizeSearchTerm]);
 
   // Initial load or filter change
   useEffect(() => {

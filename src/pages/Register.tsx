@@ -79,6 +79,7 @@ const Register = () => {
 
   const executive = assignedExecutiveDetails;
   const isAutoApproved = registrationResult?.status === "auto_approved";
+  const registrationRequestId = registrationResult?.id ?? null;
 
   const rawDigits = cuit.replace(/\D/g, "");
   const detectedEntity: CuitEntityType | null =
@@ -601,6 +602,29 @@ const Register = () => {
                       : "Validamos los datos fiscales y dejamos la solicitud lista para aprobacion comercial. El proximo paso sigue siendo incremental."}
                   </p>
                 </div>
+
+                {registrationRequestId ? (
+                  <div className="mx-auto w-full max-w-xl rounded-2xl border border-border/70 bg-card/80 p-4 text-left">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      Seguimiento de alta
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                      <span className="text-muted-foreground">ID solicitud</span>
+                      <span className="font-mono text-foreground">{registrationRequestId}</span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                      <span className="text-muted-foreground">Estado</span>
+                      <Badge variant={isAutoApproved ? "success" : "warning"}>
+                        {isAutoApproved ? "Autoaprobada" : "Revision manual"}
+                      </Badge>
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                      {isAutoApproved
+                        ? "Si esta alta la revisa el equipo interno, se visualiza en Admin > Clientes 360 > Altas B2B > Autoaprobada."
+                        : "Esta alta queda en cola para el equipo comercial y se visualiza en Admin > Clientes 360 > Altas B2B > Revision manual."}
+                    </p>
+                  </div>
+                ) : null}
 
                 <div className="rounded-[28px] border border-border/70 bg-card/80 p-6 text-left">
                   <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">

@@ -30,6 +30,8 @@ type QuickSuggestion = {
   score: number;
 };
 
+const MAX_SUGGESTIONS = 12;
+
 interface FastOrderInputProps {
   quickSku: string;
   setQuickSku: (value: string) => void;
@@ -52,9 +54,12 @@ function normalizeQuickText(value: string) {
 function parseQuickEntry(raw: string) {
   const trimmed = raw.trim();
   if (!trimmed) return { skuQuery: "", quantity: 1 };
-  const parts = trimmed.split(/\s+/);
-  const skuQuery = parts[0] ?? "";
-  const quantity = Number.parseInt(parts[1] ?? "1", 10);
+
+  // Accept: SKU qty, SKU;qty, SKU,qty, SKU x qty
+  const withQuantity = trimmed.match(/^(.+?)(?:\s*[xX]\s*|\s*[;,]\s*|\s+)(\d+)$/);
+  const skuQuery = (withQuantity?.[1] ?? trimmed).trim();
+  const quantity = Number.parseInt(withQuantity?.[2] ?? "1", 10);
+
   return {
     skuQuery,
     quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
@@ -114,7 +119,7 @@ export function FastOrderInput({
         if (right.score !== left.score) return right.score - left.score;
         return displayName(left.product).localeCompare(displayName(right.product), "es");
       })
-      .slice(0, 8);
+      .slice(0, MAX_SUGGESTIONS);
   }, [products, skuQuery]);
 
   useEffect(() => {
@@ -166,7 +171,15 @@ export function FastOrderInput({
 
   function resolveExactProduct(rawSku: string) {
     const normalized = normalizeQuickText(rawSku);
-    return products.find((product) => normalizeQuickText(product.sku ?? "") === normalized) ?? null;
+    if (!normalized) return null;
+
+    return (
+      products.find((product) =>
+        [product.sku, product.external_id, String(product.id)]
+          .map((value) => normalizeQuickText(value ?? ""))
+          .includes(normalized),
+      ) ?? null
+    );
   }
 
   function submitResolvedProduct(product: Product, qty: number) {
@@ -211,10 +224,10 @@ export function FastOrderInput({
     const lines = bulkValue
       .split(/\r?\n/)
       .map((line) => line.trim())
-      .filter(Boolean);
+      .filter((line) => line.length > 0 && !line.startsWith("#"));
 
     if (lines.length === 0) {
-      setBulkFeedback("Pegá al menos una línea con SKU y cantidad.");
+      setBulkFeedback("Pega al menos una linea con SKU y cantidad.");
       return;
     }
 
@@ -225,7 +238,7 @@ export function FastOrderInput({
     lines.forEach((line, index) => {
       const { skuQuery: lineSku, quantity: lineQty } = parseQuickEntry(line);
       if (!lineSku) {
-        issues.push(`L${index + 1}: formato inválido`);
+        issues.push(`L${index + 1}: formato invalido`);
         return;
       }
 
@@ -252,8 +265,8 @@ export function FastOrderInput({
     submittedRef.current = addedLines > 0;
     setBulkFeedback(
       issues.length > 0
-        ? `${addedLines} líneas agregadas. ${issues[0]}${issues.length > 1 ? ` (+${issues.length - 1})` : ""}`
-        : `${addedLines} líneas agregadas al carrito.`,
+        ? `${addedLines} lineas agregadas. ${issues[0]}${issues.length > 1 ? ` (+${issues.length - 1})` : ""}`
+        : `${addedLines} lineas agregadas al carrito.`,
     );
 
     if (addedLines > 0) {
@@ -274,7 +287,7 @@ export function FastOrderInput({
           <Input
             ref={inputRef}
             type="text"
-            placeholder="Carga rápida: SKU [qty]"
+            placeholder="Carga rapida: SKU [qty]"
             value={quickSku}
             onChange={(event) => {
               setQuickSku(event.target.value);
@@ -351,7 +364,7 @@ export function FastOrderInput({
         <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-3 lg:contents">
           <Button type="button" className="h-12 w-full rounded-2xl px-4 lg:w-auto" onClick={submitCurrentEntry}>
           <Plus size={13} />
-          Añadir
+          Anadir
         </Button>
 
           <Button
@@ -382,7 +395,7 @@ export function FastOrderInput({
       <div className="flex flex-wrap items-center gap-2 px-1 text-[11px]">
         <Badge variant="muted" className="rounded-full">
           <PackageSearch size={11} />
-          SKU + cantidad + Enter
+          SKU qty, SKU;qty o SKU x qty + Enter
         </Badge>
         {localSuccess ? (
           <Badge variant="success" className="rounded-full text-primary">
@@ -400,7 +413,7 @@ export function FastOrderInput({
           <DialogHeader className="border-b border-border/70 px-6 py-5">
             <DialogTitle className="text-xl font-semibold text-foreground">Carga masiva por SKU</DialogTitle>
             <DialogDescription>
-              Pegá una línea por producto. Formato: <span className="font-mono">SKU cantidad</span>.
+              Pega una linea por producto. Formatos: <span className="font-mono">SKU cantidad</span>, <span className="font-mono">SKU;cantidad</span>, <span className="font-mono">SKU x cantidad</span>.
             </DialogDescription>
           </DialogHeader>
 
@@ -412,7 +425,7 @@ export function FastOrderInput({
               className="min-h-[240px] rounded-2xl border-border/80 bg-surface font-mono text-sm leading-6"
             />
             <div className="rounded-2xl border border-dashed border-border/70 bg-surface px-4 py-3 text-xs text-muted-foreground">
-              Se respeta el carrito actual, el stock disponible y la lógica existente de compra.
+              Se respeta el carrito actual, el stock disponible y la logica existente de compra.
             </div>
           </div>
 
@@ -421,7 +434,7 @@ export function FastOrderInput({
               Cancelar
             </Button>
             <Button type="button" onClick={handleBulkImport}>
-              Agregar líneas
+              Agregar lineas
             </Button>
           </DialogFooter>
         </DialogContent>

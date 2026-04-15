@@ -62,6 +62,7 @@ const QuotesAdminTab = lazy(() => import("@/components/admin/QuotesAdminTab").th
 const PurchaseOrdersTab = lazy(() => import("@/components/admin/PurchaseOrdersTab").then(m => ({ default: m.PurchaseOrdersTab })));
 const UsersPermissionsTab = lazy(() => import("@/components/admin/UsersPermissionsTab").then(m => ({ default: m.UsersPermissionsTab })));
 const RegistrationRequestsTab = lazy(() => import("@/components/admin/RegistrationRequestsTab").then(m => ({ default: m.RegistrationRequestsTab })));
+const ExceptionInboxTab = lazy(() => import("@/components/admin/ExceptionInboxTab").then(m => ({ default: m.ExceptionInboxTab })));
 const ApprovalsTab = lazy(() => import("@/components/admin/ApprovalsTab").then(m => ({ default: m.ApprovalsTab })));
 const DocumentsTab = lazy(() => import("@/components/admin/DocumentsTab").then(m => ({ default: m.DocumentsTab })));
 const SupportTab = lazy(() => import("@/components/admin/SupportTab").then(m => ({ default: m.SupportTab })));
@@ -1432,9 +1433,14 @@ async function handleCreateSeller() {
     return true;
   }
 
+  const exceptionQueueCount = orders.filter(
+    (order) => order.status === "pending" || order.status === "pending_approval",
+  ).length;
+
   const navBadges: Partial<Record<Tab, number>> = {
     products:  (hasBackendUrl ? productsTotal : products.length) || undefined,
     orders:    pendingOrders   || undefined,
+    exception_inbox: exceptionQueueCount || undefined,
     clients:   customerProfiles.length || undefined,
     reports:   lowStockCount   || undefined,
     pc_builder_specs: incompletePcSpecsCount || undefined,
@@ -2758,6 +2764,15 @@ async function handleCreateSeller() {
         )}
 
         {/* -- PROVEEDORES -- */}
+        {activeTab === "exception_inbox" && (
+          <ExceptionInboxTab
+            isDark={isDark}
+            orders={orders}
+            clients={clients}
+            onOpenTab={(tab) => navigateTab(tab as Tab)}
+          />
+        )}
+
         {activeTab === "registration_requests" && (
           <RegistrationRequestsTab />
         )}

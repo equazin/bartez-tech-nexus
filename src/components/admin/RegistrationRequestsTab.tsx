@@ -6,6 +6,7 @@ import {
   Clock,
   Mail,
   RefreshCw,
+  Search,
   ShieldCheck,
   User,
   UserCheck,
@@ -20,6 +21,7 @@ import {
   type RegistrationRequestRecord,
   type RegistrationWorkflowStatus,
 } from "@/lib/api/registrationApi";
+import { Input } from "@/components/ui/input";
 
 const TAX_LABELS: Record<string, string> = {
   responsable_inscripto: "Resp. Inscripto",
@@ -96,7 +98,8 @@ function getSuggestedAction(flags: string[]) {
 export function RegistrationRequestsTab() {
   const [requests, setRequests] = useState<RegistrationRequestRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<RegistrationWorkflowStatus | "all">("pending_review");
+  const [statusFilter, setStatusFilter] = useState<RegistrationWorkflowStatus | "all">("all");
+  const [query, setQuery] = useState("");
   const [processing, setProcessing] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
@@ -111,7 +114,11 @@ export function RegistrationRequestsTab() {
     setErrorMessage(null);
     try {
       const result = await listRegistrationRequests("all");
-      setRequests(result);
+      const sorted = [...result].sort(
+        (left, right) =>
+          new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
+      );
+      setRequests(sorted);
       setLastUpdatedAt(new Date().toISOString());
     } catch (error) {
       const message = error instanceof Error ? error.message : "No se pudieron cargar las solicitudes.";
@@ -175,11 +182,30 @@ export function RegistrationRequestsTab() {
   );
 
   const filteredRequests = useMemo(
-    () =>
-      statusFilter === "all"
-        ? requests
-        : requests.filter((request) => request.workflow_status === statusFilter),
-    [requests, statusFilter],
+    () => {
+      const normalizedQuery = query.trim().toLowerCase();
+      return requests.filter((request) => {
+        if (statusFilter !== "all" && request.workflow_status !== statusFilter) return false;
+        if (!normalizedQuery) return true;
+
+        const haystack = [
+          request.id,
+          request.cuit,
+          request.company_name,
+          request.contact_name,
+          request.email,
+          request.workflow_status,
+          request.assigned_seller?.name,
+          request.assigned_seller?.email,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return haystack.includes(normalizedQuery);
+      });
+    },
+    [requests, statusFilter, query],
   );
 
   return (
@@ -214,8 +240,8 @@ export function RegistrationRequestsTab() {
         </div>
       ) : null}
 
-      <div className="grid gap-3 lg:grid-cols-3">
-        {(["pending_review", "auto_approved", "rejected"] as RegistrationWorkflowStatus[]).map((status) => (
+      <div className="grid gap-3 lg:grid-cols-4">
+        {(["pending_review", "auto_approved", "approved_manual", "rejected"] as RegistrationWorkflowStatus[]).map((status) => (
           <button
             key={status}
             onClick={() => setStatusFilter(status)}
@@ -248,6 +274,16 @@ export function RegistrationRequestsTab() {
           </button>
         ))}
       </div>
+      
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Buscar por CUIT, email, empresa, vendedor o ID..."
+          className="h-10 rounded-xl border-border/70 bg-card pl-9"
+        />
+      </div>
 
       {loading ? (
         <div className="space-y-3">
@@ -260,7 +296,9 @@ export function RegistrationRequestsTab() {
           <Clock size={28} className="mx-auto mb-3 text-muted-foreground/40" />
           <p className="text-sm font-semibold text-foreground">No hay solicitudes para este estado.</p>
           <p className="mt-2 text-xs text-muted-foreground">
-            {requests.length === 0
+            {query.trim().length > 0
+              ? "No encontramos coincidencias con ese criterio de busqueda."
+              : requests.length === 0
               ? "No hay excepciones pendientes. Si entran altas limpias, se autoaprueban y no necesitan accion manual."
               : "Cambia el filtro para revisar altas autoaprobadas, aprobadas manualmente o rechazadas."}
           </p>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { CLIENT_TYPE_MARGINS, type ClientType, supabase } from "@/lib/supabase";
 import {
   AlertTriangle,
   ArrowRight,
@@ -52,6 +52,51 @@ interface AdminQuote {
   client_email?: string;
 }
 
+interface ExpressClientRow {
+  id: string;
+  company_name?: string | null;
+  contact_name?: string | null;
+  default_margin?: number | null;
+  client_type?: ClientType | null;
+  role?: string | null;
+}
+
+interface ExpressProductRow {
+  id: number;
+  name: string;
+  sku?: string | null;
+  external_id?: string | null;
+  cost_price?: number | null;
+  iva_rate?: number | null;
+  special_price?: number | null;
+  stock?: number | null;
+}
+
+interface ParsedBulkEntry {
+  raw: string;
+  lineNumber: number;
+  reference: string;
+  quantity: number;
+}
+
+interface ParsedBulkInvalid {
+  raw: string;
+  lineNumber: number;
+  reason: string;
+}
+
+interface ProductLookup {
+  byExact: Map<string, ExpressProductRow>;
+  byCompact: Map<string, ExpressProductRow>;
+}
+
+interface BulkAnalysis {
+  parsedEntries: ParsedBulkEntry[];
+  invalidLines: ParsedBulkInvalid[];
+  missingEntries: ParsedBulkEntry[];
+  consolidated: Array<{ product: ExpressProductRow; quantity: number }>;
+}
+
 type StatusConfig = {
   label: string;
   icon: typeof FileText;
@@ -67,6 +112,108 @@ const STATUS_CONFIG: Record<QuoteStatus, StatusConfig> = {
   converted: { label: "Convertida", icon: ArrowRight, className: "bg-teal-500/10 text-teal-600 dark:text-teal-400" },
   expired: { label: "Vencida", icon: AlertTriangle, className: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
 };
+
+function normalizeLookupKey(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function compactLookupKey(value: string) {
+  return normalizeLookupKey(value).replace(/[^a-z0-9]/g, "");
+}
+
+function buildProductLookup(products: ExpressProductRow[]): ProductLookup {
+  const byExact = new Map<string, ExpressProductRow>();
+  const byCompact = new Map<string, ExpressProductRow>();
+
+  products.forEach((product) => {
+    const rawKeys = [product.sku, product.external_id, String(product.id)].filter(Boolean) as string[];
+    rawKeys.forEach((key) => {
+      const exact = normalizeLookupKey(key);
+      const compact = compactLookupKey(key);
+      if (exact && !byExact.has(exact)) byExact.set(exact, product);
+      if (compact && !byCompact.has(compact)) byCompact.set(compact, product);
+    });
+  });
+
+  return { byExact, byCompact };
+}
+
+function parseBulkEntry(rawLine: string, lineNumber: number): ParsedBulkEntry | ParsedBulkInvalid | null {
+  const trimmed = rawLine.trim();
+  if (!trimmed || trimmed.startsWith("#")) return null;
+
+  let reference = trimmed;
+  let quantity = 1;
+
+  const delimMatch = trimmed.match(/^(.+?)[;,]\s*(\d+)$/);
+  const timesMatch = trimmed.match(/^(.+?)\s*[xX]\s*(\d+)$/);
+  const spacedMatch = trimmed.match(/^(.+?)\s+(\d+)$/);
+
+  if (delimMatch) {
+    reference = delimMatch[1].trim();
+    quantity = Number(delimMatch[2]);
+  } else if (timesMatch) {
+    reference = timesMatch[1].trim();
+    quantity = Number(timesMatch[2]);
+  } else if (spacedMatch) {
+    reference = spacedMatch[1].trim();
+    quantity = Number(spacedMatch[2]);
+  }
+
+  if (!reference) {
+    return { raw: rawLine, lineNumber, reason: "Referencia vacia." };
+  }
+
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    return { raw: rawLine, lineNumber, reason: "Cantidad invalida." };
+  }
+
+  return { raw: rawLine, lineNumber, reference, quantity };
+}
+
+function analyzeBulkInput(rawInput: string, lookup: ProductLookup): BulkAnalysis {
+  const parsedEntries: ParsedBulkEntry[] = [];
+  const invalidLines: ParsedBulkInvalid[] = [];
+  const missingEntries: ParsedBulkEntry[] = [];
+  const consolidatedMap = new Map<number, { product: ExpressProductRow; quantity: number }>();
+
+  rawInput
+    .split(/\r?\n/)
+    .forEach((line, index) => {
+      const parsed = parseBulkEntry(line, index + 1);
+      if (!parsed) return;
+      if ("reason" in parsed) {
+        invalidLines.push(parsed);
+        return;
+      }
+
+      parsedEntries.push(parsed);
+      const exact = lookup.byExact.get(normalizeLookupKey(parsed.reference));
+      const compact = lookup.byCompact.get(compactLookupKey(parsed.reference));
+      const product = exact ?? compact;
+
+      if (!product) {
+        missingEntries.push(parsed);
+        return;
+      }
+
+      const current = consolidatedMap.get(product.id);
+      if (current) {
+        current.quantity += parsed.quantity;
+      } else {
+        consolidatedMap.set(product.id, { product, quantity: parsed.quantity });
+      }
+    });
+
+  return {
+    parsedEntries,
+    invalidLines,
+    missingEntries,
+    consolidated: Array.from(consolidatedMap.values()).sort((left, right) =>
+      left.product.name.localeCompare(right.product.name, "es-AR"),
+    ),
+  };
+}
 
 function QuoteStatusBadge({ status }: { status: QuoteStatus }) {
   const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.draft;
@@ -89,6 +236,19 @@ export function QuotesAdminTab({ isDark: _isDark = true }: Props) {
   const [converting, setConverting] = useState<number | null>(null);
   const [convertError, setConvertError] = useState<Record<number, string>>({});
   const [updatingStatus, setUpdatingStatus] = useState<number | null>(null);
+  const [showExpressForm, setShowExpressForm] = useState(false);
+  const [expressClients, setExpressClients] = useState<ExpressClientRow[]>([]);
+  const [expressProducts, setExpressProducts] = useState<ExpressProductRow[]>([]);
+  const [loadingExpressData, setLoadingExpressData] = useState(false);
+  const [expressClientId, setExpressClientId] = useState("");
+  const [expressStatus, setExpressStatus] = useState<"draft" | "sent">("draft");
+  const [expressCurrency, setExpressCurrency] = useState<"USD" | "ARS">("USD");
+  const [expressValidDays, setExpressValidDays] = useState("7");
+  const [expressNotes, setExpressNotes] = useState("");
+  const [expressBulkInput, setExpressBulkInput] = useState("");
+  const [creatingExpress, setCreatingExpress] = useState(false);
+  const [expressError, setExpressError] = useState<string | null>(null);
+  const [expressSuccess, setExpressSuccess] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -127,11 +287,88 @@ export function QuotesAdminTab({ isDark: _isDark = true }: Props) {
     void load();
   }, [load]);
 
+  const loadExpressData = useCallback(async () => {
+    setLoadingExpressData(true);
+    const [clientsResult, productsResult] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, company_name, contact_name, default_margin, client_type, role")
+        .not("role", "eq", "admin")
+        .not("role", "eq", "vendedor")
+        .not("role", "eq", "sales")
+        .order("company_name", { ascending: true }),
+      supabase
+        .from("products")
+        .select("id, name, sku, external_id, cost_price, iva_rate, special_price, stock")
+        .eq("active", true)
+        .order("name", { ascending: true })
+        .limit(5000),
+    ]);
+
+    if (!clientsResult.error) {
+      setExpressClients((clientsResult.data as ExpressClientRow[] | null) ?? []);
+    }
+
+    if (!productsResult.error) {
+      setExpressProducts((productsResult.data as ExpressProductRow[] | null) ?? []);
+    }
+
+    setLoadingExpressData(false);
+  }, []);
+
+  useEffect(() => {
+    void loadExpressData();
+  }, [loadExpressData]);
+
   const uniqueClients = useMemo(
     () =>
       Array.from(new Map(quotes.map((quote) => [quote.client_id, quote.company_name || quote.contact_name || quote.client_id])).entries()),
     [quotes],
   );
+
+  const selectedExpressClient = useMemo(
+    () => expressClients.find((client) => client.id === expressClientId) ?? null,
+    [expressClientId, expressClients],
+  );
+
+  const expressMargin = useMemo(() => {
+    if (!selectedExpressClient) return 0;
+    const byProfile = Number(selectedExpressClient.default_margin ?? NaN);
+    if (Number.isFinite(byProfile)) return byProfile;
+    const byType = selectedExpressClient.client_type ? CLIENT_TYPE_MARGINS[selectedExpressClient.client_type] : 0;
+    return Number(byType ?? 0);
+  }, [selectedExpressClient]);
+
+  const productLookup = useMemo(() => buildProductLookup(expressProducts), [expressProducts]);
+
+  const expressAnalysis = useMemo(
+    () => analyzeBulkInput(expressBulkInput, productLookup),
+    [expressBulkInput, productLookup],
+  );
+
+  const expressPreviewTotals = useMemo(() => {
+    const lines = expressAnalysis.consolidated.map(({ product, quantity }) => {
+      const cost = Number(product.cost_price ?? 0);
+      const ivaRate = Number(product.iva_rate ?? 21);
+      const unitPrice =
+        product.special_price != null
+          ? Number(product.special_price)
+          : Number((cost * (1 + expressMargin / 100)).toFixed(2));
+      const totalPrice = unitPrice * quantity;
+      const ivaAmount = totalPrice * (ivaRate / 100);
+      return { totalPrice, ivaAmount };
+    });
+
+    const subtotal = lines.reduce((sum, line) => sum + line.totalPrice, 0);
+    const ivaTotal = lines.reduce((sum, line) => sum + line.ivaAmount, 0);
+
+    return {
+      subtotal,
+      ivaTotal,
+      total: subtotal + ivaTotal,
+      units: expressAnalysis.consolidated.reduce((sum, line) => sum + line.quantity, 0),
+    };
+  }, [expressAnalysis.consolidated, expressMargin]);
 
   const statusCounts = useMemo(
     () =>
@@ -190,6 +427,117 @@ export function QuotesAdminTab({ isDark: _isDark = true }: Props) {
         });
       }
     }
+  }
+
+  async function createExpressQuote() {
+    setExpressError(null);
+    setExpressSuccess(null);
+
+    if (!expressClientId) {
+      setExpressError("Selecciona un cliente para crear la cotizacion.");
+      return;
+    }
+
+    if (expressAnalysis.consolidated.length === 0) {
+      setExpressError("No hay lineas validas para cotizar.");
+      return;
+    }
+
+    if (expressAnalysis.invalidLines.length > 0 || expressAnalysis.missingEntries.length > 0) {
+      setExpressError("Corrige lineas invalidas o referencias sin match antes de crear.");
+      return;
+    }
+
+    if (!selectedExpressClient) {
+      setExpressError("No se pudo resolver el cliente seleccionado.");
+      return;
+    }
+
+    setCreatingExpress(true);
+
+    const validDays = Math.max(1, Number.parseInt(expressValidDays || "7", 10) || 7);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + validDays * 24 * 60 * 60 * 1000).toISOString();
+    const clientName =
+      selectedExpressClient.company_name ||
+      selectedExpressClient.contact_name ||
+      selectedExpressClient.id;
+
+    const quoteLines = expressAnalysis.consolidated.map(({ product, quantity }) => {
+      const cost = Number(product.cost_price ?? 0);
+      const ivaRate = Number(product.iva_rate ?? 21);
+      const unitPrice =
+        product.special_price != null
+          ? Number(product.special_price)
+          : Number((cost * (1 + expressMargin / 100)).toFixed(2));
+      const totalPrice = Number((unitPrice * quantity).toFixed(2));
+      const ivaAmount = Number((totalPrice * (ivaRate / 100)).toFixed(2));
+      const margin = cost > 0 ? Number((((unitPrice - cost) / cost) * 100).toFixed(2)) : expressMargin;
+
+      return {
+        product_id: product.id,
+        name: product.name,
+        quantity,
+        cost,
+        margin,
+        unitPrice,
+        totalPrice,
+        ivaRate,
+        ivaAmount,
+        totalWithIVA: Number((totalPrice + ivaAmount).toFixed(2)),
+      };
+    });
+
+    const subtotal = Number(quoteLines.reduce((sum, line) => sum + line.totalPrice, 0).toFixed(2));
+    const ivaTotal = Number(quoteLines.reduce((sum, line) => sum + line.ivaAmount, 0).toFixed(2));
+    const total = Number((subtotal + ivaTotal).toFixed(2));
+
+    const { data, error } = await supabase
+      .from("quotes")
+      .insert({
+        client_id: expressClientId,
+        client_name: clientName,
+        items: quoteLines,
+        subtotal,
+        iva_total: ivaTotal,
+        total,
+        currency: expressCurrency,
+        status: expressStatus,
+        version: 1,
+        valid_days: validDays,
+        expires_at: expiresAt,
+        notes: expressNotes.trim() || null,
+        created_at: now.toISOString(),
+        updated_at: now.toISOString(),
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      setExpressError(error.message);
+      setCreatingExpress(false);
+      return;
+    }
+
+    await supabase
+      .from("profiles")
+      .update({
+        last_contact_at: now.toISOString(),
+        last_contact_type: "cotizacion",
+      })
+      .eq("id", expressClientId);
+
+    const createdId = Number((data as { id: number } | null)?.id);
+    setExpressSuccess(
+      `Cotizacion ${Number.isFinite(createdId) ? `COT-${String(createdId).padStart(5, "0")}` : "creada"} con ${quoteLines.length} item(s).`,
+    );
+    setExpressBulkInput("");
+    setExpressNotes("");
+    setFilterClient(expressClientId);
+    setFilterStatus("all");
+    await load();
+    if (Number.isFinite(createdId)) setExpandedId(createdId);
+    setCreatingExpress(false);
   }
 
   const formatMoney = (amount: number, currency: "USD" | "ARS") =>
@@ -270,6 +618,160 @@ export function QuotesAdminTab({ isDark: _isDark = true }: Props) {
                 </button>
               );
             })}
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-border/70 bg-card/60 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Operacion rapida</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">Cotizacion express por lote</p>
+              <p className="text-xs text-muted-foreground">
+                Pegar lineas con formato `SKU cantidad` o `SKU;cantidad` para crear una cotizacion en segundos.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="toolbar" size="sm" onClick={() => setShowExpressForm((prev) => !prev)}>
+                {showExpressForm ? "Ocultar" : "Nueva express"}
+              </Button>
+              <Button variant="toolbar" size="icon" className="h-8 w-8 rounded-lg" onClick={() => void loadExpressData()}>
+                <RefreshCw size={12} className={loadingExpressData ? "animate-spin" : ""} />
+              </Button>
+            </div>
+          </div>
+
+          {showExpressForm ? (
+            <div className="mt-4 space-y-3">
+              <div className="grid gap-2 md:grid-cols-[1.6fr_0.8fr_0.8fr_0.7fr]">
+                <select
+                  value={expressClientId}
+                  onChange={(event) => setExpressClientId(event.target.value)}
+                  className="h-10 rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary/40"
+                >
+                  <option value="">Seleccionar cliente...</option>
+                  {expressClients.map((client) => {
+                    const label = client.company_name || client.contact_name || client.id;
+                    return (
+                      <option key={client.id} value={client.id}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+
+                <select
+                  value={expressStatus}
+                  onChange={(event) => setExpressStatus(event.target.value as "draft" | "sent")}
+                  className="h-10 rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary/40"
+                >
+                  <option value="draft">Borrador</option>
+                  <option value="sent">Enviada</option>
+                </select>
+
+                <select
+                  value={expressCurrency}
+                  onChange={(event) => setExpressCurrency(event.target.value as "USD" | "ARS")}
+                  className="h-10 rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary/40"
+                >
+                  <option value="USD">USD</option>
+                  <option value="ARS">ARS</option>
+                </select>
+
+                <input
+                  value={expressValidDays}
+                  onChange={(event) => setExpressValidDays(event.target.value.replace(/\D/g, ""))}
+                  placeholder="Validez"
+                  className="h-10 rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary/40"
+                />
+              </div>
+
+              <textarea
+                value={expressBulkInput}
+                onChange={(event) => setExpressBulkInput(event.target.value)}
+                rows={7}
+                placeholder={"SKU-001 3\nSKU-ABC;5\n000123,2\n# lineas con # se ignoran"}
+                className="w-full rounded-xl border border-border/70 bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary/40"
+              />
+
+              <input
+                value={expressNotes}
+                onChange={(event) => setExpressNotes(event.target.value)}
+                placeholder="Notas comerciales opcionales..."
+                className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary/40"
+              />
+
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                <div className="rounded-xl border border-border/70 bg-background px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Lineas parseadas</p>
+                  <p className="text-lg font-bold text-foreground">{expressAnalysis.parsedEntries.length}</p>
+                </div>
+                <div className="rounded-xl border border-border/70 bg-background px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Productos resueltos</p>
+                  <p className="text-lg font-bold text-emerald-500">{expressAnalysis.consolidated.length}</p>
+                </div>
+                <div className="rounded-xl border border-border/70 bg-background px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Sin match</p>
+                  <p className="text-lg font-bold text-amber-500">{expressAnalysis.missingEntries.length}</p>
+                </div>
+                <div className="rounded-xl border border-border/70 bg-background px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Lineas invalidas</p>
+                  <p className="text-lg font-bold text-red-500">{expressAnalysis.invalidLines.length}</p>
+                </div>
+                <div className="rounded-xl border border-border/70 bg-background px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Total estimado</p>
+                  <p className="text-base font-bold text-primary">{formatMoney(expressPreviewTotals.total, expressCurrency)}</p>
+                  <p className="text-[10px] text-muted-foreground">{expressPreviewTotals.units} unidad(es)</p>
+                </div>
+              </div>
+
+              <div className="grid gap-2 xl:grid-cols-2">
+                {expressAnalysis.missingEntries.length > 0 ? (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                    <p className="font-semibold">Referencias sin match:</p>
+                    <p className="mt-1">
+                      {expressAnalysis.missingEntries
+                        .slice(0, 6)
+                        .map((entry) => `L${entry.lineNumber}: ${entry.reference}`)
+                        .join(" | ")}
+                    </p>
+                  </div>
+                ) : null}
+
+                {expressAnalysis.invalidLines.length > 0 ? (
+                  <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+                    <p className="font-semibold">Lineas invalidas:</p>
+                    <p className="mt-1">
+                      {expressAnalysis.invalidLines
+                        .slice(0, 4)
+                        .map((line) => `L${line.lineNumber}: ${line.reason}`)
+                        .join(" | ")}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+
+              {expressError ? (
+                <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                  {expressError}
+                </div>
+              ) : null}
+
+              {expressSuccess ? (
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
+                  {expressSuccess}
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => void createExpressQuote()}
+                  disabled={creatingExpress || loadingExpressData}
+                >
+                  {creatingExpress ? "Creando..." : "Crear cotizacion express"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </SurfaceCard>
 
