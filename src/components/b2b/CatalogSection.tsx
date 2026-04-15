@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownAZ, ChevronDown, Loader2, Package, Search, Star, Truck, X, LayoutGrid, ChevronRight,
   Cpu, Zap, HardDrive, Monitor, Globe, Gamepad2, Box, Mouse, Headphones, Printer, Smartphone, Server, Speaker,
-  ArrowRight, SlidersHorizontal, RotateCcw
+  ArrowRight, SlidersHorizontal, RotateCcw, TrendingUp
 } from "lucide-react";
 
 import type { Product } from "@/models/products";
@@ -21,12 +21,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import type { PurchaseList, PurchaseListItem } from "@/hooks/usePurchaseLists";
+import { getAvailableStock } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export type ViewMode = "grid" | "list" | "table";
 export type CatalogContext = "default" | "featured" | "pos";
-export type SortOption = "price_asc" | "price_desc" | "name_asc" | "name_desc" | "brand_asc" | "brand_desc" | "stock_asc" | "stock_desc";
+export type SortOption = "price_asc" | "price_desc" | "name_asc" | "name_desc" | "brand_asc" | "brand_desc" | "stock_asc" | "stock_desc" | "purchase_desc";
 
 type AdvancedFilterKey = "brands" | "ram" | "storage" | "refreshRate" | "screen";
 type AdvancedFiltersState = Record<AdvancedFilterKey, string[]>;
@@ -493,11 +494,41 @@ export function CatalogSection({
             case "brand_desc": return (b.brand_name ?? "").localeCompare(a.brand_name ?? "", "es-AR");
             case "stock_asc": return (a.stock ?? 0) - (b.stock ?? 0);
             case "stock_desc": return (b.stock ?? 0) - (a.stock ?? 0);
+            case "purchase_desc": {
+              const purchasesA = purchaseHistory[a.id] ?? 0;
+              const purchasesB = purchaseHistory[b.id] ?? 0;
+              if (purchasesB !== purchasesA) return purchasesB - purchasesA;
+              return (a.name ?? "").localeCompare(b.name ?? "", "es-AR");
+            }
             default: return 0;
           }
         }),
     [effectiveFilters, displayProducts, sortOption, computePrice, stockFilter, repurchaseOnlyFilter, purchaseHistory],
   );
+
+  const topReorderProducts = useMemo(() => {
+    return Object.entries(purchaseHistory)
+      .map(([id, purchased]) => ({ id: Number(id), purchased }))
+      .filter((entry) => entry.purchased > 0)
+      .map((entry) => {
+        const product = products.find((item) => item.id === entry.id);
+        if (!product) return null;
+
+        const available = getAvailableStock(product);
+        if (available <= 0) return null;
+
+        const minQty = Math.max(1, product.min_order_qty ?? 1);
+        const suggestedQty = Math.min(available, Math.max(minQty, Math.ceil(entry.purchased / 4)));
+        return {
+          product,
+          purchased: entry.purchased,
+          suggestedQty,
+        };
+      })
+      .filter((entry): entry is { product: Product; purchased: number; suggestedQty: number } => entry !== null)
+      .sort((left, right) => right.purchased - left.purchased)
+      .slice(0, 8);
+  }, [products, purchaseHistory]);
 
   const resultsLabel = `${filteredProducts.length}${totalCount > 0 ? ` de ${totalCount}` : ""} productos`;
 
@@ -612,7 +643,7 @@ export function CatalogSection({
             <DrawerTitle className="text-base font-semibold text-foreground">Filtros avanzados</DrawerTitle>
           </DrawerHeader>
           <div className="flex h-[calc(100%-4.5rem)] flex-col gap-3 overflow-y-auto p-4">
-            {(hasActiveFilters || hasAdvancedFilters) ? (
+            {(hasActiveFilters || hasAdvancedFilters || stockFilter || repurchaseOnlyFilter) ? (
               <Button
                 type="button"
                 variant="outline"
@@ -757,6 +788,16 @@ export function CatalogSection({
                 Solo recompras
               </Button>
 
+              <Button
+                size="sm"
+                variant={sortOption === "purchase_desc" ? "soft" : "ghost"}
+                className="shrink-0 rounded-full border border-border/70 whitespace-nowrap"
+                onClick={() => setSortOption("purchase_desc")}
+              >
+                <TrendingUp size={14} className={sortOption === "purchase_desc" ? "text-primary" : "text-muted-foreground"} />
+                Top comprados
+              </Button>
+
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="toolbar" size="sm" className="h-9 shrink-0 rounded-xl px-3 text-xs font-semibold">
@@ -770,6 +811,7 @@ export function CatalogSection({
                     {([
                       { id: "price_asc", label: "Menor precio" },
                       { id: "price_desc", label: "Mayor precio" },
+                      { id: "purchase_desc", label: "Mas comprados" },
                       { id: "name_asc", label: "Producto A-Z" },
                       { id: "name_desc", label: "Producto Z-A" },
                       { id: "brand_asc", label: "Marca A-Z" },
@@ -816,7 +858,7 @@ export function CatalogSection({
                   className="hidden w-[340px] rounded-[24px] border border-border/70 bg-background/95 p-3 shadow-2xl lg:block"
                 >
                   <div className="space-y-3">
-                    {(hasActiveFilters || hasAdvancedFilters) ? (
+                    {(hasActiveFilters || hasAdvancedFilters || stockFilter || repurchaseOnlyFilter) ? (
                       <Button
                         type="button"
                         variant="outline"
@@ -930,6 +972,62 @@ export function CatalogSection({
             onAddToCart={handleSmartAddToCart}
             onClear={onClearRecentlyViewed}
           />
+        ) : null}
+
+        {topReorderProducts.length > 0 ? (
+          <div className="rounded-[20px] border border-border/70 bg-card/85 p-3 shadow-sm">
+            <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 px-1">
+              <div className="flex items-center gap-2">
+                <TrendingUp size={12} className="text-primary" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                  Recompra acelerada
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 rounded-lg px-2 text-[10px] text-muted-foreground"
+                onClick={() => setSortOption("purchase_desc")}
+              >
+                Ordenar por mas comprados
+              </Button>
+            </div>
+
+            <div className="flex gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {topReorderProducts.map(({ product, purchased, suggestedQty }) => (
+                <div
+                  key={`reorder-${product.id}`}
+                  className="flex w-[220px] shrink-0 flex-col gap-2 rounded-2xl border border-border/60 bg-background/80 p-3"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProduct(product)}
+                    className="text-left"
+                  >
+                    <p className="line-clamp-2 text-xs font-semibold text-foreground">{product.name}</p>
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      {product.sku ?? `ID ${product.id}`} · {purchased}u historicas
+                    </p>
+                  </button>
+
+                  <div className="mt-auto flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-primary">
+                      {formatPrice(computePrice(product, suggestedQty).unitPrice)}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-7 rounded-lg px-2 text-[10px] font-semibold"
+                      onClick={() => handleSmartAddToCart(product, suggestedQty)}
+                    >
+                      + {suggestedQty}u
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         ) : null}
 
         {/* Active filter chip strip */}
