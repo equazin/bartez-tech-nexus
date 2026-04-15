@@ -24,7 +24,10 @@ import {
   type CuitEntityType,
   type TaxStatus,
 } from "@/lib/api/afip";
-import { createRegistrationRequest } from "@/lib/api/registrationRequests";
+import {
+  createRegistrationRequest,
+  type CreateRegistrationRequestResult,
+} from "@/lib/api/registrationApi";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +70,7 @@ const Register = () => {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [taxStatus, setTaxStatus] = useState<TaxStatus | "">("");
+  const [registrationResult, setRegistrationResult] = useState<CreateRegistrationRequestResult | null>(null);
   const [assignedExecutiveDetails, setAssignedExecutiveDetails] = useState<{
     name: string;
     role: string;
@@ -74,6 +78,7 @@ const Register = () => {
   } | null>(null);
 
   const executive = assignedExecutiveDetails;
+  const isAutoApproved = registrationResult?.status === "auto_approved";
 
   const rawDigits = cuit.replace(/\D/g, "");
   const detectedEntity: CuitEntityType | null =
@@ -122,6 +127,7 @@ const Register = () => {
     setLookedUp(false);
     setAfipData(null);
     setTaxStatus("");
+    setRegistrationResult(null);
   }
 
   const handleValidateCuit = async (event: FormEvent<HTMLFormElement>) => {
@@ -183,6 +189,7 @@ const Register = () => {
           tax_status: taxStatus,
       });
 
+      setRegistrationResult(result);
       setAssignedExecutiveDetails(
         result.assigned_executive?.email
           ? {
@@ -586,10 +593,12 @@ const Register = () => {
 
                 <div className="space-y-3">
                   <h3 className="font-display text-3xl font-semibold tracking-tight text-foreground">
-                    Solicitud en revision
+                    {isAutoApproved ? "Alta aprobada automaticamente" : "Solicitud en revision"}
                   </h3>
                   <p className="mx-auto max-w-xl text-sm leading-6 text-muted-foreground">
-                    Validamos los datos fiscales y dejamos la solicitud lista para aprobacion comercial. El proximo paso sigue siendo incremental.
+                    {isAutoApproved
+                      ? "El alta se aprobo automaticamente y el acceso inicial ya quedo habilitado."
+                      : "Validamos los datos fiscales y dejamos la solicitud lista para aprobacion comercial. El proximo paso sigue siendo incremental."}
                   </p>
                 </div>
 

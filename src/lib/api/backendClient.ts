@@ -12,7 +12,38 @@
 
 import { supabase } from "@/lib/supabase";
 
-const BASE_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+function normalizeBackendBaseUrl(value: string | undefined): string {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return "";
+
+  const lowered = trimmed.toLowerCase();
+  if (lowered === "undefined" || lowered === "null") return "";
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed.replace(/\/+$/, "");
+  }
+
+  if (trimmed.startsWith("/")) {
+    return trimmed === "/" ? "/" : trimmed.replace(/\/+$/, "");
+  }
+
+  return "";
+}
+
+function joinUrlParts(base: string, path: string): string {
+  if (base === "/") {
+    return path.startsWith("/") ? path : `/${path}`;
+  }
+  if (base.endsWith("/") && path.startsWith("/")) {
+    return `${base.slice(0, -1)}${path}`;
+  }
+  if (!base.endsWith("/") && !path.startsWith("/")) {
+    return `${base}/${path}`;
+  }
+  return `${base}${path}`;
+}
+
+const BASE_URL = normalizeBackendBaseUrl(import.meta.env.VITE_BACKEND_URL as string | undefined);
 export const hasBackendUrl = BASE_URL.length > 0;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -61,28 +92,55 @@ async function request<T>(
 
   const authHeader = await getAuthHeader();
 
-  let url = `${BASE_URL}${path}`;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  let url: string;
+  const params = new URLSearchParams();
   if (options.query) {
-    const params = new URLSearchParams();
     for (const [k, v] of Object.entries(options.query)) {
       if (v !== undefined) params.set(k, String(v));
     }
-    const qs = params.toString();
-    if (qs) url += `?${qs}`;
+  }
+  const queryString = params.toString();
+
+  if (BASE_URL.startsWith("/")) {
+    const relativeUrl = joinUrlParts(BASE_URL, normalizedPath);
+    url = queryString ? `${relativeUrl}?${queryString}` : relativeUrl;
+  } else {
+    try {
+      const absolute = new URL(joinUrlParts(BASE_URL, normalizedPath));
+      if (queryString) {
+        absolute.search = queryString;
+      }
+      url = absolute.toString();
+    } catch {
+      throw new BackendError(0, "VITE_BACKEND_URL no es valida. Usa https://... o /api.");
+    }
   }
 
-  const res = await fetch(url, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...authHeader,
-    },
-    ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeader,
+      },
+      ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Error de red desconocido";
+    throw new BackendError(0, `No se pudo conectar con el backend (${detail}).`, error);
+  }
 
-  const json = (await res.json().catch(() => ({ ok: false, error: res.statusText }))) as
-    | BackendOkResponse<T>
-    | BackendErrorResponse;
+  let json: BackendOkResponse<T> | BackendErrorResponse;
+  try {
+    json = (await res.json()) as BackendOkResponse<T> | BackendErrorResponse;
+  } catch {
+    throw new BackendError(
+      res.ok ? 0 : res.status,
+      res.ok ? "Respuesta invalida del backend." : `Backend respondio ${res.status}.`,
+    );
+  }
 
   if (!res.ok || !json.ok) {
     const errResponse = json as BackendErrorResponse;
