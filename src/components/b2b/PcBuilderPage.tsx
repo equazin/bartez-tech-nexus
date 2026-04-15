@@ -21,7 +21,7 @@ import {
   buildSlotCandidates,
   getBuilderSlotLabel,
   createGuidedBaseSelection,
-  evaluateBuildCompatibility,
+  evaluatePcCompatibility,
 } from "@/lib/pcBuilder";
 import { BuilderModeToggle } from "@/components/b2b/builder/BuilderModeToggle";
 import { BuilderStepWizard } from "@/components/b2b/builder/BuilderStepWizard";
@@ -135,7 +135,7 @@ export function PcBuilderPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const compatibility = useMemo(() => evaluateBuildCompatibility(selectedItems, goal), [selectedItems, goal]);
+  const compatibility = useMemo(() => evaluatePcCompatibility(selectedItems, goal), [selectedItems, goal]);
 
   const selectedEntries = useMemo(
     () =>

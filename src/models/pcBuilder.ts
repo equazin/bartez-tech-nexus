@@ -22,6 +22,8 @@ export interface PcBuildItemDraft {
   productId: number;
   quantity: number;
   compatibilityState: PcBuildCompatibilityState;
+  locked?: boolean;
+  notes?: string;
 }
 
 export interface PcBuildDraft {

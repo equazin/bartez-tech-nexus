@@ -200,7 +200,7 @@ export function useOrders() {
     try {
       const orderResult = await createOrderFromCart({
         items: orderData.products.map((product) => ({
-          product_id: String(product.product_id),
+          product_id: product.product_id,
           quantity: product.quantity,
         })),
         payment_method: orderData.payment_method ?? null,

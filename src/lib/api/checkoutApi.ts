@@ -5,7 +5,7 @@ import type { Order } from "./ordersApi";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface CartItem {
-  product_id: string;
+  product_id: number;
   quantity: number;
 }
 

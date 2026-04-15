@@ -16,7 +16,7 @@ export function useQuotes(userId: string) {
       if (hasBackendUrl) {
         // Migrado: el backend filtra por JWT del cliente autenticado
         const { items } = await backend.me.quotes();
-        setQuotes(items.map((row) => dbToQuote(row as Record<string, unknown>)));
+        setQuotes(items.map((row) => dbToQuote(row as unknown as Record<string, unknown>)));
       } else {
         // Fallback: Supabase directo
         const { data, error } = await supabase
@@ -45,7 +45,7 @@ export function useQuotes(userId: string) {
       if (!userId || userId === "guest") return null;
       try {
         const row = await backend.quotes.create(quoteToDb(data, userId));
-        const quote = dbToQuote(row as Record<string, unknown>);
+        const quote = dbToQuote(row as unknown as Record<string, unknown>);
         setQuotes((prev) => [quote, ...prev]);
         return quote;
       } catch {
@@ -75,7 +75,7 @@ export function useQuotes(userId: string) {
         if (changes.notes       !== undefined) patch.notes       = changes.notes;
 
         const row = await backend.quotes.update(String(id), patch);
-        const updated = dbToQuote(row as Record<string, unknown>);
+        const updated = dbToQuote(row as unknown as Record<string, unknown>);
         setQuotes((prev) => prev.map((q) => (q.id === id ? updated : q)));
       } catch {
         // Silencioso

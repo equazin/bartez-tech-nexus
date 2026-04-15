@@ -104,7 +104,7 @@ export default async function handler(request: Request): Promise<Response> {
   const pricingRules = pricingRulesRaw as PricingRule[];
 
   // 5. Fetch Products
-  const productIds = payload.products.map(p => p.id);
+  const productIds = payload.products.map(p => Number(p.id));
   const { data: dbProducts, error: productsError } = await sbAdmin
     .from("products")
     .select("*")
@@ -125,7 +125,7 @@ export default async function handler(request: Request): Promise<Response> {
   const secureProductsList = [];
 
   for (const item of payload.products) {
-    const p = dbProductMap.get(item.id);
+    const p = dbProductMap.get(Number(item.id));
     if (!p) {
       return json({ ok: false, error: `Product ID ${item.id} no longer exists.` }, 400);
     }

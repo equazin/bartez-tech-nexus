@@ -163,7 +163,7 @@ export function useRecurringOrders({
 
       const order = await createOrderFromCart({
         items: template.items.map((item) => ({
-          product_id: String(item.product_id),
+          product_id: item.product_id,
           quantity: item.quantity,
         })),
         notes: `Pedido generado desde plantilla recurrente "${template.name}".`,
