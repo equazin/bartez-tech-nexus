@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownAZ, ChevronDown, Loader2, Package, Search, Star, Truck, X, LayoutGrid, ChevronRight,
   Cpu, Zap, HardDrive, Monitor, Globe, Gamepad2, Box, Mouse, Headphones, Printer, Smartphone, Server, Speaker,
-  ArrowRight, SlidersHorizontal
+  ArrowRight, SlidersHorizontal, RotateCcw
 } from "lucide-react";
 
 import type { Product } from "@/models/products";
@@ -417,6 +417,7 @@ export function CatalogSection({
   const [sortOption, setSortOption] = useState<SortOption>("name_asc");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [stockFilter, setStockFilter] = useState(false);
+  const [repurchaseOnlyFilter, setRepurchaseOnlyFilter] = useState(false);
   const hasPurchaseListActions = Boolean(onCreatePurchaseList && onAddProductToList);
 
   useEffect(() => {
@@ -443,6 +444,8 @@ export function CatalogSection({
   const clearAllFilters = () => {
     clearFilters();
     clearAdvancedFilters();
+    setStockFilter(false);
+    setRepurchaseOnlyFilter(false);
   };
 
   const effectiveFilters = useMemo(() => ({
@@ -455,7 +458,11 @@ export function CatalogSection({
 
   const hasAdvancedFilters = Object.values(effectiveFilters).some((values) => values.length > 0);
   const advancedFilterCount = Object.values(effectiveFilters).reduce((total, values) => total + values.length, 0);
-  const mobileFilterCount = advancedFilterCount + (hasActiveFilters ? 1 : 0);
+  const mobileFilterCount =
+    advancedFilterCount +
+    (hasActiveFilters ? 1 : 0) +
+    (stockFilter ? 1 : 0) +
+    (repurchaseOnlyFilter ? 1 : 0);
 
   const filteredProducts = useMemo(
     () =>
@@ -465,6 +472,7 @@ export function CatalogSection({
             const available = Math.max(0, (product.stock ?? 0) - (product.stock_reserved ?? 0));
             if (available === 0) return false;
           }
+          if (repurchaseOnlyFilter && (purchaseHistory[product.id] ?? 0) <= 0) return false;
           if (effectiveFilters.brands.length > 0 && !effectiveFilters.brands.includes(product.brand_name ?? "")) return false;
           if (!matchesTechFilter(product, "ram", effectiveFilters.ram)) return false;
           if (!matchesTechFilter(product, "storage", effectiveFilters.storage)) return false;
@@ -488,7 +496,7 @@ export function CatalogSection({
             default: return 0;
           }
         }),
-    [effectiveFilters, displayProducts, sortOption, computePrice, stockFilter],
+    [effectiveFilters, displayProducts, sortOption, computePrice, stockFilter, repurchaseOnlyFilter, purchaseHistory],
   );
 
   const resultsLabel = `${filteredProducts.length}${totalCount > 0 ? ` de ${totalCount}` : ""} productos`;
@@ -739,6 +747,16 @@ export function CatalogSection({
                 Stock inmediato
               </Button>
 
+              <Button
+                size="sm"
+                variant={repurchaseOnlyFilter ? "soft" : "ghost"}
+                className="shrink-0 rounded-full border border-border/70 whitespace-nowrap"
+                onClick={() => setRepurchaseOnlyFilter((prev) => !prev)}
+              >
+                <RotateCcw size={14} className={repurchaseOnlyFilter ? "text-primary" : "text-muted-foreground"} />
+                Solo recompras
+              </Button>
+
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="toolbar" size="sm" className="h-9 shrink-0 rounded-xl px-3 text-xs font-semibold">
@@ -915,7 +933,7 @@ export function CatalogSection({
         ) : null}
 
         {/* Active filter chip strip */}
-        {(hasActiveFilters || hasAdvancedFilters) && (
+        {(hasActiveFilters || hasAdvancedFilters || stockFilter || repurchaseOnlyFilter) && (
           <div className="flex flex-wrap items-center gap-1.5 px-1">
             {categoryFilter !== "all" && (
               <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/8 px-3 py-1 text-[11px] font-semibold text-primary">
@@ -943,6 +961,22 @@ export function CatalogSection({
                 </span>
               ))
             )}
+            {stockFilter ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/60 px-3 py-1 text-[11px] font-medium text-foreground">
+                Stock inmediato
+                <button type="button" onClick={() => setStockFilter(false)} className="ml-0.5 rounded-full p-0.5 hover:bg-secondary transition-colors">
+                  <X size={10} />
+                </button>
+              </span>
+            ) : null}
+            {repurchaseOnlyFilter ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/60 px-3 py-1 text-[11px] font-medium text-foreground">
+                Solo recompras
+                <button type="button" onClick={() => setRepurchaseOnlyFilter(false)} className="ml-0.5 rounded-full p-0.5 hover:bg-secondary transition-colors">
+                  <X size={10} />
+                </button>
+              </span>
+            ) : null}
             <button
               type="button"
               onClick={clearAllFilters}
@@ -984,9 +1018,9 @@ export function CatalogSection({
       ) : filteredProducts.length === 0 ? (
         <EmptyState
           title="No se encontraron productos"
-          description={search || hasActiveFilters || hasAdvancedFilters ? "Revisa la busqueda o resetea los filtros." : undefined}
+          description={search || hasActiveFilters || hasAdvancedFilters || stockFilter || repurchaseOnlyFilter ? "Revisa la busqueda o resetea los filtros." : undefined}
           icon={<Search size={20} />}
-          actionLabel={search || hasActiveFilters || hasAdvancedFilters ? "Limpiar filtros" : undefined}
+          actionLabel={search || hasActiveFilters || hasAdvancedFilters || stockFilter || repurchaseOnlyFilter ? "Limpiar filtros" : undefined}
           onAction={clearAllFilters}
           className="py-16"
         />

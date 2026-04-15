@@ -36,6 +36,7 @@ import { SupportCenter } from "@/components/b2b/SupportCenter";
 import { ProjectsPanel } from "@/components/b2b/ProjectsPanel";
 import { ProductDetailModal } from "@/components/b2b/ProductDetailModal";
 import { CatalogSection } from "@/components/b2b/CatalogSection";
+import { SmartSuggestions } from "@/components/b2b/SmartSuggestions";
 import { ClientDashboard } from "@/components/b2b/ClientDashboard";
 import type { AssignedSeller } from "@/components/b2b/ClientDashboard";
 import type { ViewMode, CatalogContext } from "@/components/b2b/CatalogSection";
@@ -879,67 +880,75 @@ export default function B2BPortal() {
 
           {/* CATALOG */}
           {activeTab === "catalog" && (
-            <CatalogSection
-              displayProducts={displayProducts}
-              products={catalog.products}
-              productsLoading={catalog.productsLoading}
-              totalCount={catalog.totalCount}
-              hasMore={catalog.hasMore}
-              loadMore={catalog.loadMore}
-              search={search}
-              hasActiveFilters={catalog.hasActiveFilters}
-              clearFilters={catalog.clearFilters}
-              viewMode={viewMode}
-              handleViewModeChange={handleViewModeChange}
-              catalogContext={catalogContext}
-              setCatalogContext={setCatalogContext}
-              cart={cart.cart}
-              computePrice={computePrice}
-              formatPrice={formatPrice}
-              productMargins={cart.productMargins ?? {}}
-              globalMargin={cart.globalMargin}
-              onRemoveFromCart={cart.onRemoveFromCart}
-              handleSmartAddToCart={cart.handleSmartAddToCart}
-              handleToggleFavorite={cart.handleToggleFavorite}
-              toggleCompare={toggleCompare}
-              setSelectedProduct={(p) => {
-                if (p) setRecentlyViewedIds(addRecentlyViewed(p.id));
-                setSelectedProduct(p);
-              }}
-              isPosProduct={catalog.isPosProduct}
-              favoriteProductIds={cart.favoriteProductIds}
-              compareList={compareList}
-              addedIds={cart.addedIds}
-              recentlyViewedIds={recentlyViewedIds}
-              onClearRecentlyViewed={() => {
-                clearRecentlyViewed();
-                setRecentlyViewedIds([]);
-              }}
-              purchaseHistory={cart.purchaseHistory}
-              latestPurchaseUnitPrice={cart.latestPurchaseUnitPrice}
-              page={catalog.page}
-              setPage={catalog.setPage}
-              categoryTree={catalog.categoryTree}
-              categoryFilter={catalog.categoryFilter}
-              setCategoryFilter={(cat) => {
-                setSearchParams((prev) => {
-                  const next = new URLSearchParams(prev);
-                  next.delete("category"); // Remove old param
-                  if (cat === "all") next.delete("categoria");
-                  else next.set("categoria", cat);
-                  return next;
-                });
-                catalog.setCategoryFilter(cat);
-                setPortalTab("catalog");
-              }}
-              subCategoryFilters={catalog.subCategoryFilters}
-              setSubCategoryFilters={catalog.setSubCategoryFilters}
-              activeCategoryChildren={catalog.activeCategoryChildren}
-              categoryCounts={catalog.categoryCounts}
-              purchaseLists={purchaseLists.lists}
-              onCreatePurchaseList={purchaseLists.createList}
-              onAddProductToList={handleAddProductToList}
-            />
+            <div className="space-y-4">
+              <SmartSuggestions
+                orders={orders}
+                products={catalog.products}
+                onAddToCart={cart.handleSmartAddToCart}
+                isDark={isDark}
+              />
+              <CatalogSection
+                displayProducts={displayProducts}
+                products={catalog.products}
+                productsLoading={catalog.productsLoading}
+                totalCount={catalog.totalCount}
+                hasMore={catalog.hasMore}
+                loadMore={catalog.loadMore}
+                search={search}
+                hasActiveFilters={catalog.hasActiveFilters}
+                clearFilters={catalog.clearFilters}
+                viewMode={viewMode}
+                handleViewModeChange={handleViewModeChange}
+                catalogContext={catalogContext}
+                setCatalogContext={setCatalogContext}
+                cart={cart.cart}
+                computePrice={computePrice}
+                formatPrice={formatPrice}
+                productMargins={cart.productMargins ?? {}}
+                globalMargin={cart.globalMargin}
+                onRemoveFromCart={cart.onRemoveFromCart}
+                handleSmartAddToCart={cart.handleSmartAddToCart}
+                handleToggleFavorite={cart.handleToggleFavorite}
+                toggleCompare={toggleCompare}
+                setSelectedProduct={(p) => {
+                  if (p) setRecentlyViewedIds(addRecentlyViewed(p.id));
+                  setSelectedProduct(p);
+                }}
+                isPosProduct={catalog.isPosProduct}
+                favoriteProductIds={cart.favoriteProductIds}
+                compareList={compareList}
+                addedIds={cart.addedIds}
+                recentlyViewedIds={recentlyViewedIds}
+                onClearRecentlyViewed={() => {
+                  clearRecentlyViewed();
+                  setRecentlyViewedIds([]);
+                }}
+                purchaseHistory={cart.purchaseHistory}
+                latestPurchaseUnitPrice={cart.latestPurchaseUnitPrice}
+                page={catalog.page}
+                setPage={catalog.setPage}
+                categoryTree={catalog.categoryTree}
+                categoryFilter={catalog.categoryFilter}
+                setCategoryFilter={(cat) => {
+                  setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev);
+                    next.delete("category"); // Remove old param
+                    if (cat === "all") next.delete("categoria");
+                    else next.set("categoria", cat);
+                    return next;
+                  });
+                  catalog.setCategoryFilter(cat);
+                  setPortalTab("catalog");
+                }}
+                subCategoryFilters={catalog.subCategoryFilters}
+                setSubCategoryFilters={catalog.setSubCategoryFilters}
+                activeCategoryChildren={catalog.activeCategoryChildren}
+                categoryCounts={catalog.categoryCounts}
+                purchaseLists={purchaseLists.lists}
+                onCreatePurchaseList={purchaseLists.createList}
+                onAddProductToList={handleAddProductToList}
+              />
+            </div>
           )}
 
           {activeTab === "configurator" && (
