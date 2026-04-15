@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { useCurrency } from "@/context/CurrencyContext";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { backend, hasBackendUrl } from "@/lib/api/backend";
 import { toggleSetValue } from "@/lib/toggleSet";
 import { Product } from "@/models/products";
 import ProductEditModal from "./ProductEditModal";
@@ -414,19 +415,39 @@ export default function ProductTable({
     if (!inlineCell) return;
     const val = Number(inlineValue);
     if (isNaN(val) || val < 0) { setInlineCell(null); return; }
-    await supabase.from("products").update({ [inlineCell.field]: val }).eq("id", inlineCell.id);
+    if (hasBackendUrl) {
+      if (inlineCell.field === "stock") {
+        const product = products.find((p) => p.id === inlineCell.id);
+        const delta = val - (product?.stock ?? 0);
+        if (delta !== 0) {
+          await backend.products.adjustStock(inlineCell.id, { delta });
+        }
+      } else {
+        await backend.products.update(inlineCell.id, { [inlineCell.field]: val });
+      }
+    } else {
+      await supabase.from("products").update({ [inlineCell.field]: val }).eq("id", inlineCell.id);
+    }
     setInlineCell(null);
     onRefresh();
   }
 
   // ── Actions ──────────────────────────────────────────────────
   async function toggleActive(p: Product) {
-    await supabase.from("products").update({ active: !p.active }).eq("id", p.id);
+    if (hasBackendUrl) {
+      await backend.products.update(p.id, { active: !p.active });
+    } else {
+      await supabase.from("products").update({ active: !p.active }).eq("id", p.id);
+    }
     onRefresh();
   }
 
   async function toggleFeatured(p: Product) {
-    await supabase.from("products").update({ featured: !p.featured }).eq("id", p.id);
+    if (hasBackendUrl) {
+      await backend.products.update(p.id, { featured: !p.featured });
+    } else {
+      await supabase.from("products").update({ featured: !p.featured }).eq("id", p.id);
+    }
     onRefresh();
   }
 

@@ -1,4 +1,5 @@
 import { ChevronRight, LayoutDashboard, Package, ClipboardList, Users, DollarSign, Settings2, Megaphone } from "lucide-react";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { NAV_MODULES, type Tab, type ModuleId, type NavItem } from "./adminNavConfig";
 
 interface AdminSidebarProps {
@@ -8,6 +9,8 @@ interface AdminSidebarProps {
   isDark: boolean;
   collapsed: boolean;
   mobile?: boolean;
+  mobileOpen?: boolean;
+  onMobileOpenChange?: (open: boolean) => void;
   onNavigateTab: (tab: Tab) => void;
   onNavigateModule: (moduleId: ModuleId) => void;
   onToggleCollapse: () => void;
@@ -36,6 +39,8 @@ export function AdminSidebar({
   badges,
   collapsed,
   mobile = false,
+  mobileOpen = false,
+  onMobileOpenChange,
   onNavigateTab,
   onNavigateModule,
   onToggleCollapse,
@@ -44,7 +49,7 @@ export function AdminSidebar({
   const activeGroup = NAV_MODULES.find((m) => m.id === activeModule);
   const visibleItems = activeGroup ? activeGroup.items.filter(canSeeItem) : [];
 
-  return (
+  const content = (
     <div className="flex h-full flex-col bg-card/65">
       <div className="border-b border-border/70 px-3 py-4">
         <div className={`flex items-center gap-3 ${collapsed && !mobile ? "justify-center" : ""}`}>
@@ -154,5 +159,15 @@ export function AdminSidebar({
         </div>
       ) : null}
     </div>
+  );
+
+  if (!mobile) return content;
+
+  return (
+    <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
+      <SheetContent side="left" className="w-[286px] max-w-[86vw] p-0">
+        <div className="h-full">{content}</div>
+      </SheetContent>
+    </Sheet>
   );
 }

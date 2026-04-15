@@ -24,6 +24,7 @@ interface ProductTableProps {
   isPosProduct: (p: Product) => boolean;
   addedIds: Set<number>;
   getPriceInfo: (p: Product, q: number) => import("@/hooks/usePricing").PriceResult;
+  onAddToList?: (product: Product) => void;
 }
 
 export function ProductTable({
@@ -40,6 +41,7 @@ export function ProductTable({
   isPosProduct,
   addedIds,
   getPriceInfo,
+  onAddToList,
 }: ProductTableProps) {
   return (
     <DataTableShell
@@ -116,7 +118,16 @@ export function ProductTable({
                   {lastUnit && deltaPct > 0 ? <span className="block text-[11px] font-semibold text-amber-500">+{deltaPct.toFixed(1)}%</span> : null}
                 </TableCell>
                 <TableCell className="text-right">
-                  <div className="flex justify-end">
+                  <div className="flex justify-end gap-2">
+                    {onAddToList ? (
+                      <button
+                        type="button"
+                        onClick={() => onAddToList(product)}
+                        className="rounded-lg border border-border/70 px-2 py-1 text-[11px] font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                      >
+                        Lista
+                      </button>
+                    ) : null}
                     <QuickAddControl
                       inCart={inCart}
                       outOfStock={outOfStock}

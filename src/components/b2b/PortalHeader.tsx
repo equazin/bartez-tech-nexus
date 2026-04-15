@@ -14,9 +14,16 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 type PartnerLevel = "cliente" | "silver" | "gold" | "platinum";
+
+const PARTNER_BENEFITS: Partial<Record<PartnerLevel, string>> = {
+  silver: "Precios silver, soporte prioritario y acceso anticipado a nuevos productos.",
+  gold: "Precios gold, cuenta dedicada y condiciones de financiación especial.",
+  platinum: "Precios platinum, ejecutivo exclusivo, crédito ampliado y beneficios exclusivos.",
+};
 
 const PARTNER_BADGE: Record<PartnerLevel, { label: string; icon: string; class: string } | null> = {
   cliente: null,
@@ -110,13 +117,24 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold tracking-tight text-foreground">Portal B2B</span>
               {partnerBadge && (
-                <span className={cn(
-                  "hidden items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-bold lg:inline-flex",
-                  partnerBadge.class,
-                )}>
-                  <span>{partnerBadge.icon}</span>
-                  {partnerBadge.label}
-                </span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className={cn(
+                        "hidden cursor-default items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-bold lg:inline-flex",
+                        partnerBadge.class,
+                      )}>
+                        <span>{partnerBadge.icon}</span>
+                        {partnerBadge.label}
+                      </span>
+                    </TooltipTrigger>
+                    {PARTNER_BENEFITS[effectiveLevel] && (
+                      <TooltipContent side="bottom" className="max-w-[220px] text-xs">
+                        {PARTNER_BENEFITS[effectiveLevel]}
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
               )}
             </div>
             <p className="text-xs text-muted-foreground">{clientName}</p>

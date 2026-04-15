@@ -15,11 +15,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
+import type { PurchaseList, PurchaseListItem } from "@/hooks/usePurchaseLists";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export type ViewMode = "grid" | "list" | "table";
 export type CatalogContext = "default" | "featured" | "pos";
@@ -351,6 +354,9 @@ export interface CatalogSectionProps {
   setSubCategoryFilters: (vals: string[]) => void;
   activeCategoryChildren: { id: number; name: string; slug?: string | null }[];
   categoryCounts: Record<string, number>;
+  purchaseLists?: PurchaseList[];
+  onCreatePurchaseList?: (name: string, items?: PurchaseListItem[]) => Promise<PurchaseList | null>;
+  onAddProductToList?: (listId: number, product: Product) => Promise<void>;
 }
 
 export function CatalogSection({
@@ -394,8 +400,13 @@ export function CatalogSection({
   setSubCategoryFilters,
   activeCategoryChildren,
   categoryCounts,
+  purchaseLists = [],
+  onCreatePurchaseList,
+  onAddProductToList,
 }: CatalogSectionProps) {
   const [activeParentInMenu, setActiveParentInMenu] = useState<string | null>(null);
+  const [listDialogProduct, setListDialogProduct] = useState<Product | null>(null);
+  const [newListName, setNewListName] = useState("");
 
   useEffect(() => {
     if (categoryTree.parents.length > 0 && !activeParentInMenu) {
@@ -406,6 +417,7 @@ export function CatalogSection({
   const [sortOption, setSortOption] = useState<SortOption>("name_asc");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [stockFilter, setStockFilter] = useState(false);
+  const hasPurchaseListActions = Boolean(onCreatePurchaseList && onAddProductToList);
 
   useEffect(() => {
     window.localStorage.setItem(ADVANCED_FILTERS_KEY, JSON.stringify(advancedFilters));
@@ -481,8 +493,111 @@ export function CatalogSection({
 
   const resultsLabel = `${filteredProducts.length}${totalCount > 0 ? ` de ${totalCount}` : ""} productos`;
 
+  async function handleAddProductToExistingList(listId: number) {
+    if (!listDialogProduct || !onAddProductToList) return;
+
+    try {
+      await onAddProductToList(listId, listDialogProduct);
+      toast.success(`"${listDialogProduct.name}" se agrego a la lista.`);
+      setListDialogProduct(null);
+      setNewListName("");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo actualizar la lista.");
+    }
+  }
+
+  async function handleCreateListAndAddProduct() {
+    if (!listDialogProduct || !onCreatePurchaseList) return;
+    if (!newListName.trim()) {
+      toast.error("Defini un nombre para la lista.");
+      return;
+    }
+
+    const item: PurchaseListItem = {
+      product_id: listDialogProduct.id,
+      quantity: Math.max(1, listDialogProduct.min_order_qty ?? 1),
+      name: listDialogProduct.name,
+      sku: listDialogProduct.sku ?? null,
+      note: null,
+    };
+
+    const created = await onCreatePurchaseList(newListName.trim(), [item]);
+    if (!created) {
+      toast.error("No se pudo crear la lista.");
+      return;
+    }
+
+    toast.success(`Lista "${created.name}" creada.`);
+    setListDialogProduct(null);
+    setNewListName("");
+  }
+
   return (
     <div className="flex flex-col gap-5">
+      <Dialog
+        open={!!listDialogProduct}
+        onOpenChange={(open) => {
+          if (!open) {
+            setListDialogProduct(null);
+            setNewListName("");
+          }
+        }}
+      >
+        <DialogContent className="rounded-[24px] border-border/70">
+          <DialogHeader>
+            <DialogTitle>Agregar a lista</DialogTitle>
+            <DialogDescription>
+              {listDialogProduct
+                ? `Guarda ${listDialogProduct.name} en una lista existente o crea una nueva.`
+                : "Selecciona una lista para guardar este producto."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {purchaseLists.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  Listas existentes
+                </p>
+                <div className="space-y-2">
+                  {purchaseLists.map((list) => (
+                    <button
+                      key={list.id}
+                      type="button"
+                      onClick={() => void handleAddProductToExistingList(list.id)}
+                      className="flex w-full items-center justify-between rounded-2xl border border-border/70 bg-card px-4 py-3 text-left transition hover:bg-surface/60"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{list.name}</p>
+                        <p className="text-xs text-muted-foreground">{list.items.length} items</p>
+                      </div>
+                      {list.is_shared ? <Badge variant="outline">Compartida</Badge> : null}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {hasPurchaseListActions ? (
+              <div className="space-y-2 rounded-2xl border border-border/70 bg-surface/40 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  Crear lista nueva
+                </p>
+                <Input
+                  value={newListName}
+                  onChange={(event) => setNewListName(event.target.value)}
+                  placeholder="Ej: Compra mensual sucursal norte"
+                  className="h-10 rounded-xl border-border/70 bg-card"
+                />
+                <Button className="w-full" onClick={() => void handleCreateListAndAddProduct()}>
+                  Crear lista con este producto
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Drawer open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen} direction="right">
         <DrawerContent className="fixed bottom-0 left-auto right-0 top-0 mt-0 h-full w-full max-w-sm rounded-none border-l border-border bg-background p-0">
           <DrawerHeader className="border-b border-border/70 px-4 py-3 text-left">
@@ -906,6 +1021,7 @@ export function CatalogSection({
                       ? ((price.unitPrice - latestPurchaseUnitPrice[product.id]) / latestPurchaseUnitPrice[product.id]) * 100
                       : 0
                   }
+                  onAddToList={hasPurchaseListActions ? (product) => setListDialogProduct(product) : undefined}
                 />
               );
             })}
@@ -929,6 +1045,7 @@ export function CatalogSection({
             isPosProduct={isPosProduct}
             hasMore={hasMore}
             onLoadMore={loadMore}
+            onAddToList={hasPurchaseListActions ? (product) => setListDialogProduct(product) : undefined}
           />
         )
       ) : viewMode === "grid" ? (
@@ -961,6 +1078,7 @@ export function CatalogSection({
                       ? ((price.unitPrice - latestPurchaseUnitPrice[product.id]) / latestPurchaseUnitPrice[product.id]) * 100
                       : 0
                   }
+                  onAddToList={hasPurchaseListActions ? (product) => setListDialogProduct(product) : undefined}
                 />
               </div>
             );
@@ -981,6 +1099,7 @@ export function CatalogSection({
           isPosProduct={isPosProduct}
           addedIds={addedIds}
           getPriceInfo={computePrice}
+          onAddToList={hasPurchaseListActions ? (product) => setListDialogProduct(product) : undefined}
         />
       )}
 

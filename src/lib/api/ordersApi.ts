@@ -1,4 +1,4 @@
-import { backend } from "./backendClient";
+import { backend, hasBackendUrl } from "./backend";
 import { supabase } from "@/lib/supabase";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -78,14 +78,23 @@ export async function patchProfile(payload: PatchProfilePayload): Promise<void> 
 
 async function callVercelApi<T>(
   path: string,
-  method: "POST" | "PATCH" | "DELETE",
+  method: "GET" | "POST" | "PATCH" | "DELETE",
   body?: unknown,
 ): Promise<T> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
-  const res = await fetch(path, {
+  const requestUrl =
+    method === "GET" && body && typeof body === "object" && !Array.isArray(body)
+      ? `${path}?${new URLSearchParams(
+          Object.entries(body as Record<string, string | number | boolean | null | undefined>)
+            .filter(([, value]) => value !== undefined && value !== null)
+            .map(([key, value]) => [key, String(value)]),
+        ).toString()}`
+      : path;
+
+  const res = await fetch(requestUrl, {
     method,
     headers: {
       "Content-Type": "application/json",
@@ -93,7 +102,7 @@ async function callVercelApi<T>(
         ? { Authorization: `Bearer ${session.access_token}` }
         : {}),
     },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    ...(method !== "GET" && body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
 
   const json = (await res.json().catch(() => ({ ok: false, error: res.statusText }))) as
@@ -395,7 +404,11 @@ export interface CuitLookupResult {
 }
 
 export async function lookupCuit(cuit: string): Promise<CuitLookupResult> {
-  return backend.get<CuitLookupResult>("/v1/public/cuit-lookup", { cuit });
+  if (hasBackendUrl) {
+    return backend.get<CuitLookupResult>("/v1/public/cuit-lookup", { cuit });
+  }
+
+  return callVercelApi<CuitLookupResult>("/api/create-user", "GET", { cuit });
 }
 
 // ─── Admin: users ─────────────────────────────────────────────────────────────
@@ -405,7 +418,7 @@ export interface CreateUserPayload {
   password: string;
   company_name: string;
   contact_name: string;
-  role?: "admin" | "vendedor" | "client";
+  role?: "admin" | "vendedor" | "sales" | "client" | "cliente";
   client_type?: "mayorista" | "reseller" | "empresa";
   default_margin?: number;
   phone?: string;
@@ -413,14 +426,26 @@ export interface CreateUserPayload {
 }
 
 export async function createUserApi(payload: CreateUserPayload): Promise<{ id: string; email: string; role: string }> {
-  return backend.post("/v1/admin/users", payload);
+  if (hasBackendUrl) {
+    return backend.post("/v1/admin/users", payload);
+  }
+
+  return callVercelApi("/api/create-user", "POST", payload);
 }
 
 export async function updateUserApi(
   userId: string,
   patch: Partial<Omit<CreateUserPayload, "password">>,
 ): Promise<void> {
-  await backend.patch(`/v1/admin/users/${userId}`, patch);
+  if (hasBackendUrl) {
+    await backend.patch(`/v1/admin/users/${userId}`, patch);
+    return;
+  }
+
+  await callVercelApi("/api/create-user", "PATCH", {
+    id: userId,
+    ...patch,
+  });
 }
 
 // ─── Reads that still go directly to Supabase (RLS-safe) ─────────────────────

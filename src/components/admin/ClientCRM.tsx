@@ -192,11 +192,50 @@ function Avatar({ client, size = "md" }: { client: ClientProfile; size?: "sm" | 
   );
 }
 
+type ClientListHealthTone = "green" | "amber" | "red" | "gray";
+
+interface ClientListHealth {
+  score: number | null;
+  tone: ClientListHealthTone;
+  tooltip: string;
+}
+
+const HEALTH_DOT_CLASS: Record<ClientListHealthTone, string> = {
+  green: "bg-emerald-500",
+  amber: "bg-amber-500",
+  red: "bg-red-500",
+  gray: "bg-gray-400",
+};
+
+function getClientListHealth(lastOrderAt?: string): ClientListHealth {
+  if (!lastOrderAt) {
+    return { score: null, tone: "gray", tooltip: "Sin actividad" };
+  }
+
+  let score = 60;
+  const daysSince = (Date.now() - new Date(lastOrderAt).getTime()) / 86400000;
+
+  if (daysSince > 90) score -= 30;
+  else if (daysSince > 60) score -= 15;
+  else if (daysSince < 14) score += 15;
+
+  const boundedScore = Math.max(0, Math.min(100, score));
+  if (boundedScore >= 70) return { score: boundedScore, tone: "green", tooltip: "Activo" };
+  if (boundedScore >= 40) return { score: boundedScore, tone: "amber", tooltip: "Inactivo reciente" };
+  return { score: boundedScore, tone: "red", tooltip: "En riesgo" };
+}
+
 // -- List item -----------------------------------------------------------------
 function ClientListItem({
-  client, isActive, orderCount, quoteCount, onClick, isDark,
+  client, isActive, orderCount, quoteCount, health, onClick, isDark,
 }: {
-  client: ClientProfile; isActive: boolean; orderCount: number; quoteCount: number; onClick: () => void; isDark: boolean;
+  client: ClientProfile;
+  isActive: boolean;
+  orderCount: number;
+  quoteCount: number;
+  health: ClientListHealth;
+  onClick: () => void;
+  isDark: boolean;
 }) {
   const dk = (d: string, l: string) => isDark ? d : l;
   return (
@@ -210,11 +249,18 @@ function ClientListItem({
     >
       <Avatar client={client} size="sm" />
       <div className="flex-1 min-w-0">
-        <p className={`text-[13px] font-semibold truncate leading-tight ${
-          isActive ? dk("text-white", "text-[#171717]") : dk("text-[#d4d4d4] group-hover:text-white", "text-[#404040] group-hover:text-[#171717]")
-        }`}>
-          {client.company_name || client.contact_name || "-"}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <span
+            title={health.tooltip}
+            aria-label={`Estado comercial: ${health.tooltip}`}
+            className={`h-2 w-2 shrink-0 rounded-full ${HEALTH_DOT_CLASS[health.tone]}`}
+          />
+          <p className={`text-[13px] font-semibold truncate leading-tight ${
+            isActive ? dk("text-white", "text-[#171717]") : dk("text-[#d4d4d4] group-hover:text-white", "text-[#404040] group-hover:text-[#171717]")
+          }`}>
+            {client.company_name || client.contact_name || "-"}
+          </p>
+        </div>
         <p className="text-[9px] text-[#525252] truncate mt-0.5">
           {CLIENT_TYPE_LABELS[client.client_type]}  -  {client.default_margin}% margen
         </p>
@@ -1909,6 +1955,32 @@ export function ClientCRM({ clients, orders, products, loading, isDark, selected
     orders.forEach((o) => { m[o.client_id] = (m[o.client_id] || 0) + 1; });
     return m;
   }, [orders]);
+  const latestOrderByClient = useMemo(() => {
+    const latest = new Map<string, string>();
+
+    orders.forEach((order) => {
+      const current = latest.get(order.client_id);
+      if (!current) {
+        latest.set(order.client_id, order.created_at);
+        return;
+      }
+
+      if (new Date(order.created_at).getTime() > new Date(current).getTime()) {
+        latest.set(order.client_id, order.created_at);
+      }
+    });
+
+    return latest;
+  }, [orders]);
+  const listHealthMap = useMemo(() => {
+    const health: Record<string, ClientListHealth> = {};
+
+    clients.forEach((client) => {
+      health[client.id] = getClientListHealth(latestOrderByClient.get(client.id));
+    });
+
+    return health;
+  }, [clients, latestOrderByClient]);
 
   // Quote counts loaded per-client in ClientDetail; sidebar shows 0 as placeholder
   const quoteCountMap = useMemo(() => ({} as Record<string, number>), []);
@@ -2011,6 +2083,7 @@ export function ClientCRM({ clients, orders, products, loading, isDark, selected
                   isActive={c.id === selectedId}
                   orderCount={orderCountMap[c.id] || 0}
                   quoteCount={quoteCountMap[c.id] || 0}
+                  health={listHealthMap[c.id] ?? { score: null, tone: "gray", tooltip: "Sin actividad" }}
                   onClick={() => setSelectedId(c.id === selectedId ? null : c.id)}
                 />
                 {/* Activate / deactivate quick action */}

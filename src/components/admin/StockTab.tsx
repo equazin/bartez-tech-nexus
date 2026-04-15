@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { backend, hasBackendUrl } from "@/lib/api/backend";
 import {
   AlertTriangle,
   Building,
@@ -145,6 +146,26 @@ export function StockTab({ isDark: _isDark = true }: Props) {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [whStocks, setWhStocks] = useState<Record<number, WarehouseStock[]>>({});
   const [loadingWh, setLoadingWh] = useState<number | null>(null);
+  const [adjustDelta, setAdjustDelta] = useState<Record<number, string>>({});
+  const [adjustReason, setAdjustReason] = useState<Record<number, string>>({});
+  const [adjustingId, setAdjustingId] = useState<number | null>(null);
+
+  async function handleAdjustStock(productId: number) {
+    const delta = Number(adjustDelta[productId] ?? "");
+    if (!hasBackendUrl || isNaN(delta) || delta === 0) return;
+    setAdjustingId(productId);
+    try {
+      await backend.products.adjustStock(productId, {
+        delta,
+        reason: adjustReason[productId]?.trim() || undefined,
+      });
+      setAdjustDelta((prev) => ({ ...prev, [productId]: "" }));
+      setAdjustReason((prev) => ({ ...prev, [productId]: "" }));
+      await fetchProducts();
+    } finally {
+      setAdjustingId(null);
+    }
+  }
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -434,6 +455,39 @@ export function StockTab({ isDark: _isDark = true }: Props) {
 
                 {isExpanded && viewMode === "suppliers" ? (
                   <div className="space-y-3 border-t border-border/70 bg-surface/60 px-4 py-3">
+                    {/* Stock adjustment panel — only shown when backend is available */}
+                    {hasBackendUrl && (
+                      <div className="flex items-end gap-2 rounded-xl border border-border/70 bg-card px-3 py-2">
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Ajuste directo</p>
+                          <input
+                            type="number"
+                            placeholder="Delta (ej. +10 o -5)"
+                            value={adjustDelta[product.id] ?? ""}
+                            onChange={(e) => setAdjustDelta((prev) => ({ ...prev, [product.id]: e.target.value }))}
+                            className="h-8 w-28 rounded-lg border border-border/70 bg-background px-2 text-xs text-foreground outline-none focus:border-primary/40"
+                          />
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Motivo (opcional)</p>
+                          <input
+                            type="text"
+                            placeholder="Ej. ajuste inventario"
+                            value={adjustReason[product.id] ?? ""}
+                            onChange={(e) => setAdjustReason((prev) => ({ ...prev, [product.id]: e.target.value }))}
+                            className="h-8 w-full rounded-lg border border-border/70 bg-background px-2 text-xs text-foreground outline-none focus:border-primary/40"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          disabled={adjustingId === product.id || !adjustDelta[product.id] || Number(adjustDelta[product.id]) === 0}
+                          onClick={() => void handleAdjustStock(product.id)}
+                          className="flex h-8 items-center gap-1 rounded-lg bg-primary/10 px-3 text-xs font-semibold text-primary transition hover:bg-primary/20 disabled:opacity-40"
+                        >
+                          <Save size={11} /> Aplicar
+                        </button>
+                      </div>
+                    )}
                     {loadingSources === product.id ? (
                       <div className="text-xs text-muted-foreground">Cargando proveedores...</div>
                     ) : productSources.length === 0 ? (

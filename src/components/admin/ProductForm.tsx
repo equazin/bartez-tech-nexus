@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, KeyboardEvent } from "react";
 import { isValidImageMime } from "@/lib/validateImageMime";
 import { Product } from "@/models/products";
 import { supabase } from "@/lib/supabase";
+import { backend, hasBackendUrl } from "@/lib/api/backend";
 import { storageUrl, PRODUCTS_BUCKET } from "@/lib/constants";
 import {
   Upload, X, Plus,
@@ -304,13 +305,33 @@ export default function ProductForm({ onAdd, isDark = true, brands = [] }: { onA
       external_id:         externalId.trim() || null,
     };
 
-    const { data, error: sbError } = await supabase
-      .from("products").insert([payload]).select().single();
+    let created: Product;
+    if (hasBackendUrl) {
+      try {
+        const row = await backend.products.create(payload as Record<string, unknown>);
+        created = {
+          ...payload,
+          id: row.id,
+          image: row.image ?? payload.image,
+          cost_price: row.cost ?? Number(payload.cost_price),
+          stock: row.stock,
+          active: row.active,
+        } as Product;
+      } catch (err: unknown) {
+        setSaving(false);
+        setErrors({ _: err instanceof Error ? err.message : "Error al crear producto" });
+        return;
+      }
+    } else {
+      const { data, error: sbError } = await supabase
+        .from("products").insert([payload]).select().single();
+      setSaving(false);
+      if (sbError) { setErrors({ _: sbError.message }); return; }
+      created = data as Product;
+    }
 
     setSaving(false);
-    if (sbError) { setErrors({ _: sbError.message }); return; }
-
-    onAdd(data as Product);
+    onAdd(created);
     resetForm();
     setSuccess(true);
     setTimeout(() => setSuccess(false), 3000);
@@ -529,7 +550,7 @@ export default function ProductForm({ onAdd, isDark = true, brands = [] }: { onA
             <BarChart2 size={14} className="text-[#2D9F6A] shrink-0" />
             <span className="text-gray-400">Costo base</span>
             <span className="font-mono text-white">${Number(costPrice).toLocaleString("es-AR")}</span>
-            <span className="text-gray-600">Ã-{supplierMult}</span>
+            <span className="text-gray-600">ï¿½-{supplierMult}</span>
             <span className="text-gray-400">=</span>
             <span className="font-mono text-[#2D9F6A] font-bold">${Number(adjustedCost).toLocaleString("es-AR")}</span>
             <span className="text-gray-500 ml-auto">costo ajustado (referencia)</span>

@@ -90,13 +90,6 @@ export function AdminLayout({
         </div>
 
         <div className="flex flex-1 overflow-hidden">
-          {mobileSidebarOpen && (
-            <div
-              className="fixed inset-0 z-20 bg-black/30 backdrop-blur-sm md:hidden"
-              onClick={onToggleMobileSidebar}
-            />
-          )}
-
           <aside
             className={`hidden shrink-0 overflow-hidden border-r border-border/70 bg-card/65 transition-all duration-200 md:flex md:flex-col ${sidebarCollapsed ? "w-[82px]" : "w-[286px]"}`}
           >
@@ -113,9 +106,7 @@ export function AdminLayout({
             />
           </aside>
 
-          <aside
-            className={`fixed left-0 top-0 z-30 flex h-full w-[286px] flex-col border-r border-border/70 bg-card/95 transition-transform duration-200 md:hidden ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
-          >
+          <div className="md:hidden">
             <AdminSidebar
               activeTab={activeTab}
               activeModule={activeModule}
@@ -123,15 +114,21 @@ export function AdminLayout({
               isDark={isDark}
               collapsed={false}
               mobile
+              mobileOpen={mobileSidebarOpen}
+              onMobileOpenChange={(open) => {
+                if (open !== mobileSidebarOpen) {
+                  onToggleMobileSidebar();
+                }
+              }}
               onNavigateTab={(tab) => {
                 onNavigateTab(tab);
-                onToggleMobileSidebar();
+                if (mobileSidebarOpen) onToggleMobileSidebar();
               }}
               onNavigateModule={onNavigateModule}
               onToggleCollapse={onToggleSidebar}
               canSeeItem={canSeeItem}
             />
-          </aside>
+          </div>
 
           <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-transparent px-4 py-5 md:px-6 md:py-6 lg:px-7 lg:py-7">
             <div className="mx-auto flex w-full max-w-[1760px] flex-col gap-6">{children}</div>

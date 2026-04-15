@@ -8,7 +8,6 @@ interface FeaturedProduct {
   id: number;
   name: string;
   sku: string | null;
-  unit_price: number | null;
   image: string | null;
   brand_name: string | null;
   category: string | null;
@@ -19,8 +18,8 @@ export default function FeaturedProducts() {
 
   useEffect(() => {
     supabase
-      .from("products")
-      .select("id, name, sku, unit_price, image, brand_name, category")
+      .from("portal_products")
+      .select("id, name, sku, image, brand_name, category")
       .eq("active", true)
       .eq("featured", true)
       .limit(6)

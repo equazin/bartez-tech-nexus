@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MetricCard } from "@/components/ui/metric-card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { useCurrency } from "@/context/CurrencyContext";
 import type { PriceAgreement } from "@/hooks/usePriceAgreements";
@@ -389,6 +390,44 @@ export function ClientDashboard({
   } as const;
 
   // ── New client detection ──────────────────────────────────────────
+  const isInitialLoading = products.length === 0 && orders.length === 0;
+
+  if (isInitialLoading) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6 animate-in fade-in duration-500">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <SurfaceCard key={`metric-skeleton-${index}`} tone="subtle" padding="md" className="rounded-[22px] bg-card/95">
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-2">
+                    <Skeleton className="h-3 w-24 animate-pulse rounded-md" />
+                    <Skeleton className="h-7 w-20 animate-pulse rounded-md" />
+                  </div>
+                  <Skeleton className="h-10 w-10 animate-pulse rounded-[16px]" />
+                </div>
+                <Skeleton className="h-3 w-32 animate-pulse rounded-md" />
+              </div>
+            </SurfaceCard>
+          ))}
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, index) => (
+            <SurfaceCard key={`list-skeleton-${index}`} tone="default" padding="lg" className="space-y-3 rounded-[24px]">
+              <Skeleton className="h-4 w-40 animate-pulse rounded-md" />
+              <div className="space-y-2">
+                {Array.from({ length: 4 }).map((__, rowIndex) => (
+                  <Skeleton key={`list-skeleton-${index}-${rowIndex}`} className="h-12 w-full animate-pulse rounded-xl" />
+                ))}
+              </div>
+            </SurfaceCard>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   const isNewClient = orders.length === 0 && invoices.length === 0;
 
   if (isNewClient) {

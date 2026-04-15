@@ -7,7 +7,8 @@ Portal comercial y operativo de Bartez para venta B2B, gestion administrativa y 
 - Vite + React + TypeScript
 - Tailwind + shadcn/ui
 - Supabase para auth, datos, RPCs y RLS
-- Vercel Functions para integraciones server-side
+- `bartez-backend` para la API de negocio principal (`/v1/*`)
+- Vercel Functions solo para integraciones legacy/server-side que todavia no migraron
 - Vitest para pruebas unitarias
 
 ## Modulos principales
@@ -70,8 +71,9 @@ Las migraciones viven en [`supabase/migrations`](C:/Users/nicop/OneDrive/Documen
 ## Deploy
 
 - Frontend estatico servido en Vercel
-- `vercel.json` reescribe las rutas SPA y expone `api/*.ts`
-- Las funciones usan `maxDuration` de 30s
+- API principal servida por el repo [`bartez-backend`](https://github.com/equazin/bartez-backend)
+- `VITE_BACKEND_URL` debe apuntar al backend Fastify en cada entorno
+- `api/*.ts` queda como capa legacy para integraciones que todavia no viven en el backend separado
 
 ## Calidad actual
 

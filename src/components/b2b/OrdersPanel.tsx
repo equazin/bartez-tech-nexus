@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import type { PortalOrder } from "@/hooks/useOrders";
 import type { Invoice } from "@/lib/api/invoices";
@@ -17,6 +18,7 @@ import type { Invoice } from "@/lib/api/invoices";
 interface OrdersPanelProps {
   orders: PortalOrder[];
   invoices?: Invoice[];
+  loading?: boolean;
   formatPrice: (value: number) => string;
   formatUSD: (value: number) => string;
   formatARS: (value: number) => string;
@@ -25,6 +27,20 @@ interface OrdersPanelProps {
   onGoToCatalog: () => void;
   onGoToInvoices: () => void;
   onUpdateOrderProofs: (orderId: string | number, proofs: unknown[]) => Promise<void> | void;
+}
+
+const TRACKING_URLS: Record<string, string> = {
+  andreani: "https://seguimiento.andreani.com/envio/{n}",
+  oca: "https://www4.oca.com.ar/ocaonline/seguimiento/buscar_envio.asp?p_search={n}",
+  correo: "https://www.correoargentino.com.ar/formularios/ondnc?id={n}",
+  dhl: "https://www.dhl.com/ar-es/home/rastreo.html?tracking-id={n}",
+  fedex: "https://www.fedex.com/apps/fedextrack/?tracknumbers={n}",
+};
+
+function getTrackingUrl(provider: string, trackingNumber: string): string | null {
+  const template = TRACKING_URLS[provider.toLowerCase().trim()];
+  if (!template || !trackingNumber.trim()) return null;
+  return template.replace("{n}", encodeURIComponent(trackingNumber.trim()));
 }
 
 const DATE_RANGE_OPTIONS = [
@@ -68,6 +84,7 @@ const ORDER_STATUS_COPY: Record<string, string> = {
 export function OrdersPanel({
   orders,
   invoices = [],
+  loading = false,
   formatPrice,
   formatUSD,
   formatARS,
@@ -118,7 +135,7 @@ export function OrdersPanel({
     ];
   }, [orders, formatPrice]);
 
-  if (orders.length === 0) {
+  if (!loading && orders.length === 0) {
     return <EmptyOrdersState onGoToCatalog={onGoToCatalog} />;
   }
 
@@ -160,7 +177,26 @@ export function OrdersPanel({
         </div>
       </SurfaceCard>
 
-      {filteredOrders.length === 0 ? (
+      {loading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <SurfaceCard key={`orders-skeleton-${index}`} tone="default" padding="none" className="overflow-hidden rounded-[24px] border border-border/70 bg-card shadow-sm">
+              <div className="px-5 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="min-w-0 space-y-2">
+                    <Skeleton className="h-3 w-36 animate-pulse rounded-md" />
+                    <Skeleton className="h-3 w-48 animate-pulse rounded-md" />
+                  </div>
+                  <div className="space-y-2 text-right">
+                    <Skeleton className="h-5 w-28 animate-pulse rounded-md" />
+                    <Skeleton className="h-3 w-20 animate-pulse rounded-md" />
+                  </div>
+                </div>
+              </div>
+            </SurfaceCard>
+          ))}
+        </div>
+      ) : filteredOrders.length === 0 ? (
         <EmptyState title="No encontramos pedidos con esos filtros" icon={<Search size={18} />} className="rounded-[24px] border border-border/70 bg-card py-16" />
       ) : (
         <div className="space-y-3">
@@ -241,9 +277,9 @@ export function OrdersPanel({
                                 <Copy size={10} />
                               </Button>
                             </div>
-                            {order.shipping_provider && ["andreani", "oca"].includes(order.shipping_provider) ? (
+                            {getTrackingUrl(order.shipping_provider ?? "", order.tracking_number ?? "") ? (
                               <a
-                                href={order.shipping_provider === "andreani" ? `https://seguimiento.andreani.com/envio/${order.tracking_number}` : `https://www4.oca.com.ar/ocaonline/seguimiento/buscar_envio.asp?p_search=${order.tracking_number}`}
+                                href={getTrackingUrl(order.shipping_provider ?? "", order.tracking_number ?? "") ?? "#"}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-[11px] font-semibold text-primary-foreground transition hover:bg-primary/90"

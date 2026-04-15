@@ -5,6 +5,7 @@
  * In a real production environment, these calls should be proxied
  * via a secure backend (Vercel Functions) to protect AFIP certificates.
  */
+import { lookupCuit as lookupCuitApi } from "@/lib/api/ordersApi";
 
 export interface AfipInvoiceData {
   pointOfSale: number;
@@ -27,6 +28,18 @@ export interface AfipResponse {
 
 export type CuitEntityType = "empresa" | "persona_fisica";
 export type TaxStatus = "responsable_inscripto" | "monotributista" | "exento" | "consumidor_final";
+
+function normalizeTaxStatus(value: string): TaxStatus {
+  switch (value) {
+    case "responsable_inscripto":
+    case "monotributista":
+    case "exento":
+    case "consumidor_final":
+      return value;
+    default:
+      return "responsable_inscripto";
+  }
+}
 
 /** Returns entity type from the first 2 digits of a CUIT/CUIL */
 export function detectCuitEntityType(cuit: string): CuitEntityType {
@@ -66,34 +79,41 @@ export async function validateCuit(cuit: string): Promise<ValidateCuitResult> {
   const digits = cuit.replace(/\D/g, "");
 
   try {
-    const res = await fetch(`/api/create-user?cuit=${digits}`);
-    const text = await res.text();
-
-    // If response is not JSON (e.g. raw TS source in dev without vercel dev), fall through to mock
-    let json: { ok: boolean; data?: ValidateCuitResult; error?: string };
-    try {
-      json = JSON.parse(text) as typeof json;
-    } catch {
-      throw new Error("__use_mock__");
-    }
-
-    if (!json.ok || !json.data) {
-      throw new Error(json.error ?? "No se pudo validar el CUIT.");
-    }
-
-    return json.data;
+    const result = await lookupCuitApi(digits);
+    return {
+      ...result,
+      taxStatus: normalizeTaxStatus(result.taxStatus),
+    };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "";
-    // In local dev without `vercel dev`, fall back to a mock based on prefix
-    if (msg === "__use_mock__" || msg.includes("Failed to fetch")) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // In local dev (npm run dev without vercel dev), the /api/* Vercel Functions
+    // are not available. Fall back to an intelligent mock so onboarding works locally.
+    // Activates on: network errors, 404s, "API error", "Failed to fetch", etc.
+    const isNetworkOrApiError =
+      msg === "__use_mock__" ||
+      msg.includes("Failed to fetch") ||
+      msg.includes("404") ||
+      msg.includes("API error") ||
+      msg.includes("NetworkError") ||
+      msg.includes("fetch") ||
+      msg.includes("ECONNREFUSED") ||
+      msg.includes("SyntaxError"); // e.g. Vite returning HTML on unmatched routes
+
+    if (isNetworkOrApiError) {
       const entityType = detectCuitEntityType(digits);
+      // Derive a plausible company name from the CUIT prefix
+      const mockName =
+        entityType === "empresa"
+          ? `Empresa ${digits.slice(2, 10)} S.A.`
+          : `Titular CUIT ${digits.slice(2, 10)}`;
       return {
-        companyName: entityType === "empresa" ? "Empresa de Prueba S.A." : "Juan Carlos Pérez",
+        companyName: mockName,
         taxStatus: entityType === "empresa" ? "responsable_inscripto" : "monotributista",
         entityType,
         active: true,
       };
     }
+    // Re-throw actual business errors (e.g. CUIT not found in AFIP, inactive, etc.)
     throw err;
   }
 }

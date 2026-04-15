@@ -27,6 +27,7 @@ interface RowDataProps {
   toggleCompare: (id: number) => void;
   setSelectedProduct: (p: Product | null) => void;
   isPosProduct: (p: Product) => boolean;
+  onAddToList?: (product: Product) => void;
 }
 
 interface RowProps extends RowDataProps {
@@ -53,6 +54,7 @@ function Row({
   toggleCompare,
   setSelectedProduct,
   isPosProduct,
+  onAddToList,
   ariaAttributes,
 }: RowProps) {
   const product = products[index];
@@ -86,6 +88,7 @@ function Row({
             ? ((price.unitPrice - latestPurchaseUnitPrice[product.id]) / latestPurchaseUnitPrice[product.id]) * 100
             : 0
         }
+        onAddToList={onAddToList}
       />
     </div>
   );
@@ -109,6 +112,7 @@ export interface VirtualizedProductListProps {
   isPosProduct: (p: Product) => boolean;
   onLoadMore?: () => void;
   hasMore?: boolean;
+  onAddToList?: (product: Product) => void;
 }
 
 export function VirtualizedProductList({

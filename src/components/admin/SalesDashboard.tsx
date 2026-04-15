@@ -28,6 +28,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { OperationalAlerts } from "@/components/admin/OperationalAlerts";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface SupabaseOrder {
@@ -288,6 +289,23 @@ function QuoteStatusBreakdown({ quotes, isDark }: { quotes: Quote[]; isDark: boo
   }, [quotes]);
 
   const statuses: QuoteStatus[] = ["draft", "sent", "viewed", "approved", "rejected", "expired"];
+  const conversionSummary = useMemo(() => {
+    if (total === 0) return null;
+    const converted = quotes.filter((quote) => quote.status === "approved").length;
+    return {
+      converted,
+      total,
+      rate: Math.round((converted / total) * 100),
+    };
+  }, [quotes, total]);
+  const conversionTone =
+    conversionSummary == null
+      ? "text-muted-foreground"
+      : conversionSummary.rate > 40
+        ? "text-emerald-500"
+        : conversionSummary.rate >= 20
+          ? "text-amber-500"
+          : "text-red-500";
 
   return (
     <div className={`${DASHBOARD_PANEL} flex flex-col gap-4 p-6`}>
@@ -327,6 +345,17 @@ function QuoteStatusBreakdown({ quotes, isDark }: { quotes: Quote[]; isDark: boo
               </div>
             );
           })}
+        </div>
+      )}
+
+      {conversionSummary && (
+        <div className="rounded-[20px] border border-border/70 bg-accent/20 px-4 py-3">
+          <p className={`text-xl font-extrabold tabular-nums ${conversionTone}`}>
+            {conversionSummary.rate}% de conversion
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {conversionSummary.converted} de {conversionSummary.total} cotizaciones se convirtieron en pedido
+          </p>
         </div>
       )}
     </div>
@@ -749,6 +778,93 @@ function ProfitabilityPanel({
             </div>
           ))
         )}
+      </div>
+    </div>
+  );
+}
+
+function ClientsProfitabilityPanel({
+  orders,
+  clients,
+}: {
+  orders: SupabaseOrder[];
+  clients: ClientProfile[];
+}) {
+  const { formatPrice } = useCurrency();
+
+  const rows = useMemo(() => {
+    const clientNameMap = new Map<string, string>();
+    clients.forEach((client) => {
+      clientNameMap.set(client.id, client.company_name || client.contact_name || client.id);
+    });
+
+    const byClient = new Map<
+      string,
+      { name: string; orderCount: number; revenue: number; grossProfit: number }
+    >();
+
+    orders.forEach((order) => {
+      const metrics = calculateOrderProfitability(order);
+      if (metrics.cost <= 0) return;
+
+      const existing = byClient.get(order.client_id) ?? {
+        name: clientNameMap.get(order.client_id) || order.client_id,
+        orderCount: 0,
+        revenue: 0,
+        grossProfit: 0,
+      };
+
+      existing.orderCount += 1;
+      existing.revenue += metrics.revenue;
+      existing.grossProfit += metrics.grossProfit;
+      byClient.set(order.client_id, existing);
+    });
+
+    return Array.from(byClient.values())
+      .filter((item) => item.orderCount >= 2)
+      .map((item) => ({
+        ...item,
+        marginPct: item.revenue > 0 ? (item.grossProfit / item.revenue) * 100 : 0,
+      }))
+      .sort((left, right) => right.grossProfit - left.grossProfit)
+      .slice(0, 5);
+  }, [clients, orders]);
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={`${DASHBOARD_PANEL} overflow-hidden`}>
+      <div className={DASHBOARD_PANEL_HEADER}>
+        <h3 className="text-sm font-semibold text-foreground">Clientes por rentabilidad</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Top 5 por margen bruto acumulado (solo clientes con al menos 2 pedidos con costo).
+        </p>
+      </div>
+      <div className="overflow-x-auto px-6 py-4">
+        <table className="w-full min-w-[680px] text-sm">
+          <thead>
+            <tr className="border-b border-border/70">
+              <th className="pb-2 text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Cliente</th>
+              <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Pedidos</th>
+              <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Facturado</th>
+              <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Margen bruto</th>
+              <th className="pb-2 text-right text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Margen %</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.name} className="border-b border-border/50">
+                <td className="py-2.5 text-xs font-medium text-foreground">{row.name}</td>
+                <td className="py-2.5 text-right text-xs tabular-nums text-muted-foreground">{row.orderCount}</td>
+                <td className="py-2.5 text-right text-xs font-semibold tabular-nums text-foreground">{formatPrice(row.revenue)}</td>
+                <td className="py-2.5 text-right text-xs font-semibold tabular-nums text-primary">{formatPrice(row.grossProfit)}</td>
+                <td className="py-2.5 text-right text-xs font-semibold tabular-nums text-muted-foreground">{row.marginPct.toFixed(1)}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -1919,6 +2035,12 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders, onOpe
   return (
     <div className="space-y-6">
 
+      <OperationalAlerts
+        orders={orders}
+        products={productRows}
+        onNavigate={onOpenTab}
+      />
+
       {/* ── Atención inmediata ── */}
       <FocusBar items={focusItems} onOpenTab={onOpenTab} />
 
@@ -2060,6 +2182,8 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders, onOpe
         <CommercialTasksPanel tasks={commercialTasks} isDark={isDark} />
         <ProfitabilityPanel orders={approvedOrders} isDark={isDark} />
       </div>
+
+      <ClientsProfitabilityPanel orders={approvedOrders} clients={clients} />
 
       {/* ── Charts row ── */}
       <div className="grid lg:grid-cols-2 gap-4">

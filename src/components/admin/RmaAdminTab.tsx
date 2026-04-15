@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
-import { updateRmaApi } from "@/lib/api/ordersApi";
+import { backend } from "@/lib/api/backend";
 import { CheckCircle2, XCircle, Clock, RefreshCw, ChevronDown, ChevronUp, Package } from "lucide-react";
 import type { RmaRequest, RmaStatus, RmaResolution } from "@/hooks/useRma";
 
@@ -60,36 +59,19 @@ export function RmaAdminTab({ isDark = true }: RmaAdminTabProps) {
 
   const fetchRmas = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("rma_requests")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (!data) { setLoading(false); return; }
-
-    // Enrich with client names and order numbers
-    const clientIds = [...new Set(data.map((r: RmaRequest) => r.client_id))];
-    const orderIds  = [...new Set(data.map((r: RmaRequest) => r.order_id))];
-
-    const [{ data: profiles }, { data: orders }] = await Promise.all([
-      supabase.from("profiles").select("id, company_name, contact_name").in("id", clientIds),
-      supabase.from("orders").select("id, order_number").in("id", orderIds),
-    ]);
-
-    const clientMap: Record<string, string> = {};
-    (profiles ?? []).forEach((p: { id: string; company_name?: string; contact_name?: string }) => {
-      clientMap[p.id] = p.company_name || p.contact_name || p.id;
-    });
-    const orderMap: Record<string, string> = {};
-    (orders ?? []).forEach((o: { id: string; order_number?: string }) => {
-      orderMap[String(o.id)] = o.order_number || String(o.id);
-    });
-
-    setRmas(data.map((r: RmaRequest) => ({
-      ...r,
-      client_name:  clientMap[r.client_id] ?? r.client_id,
-      order_number: orderMap[String(r.order_id)] ?? String(r.order_id),
-    })));
+    try {
+      const { items } = await backend.rma.list();
+      setRmas(
+        items.map((r) => ({
+          ...r,
+          // Backend may include enrichment; fall back to IDs if not
+          client_name:  (r.client_name ?? r.client_id) as string,
+          order_number: (r.order_number ?? String(r.order_id)) as string,
+        })) as unknown as RmaWithClient[],
+      );
+    } catch {
+      // Silencioso — no bloquear si el backend no está disponible todavía
+    }
     setLoading(false);
   }, []);
 
@@ -99,24 +81,26 @@ export function RmaAdminTab({ isDark = true }: RmaAdminTabProps) {
     setActionLoading(rma.id);
     const form = resolutionForm[rma.id];
     try {
-      await updateRmaApi({
-        id: rma.id,
+      await backend.rma.update(String(rma.id), {
         status: newStatus,
         ...(form?.type  ? { resolution_type:  form.type  } : {}),
         ...(form?.notes ? { resolution_notes: form.notes } : {}),
       });
       const now = new Date().toISOString();
-      setRmas((prev) => prev.map((r) => r.id === rma.id
-        ? {
-            ...r,
-            status:           newStatus,
-            updated_at:       now,
-            ...(form?.type  ? { resolution_type:  form.type  } : {}),
-            ...(form?.notes ? { resolution_notes: form.notes } : {}),
-            ...(newStatus === "resolved" ? { resolved_at: now } : {}),
-          }
-        : r
-      ));
+      setRmas((prev) =>
+        prev.map((r) =>
+          r.id === rma.id
+            ? {
+                ...r,
+                status:     newStatus,
+                updated_at: now,
+                ...(form?.type  ? { resolution_type:  form.type  } : {}),
+                ...(form?.notes ? { resolution_notes: form.notes } : {}),
+                ...(newStatus === "resolved" ? { resolved_at: now } : {}),
+              }
+            : r,
+        ),
+      );
     } catch {
       // Error silencioso — el estado visual no se actualiza si falla
     }
