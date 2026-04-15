@@ -67,7 +67,50 @@ export interface CheckoutInput {
   shipping_cost?: number | null;
 }
 
-const backendBaseUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined)?.trim().replace(/\/+$/, "") ?? "";
+function normalizeBackendBaseUrl(value: string | undefined): string {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return "";
+
+  const lowered = trimmed.toLowerCase();
+  if (lowered === "undefined" || lowered === "null") return "";
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed.replace(/\/+$/, "");
+  }
+
+  if (trimmed.startsWith("/")) {
+    return trimmed === "/" ? "/" : trimmed.replace(/\/+$/, "");
+  }
+
+  return "";
+}
+
+function joinUrlParts(base: string, path: string): string {
+  if (base === "/") {
+    return path.startsWith("/") ? path : `/${path}`;
+  }
+  if (base.endsWith("/") && path.startsWith("/")) {
+    return `${base.slice(0, -1)}${path}`;
+  }
+  if (!base.endsWith("/") && !path.startsWith("/")) {
+    return `${base}/${path}`;
+  }
+  return `${base}${path}`;
+}
+
+function buildQueryString(query?: BackendQueryParams): string {
+  if (!query) return "";
+
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== null && value !== undefined) {
+      params.set(key, String(value));
+    }
+  }
+  return params.toString();
+}
+
+const backendBaseUrl = normalizeBackendBaseUrl(import.meta.env.VITE_BACKEND_URL as string | undefined);
 export const hasBackendUrl = backendBaseUrl.length > 0;
 
 type BackendQueryValue = string | number | boolean | null | undefined;
@@ -136,17 +179,22 @@ function buildUrl(path: string, query?: BackendQueryParams): string {
   }
 
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const url = new URL(`${backendBaseUrl}${normalizedPath}`);
+  const queryString = buildQueryString(query);
 
-  if (query) {
-    for (const [key, value] of Object.entries(query)) {
-      if (value !== null && value !== undefined) {
-        url.searchParams.set(key, String(value));
-      }
-    }
+  if (backendBaseUrl.startsWith("/")) {
+    const relativeUrl = joinUrlParts(backendBaseUrl, normalizedPath);
+    return queryString ? `${relativeUrl}?${queryString}` : relativeUrl;
   }
 
-  return url.toString();
+  try {
+    const url = new URL(joinUrlParts(backendBaseUrl, normalizedPath));
+    if (queryString) {
+      url.search = queryString;
+    }
+    return url.toString();
+  } catch {
+    throw new BackendError(0, "VITE_BACKEND_URL no es valida. Usa https://... o /api.");
+  }
 }
 
 async function getAccessToken(authMode: BackendFetchOptions["auth"]): Promise<string | null> {
