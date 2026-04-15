@@ -11,6 +11,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SurfaceCard } from "@/components/ui/surface-card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // Quote lifecycle stepper ------------------------------------------------------
 
@@ -171,6 +181,8 @@ export function QuoteList({ quotes, isDark: _isDark, onLoad, onUpdateStatus, onD
   void _isDark;
   const { formatPrice, currency, formatUSD, formatARS } = useCurrency();
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [quoteToDelete, setQuoteToDelete] = useState<Quote | null>(null);
+  const [quoteToReject, setQuoteToReject] = useState<Quote | null>(null);
 
   function toggle(id: number) {
     setExpanded((prev) => toggleSetValue(prev, id));
@@ -230,7 +242,16 @@ export function QuoteList({ quotes, isDark: _isDark, onLoad, onUpdateStatus, onD
 
               <div className="flex flex-wrap items-center justify-end gap-1.5">
                 <span className="mr-1 hidden text-lg font-bold tabular-nums text-primary sm:block">{formatPrice(quote.total)}</span>
-                <StatusDropdown current={quote.status} onSelect={(status) => onUpdateStatus(quote.id, status)} />
+                <StatusDropdown
+                  current={quote.status}
+                  onSelect={(status) => {
+                    if (status === "rejected" && quote.status !== "rejected") {
+                      setQuoteToReject(quote);
+                      return;
+                    }
+                    onUpdateStatus(quote.id, status);
+                  }}
+                />
                 <Button type="button" variant="toolbar" size="sm" className="h-8 rounded-xl text-[11px]" onClick={() => onLoad(quote)}>
                   <RotateCcw size={10} /> Reutilizar
                 </Button>
@@ -244,7 +265,7 @@ export function QuoteList({ quotes, isDark: _isDark, onLoad, onUpdateStatus, onD
                     <ShoppingBag size={10} /> Pedido
                   </Button>
                 ) : null}
-                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={() => onDelete(quote.id)}>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={() => setQuoteToDelete(quote)}>
                   <Trash2 size={13} />
                 </Button>
               </div>
@@ -283,6 +304,53 @@ export function QuoteList({ quotes, isDark: _isDark, onLoad, onUpdateStatus, onD
           </SurfaceCard>
         );
       })}
+      <AlertDialog open={quoteToDelete != null} onOpenChange={(open) => { if (!open) setQuoteToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar cotización</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Seguro que querés eliminar esta cotización? No se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (!quoteToDelete) return;
+                onDelete(quoteToDelete.id);
+                setQuoteToDelete(null);
+              }}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={quoteToReject != null} onOpenChange={(open) => { if (!open) setQuoteToReject(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Marcar como rechazada?</AlertDialogTitle>
+            <AlertDialogDescription>
+              No podrás convertirla en pedido.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (!quoteToReject) return;
+                onUpdateStatus(quoteToReject.id, "rejected");
+                setQuoteToReject(null);
+              }}
+            >
+              Marcar rechazada
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -9,23 +9,17 @@ import { Input } from "@/components/ui/input";
 import Layout from "@/components/Layout";
 import SectionHeading from "@/components/SectionHeading";
 import EnterpriseCTA from "@/components/EnterpriseCTA";
+import { fetchPublicProducts } from "@/lib/api/productsApi";
 
 interface PublicProduct {
   id: number;
   name: string;
-  category: string;
+  category: string | null;
   sku: string | null;
   image: string | null;
   active: boolean;
   stock: number;
   brand: string | null;
-}
-
-interface ProductsResponse {
-  items: PublicProduct[];
-  total: number;
-  limit: number;
-  offset: number;
 }
 
 const PAGE_SIZE = 48;
@@ -56,20 +50,16 @@ const Products = () => {
     let cancelled = false;
     setLoading(true);
 
-    const params = new URLSearchParams({
-      public: "true",
-      active: "true",
-      limit: String(PAGE_SIZE),
-      offset: String((page - 1) * PAGE_SIZE),
-    });
-    if (debouncedSearch) params.set("search", debouncedSearch);
-
-    fetch(`/api/products?${params.toString()}`)
-      .then((r) => r.json())
-      .then((json: { ok: boolean; data: ProductsResponse }) => {
-        if (!cancelled && json.ok) {
-          setProducts(json.data.items);
-          setTotal(json.data.total);
+    void fetchPublicProducts({
+      active: true,
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
+      ...(debouncedSearch ? { search: debouncedSearch } : {}),
+    })
+      .then((data) => {
+        if (!cancelled) {
+          setProducts(data.items);
+          setTotal(data.total);
         }
       })
       .catch(() => {/* non-blocking */})
@@ -201,7 +191,7 @@ const Products = () => {
                     {product.sku && (
                       <p className="text-[10px] text-muted-foreground/70">SKU: {product.sku}</p>
                     )}
-                    <p className="text-[10px] text-muted-foreground">{product.category}</p>
+                    <p className="text-[10px] text-muted-foreground">{product.category ?? "Sin categoria"}</p>
                   </div>
 
                   {/* Price lock overlay */}

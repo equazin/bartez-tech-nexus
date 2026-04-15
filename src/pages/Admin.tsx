@@ -12,6 +12,8 @@ import { useNavigate } from "react-router-dom";
 import { useCurrency } from "@/context/CurrencyContext";
 import { OrderStatusBadge as StatusBadge } from "@/components/OrderStatusBadge";
 import { toggleSetValue } from "@/lib/toggleSet";
+import { calculateOrderProfitability } from "@/lib/commercialOps";
+import { buildPcCatalogEntries } from "@/lib/pcBuilder";
 import {
   CheckCircle2, XCircle, Clock, Trash2, RefreshCw, Save, Sparkles,
   Users, Package, ClipboardList, LogOut, UserPlus, X, Plus,
@@ -20,7 +22,7 @@ import {
   Layers, FileText, History, CreditCard, MessageSquare, ShoppingBag, Image, LifeBuoy, Ticket, Globe, RotateCcw, Handshake, ShieldCheck, Bell, PackageCheck, type LucideIcon,
 } from "lucide-react";
 import { exportOrdersCSV, exportCatalogCSV, exportReportsCSV } from "@/lib/exportCsv";
-import { patchProfile } from "@/lib/api/ordersApi";
+import { backend, BackendError, hasBackendUrl, type BackendProduct } from "@/lib/api/backend";
 import { exportCatalogPdf, exportRemitoPdf } from "@/lib/exportPdf";
 import { useOrdersRealtime } from "@/hooks/useOrdersRealtime";
 import { SupplierPriceImport } from "@/components/admin/SupplierPriceImport";
@@ -71,6 +73,7 @@ const BusinessAlertsTab = lazy(() => import("@/components/admin/BusinessAlertsTa
 const RmaAdminTab = lazy(() => import("@/components/admin/RmaAdminTab").then(m => ({ default: m.RmaAdminTab })));
 const PriceAgreementsTab = lazy(() => import("@/components/admin/PriceAgreementsTab").then(m => ({ default: m.PriceAgreementsTab })));
 const SerialsTab = lazy(() => import("@/components/admin/SerialsTab").then(m => ({ default: m.SerialsTab })));
+const PcBuilderSpecsTab = lazy(() => import("@/components/admin/PcBuilderSpecsTab").then(m => ({ default: m.PcBuilderSpecsTab })));
 import {
   fetchProductsForContent,
   processProductContent,
@@ -186,34 +189,47 @@ function normalizePhoneForSupabase(rawPhone: string): string {
   return digits;
 }
 
-async function readApiResponse(response: Response): Promise<{ ok?: boolean; error?: string }> {
-  const raw = await response.text();
-  if (!raw) return { ok: response.ok, error: response.ok ? undefined : "Respuesta vacia del servidor." };
-  try {
-    return JSON.parse(raw) as { ok?: boolean; error?: string };
-  } catch {
-    return { ok: response.ok, error: raw };
-  }
+function normalizeBackendSpecs(
+  specs: unknown,
+): Record<string, string> | undefined {
+  if (!specs || typeof specs !== "object" || Array.isArray(specs)) return undefined;
+  const normalized: Record<string, string> = {};
+  Object.entries(specs as Record<string, unknown>).forEach(([key, rawValue]) => {
+    if (!key) return;
+    if (rawValue === null || rawValue === undefined) return;
+    normalized[key] = String(rawValue);
+  });
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
-function LegacyStatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; icon: LucideIcon; className: string }> = {
-    pending:    { label: "En revisión", icon: Clock,        className: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" },
-    approved:   { label: "Aprobado",    icon: CheckCircle2, className: "bg-green-500/15 text-green-400 border-green-500/30" },
-    preparing:  { label: "Preparando", icon: Package,      className: "bg-orange-500/15 text-orange-400 border-orange-500/30" },
-    shipped:    { label: "Enviado",     icon: Truck,        className: "bg-indigo-500/15 text-indigo-400 border-indigo-500/30" },
-    delivered:  { label: "Entregado",  icon: CheckCircle2, className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
-    rejected:   { label: "Rechazado",  icon: XCircle,      className: "bg-red-500/15 text-red-400 border-red-500/30" },
-    dispatched: { label: "Despachado", icon: Truck,        className: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
-    picked:     { label: "Pickeado (Andreani)", icon: PackageCheck, className: "bg-purple-500/15 text-purple-400 border-purple-500/30" },
+function backendProductToProduct(row: BackendProduct): Product {
+  return {
+    id: row.id,
+    name: row.name,
+    name_original: row.name_original ?? undefined,
+    name_custom: row.name_custom ?? undefined,
+    description: row.description ?? "",
+    image: row.image ?? row.images?.[0] ?? "/placeholder.png",
+    cost_price: row.cost ?? undefined,
+    category: row.category ?? "General",
+    stock: row.stock,
+    sku: row.sku ?? undefined,
+    stock_min: row.stock_min ?? undefined,
+    stock_reserved: row.stock_reserved ?? undefined,
+    active: row.active,
+    iva_rate: row.iva_rate ?? undefined,
+    special_price: row.special_price,
+    min_order_qty: row.min_order_qty ?? undefined,
+    supplier_id: row.supplier_id ?? undefined,
+    primary_supplier_id: row.primary_supplier_id ?? undefined,
+    supplier_name: row.supplier_name ?? undefined,
+    brand_id: row.brand_id ?? undefined,
+    brand_name: row.brand ?? undefined,
+    specs: normalizeBackendSpecs(row.specs),
   };
-  const { label, icon: Icon, className } = map[status] ?? map.pending;
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${className}`}>
-      <Icon size={11} /> {label}
-    </span>
-  );
 }
+
+const PRODUCTS_PAGE_SIZE = 100;
 
 const Admin = () => {
   const { signOut, session, isAdmin, canManageProducts, canManageOrders } = useAuth();
@@ -240,6 +256,7 @@ const Admin = () => {
   }
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [productsTotal, setProductsTotal] = useState(0);
   const [productApiSources, setProductApiSources] = useState<Record<number, Array<"AIR" | "ELIT">>>({});
   const [orders, setOrders] = useState<SupabaseOrder[]>([]);
   const [clients, setClients] = useState<ClientProfile[]>([]);
@@ -413,6 +430,19 @@ const Admin = () => {
 
   async function fetchProducts() {
     setLoadingProducts(true);
+    if (hasBackendUrl) {
+      try {
+        const { items, meta } = await backend.products.list({ limit: PRODUCTS_PAGE_SIZE, offset: 0 });
+        setProducts(items.map(backendProductToProduct));
+        setProductsTotal(meta.count);
+      } catch {
+        setProducts([]);
+      }
+      await fetchProductApiSources();
+      setLoadingProducts(false);
+      return;
+    }
+    // Fallback: Supabase con loop de paginación
     const PAGE = 1000;
     const all: Product[] = [];
     let from = 0;
@@ -1124,42 +1154,16 @@ async function handleCreateClient() {
 
     setCreatingClient(true);
 
-    // Get current admin session token to authenticate the request
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      setCreateError("Sesión expirada. Volvé a iniciar sesión.");
-      return;
-    }
-
-    const response = await fetch("/api/create-user", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({
-        email,
-        password,
-        company_name: newClient.company_name,
-        contact_name: newClient.contact_name,
-        client_type: newClient.client_type,
-        default_margin: Number(newClient.default_margin) || 20,
-        role: "client",
-        phone,
-      }),
+    await backend.admin.createUser({
+      email,
+      password,
+      company_name: newClient.company_name,
+      contact_name: newClient.contact_name,
+      client_type: newClient.client_type,
+      default_margin: Number(newClient.default_margin) || 20,
+      role: "client",
+      phone,
     });
-
-    const result = await readApiResponse(response);
-
-    if (!response.ok || !result.ok) {
-      const msg = result.error ?? "Error al crear el usuario.";
-      if (response.status === 409) {
-        setCreateError("El email ya está registrado.");
-      } else {
-        setCreateError(msg);
-      }
-      return;
-    }
 
     // Reset UI
     setShowNewClient(false);
@@ -1177,8 +1181,11 @@ async function handleCreateClient() {
     fetchClients();
 
   } catch (err: unknown) {
-    console.error("Error inesperado:", err);
-    setCreateError("Error inesperado al crear el cliente.");
+    if (err instanceof BackendError && err.statusCode === 409) {
+      setCreateError("El email ya está registrado.");
+    } else {
+      setCreateError(err instanceof Error ? err.message : "Error inesperado al crear el cliente.");
+    }
   } finally {
     setCreatingClient(false);
   }
@@ -1204,41 +1211,16 @@ async function handleCreateSeller() {
 
     setCreatingSeller(true);
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      setSellerCreateError("Sesión expirada. Volvé a iniciar sesión.");
-      return;
-    }
-
-    const response = await fetch("/api/create-user", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({
-        email,
-        password,
-        company_name: newSeller.company_name || newSeller.contact_name,
-        contact_name: newSeller.contact_name,
-        client_type: "reseller",
-        default_margin: 0,
-        role: "sales",
-        phone,
-      }),
+    await backend.admin.createUser({
+      email,
+      password,
+      company_name: newSeller.company_name || newSeller.contact_name,
+      contact_name: newSeller.contact_name,
+      client_type: "reseller",
+      default_margin: 0,
+      role: "sales",
+      phone,
     });
-
-    const result = await readApiResponse(response);
-
-    if (!response.ok || !result.ok) {
-      const msg = result.error ?? "Error al crear el vendedor.";
-      if (response.status === 409) {
-        setSellerCreateError("El email ya está registrado.");
-      } else {
-        setSellerCreateError(msg);
-      }
-      return;
-    }
 
     setShowNewSeller(false);
     setNewSeller({
@@ -1251,8 +1233,11 @@ async function handleCreateSeller() {
 
     fetchClients();
   } catch (err: unknown) {
-    console.error("Error inesperado:", err);
-    setSellerCreateError("Error inesperado al crear el vendedor.");
+    if (err instanceof BackendError && err.statusCode === 409) {
+      setSellerCreateError("El email ya está registrado.");
+    } else {
+      setSellerCreateError(err instanceof Error ? err.message : "Error inesperado al crear el vendedor.");
+    }
   } finally {
     setCreatingSeller(false);
   }
@@ -1281,7 +1266,7 @@ async function handleCreateSeller() {
     if (!edits) return;
     setSavingClient(id);
     try {
-      await patchProfile({ id, ...edits });
+      await backend.admin.patchProfile(id, edits);
       setClients((prev) => prev.map((c) => (c.id === id ? { ...c, ...edits } : c)));
       setEditingClients((prev) => { const { [id]: _, ...rest } = prev; return rest; });
     } finally {
@@ -1290,7 +1275,7 @@ async function handleCreateSeller() {
   }
 
   async function saveClientFields(id: string, changes: { client_type?: ClientType; default_margin?: number }) {
-    await patchProfile({ id, ...changes });
+    await backend.admin.patchProfile(id, changes);
     setClients((prev) => prev.map((c) => (c.id === id ? { ...c, ...changes } : c)));
   }
 
@@ -1302,6 +1287,11 @@ async function handleCreateSeller() {
   }
 
   async function toggleActive(product: Product) {
+    if (hasBackendUrl) {
+      await backend.products.update(product.id, { active: !product.active });
+      void fetchProducts();
+      return;
+    }
     const { error } = await supabase
       .from("products")
       .update({ active: !product.active })
@@ -1395,7 +1385,29 @@ async function handleCreateSeller() {
   }
 
   const lowStockCount = products.filter((p) => p.stock <= 3 && p.active !== false).length;
+  const incompletePcSpecsCount = useMemo(
+    () =>
+      buildPcCatalogEntries(products, { includeInactive: true, includeUnknownType: false }).filter(
+        (entry) => entry.componentType && entry.missingCritical.length > 0,
+      ).length,
+    [products],
+  );
   const groupedPendingSuggestions = []; // Cleaned up logic results in empty group
+
+  const selectedOrderProfitability = useMemo(() => {
+    if (!selectedOrder || !canManageOrders) return null;
+
+    const profitability = calculateOrderProfitability({
+      ...selectedOrder,
+      products: (selectedOrder.products ?? []).map((product) => ({
+        quantity: product.quantity,
+        total_price: product.total_price ?? product.total ?? 0,
+        cost_price: typeof product.cost_price === "number" ? product.cost_price : 0,
+      })),
+    });
+
+    return profitability.cost > 0 ? profitability : null;
+  }, [canManageOrders, selectedOrder]);
 
 
 
@@ -1421,10 +1433,11 @@ async function handleCreateSeller() {
   }
 
   const navBadges: Partial<Record<Tab, number>> = {
-    products:  products.length || undefined,
+    products:  (hasBackendUrl ? productsTotal : products.length) || undefined,
     orders:    pendingOrders   || undefined,
     clients:   customerProfiles.length || undefined,
     reports:   lowStockCount   || undefined,
+    pc_builder_specs: incompletePcSpecsCount || undefined,
   };
 
   async function handleExportAdminCatalogPdf() {
@@ -2335,6 +2348,31 @@ async function handleCreateSeller() {
                   </tbody>
                 </table>
 
+                {selectedOrderProfitability && (
+                  <div className={`mb-4 rounded-lg border px-3 py-2 ${dk("border-[#2a2a2a] bg-[#0d0d0d]", "border-[#ececec] bg-[#fafafa]")}`}>
+                    <div className={`grid grid-cols-3 gap-3 text-xs ${dk("text-[#a3a3a3]", "text-[#737373]")}`}>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide">Subtotal</p>
+                        <p className={`mt-1 font-semibold tabular-nums ${dk("text-[#d4d4d4]", "text-[#404040]")}`}>
+                          {formatPrice(selectedOrderProfitability.revenue)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide">Margen bruto</p>
+                        <p className={`mt-1 font-semibold tabular-nums ${dk("text-[#d4d4d4]", "text-[#404040]")}`}>
+                          {formatPrice(selectedOrderProfitability.grossProfit)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide">Margen %</p>
+                        <p className={`mt-1 font-semibold tabular-nums ${dk("text-[#d4d4d4]", "text-[#404040]")}`}>
+                          {selectedOrderProfitability.marginPct.toFixed(1)}%
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className={`mb-5 pt-3 border-t ${dk("border-[#333]", "border-[#e5e5e5]")}`}>
                   <div className="flex justify-between font-bold text-base">
                     <span className={dk("text-gray-400", "text-[#737373]")}>Total</span>
@@ -2804,6 +2842,15 @@ async function handleCreateSeller() {
           <PricingRulesTab isDark={isDark} categories={categoryNames} />
         )}
 
+        {/* -- ARMADOR PC -- */}
+        {activeTab === "pc_builder_specs" && (
+          <PcBuilderSpecsTab
+            products={products}
+            isDark={isDark}
+            onRefresh={fetchProducts}
+          />
+        )}
+
         {/* -- REPORTES -- */}
         {activeTab === "reports" && (
           <div className="space-y-4 max-w-5xl">
@@ -2875,6 +2922,7 @@ async function handleCreateSeller() {
 };
 
 export default Admin;
+
 
 
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Star, TrendingUp, Truck, Flame, CalendarClock, ShieldCheck } from "lucide-react";
+import { Star, TrendingUp, Truck, Flame, CalendarClock, ShieldCheck, ListPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SurfaceCard } from "@/components/ui/surface-card";
@@ -55,6 +55,7 @@ interface ProductItemProps {
   wasAdded?: boolean;
   purchaseHistoryCount?: number;
   lastPurchaseUnitPriceDelta?: number;
+  onAddToList?: (product: Product) => void;
 }
 
 export function ProductItem({
@@ -77,6 +78,7 @@ export function ProductItem({
   wasAdded,
   purchaseHistoryCount = 0,
   lastPurchaseUnitPriceDelta = 0,
+  onAddToList,
 }: ProductItemProps) {
   const available = Math.max(0, product.stock - (product.stock_reserved ?? 0));
   const outOfStock = available === 0;
@@ -260,6 +262,20 @@ export function ProductItem({
         </div>
 
         <div className="mt-auto pt-1">
+          {onAddToList ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="mb-2 h-9 w-full rounded-xl text-xs font-semibold"
+              onClick={(event) => {
+                event.stopPropagation();
+                onAddToList(product);
+              }}
+            >
+              <ListPlus size={14} />
+              Agregar a lista
+            </Button>
+          ) : null}
           <QuickAddControl
             inCart={inCart}
             outOfStock={outOfStock}
@@ -395,6 +411,18 @@ export function ProductItem({
         <Button variant="ghost" size="icon" className={cn("hidden xl:flex h-8 w-8", isFavorite && "text-amber-400")} onClick={() => onToggleFavorite(product.id)} title="Favorito">
           <Star size={13} className={isFavorite ? "fill-current" : undefined} />
         </Button>
+        {onAddToList ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 rounded-lg px-2 text-xs"
+            onClick={() => onAddToList(product)}
+            title="Agregar a lista"
+          >
+            <ListPlus size={13} />
+            Lista
+          </Button>
+        ) : null}
         <div className="shrink-0">
           <QuickAddControl
             inCart={inCart}

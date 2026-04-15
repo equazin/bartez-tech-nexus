@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { Badge } from "@/components/ui/badge";
 import { updateClientProfile, fetchClientProfile, type ClientDetail } from "@/lib/api/clientDetail";
+import { backend, hasBackendUrl } from "@/lib/api/backend";
 import type { UserProfile } from "@/lib/supabase";
 
 interface AddressFields {
@@ -141,12 +142,20 @@ export function CompanyProfileEditor({ profile, initialDetail, onSaved }: Compan
 
     setSaving(true);
     try {
-      await updateClientProfile(profile.id, {
-        company_name: companyName.trim() || undefined,
-        phone: normalizedPhone || undefined,
-        billing_address: billing as unknown as undefined,
-        shipping_addresses: [effectiveShipping] as unknown as undefined,
-      } as Parameters<typeof updateClientProfile>[1]);
+      if (hasBackendUrl) {
+        // Migrado: el backend solo acepta phone, contact_name, company_name
+        await backend.me.updateProfile({
+          company_name: companyName.trim() || undefined,
+          phone: normalizedPhone || undefined,
+        });
+      } else {
+        await updateClientProfile(profile.id, {
+          company_name: companyName.trim() || undefined,
+          phone: normalizedPhone || undefined,
+          billing_address: billing as unknown as undefined,
+          shipping_addresses: [effectiveShipping] as unknown as undefined,
+        } as Parameters<typeof updateClientProfile>[1]);
+      }
       setSaveSuccess("Datos actualizados correctamente.");
       onSaved?.();
     } catch (error) {

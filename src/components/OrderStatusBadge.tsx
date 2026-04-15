@@ -1,58 +1,84 @@
-import type { OrderStatus } from "@/models/order";
-import { CheckCircle2, Clock, Package, Truck, XCircle, PackageCheck, type LucideIcon } from "lucide-react";
+import { Ban, CheckCircle2, Clock, Package, PackageCheck, Truck, XCircle, type LucideIcon } from "lucide-react";
+
+type UnifiedOrderStatus =
+  | "pending"
+  | "confirmed"
+  | "approved"
+  | "preparing"
+  | "shipped"
+  | "dispatched"
+  | "picked"
+  | "delivered"
+  | "rejected"
+  | "cancelled";
 
 const STATUS_CONFIG: Record<
-  OrderStatus,
+  UnifiedOrderStatus,
   { label: string; className: string; icon: LucideIcon }
 > = {
   pending: {
     label: "En revision",
     icon: Clock,
-    className: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
+    className: "border-amber-500/30 bg-amber-500/10 text-amber-500",
+  },
+  confirmed: {
+    label: "Confirmado",
+    icon: CheckCircle2,
+    className: "border-primary/30 bg-primary/10 text-primary",
   },
   approved: {
     label: "Aprobado",
     icon: CheckCircle2,
-    className: "bg-green-500/15 text-green-400 border-green-500/30",
+    className: "border-primary/30 bg-primary/10 text-primary",
   },
   preparing: {
     label: "Preparando",
     icon: Package,
-    className: "bg-orange-500/15 text-orange-400 border-orange-500/30",
+    className: "border-blue-500/30 bg-blue-500/10 text-blue-500",
   },
   shipped: {
     label: "Enviado",
     icon: Truck,
-    className: "bg-indigo-500/15 text-indigo-400 border-indigo-500/30",
-  },
-  delivered: {
-    label: "Entregado",
-    icon: CheckCircle2,
-    className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  },
-  rejected: {
-    label: "Rechazado",
-    icon: XCircle,
-    className: "bg-red-500/15 text-red-400 border-red-500/30",
+    className: "border-indigo-500/30 bg-indigo-500/10 text-indigo-500",
   },
   dispatched: {
     label: "Despachado",
     icon: Truck,
-    className: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+    className: "border-blue-500/30 bg-blue-500/10 text-blue-500",
   },
   picked: {
-    label: "Pickeado para Andreani",
+    label: "Pickeado",
     icon: PackageCheck,
-    className: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+    className: "border-violet-500/30 bg-violet-500/10 text-violet-500",
+  },
+  delivered: {
+    label: "Entregado",
+    icon: CheckCircle2,
+    className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-500",
+  },
+  rejected: {
+    label: "Rechazado",
+    icon: XCircle,
+    className: "border-destructive/30 bg-destructive/10 text-destructive",
+  },
+  cancelled: {
+    label: "Cancelado",
+    icon: Ban,
+    className: "border-destructive/30 bg-destructive/10 text-destructive",
   },
 };
 
+const STATUS_ALIASES: Record<string, UnifiedOrderStatus> = {
+  pending_approval: "pending",
+};
+
 export function OrderStatusBadge({ status }: { status: string }) {
-  const config = STATUS_CONFIG[(status as OrderStatus) ?? "pending"] ?? STATUS_CONFIG.pending;
+  const normalizedStatus = (STATUS_ALIASES[status] ?? status) as UnifiedOrderStatus;
+  const config = STATUS_CONFIG[normalizedStatus] ?? STATUS_CONFIG.pending;
   const Icon = config.icon;
 
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${config.className}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${config.className}`}>
       <Icon size={11} />
       {config.label}
     </span>

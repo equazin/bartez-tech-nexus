@@ -3,7 +3,10 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { parseInternalReferenceFromNotes } from "@/lib/cartCheckout";
 import { logActivity } from "@/lib/api/activityLog";
+import { createOrderFromCart } from "@/lib/api/checkoutApi";
 import { trackFirstOrder, trackOrderPlaced } from "@/lib/marketingTracker";
+import { backend, hasBackendUrl } from "@/lib/api/backend";
+import type { BackendOrder, BackendOrderStatus } from "@/lib/api/backendTypes";
 
 export interface PortalOrder {
   id: string | number;
@@ -47,6 +50,49 @@ export type AddOrderPayload = Omit<PortalOrder, "id" | "client_id" | "order_numb
   coupon_code?: string;
 };
 
+// ─── Mapping helpers ─────────────────────────────────────────────────────────
+
+const BACKEND_STATUS_MAP: Partial<Record<BackendOrderStatus, PortalOrder["status"]>> = {
+  pending: "pending",
+  confirmed: "approved",
+  processing: "preparing",
+  shipped: "shipped",
+  delivered: "delivered",
+  cancelled: "rejected",
+};
+
+function toPortalOrder(o: BackendOrder): PortalOrder {
+  return {
+    id: o.id,
+    client_id: o.client_id,
+    products: o.items.map((item) => ({
+      product_id: Number(item.product_id),
+      name: item.name,
+      sku: item.sku,
+      quantity: item.quantity,
+      cost_price: 0, // no expuesto por el backend (por seguridad)
+      unit_price: item.unit_price,
+      total_price: item.line_total,
+      margin: 0, // no expuesto por el backend (por seguridad)
+    })),
+    total: o.total,
+    status: BACKEND_STATUS_MAP[o.status] ?? "pending",
+    notes: o.notes ?? undefined,
+    payment_method: o.payment_method ?? undefined,
+    payment_surcharge_pct: o.payment_surcharge_pct ?? undefined,
+    shipping_type: o.shipping_type ?? undefined,
+    shipping_address: o.shipping_address ?? undefined,
+    shipping_transport: o.shipping_transport ?? undefined,
+    shipping_cost: o.shipping_cost ?? undefined,
+    coupon_id: o.coupon_id ?? undefined,
+    discount_amount: o.discount,
+    created_at: o.created_at,
+    internal_reference: parseInternalReferenceFromNotes(o.notes ?? ""),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function useOrders() {
   const { user, profile } = useAuth();
   const [orders, setOrders] = useState<PortalOrder[]>([]);
@@ -56,30 +102,35 @@ export function useOrders() {
     if (!user) return;
     setLoading(true);
     try {
-      // Fetch orders with normalized items joined (fallback to JSONB if items not present)
-      const { data, error } = await supabase
-        .from("orders")
-        .select(`
-          *,
-          order_items (
-            product_id, name, sku, quantity,
-            cost_price, unit_price, total_price, margin, iva_rate
-          )
-        `)
-        .eq("client_id", user.id)
-        .order("created_at", { ascending: false });
+      if (hasBackendUrl) {
+        // Migrado: el backend resuelve precios y devuelve los pedidos
+        const { items } = await backend.me.orders({ limit: 200 });
+        setOrders(items.map(toPortalOrder));
+      } else {
+        // Fallback: consulta directa a Supabase (sin backend configurado)
+        const { data, error } = await supabase
+          .from("orders")
+          .select(`
+            *,
+            order_items (
+              product_id, name, sku, quantity,
+              cost_price, unit_price, total_price, margin, iva_rate
+            )
+          `)
+          .eq("client_id", user.id)
+          .order("created_at", { ascending: false });
 
-      if (!error && data) {
-        // Merge: prefer order_items rows when available, fall back to JSONB products
-        const merged = (data as any[]).map((order) => {
-          const finalOrder = { 
-            ...order, 
-            products: order.order_items && order.order_items.length > 0 ? order.order_items : order.products,
-            internal_reference: parseInternalReferenceFromNotes(order.notes ?? "")
-          };
-          return finalOrder;
-        });
-        setOrders(merged as PortalOrder[]);
+        if (!error && data) {
+          const merged = (data as unknown[]).map((order) => {
+            const o = order as Record<string, unknown> & { order_items?: PortalOrderProduct[]; products?: PortalOrderProduct[]; notes?: string };
+            return {
+              ...o,
+              products: o.order_items && o.order_items.length > 0 ? o.order_items : (o.products ?? []),
+              internal_reference: parseInternalReferenceFromNotes(o.notes ?? ""),
+            };
+          });
+          setOrders(merged as PortalOrder[]);
+        }
       }
     } catch {
       // Silencioso — tabla puede no existir todavía
@@ -137,12 +188,9 @@ export function useOrders() {
   }, [fetchOrders]);
 
   /**
-   * Confirms an order via the `reserve_stock_and_create_order` RPC.
-   * This atomically:
-   *   1. Validates and reserves stock for each product (FOR UPDATE row lock)
-   *   2. Creates the order with a server-side order number (ORD-XXXX)
-   * Returns { error: null } on success or { error: string } on failure.
-   * After success, fires a background email notification.
+   * Creates the order through the dedicated backend checkout endpoint.
+   * Frontend keeps the UX and local refresh behavior while the server resolves
+   * pricing, validates stock/coupons, and persists the order.
    */
   const addOrder = async (
     orderData: AddOrderPayload
@@ -150,12 +198,11 @@ export function useOrders() {
     if (!user) return { error: "No autenticado" };
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || "";
-
-      const payload = {
-        products: orderData.products.map((p) => ({ id: p.product_id, quantity: p.quantity })),
-        status: orderData.status ?? "pending",
+      const orderResult = await createOrderFromCart({
+        items: orderData.products.map((product) => ({
+          product_id: String(product.product_id),
+          quantity: product.quantity,
+        })),
         payment_method: orderData.payment_method ?? null,
         payment_surcharge_pct: orderData.payment_surcharge_pct ?? null,
         shipping_type: orderData.shipping_type ?? null,
@@ -164,39 +211,19 @@ export function useOrders() {
         shipping_cost: orderData.shipping_cost ?? null,
         notes: orderData.notes ?? null,
         coupon_code: orderData.coupon_code ?? null,
-      };
-
-      const res = await fetch("/api/checkout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(payload),
       });
-
-      const raw = await res.text();
-      let body: { ok?: boolean; error?: string; data?: unknown } = {};
-      if (raw) {
-        try {
-          body = JSON.parse(raw) as { ok?: boolean; error?: string; data?: unknown };
-        } catch {
-          throw new Error(raw);
-        }
-      }
-      if (!res.ok) throw new Error(body.error || raw || "Error en el checkout");
-
-      // checkout returns { ok: true, data: { id, order_number, status } }
-      const orderResult = body.data ?? body;
       const orderId = orderResult.id;
-      const orderNumber = orderResult.order_number;
+      const orderNumber =
+        typeof (orderResult as { order_number?: unknown }).order_number === "string"
+          ? ((orderResult as { order_number?: string }).order_number ?? undefined)
+          : undefined;
 
       // Log activity
       void logActivity({
         action: "place_order",
         entity_type: "order",
         entity_id: String(orderId),
-        metadata: { order_number: orderNumber, total: orderData.total }
+        metadata: { order_number: orderNumber ?? String(orderId), total: orderData.total }
       });
 
       // Refresh local list
@@ -212,13 +239,14 @@ export function useOrders() {
       // Fire order confirmation email in background (non-blocking)
       void (async () => {
         try {
+          const numericOrderId = Number(orderId);
           await fetch("/api/email", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               type: "order_confirmed",
-              orderId: Number(orderId),
-              orderNumber: orderNumber ?? "",
+              ...(Number.isFinite(numericOrderId) ? { orderId: numericOrderId } : {}),
+              orderNumber: orderNumber ?? String(orderId),
               clientId: user.id,
               clientEmail: user.email ?? undefined,
               clientName: profile?.company_name || profile?.contact_name || undefined,

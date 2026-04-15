@@ -1,38 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
 import { Quote, QuoteStatus } from "@/models/quote";
-import { createQuoteApi, updateQuoteApi, deleteQuoteApi } from "@/lib/api/ordersApi";
-
-// ── One-time localStorage → Supabase migration ──────────────────────────────
-async function migrateLocalStorageQuotes(userId: string): Promise<void> {
-  const key = `b2b_quotes_${userId}`;
-  const raw = localStorage.getItem(key);
-  if (!raw) return;
-  try {
-    const local: Quote[] = JSON.parse(raw);
-    if (!local.length) return;
-    const rows = local.map((q) => ({
-      client_id:   userId,
-      client_name: q.client_name,
-      items:       q.items,
-      subtotal:    q.subtotal,
-      iva_total:   q.ivaTotal,
-      total:       q.total,
-      currency:    q.currency,
-      status:      q.status,
-      version:     q.version  ?? 1,
-      parent_id:   null,
-      created_at:  q.created_at,
-      updated_at:  q.updated_at,
-    }));
-    const { error } = await supabase.from("quotes").insert(rows);
-    if (!error) {
-      localStorage.removeItem(key);
-    }
-  } catch {
-    // Silencioso — no bloquear si falla la migración
-  }
-}
+import { backend, hasBackendUrl } from "@/lib/api/backend";
+import { supabase } from "@/lib/supabase";
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -44,18 +13,21 @@ export function useQuotes(userId: string) {
     if (!userId || userId === "guest") return;
     setLoading(true);
     try {
-      // Migrate legacy localStorage quotes on first load
-      await migrateLocalStorageQuotes(userId);
+      if (hasBackendUrl) {
+        // Migrado: el backend filtra por JWT del cliente autenticado
+        const { items } = await backend.me.quotes();
+        setQuotes(items.map((row) => dbToQuote(row as Record<string, unknown>)));
+      } else {
+        // Fallback: Supabase directo
+        const { data, error } = await supabase
+          .from("quotes")
+          .select("*")
+          .eq("client_id", userId)
+          .order("created_at", { ascending: false });
 
-      const { data, error } = await supabase
-        .from("quotes")
-        .select("*")
-        .eq("client_id", userId)
-        .order("created_at", { ascending: false });
-
-      if (!error && data) {
-        // Map DB snake_case → frontend camelCase
-        setQuotes(data.map(dbToQuote));
+        if (!error && data) {
+          setQuotes(data.map(dbToQuote));
+        }
       }
     } catch {
       // Silencioso — tabla puede no existir todavía
@@ -72,8 +44,8 @@ export function useQuotes(userId: string) {
     async (data: Omit<Quote, "id">): Promise<Quote | null> => {
       if (!userId || userId === "guest") return null;
       try {
-        const row = await createQuoteApi(quoteToDb(data, userId)) as Record<string, unknown>;
-        const quote = dbToQuote(row);
+        const row = await backend.quotes.create(quoteToDb(data, userId));
+        const quote = dbToQuote(row as Record<string, unknown>);
         setQuotes((prev) => [quote, ...prev]);
         return quote;
       } catch {
@@ -102,8 +74,8 @@ export function useQuotes(userId: string) {
         if (changes.expires_at  !== undefined) patch.expires_at  = changes.expires_at;
         if (changes.notes       !== undefined) patch.notes       = changes.notes;
 
-        const row = await updateQuoteApi(id, patch) as Record<string, unknown>;
-        const updated = dbToQuote(row);
+        const row = await backend.quotes.update(String(id), patch);
+        const updated = dbToQuote(row as Record<string, unknown>);
         setQuotes((prev) => prev.map((q) => (q.id === id ? updated : q)));
       } catch {
         // Silencioso
@@ -122,7 +94,7 @@ export function useQuotes(userId: string) {
   const deleteQuote = useCallback(
     async (id: number): Promise<void> => {
       try {
-        await deleteQuoteApi(id);
+        await backend.delete<void>(`/v1/quotes/${id}`);
         setQuotes((prev) => prev.filter((q) => q.id !== id));
       } catch {
         // Silencioso

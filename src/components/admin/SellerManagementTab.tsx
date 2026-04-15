@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { useCurrency } from "@/context/CurrencyContext";
-import { supabase } from "@/lib/supabase";
+import { createUserApi, updateUserApi } from "@/lib/api/ordersApi";
 
 interface SellerProfile {
   id: string;
@@ -123,29 +123,6 @@ export function SellerManagementTab({
     });
   }
 
-  async function withSessionHeaders() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error("Sesion expirada. Volve a iniciar sesion.");
-    }
-    return {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${session.access_token}`,
-    };
-  }
-
-  async function readApiResult(response: Response): Promise<{ ok?: boolean; error?: string }> {
-    const raw = await response.text();
-    if (!raw) {
-      return { ok: response.ok, error: response.ok ? undefined : "Respuesta vacia del servidor." };
-    }
-    try {
-      return JSON.parse(raw) as { ok?: boolean; error?: string };
-    } catch {
-      return { ok: response.ok, error: raw };
-    }
-  }
-
   async function handleCreateSeller() {
     try {
       setCreateError("");
@@ -171,27 +148,16 @@ export function SellerManagementTab({
       }
 
       setSavingCreate(true);
-      const headers = await withSessionHeaders();
-      const response = await fetch("/api/create-user", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          email,
-          password,
-          company_name: companyName,
-          contact_name: contactName,
-          client_type: "reseller",
-          default_margin: 0,
-          role: "sales",
-          phone,
-        }),
+      await createUserApi({
+        email,
+        password,
+        company_name: companyName,
+        contact_name: contactName,
+        client_type: "reseller",
+        default_margin: 0,
+        role: "sales",
+        phone,
       });
-
-      const result = await readApiResult(response);
-      if (!response.ok || !result.ok) {
-        setCreateError(result.error ?? "No se pudo crear el vendedor.");
-        return;
-      }
 
       setShowCreate(false);
       setCreateForm(EMPTY_FORM);
@@ -225,26 +191,14 @@ export function SellerManagementTab({
       }
 
       setSavingEdit(true);
-      const headers = await withSessionHeaders();
-      const response = await fetch("/api/create-user", {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({
-          id: editingSellerId,
-          email,
-          contact_name: contactName,
-          company_name: companyName,
-          role: "sales",
-          phone,
-          active: editForm.active,
-        }),
+      await updateUserApi(editingSellerId, {
+        email,
+        contact_name: contactName,
+        company_name: companyName,
+        role: "sales",
+        phone,
+        active: editForm.active,
       });
-
-      const result = await readApiResult(response);
-      if (!response.ok || !result.ok) {
-        setEditError(result.error ?? "No se pudo actualizar el vendedor.");
-        return;
-      }
 
       setEditingSellerId(null);
       await onRefreshClients?.();
@@ -259,17 +213,11 @@ export function SellerManagementTab({
   async function handleToggleSeller(seller: SellerProfile) {
     try {
       setTogglingId(seller.id);
-      const headers = await withSessionHeaders();
-      await fetch("/api/create-user", {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({
-          id: seller.id,
-          email: seller.email,
-          contact_name: seller.contact_name,
-          company_name: seller.company_name,
-              active: seller.active === false,
-        }),
+      await updateUserApi(seller.id, {
+        email: seller.email,
+        contact_name: seller.contact_name,
+        company_name: seller.company_name,
+        active: seller.active === false,
       });
       await onRefreshClients?.();
     } finally {

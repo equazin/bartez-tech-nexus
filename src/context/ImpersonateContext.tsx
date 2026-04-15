@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { UserProfile, supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
-import { backend } from "@/lib/api/backendClient";
+import { backend } from "@/lib/api/backend";
 
 interface ImpersonateContextType {
   impersonatedProfile: UserProfile | null;
@@ -47,9 +47,10 @@ export function ImpersonateProvider({ children }: { children: ReactNode }) {
   const startImpersonation = async (clientId: string): Promise<void> => {
     if (!canImpersonate) return;
 
-    const data = await backend.post<UserProfile>("/v1/admin/impersonations", { client_id: clientId });
+    const data = await backend.admin.startImpersonation(clientId);
     localStorage.setItem(IMPERSONATE_KEY, clientId);
-    setImpersonatedProfile(data);
+    // BackendProfile y UserProfile comparten la misma fila de profiles, cast seguro
+    setImpersonatedProfile(data as unknown as UserProfile);
   };
 
   const stopImpersonation = (): void => {
@@ -58,7 +59,7 @@ export function ImpersonateProvider({ children }: { children: ReactNode }) {
     setImpersonatedProfile(null);
 
     // Fire-and-forget audit log for stop
-    void backend.delete("/v1/admin/impersonations/current", { client_id: clientId ?? undefined });
+    void backend.admin.stopImpersonation(clientId ?? undefined);
   };
 
   return (

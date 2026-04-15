@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Cpu, PlusCircle, Save, Sparkles, Wand2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Cpu, PlusCircle, Save, Sparkles, Trash2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -199,6 +199,8 @@ export function PcBuilderSpecsTab({ products, onRefresh }: PcBuilderSpecsTabProp
   const [manualProductId, setManualProductId] = useState<number | null>(null);
   const [manualComponentType, setManualComponentType] = useState<PcComponentType>("cpu");
   const [manualAssigning, setManualAssigning] = useState(false);
+  const [deletingProductId, setDeletingProductId] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const allPcEntries = useMemo(
     () =>
@@ -423,61 +425,209 @@ export function PcBuilderSpecsTab({ products, onRefresh }: PcBuilderSpecsTabProp
     }
   };
 
+  /** Full AI inference for a single entry — covers all 28 canonical keys */
+  const buildFullInferredByKey = (
+    entry: AssignedEntry,
+    sourceText: string,
+    current: Record<PcCanonicalSpecKey, string>,
+    suggestions: Partial<Record<PcCanonicalSpecKey, string>>,
+  ): Record<PcCanonicalSpecKey, string> => {
+    const type = entry.componentType;
+    const inferredSocket = detectSocket(sourceText) || current.socket || "";
+    const inferredMemory = detectMemoryType(sourceText) || current.memory_type || SOCKET_MEMORY_HINTS[inferredSocket] || "";
+    const inferredPlatform = inferPlatform(inferredSocket);
+    const rawWatts = detectWatts(sourceText);
+    const rawMm = detectMillimeters(sourceText);
+
+    // ── RAM speed from text (e.g. "DDR5-5600", "4800MHz") ──────────────────────
+    const detectRamSpeed = (text: string): string => {
+      const m = normalizeText(text).match(/\b(ddr[345][- ]?)(\d{3,5})\b/) ||
+                normalizeText(text).match(/\b(\d{3,5})\s?(mhz|mts|mt\/s)\b/);
+      if (!m) return "";
+      const raw = m[2] ?? m[1];
+      const num = parseInt(raw.replace(/\D/g, ""), 10);
+      if (!num || num < 800 || num > 12000) return "";
+      // Convert MHz → MT/s (DDR doubles): if value looks like MT/s already keep it
+      return num >= 800 && num <= 6400 ? String(num) : String(num);
+    };
+
+    // ── CPU generation from name ─────────────────────────────────────────────
+    const detectCpuGen = (text: string): string => {
+      const t = normalizeText(text);
+      // Intel: i5-14400 → 14, i9-13900 → 13, Core Ultra 7 → 1 (series 1)
+      const intelM = t.match(/\b(?:i[3579]|core\s*ultra)\s*[\s-]?(\d{4,5})[a-z]*\b/);
+      if (intelM) { const d = intelM[1]; return String(Math.floor(Number(d.slice(0, d.length - 3)))); }
+      // AMD Ryzen: 7950X → gen 7 (first digit), 9700X → gen 9
+      const ryzenM = t.match(/\bryzen\s*[3579]\s+(\d{4})[a-z]*\b/);
+      if (ryzenM) return ryzenM[1][0];
+      // Intel old: Core 2 Quad → 0, Pentium 4 → 0 (legacy, just mark as gen 0)
+      return "";
+    };
+
+    // ── Cooler capacity heuristic from name ──────────────────────────────────
+    const detectCoolerCapacity = (text: string): string => {
+      const t = normalizeText(text);
+      // Explicit capacity in text
+      const m = t.match(/\b(\d{2,3})\s?w\b/i);
+      if (m) { const v = Number(m[1]); if (v >= 30 && v <= 400) return String(v); }
+      // Heuristic: AIO 280/360mm → 280W, 240mm → 220W, air → 150W default
+      if (t.includes("360")) return "280";
+      if (t.includes("280")) return "250";
+      if (t.includes("240")) return "220";
+      if (t.includes("aio") || t.includes("liquid") || t.includes("watercool")) return "200";
+      if (t.includes("cooler") || t.includes("disipador")) return "150";
+      return "";
+    };
+
+    // ── Radiator size from name ──────────────────────────────────────────────
+    const detectRadiatorMm = (text: string): string => {
+      const m = normalizeText(text).match(/\b(120|140|240|280|360|420)\s?mm\b/);
+      return m ? m[1] : "";
+    };
+
+    // ── M.2 slots from motherboard name/chipset ──────────────────────────────
+    const detectM2Slots = (text: string): string => {
+      const m = normalizeText(text).match(/(\d)\s*x?\s*m\.?2/);
+      if (m) return m[1];
+      // Heuristic by chipset tier
+      const t = normalizeText(text);
+      if (/\b(z[789]\d0|x[56789]\d0|trx[456]0|threadripper)\b/.test(t)) return "4";
+      if (/\b(b[67][56]0|b[56][56]0|x[34][79]0)\b/.test(t)) return "2";
+      if (/\b(h[67][01]0|a[56][23]0|b[34][56]0)\b/.test(t)) return "1";
+      return "";
+    };
+
+    // ── SATA ports heuristic ─────────────────────────────────────────────────
+    const detectSataPorts = (text: string): string => {
+      const m = normalizeText(text).match(/(\d)\s*x?\s*sata/);
+      if (m) return m[1];
+      const t = normalizeText(text);
+      if (/\b(z[789]\d0|x[56789]\d0)\b/.test(t)) return "6";
+      if (/\b(b[67][56]0|b[56][56]0)\b/.test(t)) return "4";
+      return "";
+    };
+
+    // ── PCIe x16 slots heuristic ─────────────────────────────────────────────
+    const detectPcieX16 = (text: string): string => {
+      const t = normalizeText(text);
+      if (/\b(z[789]\d0|x[56789]\d0|trx)\b/.test(t)) return "2";
+      if (/\bmini.?itx\b/.test(t)) return "1";
+      if (/\b(atx|matx|micro.?atx)\b/.test(t)) return "1";
+      return "";
+    };
+
+    const ramSpeed = detectRamSpeed(sourceText);
+
+    const inferredByKey: Partial<Record<PcCanonicalSpecKey, string>> = {
+      socket: inferredSocket,
+      platform_brand: inferredPlatform,
+      memory_type: inferredMemory,
+      form_factor: detectFormFactor(sourceText),
+      socket_supported: detectSocketSupported(sourceText),
+      interface: detectInterface(sourceText),
+    };
+
+    // Wattage / TDP — split by component role
+    if (type === "psu") {
+      inferredByKey.wattage = rawWatts;
+    } else if (["cpu", "gpu", "cooler"].includes(type)) {
+      inferredByKey.tdp_w = rawWatts;
+    }
+
+    // Physical dimensions — split by component role  
+    if (type === "gpu") inferredByKey.gpu_length_mm = rawMm;
+    if (type === "case") inferredByKey.case_gpu_max_mm = rawMm;
+    if (type === "cooler") inferredByKey.cooler_height_mm = rawMm;
+
+    // RAM speed
+    if (["ram", "motherboard"].includes(type)) {
+      inferredByKey.ram_speed_mts = ramSpeed; // for RAM sticks
+      inferredByKey.mb_max_ram_speed_mts = ramSpeed; // for motherboards — will apply only if current is empty
+    }
+
+    // RAM profiles
+    const text_l = normalizeText(sourceText);
+    const profiles: string[] = [];
+    if (text_l.includes("xmp")) profiles.push("XMP");
+    if (text_l.includes("expo")) profiles.push("EXPO");
+    if (profiles.length === 0 && ["ram", "motherboard"].includes(type)) profiles.push("JEDEC");
+    if (profiles.length > 0) {
+      inferredByKey.ram_profiles = profiles.join(", ");
+      inferredByKey.mb_ram_profiles = profiles.join(", ");
+    }
+
+    // CPU generation
+    if (["cpu", "motherboard"].includes(type)) {
+      const gen = detectCpuGen(sourceText);
+      if (gen) {
+        inferredByKey.cpu_generation = gen;
+        inferredByKey.mb_cpu_gen_max = gen;
+        inferredByKey.mb_bios_cpu_gen_ready = gen;
+      }
+    }
+
+    // Cooler capacity
+    if (type === "cooler") {
+      inferredByKey.cooler_tdp_w = detectCoolerCapacity(sourceText);
+      const coolerType = text_l.includes("aio") || text_l.includes("liquid") || text_l.includes("watercool") ? "aio" : "air";
+      inferredByKey.cooler_type = coolerType;
+      const radiator = detectRadiatorMm(sourceText);
+      if (radiator) inferredByKey.radiator_size_mm = radiator;
+    }
+
+    // Case limits for cooler/radiator
+    if (type === "case") {
+      inferredByKey.case_cooler_max_mm = rawMm || "165"; // common tower default
+      const radiator = detectRadiatorMm(sourceText);
+      if (radiator) inferredByKey.case_radiator_max_mm = radiator;
+      else if (text_l.includes("full tower") || text_l.includes("full-tower")) inferredByKey.case_radiator_max_mm = "420";
+      else if (text_l.includes("mid tower") || text_l.includes("mid-tower")) inferredByKey.case_radiator_max_mm = "360";
+    }
+
+    // Motherboard slot counts
+    if (type === "motherboard") {
+      inferredByKey.mb_m2_slots = detectM2Slots(sourceText);
+      inferredByKey.mb_sata_ports = detectSataPorts(sourceText);
+      inferredByKey.mb_pcie_x16_slots = detectPcieX16(sourceText);
+    }
+
+    // Component-type defaults
+    if (type === "gpu" && !inferredByKey.interface) inferredByKey.interface = "PCIe";
+    if (type === "motherboard" && !inferredByKey.interface) inferredByKey.interface = "PCIe";
+    if (type === "motherboard" && !inferredByKey.form_factor) inferredByKey.form_factor = "ATX";
+    if (type === "storage" && !inferredByKey.interface) inferredByKey.interface = "SATA";
+    if (type === "ram" && !inferredByKey.form_factor) inferredByKey.form_factor = "DIMM";
+    if (type === "case" && !inferredByKey.form_factor) inferredByKey.form_factor = "ATX";
+
+    const next = { ...current };
+    PC_CANONICAL_KEYS.forEach((key) => {
+      const currentValue = next[key].trim();
+      if (currentValue && !isUnsetLikeValue(currentValue)) return; // keep existing
+      const suggestion = suggestions[key]?.trim() ?? "";
+      const inferred = inferredByKey[key]?.trim() ?? "";
+      if (suggestion && !isUnsetLikeValue(suggestion)) { next[key] = suggestion; return; }
+      if (inferred && !isUnsetLikeValue(inferred)) { next[key] = inferred; return; }
+      if (NON_APPLICABLE_KEYS[entry.componentType].includes(key)) next[key] = "N/A";
+    });
+    return next;
+  };
+
   const applySuggestions = () => {
     if (!selectedEntry) return;
     const sourceText = getProductText(selectedEntry.product);
-    const buildInferredByKey = (
-      entry: AssignedEntry,
-      current: Record<PcCanonicalSpecKey, string>,
-      suggestions: Partial<Record<PcCanonicalSpecKey, string>>,
-    ): Record<PcCanonicalSpecKey, string> => {
-      const inferredSocket = detectSocket(sourceText) || current.socket || "";
-      const inferredMemory = detectMemoryType(sourceText) || current.memory_type || SOCKET_MEMORY_HINTS[inferredSocket] || "";
-      const inferredPlatform = inferPlatform(inferredSocket);
-      const inferredByKey: Partial<Record<PcCanonicalSpecKey, string>> = {
-        socket: inferredSocket,
-        platform_brand: inferredPlatform,
-        memory_type: inferredMemory,
-        form_factor: detectFormFactor(sourceText),
-        wattage: detectWatts(sourceText),
-        tdp_w: detectWatts(sourceText),
-        socket_supported: detectSocketSupported(sourceText),
-        interface: detectInterface(sourceText),
-        gpu_length_mm: detectMillimeters(sourceText),
-        case_gpu_max_mm: detectMillimeters(sourceText),
-      };
+    const next = buildFullInferredByKey(selectedEntry, sourceText, editValues, suggestedByCanonicalKey);
+    setEditValues(next);
+    toast.success("Autocompletado IA ampliado aplicado.");
+  };
 
-      if (entry.componentType === "gpu" && !inferredByKey.interface) inferredByKey.interface = "PCIe";
-      if (entry.componentType === "motherboard" && !inferredByKey.interface) inferredByKey.interface = "PCIe";
-      if (entry.componentType === "motherboard" && !inferredByKey.form_factor) inferredByKey.form_factor = "ATX";
-      if (entry.componentType === "storage" && !inferredByKey.interface) inferredByKey.interface = "SATA";
-      if (entry.componentType === "ram" && !inferredByKey.form_factor) inferredByKey.form_factor = "DIMM";
-      if (entry.componentType === "case" && !inferredByKey.form_factor) inferredByKey.form_factor = "ATX";
-
-      const next = { ...current };
-      PC_CANONICAL_KEYS.forEach((key) => {
-        const currentValue = next[key].trim();
-        if (currentValue && !isUnsetLikeValue(currentValue)) return;
-        const suggestion = suggestions[key]?.trim() ?? "";
-        const inferred = inferredByKey[key]?.trim() ?? "";
-        if (suggestion && !isUnsetLikeValue(suggestion)) {
-          next[key] = suggestion;
-          return;
-        }
-        if (inferred && !isUnsetLikeValue(inferred)) {
-          next[key] = inferred;
-          return;
-        }
-
-        if (NON_APPLICABLE_KEYS[entry.componentType].includes(key)) {
-          next[key] = "N/A";
-        }
-      });
-      return next;
-    };
-
-    setEditValues((current) => buildInferredByKey(selectedEntry, current, suggestedByCanonicalKey));
-    toast.success("Autocompletado aplicado sobre todas las specs posibles.");
+  const getEntrySuggestions = (entry: AssignedEntry): Partial<Record<PcCanonicalSpecKey, string>> => {
+    const map = {} as Partial<Record<PcCanonicalSpecKey, string>>;
+    entry.canonicalPreview.forEach((item) => {
+      if (!map[item.canonicalKey] && item.normalizedValue.trim()) {
+        map[item.canonicalKey] = item.normalizedValue.trim();
+      }
+    });
+    return map;
   };
 
   const handleBulkAiAutocomplete = async () => {
@@ -491,72 +641,13 @@ export function PcBuilderSpecsTab({ products, onRefresh }: PcBuilderSpecsTabProp
     let skippedCount = 0;
     let failCount = 0;
 
-    const getEntrySuggestions = (entry: AssignedEntry): Partial<Record<PcCanonicalSpecKey, string>> => {
-      const map = {} as Partial<Record<PcCanonicalSpecKey, string>>;
-      entry.canonicalPreview.forEach((item) => {
-        if (!map[item.canonicalKey] && item.normalizedValue.trim()) {
-          map[item.canonicalKey] = item.normalizedValue.trim();
-        }
-      });
-      return map;
-    };
-
-    const buildAutocompletedValues = (
-      entry: AssignedEntry,
-      current: Record<PcCanonicalSpecKey, string>,
-      suggestions: Partial<Record<PcCanonicalSpecKey, string>>,
-    ): Record<PcCanonicalSpecKey, string> => {
-      const sourceText = getProductText(entry.product);
-      const inferredSocket = detectSocket(sourceText) || current.socket || "";
-      const inferredMemory = detectMemoryType(sourceText) || current.memory_type || SOCKET_MEMORY_HINTS[inferredSocket] || "";
-      const inferredPlatform = inferPlatform(inferredSocket);
-      const inferredByKey: Partial<Record<PcCanonicalSpecKey, string>> = {
-        socket: inferredSocket,
-        platform_brand: inferredPlatform,
-        memory_type: inferredMemory,
-        form_factor: detectFormFactor(sourceText),
-        wattage: detectWatts(sourceText),
-        tdp_w: detectWatts(sourceText),
-        socket_supported: detectSocketSupported(sourceText),
-        interface: detectInterface(sourceText),
-        gpu_length_mm: detectMillimeters(sourceText),
-        case_gpu_max_mm: detectMillimeters(sourceText),
-      };
-
-      if (entry.componentType === "gpu" && !inferredByKey.interface) inferredByKey.interface = "PCIe";
-      if (entry.componentType === "motherboard" && !inferredByKey.interface) inferredByKey.interface = "PCIe";
-      if (entry.componentType === "motherboard" && !inferredByKey.form_factor) inferredByKey.form_factor = "ATX";
-      if (entry.componentType === "storage" && !inferredByKey.interface) inferredByKey.interface = "SATA";
-      if (entry.componentType === "ram" && !inferredByKey.form_factor) inferredByKey.form_factor = "DIMM";
-      if (entry.componentType === "case" && !inferredByKey.form_factor) inferredByKey.form_factor = "ATX";
-
-      const next = { ...current };
-      PC_CANONICAL_KEYS.forEach((key) => {
-        const currentValue = next[key].trim();
-        if (currentValue && !isUnsetLikeValue(currentValue)) return;
-        const suggestion = suggestions[key]?.trim() ?? "";
-        const inferred = inferredByKey[key]?.trim() ?? "";
-        if (suggestion && !isUnsetLikeValue(suggestion)) {
-          next[key] = suggestion;
-          return;
-        }
-        if (inferred && !isUnsetLikeValue(inferred)) {
-          next[key] = inferred;
-          return;
-        }
-        if (NON_APPLICABLE_KEYS[entry.componentType].includes(key)) {
-          next[key] = "N/A";
-        }
-      });
-      return next;
-    };
-
     try {
       for (const entry of filteredEntries) {
+        const sourceText = getProductText(entry.product);
         const currentValues = Object.fromEntries(
           PC_CANONICAL_KEYS.map((key) => [key, getCanonicalValue(entry, key)]),
         ) as Record<PcCanonicalSpecKey, string>;
-        const nextValues = buildAutocompletedValues(entry, currentValues, getEntrySuggestions(entry));
+        const nextValues = buildFullInferredByKey(entry, sourceText, currentValues, getEntrySuggestions(entry));
 
         const didChange = PC_CANONICAL_KEYS.some((key) => {
           const before = (currentValues[key] ?? "").trim();
@@ -564,10 +655,7 @@ export function PcBuilderSpecsTab({ products, onRefresh }: PcBuilderSpecsTabProp
           return before !== after;
         });
 
-        if (!didChange) {
-          skippedCount += 1;
-          continue;
-        }
+        if (!didChange) { skippedCount += 1; continue; }
 
         try {
           const nextSpecs = buildNextSpecs(entry.product, nextValues);
@@ -578,15 +666,9 @@ export function PcBuilderSpecsTab({ products, onRefresh }: PcBuilderSpecsTabProp
         }
       }
 
-      if (updatedCount > 0) {
-        toast.success(`IA masiva aplicada en ${updatedCount} producto(s).`);
-      }
-      if (skippedCount > 0) {
-        toast.info(`${skippedCount} producto(s) ya estaban completos o sin cambios.`);
-      }
-      if (failCount > 0) {
-        toast.warning(`${failCount} producto(s) no pudieron actualizarse.`);
-      }
+      if (updatedCount > 0) toast.success(`IA amplificada aplicada en ${updatedCount} producto(s).`);
+      if (skippedCount > 0) toast.info(`${skippedCount} ya estaban completos o sin cambios.`);
+      if (failCount > 0) toast.warning(`${failCount} producto(s) no pudieron actualizarse.`);
       await Promise.resolve(onRefresh());
     } finally {
       setBulkAutocompleting(false);
@@ -619,6 +701,25 @@ export function PcBuilderSpecsTab({ products, onRefresh }: PcBuilderSpecsTabProp
       toast.error(error instanceof Error ? error.message : "No se pudo asignar el producto.");
     } finally {
       setManualAssigning(false);
+    }
+  };
+
+  const handleDeleteProduct = async (productId: number) => {
+    setDeletingProductId(productId);
+    try {
+      const { error } = await supabase.from("products").delete().eq("id", productId);
+      if (error) throw error;
+      if (selectedProductId === productId) {
+        setSelectedProductId(null);
+        setEditValues(Object.fromEntries(PC_CANONICAL_KEYS.map((k) => [k, ""])) as Record<PcCanonicalSpecKey, string>);
+      }
+      toast.success("Producto eliminado del catálogo.");
+      await Promise.resolve(onRefresh());
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo eliminar el producto.");
+    } finally {
+      setDeletingProductId(null);
+      setConfirmDeleteId(null);
     }
   };
 
@@ -749,19 +850,22 @@ export function PcBuilderSpecsTab({ products, onRefresh }: PcBuilderSpecsTabProp
                   <th className="px-3 py-2 text-left">Marca</th>
                   <th className="px-3 py-2 text-left">Proveedor</th>
                   <th className="px-3 py-2 text-left">Completitud</th>
+                  <th className="px-3 py-2 text-left w-10"></th>
                 </tr>
               </thead>
               <tbody>
                 {filteredEntries.map((entry) => {
                   const isSelected = selectedProductId === entry.product.id;
                   const productLabel = entry.product.name_custom?.trim() || entry.product.name_original?.trim() || entry.product.name;
+                  const isConfirming = confirmDeleteId === entry.product.id;
+                  const isDeleting = deletingProductId === entry.product.id;
                   return (
                     <tr
                       key={entry.product.id}
-                      onClick={() => setSelectedProductId(entry.product.id)}
-                      className={`cursor-pointer border-t border-border/60 transition ${
+                      onClick={() => !isConfirming && setSelectedProductId(entry.product.id)}
+                      className={`border-t border-border/60 transition ${
                         isSelected ? "bg-primary/10" : "hover:bg-muted/40"
-                      }`}
+                      } ${isConfirming ? "cursor-default" : "cursor-pointer"}`}
                     >
                       <td className="px-3 py-2">
                         <p className="font-medium text-foreground">{productLabel}</p>
@@ -780,6 +884,36 @@ export function PcBuilderSpecsTab({ products, onRefresh }: PcBuilderSpecsTabProp
                               {entry.missingCritical.slice(0, 2).map(getCanonicalKeyLabel).join(", ")}
                             </p>
                           </div>
+                        )}
+                      </td>
+                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                        {isConfirming ? (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={isDeleting}
+                              onClick={() => void handleDeleteProduct(entry.product.id)}
+                              className="rounded-md bg-red-500 px-2 py-1 text-[11px] font-semibold text-white hover:bg-red-600 disabled:opacity-50"
+                            >
+                              {isDeleting ? "..." : "Confirmar"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="rounded-md border border-border/60 px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            title="Eliminar producto"
+                            onClick={() => setConfirmDeleteId(entry.product.id)}
+                            className="rounded-md p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -848,15 +982,42 @@ export function PcBuilderSpecsTab({ products, onRefresh }: PcBuilderSpecsTabProp
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" variant="soft" className="border-primary/20 bg-primary/10 text-primary hover:bg-primary/20" onClick={applySuggestions}>
                     <Sparkles size={14} className="text-primary" />
-                    IA Autocompletar
+                    IA Autocompletar (ampliado)
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => setEditValues(Object.fromEntries(PC_CANONICAL_KEYS.map(k => [k, ""])))}>
+                  <Button type="button" variant="outline" onClick={() => setEditValues(Object.fromEntries(PC_CANONICAL_KEYS.map((k) => [k, ""])) as Record<PcCanonicalSpecKey, string>)}>
                     Limpiar
                   </Button>
                   <Button type="button" className="bg-gradient-primary shadow-lg shadow-primary/20" onClick={() => void handleSaveSelected()} disabled={savingSingle}>
                     <Save size={14} />
                     {savingSingle ? "Guardando..." : "Guardar specs"}
                   </Button>
+                  {selectedEntry && (
+                    confirmDeleteId === selectedEntry.product.id ? (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-red-500/40 bg-red-500/10 text-red-600 hover:bg-red-500/20"
+                          disabled={deletingProductId === selectedEntry.product.id}
+                          onClick={() => void handleDeleteProduct(selectedEntry.product.id)}
+                        >
+                          <Trash2 size={13} />
+                          {deletingProductId === selectedEntry.product.id ? "Eliminando..." : "Confirmar eliminación"}
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>Cancelar</Button>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
+                        onClick={() => setConfirmDeleteId(selectedEntry.product.id)}
+                      >
+                        <Trash2 size={13} />
+                        Eliminar producto
+                      </Button>
+                    )
+                  )}
                 </div>
 
                 {selectedEntry.canonicalPreview.length > 0 && (

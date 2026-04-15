@@ -8,6 +8,9 @@ import { getAvailableStock } from "@/lib/pricing";
 import { getSavedCarts, saveCart, deleteSavedCart, type SavedCart } from "@/lib/savedCarts";
 import { getFavoriteProducts, toggleFavoriteProduct } from "@/lib/favoriteProducts";
 import { puedeComprar } from "@/lib/api/clientDetail";
+import { backend, BackendError } from "@/lib/api/backend";
+import { logActivity } from "@/lib/api/activityLog";
+import { trackFirstOrder, trackOrderPlaced } from "@/lib/marketingTracker";
 import type { Product } from "@/models/products";
 import type { PriceResult } from "@/hooks/usePricing";
 import type { Quote } from "@/models/quote";
@@ -34,6 +37,7 @@ interface UsePortalCartOptions {
   orders: PortalOrder[];
   addOrder: (order: AddOrderPayload) => Promise<{ error: unknown }>;
   updateOrder: (id: string | number, data: Partial<PortalOrder>) => Promise<unknown>;
+  fetchOrders: () => Promise<void>;
   addQuote: (q: Omit<Quote, "id">) => Promise<unknown>;
   updateQuoteStatus: (id: number, status: string) => Promise<unknown>;
   navigate: (path: string) => void;
@@ -48,6 +52,7 @@ export function usePortalCart({
   orders,
   addOrder,
   updateOrder,
+  fetchOrders,
   addQuote,
   updateQuoteStatus,
   navigate,
@@ -361,45 +366,90 @@ export function usePortalCart({
     }
 
     setOrderSubmitting(true);
-    const orderProducts = cartItems.map((item) => ({
-      product_id: item.product.id,
-      name: item.product.name,
-      sku: item.product.sku || "",
-      quantity: item.quantity,
-      cost_price: item.cost,
-      unit_price: Number(item.unitPrice.toFixed(2)),
-      total_price: Number(item.totalPrice.toFixed(2)),
-      margin: item.margin,
-    }));
+    try {
+      // Los precios se resuelven server-side — sólo enviamos product_id + quantity
+      const result = await backend.orders.checkout({
+        items: Object.entries(cart).map(([productId, qty]) => ({
+          product_id: Number(productId),
+          quantity: qty,
+        })),
+        coupon_code: (appliedCoupon?.code as string) ?? null,
+        notes: null,
+        payment_method: null,
+        payment_surcharge_pct: null,
+        shipping_type: null,
+        shipping_address: null,
+        shipping_transport: null,
+        shipping_cost: null,
+      });
 
-    const { error } = await addOrder({
-      products: orderProducts,
-      total: Number(cartTotal.toFixed(2)),
-      status: "pending",
-      coupon_code: (appliedCoupon?.code as string) ?? undefined,
-      created_at: new Date().toISOString(),
-    });
+      const orderId = result.id;
+      const orderNumber = (result as unknown as { order_number?: string }).order_number;
 
-    if (!error) {
-      try {
-        await Promise.all(
-          cartItems.map((item) =>
-            supabase.from("products")
-              .update({ stock_reserved: (item.product.stock_reserved ?? 0) + item.quantity })
-              .eq("id", item.product.id)
-          )
-        );
-      } catch { /* silencioso */ }
-    }
+      // Log activity
+      void logActivity({
+        action: "place_order",
+        entity_type: "order",
+        entity_id: String(orderId),
+        metadata: { order_number: orderNumber ?? String(orderId), total: result.total },
+      });
 
-    setOrderSubmitting(false);
-    if (!error) {
+      // Marketing tracking
+      if (orders.length === 0) {
+        trackFirstOrder(profile?.id ?? "", String(orderId), result.total);
+      } else {
+        trackOrderPlaced(profile?.id ?? "", String(orderId), result.total);
+      }
+
+      // Refresca la lista de pedidos
+      void fetchOrders();
+
+      // Email de confirmación (non-blocking)
+      void (async () => {
+        try {
+          const numericOrderId = Number(orderId);
+          await fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "order_confirmed",
+              ...(Number.isFinite(numericOrderId) ? { orderId: numericOrderId } : {}),
+              orderNumber: orderNumber ?? String(orderId),
+              clientId: profile?.id,
+              clientEmail: profile?.email ?? undefined,
+              clientName: profile?.company_name || profile?.contact_name || undefined,
+              products: result.items.map((p) => ({
+                product_id: p.product_id,
+                name: p.name,
+                sku: p.sku,
+                quantity: p.quantity,
+                unit_price: p.unit_price,
+                total_price: p.line_total,
+              })),
+              total: result.total,
+            }),
+          });
+        } catch {
+          // Email es non-critical
+        }
+      })();
+
       setOrderSuccess(true);
       setCart({});
       setAppliedCoupon(null);
       setCouponCode("");
       setActiveTab("orders");
       setTimeout(() => setOrderSuccess(false), 5000);
+    } catch (err) {
+      const message =
+        err instanceof BackendError
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : "Error al procesar el pedido";
+      toast.error(message);
+    } finally {
+      setOrderSubmitting(false);
     }
   };
 

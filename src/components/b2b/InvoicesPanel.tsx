@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import type { PortalOrder } from "@/hooks/useOrders";
 import type { Invoice, InvoiceStatus } from "@/lib/api/invoices";
@@ -140,7 +141,22 @@ export function InvoicesPanel({ invoices, orders = [], loading, onGoToOrders }: 
 
       {loading ? (
         <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-24 animate-pulse rounded-[24px] border border-border/70 bg-card" />)}
+          {Array.from({ length: 3 }).map((_, index) => (
+            <SurfaceCard key={`invoice-skeleton-${index}`} tone="default" padding="none" className="overflow-hidden rounded-[24px] border border-border/70 bg-card shadow-sm">
+              <div className="px-5 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="min-w-0 space-y-2">
+                    <Skeleton className="h-3 w-36 animate-pulse rounded-md" />
+                    <Skeleton className="h-3 w-40 animate-pulse rounded-md" />
+                  </div>
+                  <div className="space-y-2 text-right">
+                    <Skeleton className="h-5 w-28 animate-pulse rounded-md" />
+                    <Skeleton className="h-3 w-24 animate-pulse rounded-md" />
+                  </div>
+                </div>
+              </div>
+            </SurfaceCard>
+          ))}
         </div>
       ) : filteredInvoices.length === 0 ? (
         <EmptyState title="No encontramos facturas con esos filtros" icon={<Search size={18} />} className="rounded-[24px] border border-border/70 bg-card py-16" />

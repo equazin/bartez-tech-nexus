@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { createRmaApi } from "@/lib/api/ordersApi";
+import { backend, hasBackendUrl } from "@/lib/api/backend";
 
 export type RmaStatus = "draft" | "submitted" | "reviewing" | "approved" | "rejected" | "resolved";
 export type RmaReason = "defective" | "wrong_item" | "damaged_in_transit" | "not_as_described" | "other";
@@ -50,16 +50,27 @@ export function useRma(clientId: string | undefined) {
     }
     setLoading(true);
     setError(null);
-    const { data, error: err } = await supabase
-      .from("rma_requests")
-      .select("*")
-      .eq("client_id", clientId)
-      .order("created_at", { ascending: false });
+    try {
+      if (hasBackendUrl) {
+        // Migrado: el backend filtra por JWT del cliente autenticado
+        const { items } = await backend.rma.list();
+        setRmas(items as unknown as RmaRequest[]);
+      } else {
+        // Fallback: Supabase directo
+        const { data, error: err } = await supabase
+          .from("rma_requests")
+          .select("*")
+          .eq("client_id", clientId)
+          .order("created_at", { ascending: false });
 
-    if (err) {
-      setError(err.message);
-    } else {
-      setRmas((data ?? []) as RmaRequest[]);
+        if (err) {
+          setError(err.message);
+        } else {
+          setRmas((data ?? []) as RmaRequest[]);
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al cargar RMAs");
     }
     setLoading(false);
   }, [clientId]);
@@ -68,9 +79,9 @@ export function useRma(clientId: string | undefined) {
 
   const createRma = useCallback(async (input: CreateRmaInput): Promise<RmaRequest | null> => {
     try {
-      const rma = await createRmaApi(input) as RmaRequest;
-      setRmas((prev) => [rma, ...prev]);
-      return rma;
+      const rma = await backend.rma.create(input);
+      setRmas((prev) => [rma as unknown as RmaRequest, ...prev]);
+      return rma as unknown as RmaRequest;
     } catch (err) {
       setError((err as Error).message ?? "Error al crear RMA");
       return null;

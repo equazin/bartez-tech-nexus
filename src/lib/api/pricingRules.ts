@@ -1,9 +1,16 @@
 import { supabase } from "@/lib/supabase";
+import { backend, hasBackendUrl } from "@/lib/api/backend";
 import type { PricingRule, PricingRuleInsert, PricingRuleUpdate } from "@/models/pricingRule";
 import { createPricingRuleApi, updatePricingRuleApi, deletePricingRuleApi } from "@/lib/api/ordersApi";
 
-// GET remains a direct Supabase call — read-only, safe with RLS, and used for display only
 export async function fetchPricingRules(): Promise<PricingRule[]> {
+  if (hasBackendUrl) {
+    // Migrado: el backend lee pricing_rules con el service_role y aplica el orden correcto
+    const rows = await backend.pricing.listRules();
+    return rows as unknown as PricingRule[];
+  }
+
+  // Fallback: Supabase directo
   const { data, error } = await supabase
     .from("pricing_rules")
     .select("*")

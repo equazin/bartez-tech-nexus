@@ -24,6 +24,7 @@ import {
   type CuitEntityType,
   type TaxStatus,
 } from "@/lib/api/afip";
+import { createRegistrationRequest } from "@/lib/api/registrationRequests";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -172,10 +173,7 @@ const Register = () => {
 
     setLoading(true);
     try {
-      const res = await fetch("/api/create-user", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const result = await createRegistrationRequest({
           cuit: rawDigits,
           company_name: name,
           contact_name: name,
@@ -183,32 +181,14 @@ const Register = () => {
           password,
           entity_type: afipData?.entityType ?? "empresa",
           tax_status: taxStatus,
-        }),
       });
 
-      const json = (await res.json()) as {
-        ok: boolean;
-        data?: {
-          assigned_to: string | null;
-          assigned_executive?: {
-            name?: string;
-            role?: string;
-            email?: string;
-          } | null;
-        };
-        error?: string;
-      };
-
-      if (!json.ok) {
-        throw new Error(json.error ?? "No pudimos procesar la solicitud.");
-      }
-
       setAssignedExecutiveDetails(
-        json.data?.assigned_executive?.email
+        result.assigned_executive?.email
           ? {
-              name: json.data.assigned_executive.name ?? "Ejecutivo comercial",
-              role: json.data.assigned_executive.role ?? "Equipo de ventas B2B",
-              email: json.data.assigned_executive.email,
+              name: result.assigned_executive.name ?? "Ejecutivo comercial",
+              role: result.assigned_executive.role ?? "Equipo de ventas B2B",
+              email: result.assigned_executive.email,
             }
           : null,
       );

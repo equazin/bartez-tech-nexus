@@ -9,6 +9,8 @@ import { StockBadge } from "@/components/b2b/StockBadge";
 import { DeliveryEstimate } from "@/components/b2b/DeliveryEstimate";
 import { WarrantyBadge } from "@/components/b2b/WarrantyBadge";
 import { RelatedProducts } from "@/components/b2b/RelatedProducts";
+import { PriceHistoryChart } from "@/components/b2b/PriceHistoryChart";
+import { PriceSparkline } from "@/components/PriceSparkline";
 import type { PriceResult } from "@/hooks/usePricing";
 import { getAvailableStock } from "@/lib/pricing";
 import { resolveProductImageUrl } from "@/lib/productImage";
@@ -138,6 +140,8 @@ export interface ProductDetailModalProps {
   onRemoveFromCart: (p: Product) => void;
   onSelectProduct?: (p: Product) => void;
   allProducts?: Product[];
+  profileId?: string | null;
+  purchaseHistoryCount?: number;
 }
 
 export function ProductDetailModal({
@@ -155,6 +159,8 @@ export function ProductDetailModal({
   onRemoveFromCart,
   onSelectProduct,
   allProducts = [],
+  profileId,
+  purchaseHistoryCount = 0,
 }: ProductDetailModalProps) {
   const SPEC_PREVIEW_LIMIT = 20;
   const SPEC_VIRTUALIZE_THRESHOLD = 80;
@@ -183,6 +189,7 @@ export function ProductDetailModal({
   const [showAllSpecs, setShowAllSpecs] = useState(false);
   const [specScrollTop, setSpecScrollTop] = useState(0);
   const [showStickyBar, setShowStickyBar] = useState(false);
+  const [showPriceHistory, setShowPriceHistory] = useState(false);
   const modalScrollRef = useRef<HTMLDivElement | null>(null);
   const compatibilityRef = useRef<HTMLDivElement | null>(null);
   const ctaRef = useRef<HTMLDivElement | null>(null);
@@ -353,6 +360,11 @@ export function ProductDetailModal({
                     ) : null}
                     {availableStock > 0 ? <span className="text-muted-foreground">{availableStock} disponibles</span> : null}
                     {product.stock_min && product.stock_min > 0 ? <span className="text-muted-foreground">min. {product.stock_min}</span> : null}
+                    {purchaseHistoryCount > 0 ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                        ✓ Ya compraste este producto · {purchaseHistoryCount} {purchaseHistoryCount === 1 ? "vez" : "veces"}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 <StockBadge stock={product.stock} />
@@ -574,6 +586,38 @@ export function ProductDetailModal({
                     ))}
                   </div>
                 </div>
+              ) : null}
+
+              <div className="rounded-2xl border border-border/70 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowPriceHistory((prev) => !prev)}
+                  className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-muted/40"
+                >
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                    Historial de precio · 90 días
+                  </span>
+                  <svg
+                    width="12" height="12" viewBox="0 0 12 12" fill="none"
+                    className={cn("text-muted-foreground transition-transform", showPriceHistory ? "rotate-180" : "")}
+                  >
+                    <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+                {showPriceHistory && (
+                  <div className="border-t border-border/70 px-4 py-3">
+                    <PriceSparkline productId={product.id} currentPrice={unitPrice} isDark={isDark} />
+                  </div>
+                )}
+              </div>
+
+              {profileId && purchaseHistoryCount > 0 ? (
+                <PriceHistoryChart
+                  productId={product.id}
+                  profileId={profileId}
+                  currentPrice={unitPrice}
+                  formatPrice={formatPrice}
+                />
               ) : null}
             </div>
 

@@ -4,8 +4,11 @@ import {
   Bell,
   Building2,
   CreditCard,
+  Eye,
+  EyeOff,
   FileText,
   Loader2,
+  Lock,
   Mail,
   MapPin,
   Save,
@@ -18,11 +21,14 @@ import {
   Wallet,
   Receipt,
   Search,
+  ShoppingCart,
 } from "lucide-react";
+import { backend, hasBackendUrl } from "@/lib/api/backend";
 import { QuoteList } from "@/components/QuoteList";
 import { ExpressQuoter } from "@/components/b2b/ExpressQuoter";
 import { PaymentsPanel } from "@/components/b2b/PaymentsPanel";
 import { AccountDashboard } from "@/components/b2b/AccountDashboard";
+import { EmptyState } from "@/components/ui/empty-state";
 import { fetchMyPayments, type PaymentRecord } from "@/lib/api/payments";
 import { supabase, type UserProfile } from "@/lib/supabase";
 import {
@@ -54,7 +60,10 @@ import { exportPriceListPDF } from "@/lib/exports";
 import { LoyaltyPanel } from "@/components/b2b/LoyaltyPanel";
 import { CompanyProfileEditor } from "@/components/b2b/CompanyProfileEditor";
 import { NotificationPreferences as NotificationPreferencesPanel } from "@/components/b2b/NotificationPreferences";
+import { PurchaseListsPanel } from "@/components/b2b/PurchaseListsPanel";
+import { RecurringOrdersPanel } from "@/components/b2b/RecurringOrdersPanel";
 import { exportClientOrders, exportClientInvoices, exportClientQuotes, type ExportDateRange } from "@/lib/exportClientData";
+import type { PurchaseList, PurchaseListItem } from "@/hooks/usePurchaseLists";
 
 type AccountSection =
   | "resumen"
@@ -68,6 +77,7 @@ type AccountSection =
   | "express"
   | "payments"
   | "listas"
+  | "reposicion"
   | "notificaciones"
   | "seguridad"
   | "soporte";
@@ -80,9 +90,19 @@ interface AccountCenterProps {
   invoices: Invoice[];
   favoriteProducts: Product[];
   savedCarts: SavedCart[];
+  purchaseLists: PurchaseList[];
+  purchaseListsLoading: boolean;
   onNavigateToTab: (tab: "catalog" | "orders" | "quotes" | "invoices") => void;
   onLoadSavedCart: (cart: SavedCart) => void;
   onDeleteSavedCart: (cartId: string) => void;
+  onCreatePurchaseList: (name: string, items?: PurchaseListItem[]) => Promise<PurchaseList | null>;
+  onUpdatePurchaseList: (
+    id: number,
+    patch: Partial<Pick<PurchaseList, "name" | "items" | "shared_with">>,
+  ) => Promise<PurchaseList | null>;
+  onDeletePurchaseList: (id: number) => Promise<void>;
+  onLoadListToCart: (list: PurchaseList) => void;
+  onCreateOrderFromList: (list: PurchaseList) => void;
   // Quotes props
   isDark: boolean;
   onLoadQuote: (quote: Quote) => void;
@@ -106,14 +126,15 @@ const SECTIONS: Array<{ id: AccountSection; label: string }> = [
   { id: "quotes", label: "Cotizaciones" },
   { id: "express", label: "Solicitud guiada" },
   { id: "payments", label: "Pagos y comprobantes" },
-  { id: "listas", label: "Listas guardadas" },
+  { id: "listas", label: "Mis listas" },
+  { id: "reposicion", label: "Reposicion automatica" },
   { id: "notificaciones", label: "Notificaciones" },
   { id: "seguridad", label: "Seguridad" },
   { id: "soporte", label: "Soporte y postventa" },
 ];
 
 const SECTION_GROUPS: Array<{ label: string; items: AccountSection[] }> = [
-  { label: "Operacion", items: ["resumen", "quotes", "express", "listas", "soporte"] },
+  { label: "Operacion", items: ["resumen", "quotes", "express", "listas", "reposicion", "soporte"] },
   { label: "Finanzas", items: ["payments", "documentos", "credito", "condiciones"] },
   { label: "Cuenta", items: ["datos", "usuarios", "sucursales", "notificaciones", "seguridad"] },
 ];
@@ -174,9 +195,16 @@ export function AccountCenter({
   invoices,
   favoriteProducts,
   savedCarts,
+  purchaseLists,
+  purchaseListsLoading,
   onNavigateToTab,
   onLoadSavedCart,
   onDeleteSavedCart,
+  onCreatePurchaseList,
+  onUpdatePurchaseList,
+  onDeletePurchaseList,
+  onLoadListToCart,
+  onCreateOrderFromList,
   isDark,
   onLoadQuote,
   onUpdateQuoteStatus,
@@ -247,6 +275,11 @@ export function AccountCenter({
     readNotificationPreferences(profile.id)
   );
   const [exportDateRange, setExportDateRange] = useState<ExportDateRange>("all");
+  const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
+  const [showPassword, setShowPassword] = useState(false);
+  const [pwError, setPwError] = useState("");
+  const [pwSuccess, setPwSuccess] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
   const [supportCategory, setSupportCategory] = useState("CONSULTA");
   const [supportMessage, setSupportMessage] = useState("");
   const [supportSaving, setSupportSaving] = useState(false);
@@ -559,6 +592,32 @@ export function AccountCenter({
     doc.save(`Estado_Cuenta_${profile.id.slice(0, 8)}.pdf`);
   }
 
+  async function handleChangePassword() {
+    setPwError("");
+    setPwSuccess("");
+    if (!pwForm.current.trim()) { setPwError("Ingresá tu contraseña actual."); return; }
+    if (pwForm.next.length < 8) { setPwError("La nueva contraseña debe tener al menos 8 caracteres."); return; }
+    if (pwForm.next !== pwForm.confirm) { setPwError("Las contraseñas no coinciden."); return; }
+    setPwSaving(true);
+    try {
+      if (hasBackendUrl) {
+        await backend.me.changePassword({ current_password: pwForm.current, new_password: pwForm.next });
+      } else {
+        const email = sessionEmail ?? "";
+        const { error: reAuthError } = await supabase.auth.signInWithPassword({ email, password: pwForm.current });
+        if (reAuthError) throw new Error("Contraseña actual incorrecta.");
+        const { error: updateError } = await supabase.auth.updateUser({ password: pwForm.next });
+        if (updateError) throw updateError;
+      }
+      setPwSuccess("Contraseña actualizada correctamente.");
+      setPwForm({ current: "", next: "", confirm: "" });
+    } catch (err) {
+      setPwError(err instanceof Error ? err.message : "No se pudo cambiar la contraseña.");
+    } finally {
+      setPwSaving(false);
+    }
+  }
+
   async function handleSendResetLink() {
     if (!sessionEmail) {
       setSecurityMessage("No encontramos un email asociado a esta cuenta.");
@@ -820,7 +879,16 @@ export function AccountCenter({
             </div>
           )}
 
-          {activeSection === "sucursales" && (
+          {activeSection === "sucursales" && !distinctAddresses.length && addressUsage.length === 0 && (
+            <EmptyState
+              icon={<MapPin size={20} />}
+              title="Sin direcciones registradas"
+              description="Contactá a tu ejecutivo para registrar tus sucursales y puntos de entrega."
+              className="rounded-2xl border border-border/70 bg-card py-14"
+            />
+          )}
+
+          {activeSection === "sucursales" && (distinctAddresses.length > 0 || addressUsage.length > 0) && (
             <div className="grid gap-4 lg:grid-cols-[1fr_1.1fr]">
               <div className="border border-border/70 bg-card rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-3">
@@ -964,29 +1032,93 @@ export function AccountCenter({
           )}
 
           {activeSection === "documentos" && (
-            <div className="border rounded-2xl overflow-hidden border border-border/70 bg-card">
-              <div className="grid grid-cols-[110px_1fr_160px] gap-2 px-4 py-2 text-[10px] font-bold uppercase tracking-wider bg-muted text-muted-foreground">
-                <span>Tipo</span>
-                <span>Documento</span>
-                <span className="text-right">Acción</span>
-              </div>
-              {documentItems.map((item) => (
-                <div key={item.id} className="grid grid-cols-[110px_1fr_160px] gap-2 px-4 py-3 border-t border-border/70 items-center">
-                  <span className="text-xs text-muted-foreground">{item.type}</span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{item.label}</p>
-                    <p className="text-[11px] text-muted-foreground">{item.meta}</p>
-                  </div>
-                  <div className="text-right">
-                    <button onClick={item.onAction} className="text-xs text-primary hover:underline">{item.action}</button>
-                  </div>
+            <div className="space-y-4">
+              <div className="border rounded-2xl overflow-hidden border-border/70 bg-card">
+                <div className="grid grid-cols-[110px_1fr_160px] gap-2 px-4 py-2 text-[10px] font-bold uppercase tracking-wider bg-muted text-muted-foreground">
+                  <span>Tipo</span>
+                  <span>Documento</span>
+                  <span className="text-right">Acción</span>
                 </div>
-              ))}
+                {documentItems.map((item) => (
+                  <div key={item.id} className="grid grid-cols-[110px_1fr_160px] gap-2 px-4 py-3 border-t border-border/70 items-center">
+                    <span className="text-xs text-muted-foreground">{item.type}</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{item.label}</p>
+                      <p className="text-[11px] text-muted-foreground">{item.meta}</p>
+                    </div>
+                    <div className="text-right">
+                      <button onClick={item.onAction} className="text-xs text-primary hover:underline">{item.action}</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border border-border/70 bg-card rounded-2xl p-5 space-y-4">
+                <div className="flex items-center gap-2">
+                  <FileText size={15} className="text-blue-600 dark:text-blue-400" />
+                  <h3 className="text-sm font-bold text-foreground">Exportar documentos</h3>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-xs text-muted-foreground">Período:</span>
+                  {(["3m", "6m", "1y", "all"] as ExportDateRange[]).map((range) => {
+                    const label = range === "3m" ? "3 meses" : range === "6m" ? "6 meses" : range === "1y" ? "1 año" : "Todo";
+                    return (
+                      <button
+                        key={range}
+                        type="button"
+                        onClick={() => setExportDateRange(range)}
+                        className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                          exportDateRange === range
+                            ? "border-primary/40 bg-primary/10 text-primary"
+                            : "border-border/70 bg-card text-muted-foreground hover:border-primary/30"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => exportClientOrders(orders, exportDateRange)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-card px-4 py-2 text-sm text-foreground transition hover:border-primary/30 hover:bg-primary/5"
+                  >
+                    Pedidos (.csv)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => exportClientInvoices(invoices, exportDateRange)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-card px-4 py-2 text-sm text-foreground transition hover:border-primary/30 hover:bg-primary/5"
+                  >
+                    Facturas (.csv)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => exportClientQuotes(quotes, exportDateRange)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-card px-4 py-2 text-sm text-foreground transition hover:border-primary/30 hover:bg-primary/5"
+                  >
+                    Cotizaciones (.csv)
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
           {activeSection === "listas" && (
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-4">
+              <PurchaseListsPanel
+                lists={purchaseLists}
+                loading={purchaseListsLoading}
+                products={products}
+                onCreateList={onCreatePurchaseList}
+                onUpdateList={onUpdatePurchaseList}
+                onDeleteList={onDeletePurchaseList}
+                onLoadListToCart={onLoadListToCart}
+                onCreateOrderFromList={onCreateOrderFromList}
+              />
+
+              <div className="grid gap-4 md:grid-cols-2">
               <div className="border border-border/70 bg-card rounded-2xl p-5 col-span-full">
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <div className="flex items-center gap-2">
@@ -1037,38 +1169,62 @@ export function AccountCenter({
                 )}
               </div>
 
+              {savedCarts.length === 0 ? (
+                <EmptyState
+                  icon={<ShoppingCart size={18} />}
+                  title="No tenés listas guardadas"
+                  description="Guardá un carrito como lista para reutilizarlo cuando quieras."
+                  actionLabel="Ir al catálogo"
+                  onAction={() => onNavigateToTab("catalog")}
+                  className="rounded-2xl border border-border/70 bg-card py-12"
+                />
+              ) : (
               <div className="border border-border/70 bg-card rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-3">
                   <FileText size={15} className="text-blue-600 dark:text-blue-400" />
                   <h3 className={`text-sm font-bold text-foreground`}>Carritos guardados</h3>
                 </div>
-                {savedCarts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No hay carritos guardados todavía.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {savedCarts.map((cart) => (
-                      <div key={cart.id} className="rounded-xl border border-border/70 bg-card px-3 py-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate text-foreground">{cart.name}</p>
-                            <p className="text-[11px] text-muted-foreground">{Object.keys(cart.items).length} SKU</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => onLoadSavedCart(cart)} className="text-xs text-primary hover:underline">Cargar</button>
-                            <button onClick={() => onDeleteSavedCart(cart.id)} className="text-xs text-destructive hover:underline">Eliminar</button>
-                          </div>
+                <div className="space-y-2">
+                  {savedCarts.map((cart) => (
+                    <div key={cart.id} className="rounded-xl border border-border/70 bg-card px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate text-foreground">{cart.name}</p>
+                          <p className="text-[11px] text-muted-foreground">{Object.keys(cart.items).length} SKU</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => onLoadSavedCart(cart)} className="text-xs text-primary hover:underline">Cargar</button>
+                          <button onClick={() => onDeleteSavedCart(cart.id)} className="text-xs text-destructive hover:underline">Eliminar</button>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
+                    </div>
+                  ))}
+                </div>
+              </div>)}
               </div>
             </div>
           )}
 
+          {activeSection === "reposicion" && (
+            <RecurringOrdersPanel
+              userId={profile.id}
+              products={products}
+              onGoToOrders={() => onNavigateToTab("orders")}
+            />
+          )}
+
           {activeSection === "notificaciones" && (
             <div className="space-y-4">
-              <NotificationPreferencesPanel profileId={profile.id} />
+              {loading ? (
+                <div className="flex items-center justify-center rounded-2xl border border-border/70 bg-card px-4 py-10">
+                  <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 size={14} className="animate-spin" />
+                    Cargando notificaciones...
+                  </div>
+                </div>
+              ) : (
+                <NotificationPreferencesPanel profileId={profile.id} />
+              )}
 
               {/* Export section */}
               <div className="border border-border/70 bg-card rounded-2xl p-5 space-y-4">
@@ -1130,18 +1286,71 @@ export function AccountCenter({
               <div className="border border-border/70 bg-card rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-3">
                   <Shield size={15} className="text-primary" />
-                  <h3 className={`text-sm font-bold text-foreground`}>Acceso al portal</h3>
+                  <h3 className="text-sm font-bold text-foreground">Acceso al portal</h3>
                 </div>
-                <div className="space-y-2 text-sm">
-                  <p className="text-muted-foreground">Email de acceso: <span className={`font-semibold text-foreground`}>{sessionEmail || "No disponible"}</span></p>
-                  <p className="text-muted-foreground">Rol actual: <span className={`font-semibold text-foreground`}>{profile.role}</span></p>
-                  <p className="text-muted-foreground">Estado: <span className={`font-semibold text-foreground`}>{profile.active === false ? "Bloqueado" : "Activo"}</span></p>
+                <div className="space-y-1.5 text-sm mb-4">
+                  <p className="text-muted-foreground">Email: <span className="font-semibold text-foreground">{sessionEmail || "No disponible"}</span></p>
+                  <p className="text-muted-foreground">Rol: <span className="font-semibold text-foreground">{profile.role}</span></p>
+                  <p className="text-muted-foreground">Estado: <span className="font-semibold text-foreground">{profile.active === false ? "Bloqueado" : "Activo"}</span></p>
                 </div>
-                <button onClick={handleSendResetLink} className="mt-4 text-sm text-primary hover:underline">
-                  Enviar email para cambiar contraseña
-                </button>
-                <button onClick={() => jumpToSupport("ACCESOS", "Necesito revisar permisos, roles o politica de acceso de la cuenta.")} className="mt-2 block text-sm text-primary hover:underline">
-                  Solicitar revision de permisos
+
+                <div className="border-t border-border/70 pt-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Lock size={13} className="text-muted-foreground" />
+                    <p className="text-sm font-semibold text-foreground">Cambiar contraseña</p>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Contraseña actual"
+                      value={pwForm.current}
+                      onChange={(e) => setPwForm((f) => ({ ...f, current: e.target.value }))}
+                      className="w-full rounded-lg border border-border/70 bg-card px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary/40"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Nueva contraseña (mín. 8 caracteres)"
+                    value={pwForm.next}
+                    onChange={(e) => setPwForm((f) => ({ ...f, next: e.target.value }))}
+                    className="w-full rounded-lg border border-border/70 bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary/40"
+                  />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Confirmar nueva contraseña"
+                    value={pwForm.confirm}
+                    onChange={(e) => setPwForm((f) => ({ ...f, confirm: e.target.value }))}
+                    className="w-full rounded-lg border border-border/70 bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary/40"
+                  />
+
+                  {pwError && <p className="text-xs text-destructive">{pwError}</p>}
+                  {pwSuccess && <p className="text-xs text-emerald-600 dark:text-emerald-400">{pwSuccess}</p>}
+
+                  <button
+                    type="button"
+                    onClick={handleChangePassword}
+                    disabled={pwSaving}
+                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {pwSaving ? <Loader2 size={13} className="animate-spin" /> : <Lock size={13} />}
+                    {pwSaving ? "Guardando..." : "Actualizar contraseña"}
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => jumpToSupport("ACCESOS", "Necesito revisar permisos, roles o politica de acceso de la cuenta.")}
+                  className="mt-4 block text-sm text-primary hover:underline"
+                >
+                  Solicitar revisión de permisos
                 </button>
                 {securityMessage && <p className="text-xs text-muted-foreground mt-2">{securityMessage}</p>}
               </div>
@@ -1149,9 +1358,9 @@ export function AccountCenter({
               <div className="border border-border/70 bg-card rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-3">
                   <Wrench size={15} className="text-blue-600 dark:text-blue-400" />
-                  <h3 className={`text-sm font-bold text-foreground`}>Gestión adicional</h3>
+                  <h3 className="text-sm font-bold text-foreground">Gestión adicional</h3>
                 </div>
-                <p className={`text-sm text-muted-foreground`}>
+                <p className="text-sm text-muted-foreground">
                   Si necesitás cambiar email, sumar aprobadores o revisar permisos comerciales, pedilo desde Soporte y lo atendemos desde el admin.
                 </p>
               </div>

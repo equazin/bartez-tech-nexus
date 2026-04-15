@@ -25,10 +25,16 @@ export function StockBadge({ stock, lugStock = 0, size = "sm" }: StockBadgeProps
         <div className={`${dot} bg-destructive shadow-[0_0_4px_rgba(239,68,68,0.6)]`} /> Sin stock
       </span>
     );
-  if (stock < 5)
+  if (stock >= 1 && stock <= 3)
+    return (
+      <span className={`${base} bg-destructive/10 text-destructive border border-destructive/20`}>
+        <div className={`${dot} bg-destructive shadow-[0_0_4px_rgba(239,68,68,0.6)] animate-pulse`} /> Últimas {stock} unid.
+      </span>
+    );
+  if (stock >= 4 && stock <= 10)
     return (
       <span className={`${base} bg-amber-500/10 text-amber-600 border border-amber-500/20 dark:text-amber-400`}>
-        <div className={`${dot} bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.6)]`} /> Stock bajo ({stock})
+        <div className={`${dot} bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.6)]`} /> Stock bajo · {stock} disp.
       </span>
     );
   return (
