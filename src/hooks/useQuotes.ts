@@ -1,37 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
 import { Quote, QuoteStatus } from "@/models/quote";
-
-// ── One-time localStorage → Supabase migration ──────────────────────────────
-async function migrateLocalStorageQuotes(userId: string): Promise<void> {
-  const key = `b2b_quotes_${userId}`;
-  const raw = localStorage.getItem(key);
-  if (!raw) return;
-  try {
-    const local: Quote[] = JSON.parse(raw);
-    if (!local.length) return;
-    const rows = local.map((q) => ({
-      client_id:   userId,
-      client_name: q.client_name,
-      items:       q.items,
-      subtotal:    q.subtotal,
-      iva_total:   q.ivaTotal,
-      total:       q.total,
-      currency:    q.currency,
-      status:      q.status,
-      version:     q.version  ?? 1,
-      parent_id:   null,
-      created_at:  q.created_at,
-      updated_at:  q.updated_at,
-    }));
-    const { error } = await supabase.from("quotes").insert(rows);
-    if (!error) {
-      localStorage.removeItem(key);
-    }
-  } catch {
-    // Silencioso — no bloquear si falla la migración
-  }
-}
+import { backend, hasBackendUrl } from "@/lib/api/backend";
+import { supabase } from "@/lib/supabase";
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -43,18 +13,21 @@ export function useQuotes(userId: string) {
     if (!userId || userId === "guest") return;
     setLoading(true);
     try {
-      // Migrate legacy localStorage quotes on first load
-      await migrateLocalStorageQuotes(userId);
+      if (hasBackendUrl) {
+        // Migrado: el backend filtra por JWT del cliente autenticado
+        const { items } = await backend.me.quotes();
+        setQuotes(items.map((row) => dbToQuote(row as Record<string, unknown>)));
+      } else {
+        // Fallback: Supabase directo
+        const { data, error } = await supabase
+          .from("quotes")
+          .select("*")
+          .eq("client_id", userId)
+          .order("created_at", { ascending: false });
 
-      const { data, error } = await supabase
-        .from("quotes")
-        .select("*")
-        .eq("client_id", userId)
-        .order("created_at", { ascending: false });
-
-      if (!error && data) {
-        // Map DB snake_case → frontend camelCase
-        setQuotes(data.map(dbToQuote));
+        if (!error && data) {
+          setQuotes(data.map(dbToQuote));
+        }
       }
     } catch {
       // Silencioso — tabla puede no existir todavía
@@ -71,13 +44,8 @@ export function useQuotes(userId: string) {
     async (data: Omit<Quote, "id">): Promise<Quote | null> => {
       if (!userId || userId === "guest") return null;
       try {
-        const { data: inserted, error } = await supabase
-          .from("quotes")
-          .insert(quoteToDb(data, userId))
-          .select("*")
-          .single();
-        if (error || !inserted) return null;
-        const quote = dbToQuote(inserted as Record<string, unknown>);
+        const row = await backend.quotes.create(quoteToDb(data, userId));
+        const quote = dbToQuote(row as Record<string, unknown>);
         setQuotes((prev) => [quote, ...prev]);
         return quote;
       } catch {
@@ -89,7 +57,7 @@ export function useQuotes(userId: string) {
 
   // ── updateQuote ────────────────────────────────────────────────────────────
   const updateQuote = useCallback(
-    async (id: number | string, changes: Partial<Quote>): Promise<void> => {
+    async (id: number, changes: Partial<Quote>): Promise<void> => {
       try {
         const patch: Record<string, unknown> = {};
         if (changes.client_name !== undefined) patch.client_name = changes.client_name;
@@ -105,17 +73,10 @@ export function useQuotes(userId: string) {
         if (changes.valid_days  !== undefined) patch.valid_days  = changes.valid_days;
         if (changes.expires_at  !== undefined) patch.expires_at  = changes.expires_at;
         if (changes.notes       !== undefined) patch.notes       = changes.notes;
-        if (changes.build_id    !== undefined) patch.build_id    = changes.build_id;
 
-        const { data: updatedRow, error } = await supabase
-          .from("quotes")
-          .update(patch)
-          .eq("id", id)
-          .select("*")
-          .single();
-        if (error || !updatedRow) return;
-        const updated = dbToQuote(updatedRow as Record<string, unknown>);
-        setQuotes((prev) => prev.map((q) => (String(q.id) === String(id) ? updated : q)));
+        const row = await backend.quotes.update(String(id), patch);
+        const updated = dbToQuote(row as Record<string, unknown>);
+        setQuotes((prev) => prev.map((q) => (q.id === id ? updated : q)));
       } catch {
         // Silencioso
       }
@@ -125,18 +86,16 @@ export function useQuotes(userId: string) {
 
   // ── updateStatus ───────────────────────────────────────────────────────────
   const updateStatus = useCallback(
-    (id: number | string, status: QuoteStatus) => updateQuote(id, { status }),
+    (id: number, status: QuoteStatus) => updateQuote(id, { status }),
     [updateQuote]
   );
 
   // ── deleteQuote ────────────────────────────────────────────────────────────
   const deleteQuote = useCallback(
-    async (id: number | string): Promise<void> => {
+    async (id: number): Promise<void> => {
       try {
-        const { error } = await supabase.from("quotes").delete().eq("id", id);
-        if (!error) {
-          setQuotes((prev) => prev.filter((q) => String(q.id) !== String(id)));
-        }
+        await backend.delete<void>(`/v1/quotes/${id}`);
+        setQuotes((prev) => prev.filter((q) => q.id !== id));
       } catch {
         // Silencioso
       }
@@ -150,7 +109,7 @@ export function useQuotes(userId: string) {
   // ── duplicateQuote ─────────────────────────────────────────────────────────
   const duplicateQuote = useCallback(
     async (id: number): Promise<Quote | null> => {
-      const original = quotes.find((q) => String(q.id) === String(id));
+      const original = quotes.find((q) => q.id === id);
       if (!original || !userId || userId === "guest") return null;
       const now = new Date().toISOString();
       return addQuote({
@@ -191,7 +150,7 @@ export function useQuotes(userId: string) {
 
 function dbToQuote(row: Record<string, unknown>): Quote {
   return {
-    id:          Number(row.id ?? 0),
+    id:          row.id as number,
     client_id:   row.client_id as string,
     client_name: (row.client_name as string) ?? "",
     items:       (row.items as Quote["items"]) ?? [],
@@ -206,7 +165,6 @@ function dbToQuote(row: Record<string, unknown>): Quote {
     valid_days:  row.valid_days as number | undefined,
     expires_at:  row.expires_at as string | undefined,
     notes:       row.notes as string | undefined,
-    build_id:    row.build_id as string | undefined,
     created_at:  row.created_at as string,
     updated_at:  row.updated_at as string,
   };
@@ -228,7 +186,6 @@ function quoteToDb(q: Omit<Quote, "id">, userId: string): Record<string, unknown
     valid_days:  q.valid_days ?? null,
     expires_at:  q.expires_at ?? null,
     notes:       q.notes ?? null,
-    build_id:    q.build_id ?? null,
     created_at:  q.created_at,
     updated_at:  q.updated_at,
   };

@@ -12,7 +12,7 @@ import {
   LogOut, ShoppingCart, Search, LayoutGrid, List, Package,
   ClipboardList, ShieldCheck, AlertTriangle, CheckCircle2,
   Star, Sun, Moon, FileText, Table2, Zap, RotateCcw, Truck,
-  Briefcase, Sparkles, Users, MessageSquare, Shield, BadgeCheck, Cpu,
+  Briefcase, Sparkles, Users, MessageSquare, Shield, BadgeCheck, Cpu, Upload,
 } from "lucide-react";
 import { usePricing } from "@/hooks/usePricing";
 import { exportCatalogCSV } from "@/lib/exportCsv";
@@ -48,7 +48,12 @@ import { BulkImport } from "@/components/b2b/BulkImport";
 import { DetailedAccountView } from "@/components/b2b/DetailedAccountView";
 import { usePortalCatalog } from "@/hooks/usePortalCatalog";
 import { usePortalCart } from "@/hooks/usePortalCart";
+import { useProducts } from "@/hooks/useProducts";
 import { useAppTheme } from "@/hooks/useAppTheme";
+import { usePurchaseLists, type PurchaseList } from "@/hooks/usePurchaseLists";
+import { getAvailableStock } from "@/lib/pricing";
+import { ProductConfigurator } from "@/components/b2b/ProductConfigurator";
+import { PcBuilderPanel, type PcBuilderQuoteInput } from "@/components/b2b/PcBuilderPanel";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -56,48 +61,14 @@ import { QuoteList } from "@/components/QuoteList";
 import { MapPin } from "lucide-react";
 import { OrderStatusBadge as StatusBadge } from "@/components/OrderStatusBadge";
 import { EmptyQuotesState } from "@/components/b2b/empty-states/EmptyQuotesState";
-import { PcBuilderPage } from "@/components/b2b/PcBuilderPage";
-import { applyTotalDiscount } from "@/lib/pcBuilder";
 
 // â”€â”€ Theme helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-type PortalTab =
-  | "home"
-  | "catalog"
-  | "builder"
-  | "orders"
-  | "quotes"
-  | "projects"
-  | "express"
-  | "invoices"
-  | "cuenta"
-  | "approvals"
-  | "support"
-  | "rma"
-  | "bulk";
+type PortalTab = "home" | "catalog" | "configurator" | "pc_builder" | "orders" | "quotes" | "projects" | "express" | "invoices" | "cuenta" | "approvals" | "support" | "rma" | "bulk";
 type ViewModeByContext = Record<CatalogContext, ViewMode>;
 
 const VIEW_MODE_BY_CONTEXT_KEY = "b2b_view_mode_by_context";
 const DEFAULT_VIEW_MODE_BY_CONTEXT: ViewModeByContext = { default: "list", featured: "grid", pos: "grid" };
-const PORTAL_TAB_VALUES: PortalTab[] = [
-  "home",
-  "catalog",
-  "builder",
-  "orders",
-  "quotes",
-  "projects",
-  "express",
-  "invoices",
-  "cuenta",
-  "approvals",
-  "support",
-  "rma",
-  "bulk",
-];
-
-function isPortalTab(value: string | null): value is PortalTab {
-  return value != null && PORTAL_TAB_VALUES.includes(value as PortalTab);
-}
 
 function loadViewModeByContext(): ViewModeByContext {
   try {
@@ -137,10 +108,9 @@ export default function B2BPortal() {
   const [catalogContext, setCatalogContext] = useState<CatalogContext>("default");
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<PortalTab>(() => {
-    const t = searchParams.get("tab");
-    if (isPortalTab(t)) return t;
+    const t = searchParams.get("tab") as PortalTab;
+    if (["home", "catalog", "configurator", "pc_builder", "orders", "quotes", "cuenta", "approvals", "support", "rma", "bulk"].includes(t)) return t;
     if (window.location.pathname === "/catalogo") return "catalog";
-    if (window.location.pathname === "/armador-pc") return "builder";
     if (searchParams.get("category") || searchParams.get("categoria")) return "catalog";
     return "home";
   });
@@ -192,6 +162,64 @@ export default function B2BPortal() {
     search,
   });
 
+  const pcBuilderPortalCatalog = useProducts({
+    category: "all",
+    brand: "all",
+    search: "",
+    pageSize: 1000,
+    isAdmin: false,
+  });
+  const pcBuilderAdminCatalog = useProducts({
+    category: "all",
+    brand: "all",
+    search: "",
+    pageSize: 1000,
+    isAdmin: true,
+  });
+
+  const pcBuilderProducts = useMemo(() => {
+    const mergedByKey = new Map<string, Product>();
+    const sourceProducts = [...pcBuilderPortalCatalog.products, ...pcBuilderAdminCatalog.products];
+
+    sourceProducts.forEach((product) => {
+      const skuKey = product.sku?.trim().toLowerCase();
+      const key = skuKey && skuKey.length > 0 ? `sku:${skuKey}` : `id:${product.id}`;
+      const existing = mergedByKey.get(key);
+      if (!existing) {
+        mergedByKey.set(key, product);
+        return;
+      }
+
+      const existingSpecs = existing.specs && typeof existing.specs === "object" ? Object.keys(existing.specs).length : 0;
+      const nextSpecs = product.specs && typeof product.specs === "object" ? Object.keys(product.specs).length : 0;
+      if (nextSpecs > existingSpecs) {
+        mergedByKey.set(key, product);
+      }
+    });
+
+    const source = mergedByKey.size > 0 ? Array.from(mergedByKey.values()) : catalog.products;
+    if (!hiddenProductIds || hiddenProductIds.size === 0) return source;
+    return source.filter((product) => !hiddenProductIds.has(product.id));
+  }, [pcBuilderAdminCatalog.products, pcBuilderPortalCatalog.products, catalog.products, hiddenProductIds]);
+
+  useEffect(() => {
+    if (activeTab !== "pc_builder") return;
+    if (!pcBuilderPortalCatalog.loading && pcBuilderPortalCatalog.hasMore) {
+      pcBuilderPortalCatalog.loadMore();
+    }
+    if (!pcBuilderAdminCatalog.loading && pcBuilderAdminCatalog.hasMore) {
+      pcBuilderAdminCatalog.loadMore();
+    }
+  }, [
+    activeTab,
+    pcBuilderAdminCatalog.hasMore,
+    pcBuilderAdminCatalog.loadMore,
+    pcBuilderAdminCatalog.loading,
+    pcBuilderPortalCatalog.hasMore,
+    pcBuilderPortalCatalog.loadMore,
+    pcBuilderPortalCatalog.loading,
+  ]);
+
   // Override useProducts search from portal header
   // NOTE: usePortalCatalog manages its own search internally via useProducts.
   // We pass search from the header to filter; catalog.products already respects it
@@ -199,7 +227,7 @@ export default function B2BPortal() {
   // For now we keep search in portal and use displayProducts which already filters.
 
   // â”€â”€ Cart, orders, quotes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const { orders, addOrder, updateOrder, fetchOrders, fetchManagedOrders } = useOrders();
+  const { orders, loading: ordersLoading, addOrder, updateOrder, fetchOrders, fetchManagedOrders } = useOrders();
   const [managedOrders, setManagedOrders] = useState<PortalOrder[]>([]);
   const { quotes, addQuote, updateStatus: updateQuoteStatus, deleteQuote } = useQuotes(profile?.id || "guest");
   const { currency, setCurrency, formatPrice, formatUSD, formatARS, exchangeRate, fetchExchangeRate, isFetchingRate } = useCurrency();
@@ -212,13 +240,60 @@ export default function B2BPortal() {
     orders,
     addOrder,
     updateOrder,
+    fetchOrders,
     addQuote,
     updateQuoteStatus,
     navigate,
     setActiveTab: (tab) => setActiveTab(tab as PortalTab),
   });
   const { setCart } = cart;
+  const purchaseLists = usePurchaseLists({ userId: profile?.id });
   const formatQuickPrice = useCallback((product: Product) => formatPrice(computePrice(product, 1).unitPrice), [computePrice, formatPrice]);
+
+  const mergePurchaseListIntoCart = useCallback((list: PurchaseList) => {
+    setCart((current) => {
+      const next = { ...current };
+
+      list.items.forEach((item) => {
+        const product = catalog.products.find((entry) => entry.id === item.product_id);
+        if (!product) return;
+
+        const available = getAvailableStock(product);
+        if (available <= 0) return;
+
+        const nextQuantity = Math.min(
+          available,
+          (next[item.product_id] ?? 0) + Math.max(1, item.quantity),
+        );
+
+        if (nextQuantity > 0) next[item.product_id] = nextQuantity;
+      });
+
+      return next;
+    });
+  }, [catalog.products, setCart]);
+
+  const handleLoadListToCart = useCallback((list: PurchaseList) => {
+    mergePurchaseListIntoCart(list);
+  }, [mergePurchaseListIntoCart]);
+
+  const handleCreateOrderFromList = useCallback((list: PurchaseList) => {
+    mergePurchaseListIntoCart(list);
+    navigate("/cart");
+  }, [mergePurchaseListIntoCart, navigate]);
+
+  const handleAddProductToList = useCallback(async (listId: number, product: Product) => {
+    const updated = await purchaseLists.addItemToList(listId, {
+      product_id: product.id,
+      quantity: Math.max(1, product.min_order_qty ?? 1),
+      name: product.name,
+      sku: product.sku ?? null,
+      note: null,
+    });
+    if (!updated) {
+      throw new Error("No se pudo agregar el producto a la lista.");
+    }
+  }, [purchaseLists]);
 
   // â”€â”€ Credit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const creditUsed = useMemo(() =>
@@ -353,11 +428,6 @@ export default function B2BPortal() {
         return next;
       });
       setActiveTab("cuenta");
-      return;
-    }
-
-    if (isPortalTab(tabParam) && tabParam !== activeTab) {
-      setActiveTab(tabParam);
     }
 
     // Sync URL 'categoria' param with catalog state
@@ -369,7 +439,7 @@ export default function B2BPortal() {
       // If we cleared the URL but hook has state, reset hook
       // catalog.setCategoryFilter("all");
     }
-  }, [searchParams, setSearchParams, catalog.categoryFilter, activeTab]);
+  }, [searchParams, setSearchParams, catalog.categoryFilter]);
 
   function handleViewModeChange(mode: ViewMode) {
     setViewMode(mode);
@@ -406,6 +476,8 @@ export default function B2BPortal() {
   const quoteCount = quotes.length;
   const pendingApprovals = managedOrders.filter((order) => order.status === "pending_approval").length;
   const highlightedOrders = orders.filter((order) => !["delivered", "rejected"].includes(order.status)).length;
+  const clientName = profile?.company_name ?? profile?.contact_name ?? "Cliente";
+  const defaultMargin = profile?.default_margin ?? 20;
 
   const setPortalTab = useCallback((tab: PortalTab, options?: { section?: string }) => {
     setActiveTab(tab);
@@ -417,6 +489,60 @@ export default function B2BPortal() {
       return next;
     }, { replace: true });
   }, [setSearchParams]);
+
+  const handleCreateQuoteFromPcBuilder = useCallback(
+    async (input: PcBuilderQuoteInput): Promise<boolean> => {
+      if (!profile?.id || input.items.length === 0) return false;
+
+      const rawSubtotal = input.items.reduce((sum, line) => sum + line.pricing.totalPrice, 0);
+      const rawIvaTotal = input.items.reduce((sum, line) => sum + line.pricing.ivaAmount, 0);
+      const rawTotal = input.items.reduce((sum, line) => sum + line.pricing.totalWithIVA, 0);
+      const discountAmount = Math.max(0, Number(input.discount.amount || 0));
+      const adjustedTotal = Math.max(0, rawTotal - discountAmount);
+      const discountFactor = rawTotal > 0 ? adjustedTotal / rawTotal : 1;
+      const now = new Date().toISOString();
+
+      const quote = await addQuote({
+        client_id: profile.id,
+        client_name: clientName,
+        items: input.items.map((line) => {
+          const safeQuantity = Math.max(1, line.quantity);
+          const totalPrice = Number((line.pricing.totalPrice * discountFactor).toFixed(2));
+          const ivaAmount = Number((line.pricing.ivaAmount * discountFactor).toFixed(2));
+          const totalWithIVA = Number((line.pricing.totalWithIVA * discountFactor).toFixed(2));
+
+          return {
+            product_id: line.product.id,
+            name: line.product.name_custom?.trim() || line.product.name_original?.trim() || line.product.name,
+            quantity: safeQuantity,
+            cost: line.pricing.cost,
+            margin: line.pricing.margin,
+            unitPrice: Number((totalPrice / safeQuantity).toFixed(2)),
+            totalPrice,
+            ivaRate: line.pricing.ivaRate,
+            ivaAmount,
+            totalWithIVA,
+          };
+        }),
+        subtotal: Number((rawSubtotal * discountFactor).toFixed(2)),
+        ivaTotal: Number((rawIvaTotal * discountFactor).toFixed(2)),
+        total: Number(adjustedTotal.toFixed(2)),
+        currency,
+        status: "draft",
+        notes:
+          input.discount.percentage > 0
+            ? `Armador PC (${input.discount.label}) - descuento ${input.discount.percentage}%`
+            : "Armador PC",
+        created_at: now,
+        updated_at: now,
+      });
+
+      if (!quote) return false;
+      setPortalTab("quotes");
+      return true;
+    },
+    [addQuote, clientName, currency, profile?.id, setPortalTab],
+  );
 
   const handleQuickOrder = useCallback(() => {
     const [rawSku, rawQty] = quickSku.trim().split(/\s+/);
@@ -460,9 +586,6 @@ export default function B2BPortal() {
   const handleLogout = async () => { await signOut(); navigate("/login"); };
 
   // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const clientName = profile?.company_name ?? profile?.contact_name ?? "Cliente";
-  const defaultMargin = profile?.default_margin ?? 20;
-
   return (
     <div className="dashboard-stage min-h-screen bg-background px-2 py-2 md:px-4 md:py-4">
       <div className="dashboard-canvas flex min-h-[calc(100vh-1rem)] flex-col overflow-hidden">
@@ -498,7 +621,6 @@ export default function B2BPortal() {
           {[
             { id: "home",    label: "Inicio",   icon: LayoutGrid },
             { id: "catalog", label: "Catálogo", icon: Package },
-            { id: "builder", label: "Armador PC", icon: Cpu },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -510,6 +632,24 @@ export default function B2BPortal() {
               <Icon size={13} /> {label}
             </button>
           ))}
+
+          <button
+            onClick={() => setPortalTab("configurator")}
+            className={`mx-0.5 my-0.5 flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-2xl px-3.5 py-2 text-sm font-medium transition ${
+              activeTab === "configurator" ? "bg-accent text-foreground shadow-sm" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            }`}
+          >
+            <Cpu size={13} /> Configurador
+          </button>
+
+          <button
+            onClick={() => setPortalTab("pc_builder")}
+            className={`mx-0.5 my-0.5 flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-2xl px-3.5 py-2 text-sm font-medium transition ${
+              activeTab === "pc_builder" ? "bg-accent text-foreground shadow-sm" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            }`}
+          >
+            <Cpu size={13} /> Armador PC
+          </button>
 
           {/* Pedidos dropdown (orders + quotes + approvals) */}
           <div ref={ordersMenuRef} className="relative shrink-0">
@@ -597,6 +737,7 @@ export default function B2BPortal() {
                   { id: "projects", label: "Proyectos",        icon: Briefcase },
                   { id: "support",  label: "Soporte",          icon: MessageSquare },
                   { id: "rma",      label: "Devoluciones",     icon: RotateCcw },
+                  { id: "bulk",     label: "Carga masiva",     icon: Upload },
                 ].map(({ id, label, icon: Icon }) => (
                   <button key={id}
                     onClick={() => { setPortalTab(id as PortalTab); setAccountMenuOpen(false); }}
@@ -717,7 +858,7 @@ export default function B2BPortal() {
         {/* MAIN CONTENT (FULL WIDTH) */}
 
         {/* MAIN CONTENT */}
-        <main className="flex-1 overflow-y-auto bg-transparent p-3 pb-20 md:p-4 md:pb-4 lg:p-5">
+        <main className="flex-1 overflow-y-auto bg-transparent p-3 pb-[calc(6rem+env(safe-area-inset-bottom))] md:p-4 md:pb-4 lg:p-5">
 
           {/* HOME */}
           {activeTab === "home" && profile && (
@@ -795,63 +936,34 @@ export default function B2BPortal() {
               setSubCategoryFilters={catalog.setSubCategoryFilters}
               activeCategoryChildren={catalog.activeCategoryChildren}
               categoryCounts={catalog.categoryCounts}
+              purchaseLists={purchaseLists.lists}
+              onCreatePurchaseList={purchaseLists.createList}
+              onAddProductToList={handleAddProductToList}
             />
           )}
 
-          {/* BUILDER */}
-          {activeTab === "builder" && (
-            <PcBuilderPage
+          {activeTab === "configurator" && (
+            <ProductConfigurator
+              profileId={profile?.id}
+              products={catalog.products}
+              computePrice={computePrice}
+              formatPrice={formatPrice}
+              onAddToCart={cart.handleSmartAddToCart}
+            />
+          )}
+
+          {activeTab === "pc_builder" && (
+            <PcBuilderPanel
+              products={pcBuilderProducts}
+              computePrice={computePrice}
+              formatPrice={formatPrice}
+              onAddToCart={cart.handleSmartAddToCart}
               profileId={profile?.id}
               clientName={clientName}
-              products={catalog.products}
               currency={currency}
-              formatPrice={formatPrice}
-              getLineTotal={(product, quantity) => computePrice(product, quantity).totalWithIVA}
-              onAddToCart={(product, quantity) => cart.handleSmartAddToCart(product, quantity)}
-              onCreateQuote={async (items, buildId, discount) => {
-                const quoteItems = items.map(({ product, quantity }) => {
-                  const pricing = computePrice(product, quantity);
-                  return {
-                    product_id: product.id,
-                    name: product.name,
-                    quantity,
-                    cost: pricing.cost,
-                    margin: pricing.margin,
-                    unitPrice: pricing.unitPrice,
-                    totalPrice: pricing.totalPrice,
-                    ivaRate: pricing.ivaRate,
-                    ivaAmount: pricing.ivaAmount,
-                    totalWithIVA: pricing.totalWithIVA,
-                  };
-                });
-
-                const subtotal = quoteItems.reduce((sum, item) => sum + item.totalPrice, 0);
-                const ivaTotal = quoteItems.reduce((sum, item) => sum + item.ivaAmount, 0);
-                const totalWithIva = quoteItems.reduce((sum, item) => sum + item.totalWithIVA, 0);
-                const discountedTotals = applyTotalDiscount(subtotal, ivaTotal, discount?.amount ?? 0);
-                const builderDiscountNote = discount && discount.amount > 0
-                  ? ` Incluye descuento bundle Armador PC de ${discount.percentage}% (${formatPrice(discount.amount)}).`
-                  : "";
-
-                const created = await addQuote({
-                  client_id: profile?.id || "guest",
-                  client_name: clientName,
-                  items: quoteItems,
-                  subtotal: discountedTotals.subtotal,
-                  ivaTotal: discountedTotals.ivaTotal,
-                  total: discount?.amount ? discountedTotals.total : totalWithIva,
-                  currency,
-                  status: "draft",
-                  notes: `Creada desde Armador PC.${builderDiscountNote}`,
-                  build_id: buildId,
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString(),
-                });
-
-                if (!created) return false;
-                setPortalTab("quotes");
-                return true;
-              }}
+              onCreateQuote={handleCreateQuoteFromPcBuilder}
+              isAdmin={isAdmin}
+              allProducts={catalog.products}
             />
           )}
 
@@ -860,6 +972,7 @@ export default function B2BPortal() {
             <OrdersPanel
               orders={orders}
               invoices={myInvoices}
+              loading={ordersLoading}
               formatPrice={formatPrice}
               formatUSD={formatUSD}
               formatARS={formatARS}
@@ -932,9 +1045,16 @@ export default function B2BPortal() {
               invoices={myInvoices}
               favoriteProducts={favoriteProducts}
               savedCarts={cart.savedCarts}
+              purchaseLists={purchaseLists.lists}
+              purchaseListsLoading={purchaseLists.loading}
               onNavigateToTab={(tab) => tab === "invoices" ? setPortalTab("cuenta", { section: "documentos" }) : setPortalTab(tab as PortalTab)}
               onLoadSavedCart={cart.handleLoadSavedCart}
               onDeleteSavedCart={cart.handleDeleteSavedCart}
+              onCreatePurchaseList={purchaseLists.createList}
+              onUpdatePurchaseList={purchaseLists.updateList}
+              onDeletePurchaseList={purchaseLists.deleteList}
+              onLoadListToCart={handleLoadListToCart}
+              onCreateOrderFromList={handleCreateOrderFromList}
               isDark={isDark}
               onLoadQuote={cart.handleLoadQuote}
               onUpdateQuoteStatus={updateQuoteStatus}
@@ -1000,7 +1120,7 @@ export default function B2BPortal() {
           )}
 
           {/* PICKUP POINTS MODAL */}
-          <Dialog open={!!confirmingOrderId} onOpenChange={() => {}}>
+          <Dialog open={!!confirmingOrderId} onOpenChange={(open) => { if (!open) setConfirmingOrderId(null); }}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
@@ -1008,17 +1128,35 @@ export default function B2BPortal() {
                 </DialogTitle>
               </DialogHeader>
               <div className="grid grid-cols-1 gap-3 py-4">
-                {warehouses.filter((w) => w.allows_pickup).map((w) => (
-                  <button
-                    key={w.id}
-                    onClick={() => {}}
-                    className="p-3 rounded-xl border border-border/70 bg-secondary/30 hover:bg-secondary text-left transition"
-                  >
-                    <p className="text-xs font-bold text-foreground">{w.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{w.address}</p>
-                  </button>
-                ))}
+                {warehouses.filter((w) => w.allows_pickup).length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No hay puntos de retiro disponibles. Contactá a tu vendedor para coordinar.
+                  </p>
+                ) : (
+                  warehouses.filter((w) => w.allows_pickup).map((w) => (
+                    <button
+                      key={w.id}
+                      onClick={() => {
+                        setConfirmingOrderId(null);
+                        alert(`Punto de retiro seleccionado: ${w.name}`);
+                      }}
+                      className="p-3 rounded-xl border border-border/70 bg-secondary/30 hover:bg-secondary text-left transition"
+                    >
+                      <p className="text-xs font-bold text-foreground">{w.name}</p>
+                      <p className="text-[10px] text-muted-foreground">{w.address}</p>
+                    </button>
+                  ))
+                )}
               </div>
+              <DialogFooter>
+                <button
+                  type="button"
+                  onClick={() => setConfirmingOrderId(null)}
+                  className="rounded-lg border border-border/70 bg-card px-4 py-2 text-sm text-muted-foreground transition hover:bg-muted"
+                >
+                  Cerrar
+                </button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
 
@@ -1075,16 +1213,17 @@ export default function B2BPortal() {
             setSelectedProduct(p);
           }}
           allProducts={catalog.products}
+          profileId={profile?.id}
+          purchaseHistoryCount={cart.purchaseHistory[selectedProduct.id] ?? 0}
         />
       )}
       </div>
 
       {/* MOBILE BOTTOM NAV — visible only on small screens */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex items-stretch border-t border-border/70 bg-card/95 backdrop-blur-xl md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex items-stretch border-t border-border/70 bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden">
         {[
           { id: "home",     label: "Inicio",    icon: LayoutGrid,   badge: 0 },
           { id: "catalog",  label: "Catálogo",  icon: Package,      badge: 0 },
-          { id: "builder",  label: "Armador",   icon: Cpu,          badge: 0 },
           { id: "orders",   label: "Pedidos",   icon: ClipboardList, badge: highlightedOrders + quoteCount + (pendingApprovals ?? 0) },
           { id: "invoices", label: "Finanzas",  icon: FileText,     badge: myInvoices.length },
           { id: "cuenta",   label: "Cuenta",    icon: Users,        badge: 0 },
@@ -1116,6 +1255,26 @@ export default function B2BPortal() {
             </button>
           );
         })}
+        <button
+          type="button"
+          onClick={() => setPortalTab("configurator")}
+          className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition ${
+            activeTab === "configurator" ? "text-primary" : "text-muted-foreground"
+          }`}
+        >
+          <Cpu size={19} strokeWidth={activeTab === "configurator" ? 2.2 : 1.7} />
+          <span className={activeTab === "configurator" ? "font-semibold" : ""}>Config.</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setPortalTab("pc_builder")}
+          className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition ${
+            activeTab === "pc_builder" ? "text-primary" : "text-muted-foreground"
+          }`}
+        >
+          <Cpu size={19} strokeWidth={activeTab === "pc_builder" ? 2.2 : 1.7} />
+          <span className={activeTab === "pc_builder" ? "font-semibold" : ""}>Armador</span>
+        </button>
       </nav>
 
       {!isAdmin && <WhatsAppFloat />}

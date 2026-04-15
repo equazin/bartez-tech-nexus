@@ -8,7 +8,9 @@ import { getAvailableStock } from "@/lib/pricing";
 import { getSavedCarts, saveCart, deleteSavedCart, type SavedCart } from "@/lib/savedCarts";
 import { getFavoriteProducts, toggleFavoriteProduct } from "@/lib/favoriteProducts";
 import { puedeComprar } from "@/lib/api/clientDetail";
-import { applyTotalDiscount, getPcBuildCartDiscount, type PcBuildCartMeta } from "@/lib/pcBuilder";
+import { backend, BackendError } from "@/lib/api/backend";
+import { logActivity } from "@/lib/api/activityLog";
+import { trackFirstOrder, trackOrderPlaced } from "@/lib/marketingTracker";
 import type { Product } from "@/models/products";
 import type { PriceResult } from "@/hooks/usePricing";
 import type { Quote } from "@/models/quote";
@@ -35,6 +37,7 @@ interface UsePortalCartOptions {
   orders: PortalOrder[];
   addOrder: (order: AddOrderPayload) => Promise<{ error: unknown }>;
   updateOrder: (id: string | number, data: Partial<PortalOrder>) => Promise<unknown>;
+  fetchOrders: () => Promise<void>;
   addQuote: (q: Omit<Quote, "id">) => Promise<unknown>;
   updateQuoteStatus: (id: number, status: string) => Promise<unknown>;
   navigate: (path: string) => void;
@@ -49,6 +52,7 @@ export function usePortalCart({
   orders,
   addOrder,
   updateOrder,
+  fetchOrders,
   addQuote,
   updateQuoteStatus,
   navigate,
@@ -72,23 +76,6 @@ export function usePortalCart({
     localStorage.setItem(cartKey, JSON.stringify(cart));
   }, [cart, cartKey]);
 
-  useEffect(() => {
-    const metaKey = `b2b_cart_source_${profile?.id || "guest"}`;
-    try {
-      const raw = localStorage.getItem(metaKey);
-      setPcBuildBundleMeta(raw ? (JSON.parse(raw) as PcBuildCartMeta) : null);
-    } catch {
-      setPcBuildBundleMeta(null);
-    }
-  }, [profile?.id]);
-
-  useEffect(() => {
-    if (Object.keys(cart).length > 0) return;
-    const metaKey = `b2b_cart_source_${profile?.id || "guest"}`;
-    localStorage.removeItem(metaKey);
-    setPcBuildBundleMeta(null);
-  }, [cart, profile?.id]);
-
   // ── Saved carts & favorites ───────────────────────────────────────────────
   const [savedCarts, setSavedCarts] = useState<SavedCart[]>(() =>
     getSavedCarts(profile?.id || "guest")
@@ -108,7 +95,6 @@ export function usePortalCart({
   const [appliedCoupon, setAppliedCoupon] = useState<Record<string, unknown> | null>(null);
   const [couponError, setCouponError] = useState("");
   const [validatingCoupon, setValidatingCoupon] = useState(false);
-  const [pcBuildBundleMeta, setPcBuildBundleMeta] = useState<PcBuildCartMeta | null>(null);
 
   // ── Order state ───────────────────────────────────────────────────────────
   const [orderSubmitting, setOrderSubmitting] = useState(false);
@@ -141,34 +127,13 @@ export function usePortalCart({
   const cartSubtotal = useMemo(() => cartItems.reduce((s, i) => s + i.totalPrice, 0), [cartItems]);
   const cartIVATotal = useMemo(() => cartItems.reduce((s, i) => s + i.ivaAmount, 0), [cartItems]);
 
-  const couponDiscountAmount = useMemo(() => {
+  const discountAmount = useMemo(() => {
     if (!appliedCoupon) return 0;
     if (appliedCoupon.discount_type === "fixed") return appliedCoupon.discount_value as number;
     return (cartSubtotal * (appliedCoupon.discount_value as number)) / 100;
   }, [appliedCoupon, cartSubtotal]);
 
-  const builderDiscount = useMemo(
-    () =>
-      getPcBuildCartDiscount(
-        pcBuildBundleMeta,
-        cartItems.map((item) => ({
-          productId: item.product.id,
-          quantity: item.quantity,
-          totalWithIVA: item.totalWithIVA,
-        })),
-      ),
-    [cartItems, pcBuildBundleMeta],
-  );
-
-  const discountAmount = useMemo(
-    () => couponDiscountAmount + builderDiscount.amount,
-    [builderDiscount.amount, couponDiscountAmount],
-  );
-
-  const cartTotal = useMemo(
-    () => Math.max(0, cartSubtotal + cartIVATotal - discountAmount),
-    [cartSubtotal, cartIVATotal, discountAmount],
-  );
+  const cartTotal = useMemo(() => Math.max(0, cartSubtotal + cartIVATotal - discountAmount), [cartSubtotal, cartIVATotal, discountAmount]);
   const cartCount = useMemo(() => Object.values(cart).reduce((s, q) => s + q, 0), [cart]);
 
   // ── Purchase analytics ────────────────────────────────────────────────────
@@ -401,45 +366,90 @@ export function usePortalCart({
     }
 
     setOrderSubmitting(true);
-    const orderProducts = cartItems.map((item) => ({
-      product_id: item.product.id,
-      name: item.product.name,
-      sku: item.product.sku || "",
-      quantity: item.quantity,
-      cost_price: item.cost,
-      unit_price: Number(item.unitPrice.toFixed(2)),
-      total_price: Number(item.totalPrice.toFixed(2)),
-      margin: item.margin,
-    }));
+    try {
+      // Los precios se resuelven server-side — sólo enviamos product_id + quantity
+      const result = await backend.orders.checkout({
+        items: Object.entries(cart).map(([productId, qty]) => ({
+          product_id: Number(productId),
+          quantity: qty,
+        })),
+        coupon_code: (appliedCoupon?.code as string) ?? null,
+        notes: null,
+        payment_method: null,
+        payment_surcharge_pct: null,
+        shipping_type: null,
+        shipping_address: null,
+        shipping_transport: null,
+        shipping_cost: null,
+      });
 
-    const { error } = await addOrder({
-      products: orderProducts,
-      total: Number(cartTotal.toFixed(2)),
-      status: "pending",
-      coupon_code: (appliedCoupon?.code as string) ?? undefined,
-      created_at: new Date().toISOString(),
-    });
+      const orderId = result.id;
+      const orderNumber = (result as unknown as { order_number?: string }).order_number;
 
-    if (!error) {
-      try {
-        await Promise.all(
-          cartItems.map((item) =>
-            supabase.from("products")
-              .update({ stock_reserved: (item.product.stock_reserved ?? 0) + item.quantity })
-              .eq("id", item.product.id)
-          )
-        );
-      } catch { /* silencioso */ }
-    }
+      // Log activity
+      void logActivity({
+        action: "place_order",
+        entity_type: "order",
+        entity_id: String(orderId),
+        metadata: { order_number: orderNumber ?? String(orderId), total: result.total },
+      });
 
-    setOrderSubmitting(false);
-    if (!error) {
+      // Marketing tracking
+      if (orders.length === 0) {
+        trackFirstOrder(profile?.id ?? "", String(orderId), result.total);
+      } else {
+        trackOrderPlaced(profile?.id ?? "", String(orderId), result.total);
+      }
+
+      // Refresca la lista de pedidos
+      void fetchOrders();
+
+      // Email de confirmación (non-blocking)
+      void (async () => {
+        try {
+          const numericOrderId = Number(orderId);
+          await fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "order_confirmed",
+              ...(Number.isFinite(numericOrderId) ? { orderId: numericOrderId } : {}),
+              orderNumber: orderNumber ?? String(orderId),
+              clientId: profile?.id,
+              clientEmail: profile?.email ?? undefined,
+              clientName: profile?.company_name || profile?.contact_name || undefined,
+              products: result.items.map((p) => ({
+                product_id: p.product_id,
+                name: p.name,
+                sku: p.sku,
+                quantity: p.quantity,
+                unit_price: p.unit_price,
+                total_price: p.line_total,
+              })),
+              total: result.total,
+            }),
+          });
+        } catch {
+          // Email es non-critical
+        }
+      })();
+
       setOrderSuccess(true);
       setCart({});
       setAppliedCoupon(null);
       setCouponCode("");
       setActiveTab("orders");
       setTimeout(() => setOrderSuccess(false), 5000);
+    } catch (err) {
+      const message =
+        err instanceof BackendError
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : "Error al procesar el pedido";
+      toast.error(message);
+    } finally {
+      setOrderSubmitting(false);
     }
   };
 
@@ -448,10 +458,6 @@ export function usePortalCart({
 
   function handleSaveQuote() {
     if (!cartItems.length) return;
-    const discountedTotals = applyTotalDiscount(cartSubtotal, cartIVATotal, discountAmount);
-    const builderDiscountNote = builderDiscount.eligible && builderDiscount.amount > 0
-      ? `Descuento Armador PC aplicado: ${builderDiscount.percentage}% (${currency} ${builderDiscount.amount.toFixed(2)}).`
-      : undefined;
     addQuote({
       client_id: profile?.id || "guest",
       client_name: clientName,
@@ -467,12 +473,11 @@ export function usePortalCart({
         ivaAmount: item.ivaAmount,
         totalWithIVA: item.totalWithIVA,
       })),
-      subtotal: discountedTotals.subtotal,
-      ivaTotal: discountedTotals.ivaTotal,
+      subtotal: cartSubtotal,
+      ivaTotal: cartIVATotal,
       total: cartTotal,
       currency,
       status: "draft",
-      notes: builderDiscountNote,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });

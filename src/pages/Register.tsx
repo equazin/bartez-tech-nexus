@@ -20,22 +20,16 @@ import {
   detectCuitEntityType,
   formatCuit,
   isCuitChecksumValid,
+  validateCuit,
   type CuitEntityType,
   type TaxStatus,
 } from "@/lib/api/afip";
-import { createRegistrationRequest, lookupCuit } from "@/lib/api/registrationApi";
+import { createRegistrationRequest } from "@/lib/api/registrationRequests";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { SurfaceCard } from "@/components/ui/surface-card";
-import {
-  getAttributionParams,
-  trackRegistrationComplete,
-  trackRegistrationPendingReview,
-  trackRegistrationStart,
-} from "@/lib/marketingTracker";
-import { supabase } from "@/lib/supabase";
 
 type AfipData = {
   companyName: string;
@@ -60,43 +54,6 @@ const TAX_STATUS_OPTIONS = Object.entries(TAX_STATUS_LABELS).map(([value, label]
   label,
 }));
 
-const HIDDEN_TAX_STATUS = new Set<TaxStatus>(["consumidor_final"]);
-const PUBLIC_TAX_STATUS_OPTIONS = TAX_STATUS_OPTIONS.filter(
-  (option) => !HIDDEN_TAX_STATUS.has(option.value),
-);
-
-const FREE_EMAIL_DOMAINS = new Set([
-  "gmail.com",
-  "googlemail.com",
-  "hotmail.com",
-  "outlook.com",
-  "live.com",
-  "msn.com",
-  "yahoo.com",
-  "yahoo.com.ar",
-  "icloud.com",
-  "me.com",
-  "aol.com",
-  "proton.me",
-  "protonmail.com",
-  "gmx.com",
-  "mail.com",
-  "yandex.com",
-  "zoho.com",
-]);
-
-function getEmailDomain(value: string): string | null {
-  const normalized = value.trim().toLowerCase();
-  const atIndex = normalized.lastIndexOf("@");
-  if (atIndex <= 0 || atIndex >= normalized.length - 1) return null;
-  return normalized.slice(atIndex + 1);
-}
-
-function isCorporateEmail(value: string): boolean {
-  const domain = getEmailDomain(value);
-  return !!domain && !FREE_EMAIL_DOMAINS.has(domain);
-}
-
 const Register = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -115,25 +72,14 @@ const Register = () => {
     role: string;
     email: string;
   } | null>(null);
-  const [finalState, setFinalState] = useState<{
-    mode: "auto_approved" | "pending_review";
-    reviewFlags: string[];
-  } | null>(null);
 
   const executive = assignedExecutiveDetails;
-  const hasTrackedStartRef = useRef(false);
 
   const rawDigits = cuit.replace(/\D/g, "");
   const detectedEntity: CuitEntityType | null =
     rawDigits.length >= 2 ? detectCuitEntityType(rawDigits) : null;
   const checksumValid =
     rawDigits.length === 11 ? isCuitChecksumValid(rawDigits) : null;
-  const normalizedEmail = email.trim().toLowerCase();
-  const emailDomain = getEmailDomain(normalizedEmail);
-  const hasCorporateEmail = isCorporateEmail(normalizedEmail);
-  const mustGoToManualReview =
-    !!afipData &&
-    (afipData.entityType !== "empresa" || (normalizedEmail.length > 0 && !hasCorporateEmail));
 
   const lookupRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -151,7 +97,7 @@ const Register = () => {
       setLookupLoading(true);
       setError("");
       try {
-        const result = await lookupCuit(rawDigits);
+        const result = await validateCuit(rawDigits);
         setAfipData({
           companyName: result.companyName,
           entityType: result.entityType,
@@ -197,20 +143,13 @@ const Register = () => {
       const existing = lookedUp && afipData ? afipData : null;
       const result =
         existing ??
-        (await lookupCuit(rawDigits).then((response) => ({
+        (await validateCuit(rawDigits).then((response) => ({
           companyName: response.companyName,
           entityType: response.entityType,
         })));
 
       setAfipData(result);
       setName(result.companyName);
-      if (!hasTrackedStartRef.current) {
-        trackRegistrationStart({
-          cuit_entity_type: result.entityType,
-          ...getAttributionParams(),
-        });
-        hasTrackedStartRef.current = true;
-      }
       setStep(2);
     } catch (caughtError) {
       setError(
@@ -234,34 +173,15 @@ const Register = () => {
 
     setLoading(true);
     try {
-      const localReviewFlags: string[] = [];
-      if (afipData?.entityType !== "empresa") {
-        localReviewFlags.push("cuit_not_empresa");
-      }
-      if (!isCorporateEmail(normalizedEmail)) {
-        localReviewFlags.push("non_corporate_email");
-      }
-      const forceManualReview = localReviewFlags.length > 0;
-
       const result = await createRegistrationRequest({
-        cuit: rawDigits,
-        company_name: name,
-        contact_name: name,
-        email: normalizedEmail,
-        password,
-        entity_type: afipData?.entityType ?? "empresa",
-        tax_status: taxStatus,
-        is_corporate_email: isCorporateEmail(normalizedEmail),
-        force_pending_review: forceManualReview,
-        review_flags: localReviewFlags,
-        attribution: getAttributionParams(),
+          cuit: rawDigits,
+          company_name: name,
+          contact_name: name,
+          email,
+          password,
+          entity_type: afipData?.entityType ?? "empresa",
+          tax_status: taxStatus,
       });
-
-      const mergedReviewFlags = [
-        ...new Set([...(result.review_flags ?? []), ...localReviewFlags]),
-      ];
-      const shouldTreatAsPendingReview =
-        forceManualReview || result.status !== "auto_approved";
 
       setAssignedExecutiveDetails(
         result.assigned_executive?.email
@@ -272,41 +192,6 @@ const Register = () => {
             }
           : null,
       );
-
-      if (!shouldTreatAsPendingReview) {
-        trackRegistrationComplete(result.approved_user_id ?? result.id, name, {
-          review_flags: mergedReviewFlags,
-          ...getAttributionParams(),
-        });
-
-        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-          email: normalizedEmail,
-          password,
-        });
-
-        if (!authError && authData.session) {
-          navigate("/b2b-portal", { replace: true });
-          return;
-        }
-
-        setFinalState({
-          mode: "auto_approved",
-          reviewFlags: mergedReviewFlags,
-        });
-        setStep(3);
-        return;
-      }
-
-      trackRegistrationPendingReview(name, mergedReviewFlags, {
-        forced_manual_review: forceManualReview,
-        is_corporate_email: isCorporateEmail(normalizedEmail),
-        cuit_entity_type: afipData?.entityType ?? null,
-        ...getAttributionParams(),
-      });
-      setFinalState({
-        mode: "pending_review",
-        reviewFlags: mergedReviewFlags,
-      });
       setStep(3);
     } catch (caughtError) {
       setError(
@@ -353,7 +238,7 @@ const Register = () => {
             align="center"
             eyebrow="Onboarding B2B"
             title="Solicitud de alta corporativa"
-            description="Canal exclusivo B2B para empresas, mayoristas e integradores. No gestionamos altas de consumidor final."
+            description="Validamos CUIT, persona de contacto y acceso inicial sin romper el flujo actual del portal."
           />
         </div>
 
@@ -431,7 +316,7 @@ const Register = () => {
                       Fast-track onboarding
                     </p>
                     <p className="text-sm leading-6 text-muted-foreground">
-                      Validacion fiscal en tiempo real para altas de empresas, mayoristas e integradores del canal B2B.
+                      Validacion fiscal en tiempo real para destrabar el acceso inicial del canal B2B.
                     </p>
                   </div>
                 </div>
@@ -538,7 +423,7 @@ const Register = () => {
                   <div className="flex items-start gap-3 rounded-2xl border border-border/70 bg-muted/40 p-4">
                     <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <p className="text-sm leading-6 text-muted-foreground">
-                      Este acceso es exclusivo para operaciones B2B en Argentina. Las solicitudes de consumidor final no se aprueban automaticamente.
+                      Este acceso es solo para empresas con domicilio fiscal en Argentina. La validacion usa datos publicos de AFIP.
                     </p>
                   </div>
 
@@ -575,10 +460,8 @@ const Register = () => {
               >
                 <div className="rounded-3xl border border-border/70 bg-card/80 p-5">
                   <div className="mb-3 flex items-center justify-between gap-4">
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-2">
                       <Badge variant="success">Entidad validada</Badge>
-                      <Badge variant="outline">Canal exclusivo B2B</Badge>
-                      <Badge variant="outline">Sin consumidor final</Badge>
                       <span className="text-xs text-muted-foreground">
                         {afipData.entityType === "empresa"
                           ? "Persona juridica"
@@ -603,12 +486,6 @@ const Register = () => {
                     La condicion fiscal la elegis vos en el formulario de abajo.
                   </p>
                 </div>
-
-                {mustGoToManualReview ? (
-                  <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-700">
-                    Esta solicitud va a revision manual del equipo comercial porque el CUIT no figura como empresa o el email no es corporativo.
-                  </div>
-                ) : null}
 
                 <form onSubmit={handleFinalSubmit} className="space-y-4">
                   <div className="relative">
@@ -637,7 +514,7 @@ const Register = () => {
                       required
                     >
                       <option value="">Selecciona tu condicion fiscal</option>
-                      {PUBLIC_TAX_STATUS_OPTIONS.map((option) => (
+                      {TAX_STATUS_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
                         </option>
@@ -651,17 +528,11 @@ const Register = () => {
                       type="email"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
-                      placeholder="Email corporativo (@empresa.com)"
+                      placeholder="Email corporativo"
                       className="h-14 rounded-2xl pl-12"
                       required
                     />
                   </div>
-
-                  {normalizedEmail.length > 0 && !hasCorporateEmail ? (
-                    <p className="rounded-2xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
-                      Detectamos un dominio de email personal ({emailDomain ?? "sin dominio"}). La solicitud ingresara con revision manual.
-                    </p>
-                  ) : null}
 
                   <div className="relative">
                     <Lock className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -687,7 +558,7 @@ const Register = () => {
                       className="h-14 w-full rounded-2xl bg-gradient-primary text-base font-semibold shadow-lg shadow-primary/20 hover:opacity-90"
                       disabled={loading}
                     >
-                      {loading ? "Procesando alta..." : "Finalizar solicitud B2B"}
+                      {loading ? "Procesando alta..." : "Finalizar solicitud"}
                     </Button>
                     <Button
                       type="button"
@@ -715,22 +586,16 @@ const Register = () => {
 
                 <div className="space-y-3">
                   <h3 className="font-display text-3xl font-semibold tracking-tight text-foreground">
-                    {finalState?.mode === "auto_approved"
-                      ? "Cuenta creada"
-                      : "Solicitud en revision"}
+                    Solicitud en revision
                   </h3>
                   <p className="mx-auto max-w-xl text-sm leading-6 text-muted-foreground">
-                    {finalState?.mode === "auto_approved"
-                      ? "La cuenta ya quedo aprobada y lista para ingresar. Si el acceso automatico no se completo, podes usar el login con las credenciales que acabas de crear."
-                      : "Validamos los datos fiscales y dejamos la solicitud en revision comercial para mantener el canal exclusivo B2B."}
+                    Validamos los datos fiscales y dejamos la solicitud lista para aprobacion comercial. El proximo paso sigue siendo incremental.
                   </p>
                 </div>
 
                 <div className="rounded-[28px] border border-border/70 bg-card/80 p-6 text-left">
                   <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-                    {finalState?.mode === "auto_approved"
-                      ? "Mesa comercial asignada"
-                      : "Ejecutivo asignado"}
+                    Ejecutivo asignado
                   </p>
                   <div className="flex items-center gap-4">
                     <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-muted text-foreground">
@@ -762,33 +627,16 @@ const Register = () => {
                     <Lock className="h-4 w-4" />
                   </div>
                   <p className="text-sm leading-6 text-muted-foreground">
-                    {finalState?.mode === "auto_approved"
-                      ? "La cuenta quedo creada sobre Supabase Auth y el backend central. El proximo login ya entra al portal B2B con tu perfil activo."
-                      : "La informacion cargada queda protegida y lista para validacion operativa. Solo las altas con excepciones requieren intervencion manual."}
+                    La informacion cargada queda protegida bajo el esquema de seguridad actual y lista para integrarse con preferencias de usuario mas adelante.
                   </p>
                 </div>
-
-                {finalState?.mode === "pending_review" && finalState.reviewFlags.length > 0 ? (
-                  <div className="rounded-2xl border border-border/70 bg-muted/40 p-4 text-left">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                      Revision detectada
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {finalState.reviewFlags.map((flag) => (
-                        <Badge key={flag} variant="outline" className="rounded-full">
-                          {flag.replace(/_/g, " ")}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
 
                 <Button
                   variant="outline"
                   className="h-12 w-full rounded-2xl"
                   onClick={() => navigate("/login")}
                 >
-                  {finalState?.mode === "auto_approved" ? "Ingresar al login" : "Ir al login"}
+                  Ir al login
                 </Button>
               </motion.div>
             ) : null}

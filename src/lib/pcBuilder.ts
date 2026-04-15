@@ -948,6 +948,16 @@ export function getProductSpecsRecord(product: Pick<Product, "specs">): Record<s
   return toSpecsRecord(product);
 }
 
+export function parsePsuWattage(
+  product: Pick<Product, "specs"> & Partial<Pick<Product, "name" | "name_custom" | "name_original">>,
+): number | undefined {
+  const specs = extractPcSpecs(product);
+  if (typeof specs.wattage === "number" && Number.isFinite(specs.wattage) && specs.wattage > 0) {
+    return specs.wattage;
+  }
+  return undefined;
+}
+
 export function extractPcSpecs(
   product: Pick<Product, "specs"> &
     Partial<Pick<Product, "name" | "name_custom" | "name_original" | "category" | "brand_name">>,
