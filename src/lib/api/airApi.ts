@@ -25,12 +25,13 @@ export class AirApiError extends Error {
 }
 
 async function airFetch<T>(query: string, body?: Record<string, unknown>): Promise<T> {
+  const bodyStr = body ? JSON.stringify(body) : "{}";
   const res = await fetch(`${PROXY_URL}?q=${query}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: bodyStr,
   });
 
   if (!res.ok) {

@@ -1,4 +1,4 @@
-import { checkAirToken, fetchAllAirProducts, fetchAllAirSyp, type AirProduct, type AirSyp } from "@/lib/api/airApi";
+import { fetchAllAirProducts, fetchAllAirSyp, type AirProduct, type AirSyp } from "@/lib/api/airApi";
 import { syncSupplierCatalogRecords, type SupplierCatalogRecord } from "@/lib/api/supplierSync";
 
 export interface SyncProgress {
@@ -97,9 +97,6 @@ export async function syncAirCatalog(
   };
 
   try {
-    report({ phase: "checking" });
-    await checkAirToken();
-
     report({ phase: "fetching" });
     const airProducts = await fetchAllAirProducts((page, total) => {
       report({ page, fetched: total });
@@ -157,9 +154,6 @@ export async function syncSelectedAirProducts(
   };
 
   try {
-    report({ phase: "checking" });
-    await checkAirToken();
-
     report({ phase: "upserting", fetched: products.length });
     const forceCreateSet = new Set((options.forceCreateExternalIds ?? []).map((id) => String(id).trim()));
     const records = products
@@ -215,9 +209,6 @@ export async function syncAirPricesStock(
   };
 
   try {
-    report({ phase: "checking" });
-    await checkAirToken();
-
     report({ phase: "fetching" });
     const allSyp = await fetchAllAirSyp((page, total) => {
       report({ page, fetched: total });
