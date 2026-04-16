@@ -126,16 +126,17 @@ export default async function handler(request: Request): Promise<Response> {
   const airUrl = `${AIR_BASE}/?${url.searchParams.toString()}`;
 
   try {
-    // Read body only when non-empty — AIR returns 500 for unexpected empty-string bodies
+    // Always send valid JSON body — AIR returns 500 for empty-string body and
+    // 403 on some endpoints (syp) when Content-Type is missing.
     const rawBody = await request.text().catch(() => "");
-    const body = rawBody.trim() ? rawBody : undefined;
-
-    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-    if (body) headers["Content-Type"] = "application/json";
+    const body = rawBody.trim() ? rawBody : "{}";
 
     const airRes = await fetch(airUrl, {
       method: "POST",
-      headers,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
       body,
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
