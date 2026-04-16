@@ -29,11 +29,8 @@ export const PC_REQUIRED_COMPONENTS: PcComponentType[] = [
   "cpu",
   "motherboard",
   "ram",
-  "gpu",
   "storage",
-  "psu",
   "case",
-  "cooler",
 ];
 
 export const PC_COMPONENT_PREREQUISITES: Partial<Record<PcComponentType, PcComponentType>> = {
@@ -89,7 +86,8 @@ export type PcCanonicalSpecKey =
   | "mb_m2_slots"
   | "mb_sata_ports"
   | "mb_sata_ports_disabled_with_m2"
-  | "mb_pcie_x16_slots";
+  | "mb_pcie_x16_slots"
+  | "case_has_psu";
 
 export const PC_CANONICAL_KEYS: PcCanonicalSpecKey[] = [
   "socket",
@@ -121,6 +119,7 @@ export const PC_CANONICAL_KEYS: PcCanonicalSpecKey[] = [
   "mb_sata_ports",
   "mb_sata_ports_disabled_with_m2",
   "mb_pcie_x16_slots",
+  "case_has_psu",
 ];
 
 export interface PcSpecsNormalized {
@@ -153,6 +152,7 @@ export interface PcSpecsNormalized {
   mb_sata_ports?: number;
   mb_sata_ports_disabled_with_m2?: number;
   mb_pcie_x16_slots?: number;
+  case_has_psu?: boolean;
 }
 
 export type PcBuildSelection = Partial<Record<PcComponentType, number>>;
@@ -275,6 +275,7 @@ const PC_CANONICAL_KEY_LABELS: Record<PcCanonicalSpecKey, string> = {
   mb_sata_ports: "Puertos SATA motherboard",
   mb_sata_ports_disabled_with_m2: "Puertos SATA deshabilitados por M.2",
   mb_pcie_x16_slots: "Slots PCIe x16 motherboard",
+  case_has_psu: "Fuente integrada (gabinete)",
 };
 
 const CANONICAL_SPEC_ALIASES: Record<PcCanonicalSpecKey, string[]> = {
@@ -389,6 +390,7 @@ const CANONICAL_SPEC_ALIASES: Record<PcCanonicalSpecKey, string[]> = {
   mb_sata_ports: ["mb_sata_ports", "sata_ports", "motherboard_sata_ports"],
   mb_sata_ports_disabled_with_m2: ["mb_sata_ports_disabled_with_m2", "sata_disabled_by_m2", "m2_sata_shared_ports"],
   mb_pcie_x16_slots: ["mb_pcie_x16_slots", "pcie_x16_slots", "motherboard_pcie_x16_slots"],
+  case_has_psu: ["case_has_psu", "fuente_incluida", "psu_incluida", "psu_included", "with_psu", "incluye_fuente", "trae_fuente"],
 };
 
 const COMPONENT_TYPE_ALIASES: Record<PcComponentType, string[]> = {
@@ -506,6 +508,15 @@ function inferCpuGenerationFromText(rawText: string): number | undefined {
   }
 
   return undefined;
+}
+
+function inferCaseHasPsuFromText(rawText: string): boolean {
+  const text = normalizeToken(rawText);
+  // Patterns: "con fuente", "c/fuente", "fuente incluida", "incluye fuente", "trae fuente", "with psu"
+  if (/con fuente|c\/fuente|fuente incluida|fuente integrada|incluye fuente|trae fuente|with psu|psu incluida/.test(text)) return true;
+  // A case/chassis product name that mentions wattage inline — e.g. "Gabinete ATX 500W" — likely includes PSU
+  if (/(gabinete|chassis|tower|case)\b/.test(text) && /\b\d{3,4}\s?w\b/.test(text)) return true;
+  return false;
 }
 
 function inferCoolerType(rawText: string): "air" | "aio" | "other" | undefined {
@@ -1022,6 +1033,11 @@ export function extractPcSpecs(
   const mbPcieX16Slots = parseRoundedNumber(resolveCanonicalValue(normalizedIndex, "mb_pcie_x16_slots"));
   const inferredCoolerType = inferCoolerType(rawCoolerType || productText);
 
+  const rawCaseHasPsu = resolveCanonicalValue(normalizedIndex, "case_has_psu");
+  const caseHasPsu = rawCaseHasPsu
+    ? ["true", "1", "si", "yes", "incluida", "incluye", "trae", "integrated"].some((v) => normalizeToken(rawCaseHasPsu).includes(v))
+    : inferCaseHasPsuFromText(productText);
+
   return {
     socket,
     platform_brand: platformBrand,
@@ -1052,6 +1068,7 @@ export function extractPcSpecs(
     mb_sata_ports: mbSataPorts && mbSataPorts > 0 ? mbSataPorts : undefined,
     mb_sata_ports_disabled_with_m2: mbSataDisabledWithM2 && mbSataDisabledWithM2 > 0 ? mbSataDisabledWithM2 : undefined,
     mb_pcie_x16_slots: mbPcieX16Slots && mbPcieX16Slots > 0 ? mbPcieX16Slots : undefined,
+    case_has_psu: caseHasPsu || undefined,
   };
 }
 
@@ -1132,6 +1149,69 @@ export function inferPcComponentType(
   if ((hasCaseContext || hasCaseLeadInName || hasCaseKitContext) && (!isClearlyNonCaseAccessory || hasCaseKitContext)) return "case";
 
   return null;
+}
+
+/**
+ * Returns true if the CPU product likely has an integrated GPU (iGPU).
+ * - Intel non-F processors → iGPU present.
+ * - AMD Ryzen/Athlon G/GE suffix → iGPU present.
+ * - Everything else (AMD non-G, Intel F/KF) → no iGPU.
+ */
+export function inferCpuHasIgpu(
+  product: Pick<Product, "name" | "name_custom" | "name_original">,
+): boolean {
+  const text = normalizeToken(
+    [product.name_custom, product.name_original, product.name].filter(Boolean).join(" "),
+  );
+
+  // AMD: only G/GE suffix has real iGPU
+  if (/\b(ryzen|athlon)\b/.test(text)) {
+    return /\b\d{3,4}ge?\b/.test(text);
+  }
+
+  // Intel: F/KF/HF suffix → no iGPU
+  if (/\b(celeron|pentium|core ultra|i[3579][ -]?\d{3,5})\b/.test(text)) {
+    return !/\b\d{4,5}[a-z]*f[a-z]?\b/.test(text);
+  }
+
+  return false;
+}
+
+/**
+ * Returns true if the CPU product likely ships with a bundled stock cooler.
+ * - Intel K/KF/KS → no cooler.
+ * - AMD X3D → no cooler.
+ * - AMD Ryzen 9 X / Ryzen 7 X (high-end X variants) → no cooler.
+ * - Everything else (Intel non-K, AMD non-X) → cooler included.
+ */
+export function inferCpuIncludesCooler(
+  product: Pick<Product, "name" | "name_custom" | "name_original">,
+): boolean {
+  const text = normalizeToken(
+    [product.name_custom, product.name_original, product.name].filter(Boolean).join(" "),
+  );
+
+  // Explicit annotation takes priority
+  if (/sin cooler|s\/cooler|without cooler|tray/.test(text)) return false;
+  if (/con cooler|incluye cooler|with cooler/.test(text)) return true;
+
+  // Intel K / KF / KS → no bundled cooler
+  if (/\b(i[3579]|core ultra)[\s-]?\d{3,5}[a-z]*k[fsx]?\b/.test(text)) return false;
+
+  // AMD X3D → no bundled cooler
+  if (/x3d\b/.test(text)) return false;
+
+  // AMD Ryzen 9/7 X-series (e.g. 7900X, 7950X, 5800X, 7700X) → no bundled cooler
+  if (/\bryzen [79]\b/.test(text) && /\b\d{4}x\b/.test(text)) return false;
+
+  // Intel non-K → includes cooler
+  if (/\b(celeron|pentium|i[3579][\s-]?\d{3,5}|core ultra)\b/.test(text)) return true;
+
+  // AMD Ryzen 3/5 or Ryzen 7/9 non-X → includes cooler
+  if (/\bryzen [357]\b/.test(text)) return true;
+  if (/\bryzen 9\b/.test(text)) return true;
+
+  return false; // default: no bundled cooler (safer — better to suggest one)
 }
 
 export function getMissingCriticalSpecs(type: PcComponentType, specs: PcSpecsNormalized): PcCanonicalSpecKey[] {
@@ -1419,6 +1499,7 @@ export function evaluatePcCompatibility(
       reasons.push(`Fuente insuficiente: ${available}W (recomendado ${recommended}W).`);
     }
   }
+
 
   if (motherboard) {
     const storagePrimaryQty = Math.max(1, Number(quantities.storage ?? (storage ? 1 : 0)));

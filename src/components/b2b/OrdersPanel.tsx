@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ClipboardList, Clock, MapPin, Package, Search, Truck, ExternalLink, Copy } from "lucide-react";
+import { ClipboardList, Clock, MapPin, Package, RotateCcw, Search, Truck, ExternalLink, Copy } from "lucide-react";
 
 import { EmptyOrdersState } from "@/components/b2b/empty-states/EmptyOrdersState";
 import { OrderStatusBadge } from "@/components/OrderStatusBadge";
@@ -216,9 +216,15 @@ export function OrdersPanel({
 
             return (
               <SurfaceCard key={orderId} tone="default" padding="none" className="overflow-hidden rounded-[24px] border border-border/70 bg-card shadow-sm">
-                <button type="button" onClick={() => setExpandedOrderId(isExpanded ? null : orderId)} className="w-full px-5 py-4 text-left transition hover:bg-secondary/30">
-                  <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div className="min-w-0">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setExpandedOrderId(isExpanded ? null : orderId)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setExpandedOrderId(isExpanded ? null : orderId); }}
+                  className="w-full cursor-pointer px-5 py-4 text-left transition hover:bg-secondary/30"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">{order.order_number ?? `#${orderId.slice(-6).toUpperCase()}`}</span>
                         <OrderStatusBadge status={order.status} />
@@ -238,12 +244,23 @@ export function OrdersPanel({
                       </p>
                     </div>
 
-                    <div className="text-right">
-                      <p className="text-lg font-bold tabular-nums text-primary">{formatPrice(order.total)}</p>
-                      <p className="text-[11px] text-muted-foreground">{otherCurrencyValue}</p>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onRepeatOrder(order); }}
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/8 px-3 py-1.5 text-[11px] font-bold text-primary transition hover:bg-primary/15 hover:border-primary/50"
+                        title="Repetir este pedido"
+                      >
+                        <RotateCcw size={11} />
+                        Reordenar
+                      </button>
+                      <div className="text-right">
+                        <p className="text-lg font-bold tabular-nums text-primary">{formatPrice(order.total)}</p>
+                        <p className="text-[11px] text-muted-foreground">{otherCurrencyValue}</p>
+                      </div>
                     </div>
                   </div>
-                </button>
+                </div>
 
                 {isExpanded ? (
                   <div className="space-y-4 border-t border-border/70 px-5 py-4">

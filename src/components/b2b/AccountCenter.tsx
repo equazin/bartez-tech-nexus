@@ -112,7 +112,10 @@ interface AccountCenterProps {
   onConvertQuoteToOrder: (quote: Quote) => void;
   // Express Quoter props
   products: Product[];
+  computePrice: (product: Product, qty: number) => import("@/hooks/usePricing").PriceResult;
+  formatPrice: (price: number) => string;
   onAddToCart: (product: Product, quantity: number) => void;
+  onRequestQuote?: (items: Array<{ product: Product; qty: number }>) => void;
 }
 
 const SECTIONS: Array<{ id: AccountSection; label: string }> = [
@@ -212,7 +215,10 @@ export function AccountCenter({
   onDuplicateQuote,
   onConvertQuoteToOrder,
   products,
+  computePrice,
+  formatPrice,
   onAddToCart,
+  onRequestQuote,
 }: AccountCenterProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const { currency, exchangeRate } = useCurrency();
@@ -795,8 +801,10 @@ export function AccountCenter({
           {activeSection === "express" && (
             <ExpressQuoter
               products={products}
+              computePrice={computePrice}
+              formatPrice={formatPrice}
               onAddToCart={onAddToCart}
-              isDark={isDark}
+              onRequestQuote={onRequestQuote}
             />
           )}
 

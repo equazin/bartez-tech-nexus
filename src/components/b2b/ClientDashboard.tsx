@@ -541,6 +541,78 @@ export function ClientDashboard({
         ))}
       </div>
 
+      {/* ── QUICK REORDER (only if history) ──────────────────────────── */}
+      {reorderCandidates.length > 0 && (
+        <SurfaceCard tone="default" padding="lg" className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Recompra rápida</h2>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">Basado en tus {orders.length} pedidos anteriores</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1.5 rounded-xl border-primary/30 text-primary hover:bg-primary/10"
+                onClick={() => reorderCandidates.forEach(({ product, suggestedQty }) => onAddToCart(product, suggestedQty))}
+              >
+                <Truck size={13} /> Reordenar todo
+              </Button>
+              <Button type="button" variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={() => onGoTo("catalog")}>
+                Ver más <ArrowRight size={13} />
+              </Button>
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {reorderCandidates.map(({ product, count, suggestedQty }) => (
+              <div
+                key={product.id}
+                className="group flex flex-col gap-3 rounded-2xl border border-border/70 bg-card/80 p-3 transition-all hover:border-primary/20 hover:shadow-md"
+              >
+                <div className="flex items-start gap-2.5">
+                  {product.image ? (
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      className="h-12 w-12 shrink-0 rounded-xl object-contain bg-muted/30 p-1"
+                    />
+                  ) : (
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted/50">
+                      <Package size={18} className="text-muted-foreground/50" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-2 text-xs font-semibold leading-snug text-foreground">{product.name}</p>
+                    {product.brand_name && (
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">{product.brand_name}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <ShoppingCart size={9} />
+                    {count} {count !== 1 ? "compras" : "compra"}
+                  </span>
+                  <span className={`font-medium ${(product.stock ?? 0) > 0 ? "text-primary" : "text-destructive"}`}>
+                    Stock: {product.stock ?? 0}
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="w-full gap-1.5 rounded-xl"
+                  disabled={(product.stock ?? 0) === 0}
+                  onClick={() => onAddToCart(product, suggestedQty)}
+                >
+                  <Plus size={12} /> {suggestedQty} u. al carrito
+                </Button>
+              </div>
+            ))}
+          </div>
+        </SurfaceCard>
+      )}
+
       {/* ── ACTIONS ───────────────────────────────────────────────────── */}
       {actionItems.length > 0 && (
         <SurfaceCard tone="default" padding="lg" className="space-y-3">
@@ -666,78 +738,6 @@ export function ClientDashboard({
             <p>
               Disponible: {formatMoneyAmount(convertMoneyAmount(Math.max(0, creditLimit - creditUsed), "ARS", currency, exchangeRate.rate), currency, 0)}
             </p>
-          </div>
-        </SurfaceCard>
-      )}
-
-      {/* ── QUICK REORDER (only if history) ──────────────────────────── */}
-      {reorderCandidates.length > 0 && (
-        <SurfaceCard tone="default" padding="lg" className="space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-semibold text-foreground">Recompra rápida</h2>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">Basado en tus {orders.length} pedidos anteriores</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="gap-1.5 rounded-xl border-primary/30 text-primary hover:bg-primary/10"
-                onClick={() => reorderCandidates.forEach(({ product, suggestedQty }) => onAddToCart(product, suggestedQty))}
-              >
-                <Truck size={13} /> Reordenar todo
-              </Button>
-              <Button type="button" variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={() => onGoTo("catalog")}>
-                Ver más <ArrowRight size={13} />
-              </Button>
-            </div>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            {reorderCandidates.map(({ product, count, suggestedQty }) => (
-              <div
-                key={product.id}
-                className="group flex flex-col gap-3 rounded-2xl border border-border/70 bg-card/80 p-3 transition-all hover:border-primary/20 hover:shadow-md"
-              >
-                <div className="flex items-start gap-2.5">
-                  {product.image ? (
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                      className="h-12 w-12 shrink-0 rounded-xl object-contain bg-muted/30 p-1"
-                    />
-                  ) : (
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted/50">
-                      <Package size={18} className="text-muted-foreground/50" />
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="line-clamp-2 text-xs font-semibold leading-snug text-foreground">{product.name}</p>
-                    {product.brand_name && (
-                      <p className="mt-0.5 text-[10px] text-muted-foreground">{product.brand_name}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <ShoppingCart size={9} />
-                    {count} {count !== 1 ? "compras" : "compra"}
-                  </span>
-                  <span className={`font-medium ${(product.stock ?? 0) > 0 ? "text-primary" : "text-destructive"}`}>
-                    Stock: {product.stock ?? 0}
-                  </span>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="w-full gap-1.5 rounded-xl"
-                  disabled={(product.stock ?? 0) === 0}
-                  onClick={() => onAddToCart(product, suggestedQty)}
-                >
-                  <Plus size={12} /> {suggestedQty} u. al carrito
-                </Button>
-              </div>
-            ))}
           </div>
         </SurfaceCard>
       )}

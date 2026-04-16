@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { ShoppingCart, X } from "lucide-react";
 import type { Product } from "@/models/products";
 import { getAvailableStock } from "@/lib/pricing";
 
@@ -8,6 +8,7 @@ interface ProductCompareProps {
   onClear: () => void;
   formatPrice: (n: number) => string;
   currency: string;
+  onAddAllToCart?: (products: Product[]) => void;
 }
 
 const SPEC_LABELS: Record<string, string> = {
@@ -144,6 +145,7 @@ export default function ProductCompare({
   onClear,
   formatPrice,
   currency,
+  onAddAllToCart,
 }: ProductCompareProps) {
   if (products.length === 0) return null;
 
@@ -162,17 +164,32 @@ export default function ProductCompare({
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#d4d4d4] bg-white/95 backdrop-blur shadow-[0_-10px_40px_rgba(0,0,0,0.12)] animate-in slide-in-from-bottom duration-300">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#e5e5e5] bg-[#f8f8f8]">
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-[#e5e5e5] bg-[#f8f8f8]">
         <span className="text-sm font-semibold text-[#171717]">
           Comparador técnico ({products.length}/3)
           <span className="ml-2 text-xs text-[#737373] font-normal">solo datos útiles para decidir</span>
         </span>
-        <button
-          onClick={onClear}
-          className="text-xs text-red-500 hover:text-red-600 font-semibold flex items-center gap-1"
-        >
-          <X size={14} /> Limpiar comparador
-        </button>
+        <div className="flex items-center gap-3">
+          {onAddAllToCart && (() => {
+            const availableProducts = products.filter((p) => getAvailableStock(p) > 0);
+            if (availableProducts.length === 0) return null;
+            return (
+              <button
+                onClick={() => onAddAllToCart(availableProducts)}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 transition hover:bg-blue-100"
+              >
+                <ShoppingCart size={13} />
+                Agregar {availableProducts.length === 1 ? "al" : "todos al"} carrito
+              </button>
+            );
+          })()}
+          <button
+            onClick={onClear}
+            className="text-xs text-red-500 hover:text-red-600 font-semibold flex items-center gap-1"
+          >
+            <X size={14} /> Limpiar comparador
+          </button>
+        </div>
       </div>
 
       <div className="overflow-x-auto max-h-[58vh]">

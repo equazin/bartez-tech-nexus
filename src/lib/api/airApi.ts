@@ -35,14 +35,29 @@ async function airFetch<T>(query: string, body?: Record<string, unknown>): Promi
 
   if (!res.ok) {
     const errText = await res.text().catch(() => res.statusText);
-    throw new AirApiError(res.status, `HTTP ${res.status}`, errText);
+    // Try to extract a more informative message from the proxy/AIR error body
+    let detail = errText;
+    let message = `HTTP ${res.status}`;
+    try {
+      const parsed = JSON.parse(errText) as Record<string, unknown>;
+      if (typeof parsed.error === "string") {
+        message = parsed.error;
+        detail = typeof parsed.detail === "string" ? parsed.detail : errText;
+      } else if (typeof parsed.error_name === "string") {
+        message = parsed.error_name;
+        detail = typeof parsed.error_detail === "string" ? parsed.error_detail : errText;
+      }
+    } catch {
+      // non-JSON body — use raw text as detail
+    }
+    throw new AirApiError(res.status, `${message} (${res.status})`, detail);
   }
 
   const data = await res.json();
 
   // La API devuelve { error_id, error_name, error_detail } cuando hay error
   if (data && typeof data === "object" && !Array.isArray(data) && "error_id" in data) {
-    throw new AirApiError(data.error_id, data.error_name, data.error_detail);
+    throw new AirApiError(data.error_id, data.error_name ?? `AIR error ${data.error_id}`, data.error_detail ?? "");
   }
 
   return data as T;

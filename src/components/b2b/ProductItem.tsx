@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Star, TrendingUp, Truck, Flame, CalendarClock, ShieldCheck, ListPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,8 @@ interface ProductItemProps {
   purchaseHistoryCount?: number;
   lastPurchaseUnitPriceDelta?: number;
   onAddToList?: (product: Product) => void;
+  computePrice?: (product: Product, qty: number) => { unitPrice: number };
+  isCustomPrice?: boolean;
 }
 
 export function ProductItem({
@@ -79,12 +81,26 @@ export function ProductItem({
   purchaseHistoryCount = 0,
   lastPurchaseUnitPriceDelta = 0,
   onAddToList,
+  computePrice,
+  isCustomPrice = false,
 }: ProductItemProps) {
   const available = Math.max(0, product.stock - (product.stock_reserved ?? 0));
   const outOfStock = available === 0;
   const commercialSignals = resolveCommercialSignals(product, available);
   const [imageSrc, setImageSrc] = useState(() => resolveProductImageUrl(product.image));
   const handlePreviewIntent = () => preloadProductImage(product.image);
+
+  const volumeTiers = useMemo(() => {
+    if (!computePrice || finalPrice <= 0) return [];
+    const thresholds = [
+      { qty: 5, label: "5u+" },
+      { qty: 10, label: "10u+" },
+      { qty: 25, label: "25u+" },
+    ];
+    return thresholds
+      .map(({ qty, label }) => ({ label, price: computePrice(product, qty).unitPrice }))
+      .filter(({ price }) => Math.abs(price - finalPrice) / finalPrice > 0.004);
+  }, [computePrice, product, finalPrice]);
 
   useEffect(() => {
     setImageSrc(resolveProductImageUrl(product.image));
@@ -132,6 +148,11 @@ export function ProductItem({
               {isOffer && offerPercent && offerPercent > 0 ? (
                 <Badge className="gap-1 rounded-full bg-orange-600 text-white shadow-sm border-none hover:bg-orange-600 px-2 py-0.5 h-auto text-[10px]">
                   <Flame size={10} fill="currentColor" /> {offerPercent.toFixed(1)}% OFF
+                </Badge>
+              ) : null}
+              {isCustomPrice ? (
+                <Badge className="gap-1 rounded-full bg-emerald-600 text-white shadow-sm border-none hover:bg-emerald-600 px-2 py-0.5 h-auto text-[10px]">
+                  <ShieldCheck size={9} /> Precio pactado
                 </Badge>
               ) : null}
             </div>
@@ -283,6 +304,7 @@ export function ProductItem({
             minQty={product.min_order_qty ?? 1}
             onAddQty={(qty) => onAddQty(product, qty)}
             onRemoveOne={() => onRemoveFromCart(product)}
+            onNotifyClick={outOfStock ? () => onSelect(product) : undefined}
             showShortcuts
           />
         </div>
@@ -364,6 +386,11 @@ export function ProductItem({
                 <Truck size={8} /> POS
               </Badge>
             ) : null}
+            {isCustomPrice ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+                <ShieldCheck size={9} /> Precio pactado
+              </span>
+            ) : null}
           </div>
         </div>
       </div>
@@ -388,6 +415,17 @@ export function ProductItem({
         </div>
         <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground/70">Precio + IVA</div>
         {lastPurchaseUnitPriceDelta > 0 ? <div className="text-[10px] mt-1 font-semibold text-amber-500">+{lastPurchaseUnitPriceDelta.toFixed(1)}% vs anterior</div> : null}
+        {volumeTiers.length > 0 ? (
+          <div className="mt-2 space-y-0.5 border-t border-border/40 pt-1.5">
+            <p className="text-[8px] font-bold uppercase tracking-[0.14em] text-primary/50">Volumen</p>
+            {volumeTiers.slice(0, 2).map(({ label, price }) => (
+              <div key={label} className="flex items-center justify-between gap-2 text-[10px]">
+                <span className="text-muted-foreground">{label}</span>
+                <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{formatPrice(price)}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="flex w-full flex-wrap items-center justify-between gap-2 border-t border-border/50 bg-muted/10 px-3 py-2 sm:w-auto sm:min-w-[184px] sm:justify-end sm:gap-2 sm:border-l sm:border-t-0 sm:px-3 lg:min-w-[190px] xl:min-w-[246px]">
@@ -432,6 +470,7 @@ export function ProductItem({
             minQty={product.min_order_qty ?? 1}
             onAddQty={(qty) => onAddQty(product, qty)}
             onRemoveOne={() => onRemoveFromCart(product)}
+            onNotifyClick={outOfStock ? () => onSelect(product) : undefined}
           />
         </div>
       </div>

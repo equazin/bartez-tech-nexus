@@ -28,7 +28,7 @@ import { OrdersPanel } from "@/components/b2b/OrdersPanel";
 import { InvoicesPanel } from "@/components/b2b/InvoicesPanel";
 import { ApprovalsPanel } from "@/components/b2b/ApprovalsPanel";
 import { RmaPanel } from "@/components/b2b/RmaPanel";
-import { PortalHeader } from "@/components/b2b/PortalHeader";
+import { PortalHeader, type SearchResult } from "@/components/b2b/PortalHeader";
 import WhatsAppFloat from "@/components/WhatsAppFloat";
 import { PortalSidebar } from "@/components/b2b/PortalSidebar";
 import { AccountCenter } from "@/components/b2b/AccountCenter";
@@ -62,6 +62,7 @@ import { QuoteList } from "@/components/QuoteList";
 import { MapPin } from "lucide-react";
 import { OrderStatusBadge as StatusBadge } from "@/components/OrderStatusBadge";
 import { EmptyQuotesState } from "@/components/b2b/empty-states/EmptyQuotesState";
+import { OnboardingWizard, useOnboardingWizard } from "@/components/b2b/OnboardingWizard";
 
 // â”€â”€ Theme helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -134,6 +135,7 @@ export default function B2BPortal() {
   const ordersMenuRef = useRef<HTMLDivElement | null>(null);
 
   const { isDark, toggleTheme: toggleAppTheme } = useAppTheme();
+  const onboarding = useOnboardingWizard();
 
   // â”€â”€ Dynamic dashboard data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const dashboardUserId = profile?.id ?? "";
@@ -233,6 +235,12 @@ export default function B2BPortal() {
   const { quotes, addQuote, updateStatus: updateQuoteStatus, deleteQuote } = useQuotes(profile?.id || "guest");
   const { currency, setCurrency, formatPrice, formatUSD, formatARS, exchangeRate, fetchExchangeRate, isFetchingRate } = useCurrency();
 
+  const creditUsed = useMemo(() =>
+    orders.filter((o) => ["pending", "approved", "preparing"].includes(o.status))
+      .reduce((s, o) => s + o.total, 0),
+    [orders]
+  );
+
   const cart = usePortalCart({
     profile,
     products: catalog.products,
@@ -246,10 +254,34 @@ export default function B2BPortal() {
     updateQuoteStatus,
     navigate,
     setActiveTab: (tab) => setActiveTab(tab as PortalTab),
+    creditAvailable: !isAdmin && profile?.credit_limit != null && profile.credit_limit > 0
+      ? Math.max(0, profile.credit_limit - creditUsed)
+      : undefined,
   });
   const { setCart } = cart;
   const purchaseLists = usePurchaseLists({ userId: profile?.id });
   const formatQuickPrice = useCallback((product: Product) => formatPrice(computePrice(product, 1).unitPrice), [computePrice, formatPrice]);
+
+  const searchResults = useMemo((): SearchResult[] => {
+    if (search.length < 2) return [];
+    const q = search.toLowerCase();
+    return catalog.products
+      .filter((p) => {
+        const inName = p.name.toLowerCase().includes(q);
+        const inSku = p.sku ? p.sku.toLowerCase().includes(q) : false;
+        const inBrand = p.brand ? p.brand.toLowerCase().includes(q) : false;
+        return inName || inSku || inBrand;
+      })
+      .slice(0, 6)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        sku: p.sku ?? null,
+        brand: p.brand ?? null,
+        price: formatPrice(computePrice(p, 1).unitPrice),
+        stock: getAvailableStock(p),
+      }));
+  }, [search, catalog.products, computePrice, formatPrice]);
 
   const mergePurchaseListIntoCart = useCallback((list: PurchaseList) => {
     setCart((current) => {
@@ -295,13 +327,6 @@ export default function B2BPortal() {
       throw new Error("No se pudo agregar el producto a la lista.");
     }
   }, [purchaseLists]);
-
-  // â”€â”€ Credit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const creditUsed = useMemo(() =>
-    orders.filter((o) => ["pending", "approved", "preparing"].includes(o.status))
-      .reduce((s, o) => s + o.total, 0),
-    [orders]
-  );
 
   // â”€â”€ Invoices â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [myInvoices, setMyInvoices] = useState<Invoice[]>([]);
@@ -577,6 +602,45 @@ export default function B2BPortal() {
     setQuickError("");
   }, [cart]);
 
+  const handleExpressRequestQuote = useCallback(
+    async (items: Array<{ product: Product; qty: number }>) => {
+      if (!profile?.id) return;
+      const now = new Date().toISOString();
+      const quoteItems = items.map(({ product, qty }) => {
+        const price = computePrice(product, qty);
+        return {
+          product_id: product.id,
+          name: product.name,
+          quantity: qty,
+          cost: price.cost,
+          margin: price.margin,
+          unitPrice: price.unitPrice,
+          totalPrice: price.totalPrice,
+          ivaRate: price.ivaRate,
+          ivaAmount: price.ivaAmount,
+          totalWithIVA: price.totalWithIVA,
+        };
+      });
+      const subtotal = quoteItems.reduce((s, i) => s + i.totalPrice, 0);
+      const ivaTotal = quoteItems.reduce((s, i) => s + i.ivaAmount, 0);
+      await addQuote({
+        client_id: profile.id,
+        client_name: clientName,
+        items: quoteItems,
+        subtotal,
+        ivaTotal,
+        total: subtotal + ivaTotal,
+        currency,
+        status: "draft",
+        notes: "Solicitud guiada (Express Quoter)",
+        created_at: now,
+        updated_at: now,
+      });
+      setPortalTab("cuenta", { section: "quotes" });
+    },
+    [addQuote, clientName, computePrice, currency, profile?.id, setPortalTab],
+  );
+
   const journeySteps = [
     { id: "catalog" as PortalTab, label: "Buscar", helper: "Encontrá por SKU, marca o categoría" },
     { id: "catalog" as PortalTab, label: "Evaluar", helper: "Compará specs, stock y condición comercial" },
@@ -612,6 +676,15 @@ export default function B2BPortal() {
         creditLimit={!isAdmin && profile?.credit_limit != null && profile.credit_limit > 0 ? profile.credit_limit : undefined}
         creditAvailable={!isAdmin && profile?.credit_limit != null && profile.credit_limit > 0 ? Math.max(0, profile.credit_limit - creditUsed) : undefined}
         partnerLevel={profile?.partner_level as string | undefined}
+        searchResults={searchResults}
+        onSearchResultSelect={(id) => {
+          const p = catalog.products.find((x) => x.id === id);
+          if (p) {
+            setRecentlyViewedIds(addRecentlyViewed(p.id));
+            setSelectedProduct(p);
+            setPortalTab("catalog");
+          }
+        }}
       />
 
 
@@ -947,6 +1020,7 @@ export default function B2BPortal() {
                 purchaseLists={purchaseLists.lists}
                 onCreatePurchaseList={purchaseLists.createList}
                 onAddProductToList={handleAddProductToList}
+                onExportFilteredCSV={exportCatalogCSV}
               />
             </div>
           )}
@@ -1071,7 +1145,10 @@ export default function B2BPortal() {
               onDuplicateQuote={(id) => cart.handleDuplicateQuote(id, quotes)}
               onConvertQuoteToOrder={cart.handleConvertQuoteToOrder}
               products={catalog.products}
+              computePrice={computePrice}
+              formatPrice={formatPrice}
               onAddToCart={cart.handleSmartAddToCart}
+              onRequestQuote={handleExpressRequestQuote}
             />
           )}
 
@@ -1199,6 +1276,11 @@ export default function B2BPortal() {
           }}
           formatPrice={formatPrice}
           currency={currency}
+          onAddAllToCart={(ps) => {
+            ps.forEach((p) => cart.handleSmartAddToCart(p, p.min_order_qty ?? 1));
+            setCompareList([]);
+            setShowCompareTable(false);
+          }}
         />
       )}
 
@@ -1224,6 +1306,37 @@ export default function B2BPortal() {
           allProducts={catalog.products}
           profileId={profile?.id}
           purchaseHistoryCount={cart.purchaseHistory[selectedProduct.id] ?? 0}
+          creditAvailable={!isAdmin && profile?.credit_limit != null && profile.credit_limit > 0 ? Math.max(0, profile.credit_limit - creditUsed) : undefined}
+          cartTotal={cart.cartTotal}
+          onRequestQuote={profile ? (product, qty) => {
+            const safeQty = Math.max(1, qty);
+            const pricing = computePrice(product, safeQty);
+            const now = new Date().toISOString();
+            addQuote({
+              client_id: profile.id,
+              client_name: clientName,
+              items: [{
+                product_id: product.id,
+                name: product.name,
+                quantity: safeQty,
+                cost: pricing.cost,
+                margin: pricing.margin,
+                unitPrice: pricing.unitPrice,
+                totalPrice: pricing.totalPrice,
+                ivaRate: pricing.ivaRate,
+                ivaAmount: pricing.ivaAmount,
+                totalWithIVA: pricing.totalWithIVA,
+              }],
+              subtotal: pricing.totalPrice,
+              ivaTotal: pricing.ivaAmount,
+              total: pricing.totalWithIVA,
+              currency,
+              status: "draft",
+              notes: `Cotización desde producto: ${product.name}`,
+              created_at: now,
+              updated_at: now,
+            }).then(() => setPortalTab("quotes"));
+          } : undefined}
         />
       )}
       </div>
@@ -1287,6 +1400,16 @@ export default function B2BPortal() {
       </nav>
 
       {!isAdmin && <WhatsAppFloat />}
+
+      {/* ONBOARDING WIZARD — shown once on first visit for non-admin clients */}
+      {!isAdmin && profile && (
+        <OnboardingWizard
+          open={onboarding.open}
+          onClose={onboarding.dismiss}
+          clientName={profile.company_name ?? profile.contact_name}
+          onGoToCatalog={() => { onboarding.dismiss(); setPortalTab("catalog"); }}
+        />
+      )}
     </div>
   );
 }

@@ -1,12 +1,29 @@
+/**
+ * Proxy serverless para la API ELIT.
+ * Evita exponer credenciales en el frontend y añade autenticación server-side.
+ *
+ * Variables de entorno requeridas:
+ *   ELIT_API_USER_ID = <ID numérico de usuario ELIT>
+ *   ELIT_API_TOKEN   = <token de API ELIT>
+ */
+
 const ELIT_BASE = "https://clientes.elit.com.ar/v1/api";
 
-const ALLOWED_PATHS = new Set([
-  "productos",
-]);
-
-
+const ALLOWED_PATHS = new Set(["productos"]);
 
 export default async function handler(request: Request): Promise<Response> {
+  // CORS preflight
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      },
+    });
+  }
+
   if (request.method !== "POST") {
     return json({ ok: false, error: "Method not allowed. Use POST." }, 405);
   }
@@ -21,34 +38,58 @@ export default async function handler(request: Request): Promise<Response> {
   const token = process.env.ELIT_API_TOKEN?.trim() || "";
 
   if (!userId || !token) {
-    return json({ ok: false, error: "ELIT credentials not configured." }, 500);
+    console.error("[elit-proxy] ELIT_API_USER_ID or ELIT_API_TOKEN env var not set");
+    return json(
+      { ok: false, error: "ELIT credentials not configured. Set ELIT_API_USER_ID and ELIT_API_TOKEN in environment variables." },
+      500
+    );
   }
 
+  // Forward all query params except "path" to the ELIT URL
   const query = new URLSearchParams();
   url.searchParams.forEach((value, key) => {
-    if (key !== "path") {
-      query.set(key, value);
-    }
+    if (key !== "path") query.set(key, value);
   });
-  if (!query.has("limit")) {
-    query.set("limit", "100");
-  }
+  if (!query.has("limit")) query.set("limit", "100");
 
   const elitUrl = `${ELIT_BASE}/${path}?${query.toString()}`;
 
   try {
-    const body = request.body ? await request.json().catch(() => ({})) : {};
+    // Read client body (may contain search filters); fall back to empty object
+    const rawBody = await request.text().catch(() => "");
+    let clientBody: Record<string, unknown> = {};
+    if (rawBody.trim()) {
+      try {
+        clientBody = JSON.parse(rawBody) as Record<string, unknown>;
+      } catch {
+        // Ignore malformed body
+      }
+    }
+
+    // Merge client filters with credentials
+    const elitBody = {
+      ...clientBody,
+      user_id: Number(userId),
+      token,
+    };
+
     const elitRes = await fetch(elitUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        ...body,
-        user_id: Number(userId),
-        token,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(elitBody),
     });
+
+    if (!elitRes.ok) {
+      const errBody = await elitRes.text().catch(() => "(no body)");
+      console.error(`[elit-proxy] ELIT returned ${elitRes.status} for path=${path}: ${errBody}`);
+      return new Response(
+        JSON.stringify({ ok: false, error: `ELIT HTTP ${elitRes.status}`, detail: errBody }),
+        {
+          status: elitRes.status,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        }
+      );
+    }
 
     return new Response(elitRes.body, {
       status: elitRes.status,
@@ -57,15 +98,16 @@ export default async function handler(request: Request): Promise<Response> {
         "Access-Control-Allow-Origin": "*",
       },
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return json({ ok: false, error: message }, 502);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[elit-proxy] network error path=${path}:`, message);
+    return json({ ok: false, error: `Proxy network error: ${message}` }, 502);
   }
 }
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
   });
 }

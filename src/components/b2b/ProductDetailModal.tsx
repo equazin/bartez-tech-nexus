@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Minus, Plus, Star, X, Flame } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Bell, BellOff, Minus, Plus, Star, X, Flame, FileText } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import { PriceSparkline } from "@/components/PriceSparkline";
 import type { PriceResult } from "@/hooks/usePricing";
 import { getAvailableStock } from "@/lib/pricing";
 import { resolveProductImageUrl } from "@/lib/productImage";
+import { subscribeStockNotification, unsubscribeStockNotification, isSubscribedToStockNotification } from "@/lib/api/stockNotifications";
 import type { Product } from "@/models/products";
 
 const HIDDEN_SPEC_PREFIXES = ["elit_", "air_", "invid_", "supplier_", "preferred_supplier_", "sync_", "internal_", "provider_"];
@@ -142,6 +143,9 @@ export interface ProductDetailModalProps {
   allProducts?: Product[];
   profileId?: string | null;
   purchaseHistoryCount?: number;
+  onRequestQuote?: (product: Product, qty: number) => void;
+  creditAvailable?: number;
+  cartTotal?: number;
 }
 
 export function ProductDetailModal({
@@ -161,6 +165,9 @@ export function ProductDetailModal({
   allProducts = [],
   profileId,
   purchaseHistoryCount = 0,
+  onRequestQuote,
+  creditAvailable,
+  cartTotal = 0,
 }: ProductDetailModalProps) {
   const SPEC_PREVIEW_LIMIT = 20;
   const SPEC_VIRTUALIZE_THRESHOLD = 80;
@@ -171,6 +178,40 @@ export function ProductDetailModal({
   const { unitPrice, ivaAmount, ivaRate, totalWithIVA, originalUnitPrice, isOffer, calculatedOfferPercent } = priceInfo;
   const availableStock = getAvailableStock(product);
   const outOfStock = availableStock === 0;
+
+  // Stock notification subscription state
+  const [notifySubscribed, setNotifySubscribed] = useState(false);
+  const [notifyLoading, setNotifyLoading] = useState(false);
+
+  useEffect(() => {
+    if (!profileId || !outOfStock) return;
+    isSubscribedToStockNotification(profileId, product.id).then(setNotifySubscribed);
+  }, [profileId, product.id, outOfStock]);
+
+  const handleToggleNotify = useCallback(async () => {
+    if (!profileId || notifyLoading) return;
+    setNotifyLoading(true);
+    try {
+      if (notifySubscribed) {
+        await unsubscribeStockNotification(profileId, product.id);
+        setNotifySubscribed(false);
+      } else {
+        await subscribeStockNotification(profileId, product.id);
+        setNotifySubscribed(true);
+      }
+    } finally {
+      setNotifyLoading(false);
+    }
+  }, [profileId, product.id, notifySubscribed, notifyLoading]);
+
+  // Credit context: projected remaining credit after adding this product
+  const creditContext = (() => {
+    if (!creditAvailable || creditAvailable <= 0 || outOfStock) return null;
+    const itemCost = computePrice(product, Math.max(inCart + 1, 1)).totalWithIVA;
+    const projected = creditAvailable - (cartTotal + itemCost);
+    const pct = Math.min(100, ((creditAvailable - Math.max(projected, 0)) / creditAvailable) * 100);
+    return { projected, pct, danger: projected < 0, warning: pct >= 70 };
+  })();
   const warrantyLabel = findCommercialSpec(product, ["garantia", "warranty"]) ?? "Garantía oficial de fábrica";
   const deliveryLabel = findCommercialSpec(product, ["lead_time", "entrega", "plazo"])
     ?? (availableStock > 0 ? "Entrega inmediata / stock operativo" : "Entrega bajo confirmación comercial");
@@ -645,10 +686,57 @@ export function ProductDetailModal({
           </div>
         </div>
 
+        {creditContext && (
+          <div className={`flex items-center gap-3 border-t px-4 py-2 text-xs ${creditContext.danger ? "border-destructive/20 bg-destructive/5" : "border-border/40 bg-surface/60"}`}>
+            <div className="flex-1">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-muted-foreground">Crédito tras agregar:</span>
+                <span className={`font-bold tabular-nums ${creditContext.danger ? "text-destructive" : "text-foreground"}`}>
+                  {creditContext.danger ? "−" : ""}${Math.abs(Math.round(creditContext.projected)).toLocaleString("es-AR")}
+                  {creditContext.danger && <span className="ml-1 font-normal text-destructive/80">excedido</span>}
+                </span>
+              </div>
+              <div className="h-1 overflow-hidden rounded-full bg-muted">
+                <div
+                  className={`h-full rounded-full transition-all ${creditContext.danger ? "bg-destructive" : creditContext.warning ? "bg-amber-500" : "bg-primary"}`}
+                  style={{ width: `${Math.min(100, creditContext.pct)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="sticky bottom-0 z-10 border-t border-border/70 bg-card px-4 py-3 md:px-5">
           {outOfStock ? (
-            <div className="flex h-11 w-full items-center justify-center rounded-xl border border-border/70 bg-surface text-sm font-medium text-muted-foreground">
-              Sin stock disponible
+            <div className="flex gap-2">
+              <div className="flex flex-1 h-11 items-center justify-center rounded-xl border border-border/70 bg-surface text-sm font-medium text-muted-foreground">
+                Sin stock disponible
+              </div>
+              {profileId && (
+                <Button
+                  variant="outline"
+                  disabled={notifyLoading}
+                  onClick={handleToggleNotify}
+                  className={notifySubscribed
+                    ? "h-11 gap-1.5 rounded-xl border-primary/40 bg-primary/8 text-primary"
+                    : "h-11 gap-1.5 rounded-xl border-border/70 text-muted-foreground hover:text-primary hover:border-primary/30"
+                  }
+                  title={notifySubscribed ? "Cancelar notificación" : "Notificarme cuando vuelva"}
+                >
+                  {notifySubscribed ? <BellOff size={14} /> : <Bell size={14} />}
+                  <span className="hidden sm:inline">{notifySubscribed ? "Cancelar" : "Avisar"}</span>
+                </Button>
+              )}
+              {onRequestQuote && (
+                <Button
+                  variant="outline"
+                  className="h-11 gap-2 rounded-xl border-primary/30 text-primary hover:bg-primary/5"
+                  onClick={() => { onRequestQuote(product, product.min_order_qty ?? 1); onClose(); }}
+                >
+                  <FileText size={14} />
+                  Cotizar
+                </Button>
+              )}
             </div>
           ) : inCart > 0 ? (
             <div className="flex items-center gap-3">
@@ -661,9 +749,21 @@ export function ProductDetailModal({
               </Button>
             </div>
           ) : (
-            <Button className="h-11 w-full text-sm font-semibold" onClick={() => onAddToCart(product)}>
-              Agregar al carrito
-            </Button>
+            <div className="flex gap-2">
+              <Button className="h-11 flex-1 text-sm font-semibold" onClick={() => onAddToCart(product)}>
+                Agregar al carrito
+              </Button>
+              {onRequestQuote && (
+                <Button
+                  variant="outline"
+                  className="h-11 gap-1.5 rounded-xl border-border/70"
+                  onClick={() => { onRequestQuote(product, product.min_order_qty ?? 1); onClose(); }}
+                >
+                  <FileText size={14} />
+                  <span className="hidden sm:inline">Cotizar</span>
+                </Button>
+              )}
+            </div>
           )}
         </div>
 

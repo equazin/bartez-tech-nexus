@@ -87,8 +87,19 @@ async function elitFetch<T>(path: string, params: Record<string, string | number
   });
 
   if (!response.ok) {
-    const detail = await response.text().catch(() => response.statusText);
-    throw new ElitApiError(`HTTP ${response.status}`, detail);
+    const errText = await response.text().catch(() => response.statusText);
+    let detail = errText;
+    let message = `HTTP ${response.status}`;
+    try {
+      const parsed = JSON.parse(errText) as Record<string, unknown>;
+      if (typeof parsed.error === "string") {
+        message = parsed.error;
+        detail = typeof parsed.detail === "string" ? parsed.detail : errText;
+      }
+    } catch {
+      // non-JSON body — use raw text as detail
+    }
+    throw new ElitApiError(`${message} (${response.status})`, detail);
   }
 
   const json = await response.json();

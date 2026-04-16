@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Minus, Plus } from "lucide-react";
+import { Bell, Minus, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ interface QuickAddControlProps {
   compact?: boolean;
   showShortcuts?: boolean;
   minQty?: number;
+  onNotifyClick?: () => void;
 }
 
 export function QuickAddControl({
@@ -25,6 +26,7 @@ export function QuickAddControl({
   compact = false,
   showShortcuts = false,
   minQty = 1,
+  onNotifyClick,
 }: QuickAddControlProps) {
   const [qty, setQty] = useState(minQty);
 
@@ -96,15 +98,28 @@ export function QuickAddControl({
         </Button>
       </div>
 
-      <Button
-        type="button"
-        onClick={handleSubmit}
-        disabled={outOfStock}
-        variant={wasAdded ? "soft" : "default"}
-        className={cn(compact ? "h-8 rounded-xl px-3 text-xs" : "h-10 rounded-xl px-4")}
-      >
-        Añadir
-      </Button>
+      {outOfStock && onNotifyClick ? (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onNotifyClick}
+          className={cn("gap-1.5 border-border/70 text-muted-foreground hover:border-primary/30 hover:text-primary", compact ? "h-8 rounded-xl px-3 text-xs" : "h-10 rounded-xl px-3")}
+          title="Notificarme cuando vuelva el stock"
+        >
+          <Bell size={compact ? 11 : 13} />
+          {!compact && <span>Avisar</span>}
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          onClick={handleSubmit}
+          disabled={outOfStock}
+          variant={wasAdded ? "soft" : "default"}
+          className={cn(compact ? "h-8 rounded-xl px-3 text-xs" : "h-10 rounded-xl px-4")}
+        >
+          Añadir
+        </Button>
+      )}
 
       {inCart > 0 && onRemoveOne ? (
         <Button type="button" variant="outline" onClick={onRemoveOne} className={cn(compact ? "h-8 rounded-xl px-3 text-xs" : "h-10 rounded-xl px-3")}>

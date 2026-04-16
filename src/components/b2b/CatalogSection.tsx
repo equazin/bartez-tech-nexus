@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownAZ, ChevronDown, Loader2, Package, Search, Star, Truck, X, LayoutGrid, ChevronRight,
   Cpu, Zap, HardDrive, Monitor, Globe, Gamepad2, Box, Mouse, Headphones, Printer, Smartphone, Server, Speaker,
-  ArrowRight, SlidersHorizontal, RotateCcw, TrendingUp
+  ArrowRight, Flame, SlidersHorizontal, RotateCcw, TrendingUp, Download
 } from "lucide-react";
 
 import type { Product } from "@/models/products";
@@ -358,6 +358,7 @@ export interface CatalogSectionProps {
   purchaseLists?: PurchaseList[];
   onCreatePurchaseList?: (name: string, items?: PurchaseListItem[]) => Promise<PurchaseList | null>;
   onAddProductToList?: (listId: number, product: Product) => Promise<void>;
+  onExportFilteredCSV?: (products: Product[]) => void;
 }
 
 export function CatalogSection({
@@ -404,6 +405,7 @@ export function CatalogSection({
   purchaseLists = [],
   onCreatePurchaseList,
   onAddProductToList,
+  onExportFilteredCSV,
 }: CatalogSectionProps) {
   const [activeParentInMenu, setActiveParentInMenu] = useState<string | null>(null);
   const [listDialogProduct, setListDialogProduct] = useState<Product | null>(null);
@@ -419,6 +421,10 @@ export function CatalogSection({
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [stockFilter, setStockFilter] = useState(false);
   const [repurchaseOnlyFilter, setRepurchaseOnlyFilter] = useState(false);
+  const [offerOnlyFilter, setOfferOnlyFilter] = useState(false);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(() =>
+    typeof window !== "undefined" && !!window.localStorage.getItem("b2b_onboarding_dismissed")
+  );
   const hasPurchaseListActions = Boolean(onCreatePurchaseList && onAddProductToList);
 
   useEffect(() => {
@@ -447,6 +453,7 @@ export function CatalogSection({
     clearAdvancedFilters();
     setStockFilter(false);
     setRepurchaseOnlyFilter(false);
+    setOfferOnlyFilter(false);
   };
 
   const effectiveFilters = useMemo(() => ({
@@ -463,7 +470,8 @@ export function CatalogSection({
     advancedFilterCount +
     (hasActiveFilters ? 1 : 0) +
     (stockFilter ? 1 : 0) +
-    (repurchaseOnlyFilter ? 1 : 0);
+    (repurchaseOnlyFilter ? 1 : 0) +
+    (offerOnlyFilter ? 1 : 0);
 
   const filteredProducts = useMemo(
     () =>
@@ -474,6 +482,7 @@ export function CatalogSection({
             if (available === 0) return false;
           }
           if (repurchaseOnlyFilter && (purchaseHistory[product.id] ?? 0) <= 0) return false;
+          if (offerOnlyFilter && !computePrice(product, 1).isOffer) return false;
           if (effectiveFilters.brands.length > 0 && !effectiveFilters.brands.includes(product.brand_name ?? "")) return false;
           if (!matchesTechFilter(product, "ram", effectiveFilters.ram)) return false;
           if (!matchesTechFilter(product, "storage", effectiveFilters.storage)) return false;
@@ -503,7 +512,7 @@ export function CatalogSection({
             default: return 0;
           }
         }),
-    [effectiveFilters, displayProducts, sortOption, computePrice, stockFilter, repurchaseOnlyFilter, purchaseHistory],
+    [effectiveFilters, displayProducts, sortOption, computePrice, stockFilter, repurchaseOnlyFilter, offerOnlyFilter, purchaseHistory],
   );
 
   const topReorderProducts = useMemo(() => {
@@ -531,6 +540,17 @@ export function CatalogSection({
   }, [products, purchaseHistory]);
 
   const resultsLabel = `${filteredProducts.length}${totalCount > 0 ? ` de ${totalCount}` : ""} productos`;
+
+  const isNewClient = useMemo(
+    () => Object.keys(purchaseHistory).length === 0,
+    [purchaseHistory]
+  );
+
+  const filteredCategoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredProducts.forEach((p) => { counts[p.category] = (counts[p.category] || 0) + 1; });
+    return counts;
+  }, [filteredProducts]);
 
   async function handleAddProductToExistingList(listId: number) {
     if (!listDialogProduct || !onAddProductToList) return;
@@ -643,7 +663,7 @@ export function CatalogSection({
             <DrawerTitle className="text-base font-semibold text-foreground">Filtros avanzados</DrawerTitle>
           </DrawerHeader>
           <div className="flex h-[calc(100%-4.5rem)] flex-col gap-3 overflow-y-auto p-4">
-            {(hasActiveFilters || hasAdvancedFilters || stockFilter || repurchaseOnlyFilter) ? (
+            {(hasActiveFilters || hasAdvancedFilters || stockFilter || repurchaseOnlyFilter || offerOnlyFilter) ? (
               <Button
                 type="button"
                 variant="outline"
@@ -667,8 +687,37 @@ export function CatalogSection({
         </DrawerContent>
       </Drawer>
 
-      {/* MAIN CONTENT */}
-      <div className="flex-1 min-w-0 w-full space-y-4 mt-2 lg:mt-0">
+      {/* CATALOG LAYOUT: filter sidebar + product content */}
+      <div className="flex items-start gap-5">
+
+        {/* FILTER SIDEBAR — persistent on xl+ */}
+        {(brandOptions.length > 0 || ramOptions.length > 0 || storageOptions.length > 0 || refreshRateOptions.length > 0 || screenOptions.length > 0) && (
+          <aside className="hidden xl:flex w-[240px] shrink-0 flex-col gap-3 sticky overflow-y-auto" style={{ top: "calc(var(--header-height, 72px) + 1.25rem)", maxHeight: "calc(100vh - var(--header-height, 72px) - 2.5rem)" }}>
+            <p className="px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Filtros</p>
+            {(hasActiveFilters || hasAdvancedFilters || stockFilter || repurchaseOnlyFilter || offerOnlyFilter) && (
+              <Button
+                type="button"
+                variant="outline"
+                className="justify-start gap-2 rounded-2xl bg-card text-xs h-9 border-border/70"
+                onClick={clearAllFilters}
+              >
+                <X size={13} /> Limpiar filtros
+              </Button>
+            )}
+            <AdvancedFiltersPanel
+              brandOptions={brandOptions}
+              ramOptions={ramOptions}
+              storageOptions={storageOptions}
+              refreshRateOptions={refreshRateOptions}
+              screenOptions={screenOptions}
+              effectiveFilters={effectiveFilters}
+              toggleAdvancedFilter={toggleAdvancedFilter}
+            />
+          </aside>
+        )}
+
+        {/* MAIN CONTENT */}
+        <div className="min-w-0 flex-1 space-y-4 mt-2 lg:mt-0">
         {/* Hierarchical Breadcrumb */}
         {categoryFilter !== "all" && (
           <div className="flex items-center gap-2 px-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 animate-in fade-in slide-in-from-left-2 transition-all">
@@ -790,6 +839,16 @@ export function CatalogSection({
 
               <Button
                 size="sm"
+                variant={offerOnlyFilter ? "soft" : "ghost"}
+                className="shrink-0 rounded-full border border-border/70 whitespace-nowrap"
+                onClick={() => setOfferOnlyFilter((prev) => !prev)}
+              >
+                <Flame size={14} className={offerOnlyFilter ? "text-orange-500" : "text-muted-foreground"} />
+                Solo ofertas
+              </Button>
+
+              <Button
+                size="sm"
                 variant={sortOption === "purchase_desc" ? "soft" : "ghost"}
                 className="shrink-0 rounded-full border border-border/70 whitespace-nowrap"
                 onClick={() => setSortOption("purchase_desc")}
@@ -842,7 +901,7 @@ export function CatalogSection({
                     type="button"
                     variant="toolbar"
                     size="sm"
-                    className="hidden h-9 shrink-0 rounded-xl px-3 text-xs font-semibold lg:inline-flex"
+                    className="hidden h-9 shrink-0 rounded-xl px-3 text-xs font-semibold lg:inline-flex xl:hidden"
                   >
                     <SlidersHorizontal size={13} className="text-muted-foreground" />
                     Filtros avanzados
@@ -858,7 +917,7 @@ export function CatalogSection({
                   className="hidden w-[340px] rounded-[24px] border border-border/70 bg-background/95 p-3 shadow-2xl lg:block"
                 >
                   <div className="space-y-3">
-                    {(hasActiveFilters || hasAdvancedFilters || stockFilter || repurchaseOnlyFilter) ? (
+                    {(hasActiveFilters || hasAdvancedFilters || stockFilter || repurchaseOnlyFilter || offerOnlyFilter) ? (
                       <Button
                         type="button"
                         variant="outline"
@@ -917,7 +976,7 @@ export function CatalogSection({
                     )}
                   >
                     {cat.name}
-                    <span className="ml-1.5 font-normal opacity-50">({categoryCounts[cat.name] || 0})</span>
+                    <span className="ml-1.5 font-normal opacity-50">({filteredCategoryCounts[cat.name] || 0})</span>
                   </button>
                 );
               })}
@@ -951,11 +1010,24 @@ export function CatalogSection({
             </div>
 
             {!productsLoading ? (
-              <div className="rounded-2xl border border-border/70 bg-background px-3 py-2 text-xs text-muted-foreground">
-                <span className="font-semibold text-foreground">{resultsLabel}</span>
-                {search ? (
-                  <> para <span className="font-semibold text-foreground">&quot;{search}&quot;</span></>
-                ) : null}
+              <div className="flex items-center gap-2">
+                <div className="rounded-2xl border border-border/70 bg-background px-3 py-2 text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground">{resultsLabel}</span>
+                  {search ? (
+                    <> para <span className="font-semibold text-foreground">&quot;{search}&quot;</span></>
+                  ) : null}
+                </div>
+                {onExportFilteredCSV && filteredProducts.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onExportFilteredCSV(filteredProducts)}
+                    title="Exportar lista filtrada a CSV"
+                    className="flex items-center gap-1.5 rounded-2xl border border-border/70 bg-background px-3 py-2 text-xs text-muted-foreground transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
+                  >
+                    <Download size={12} />
+                    <span className="hidden sm:inline">CSV</span>
+                  </button>
+                )}
               </div>
             ) : null}
           </div>
@@ -1075,6 +1147,14 @@ export function CatalogSection({
                 </button>
               </span>
             ) : null}
+            {offerOnlyFilter ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-[11px] font-medium text-orange-600 dark:text-orange-400">
+                Solo ofertas
+                <button type="button" onClick={() => setOfferOnlyFilter(false)} className="ml-0.5 rounded-full p-0.5 hover:bg-orange-500/20 transition-colors">
+                  <X size={10} />
+                </button>
+              </span>
+            ) : null}
             <button
               type="button"
               onClick={clearAllFilters}
@@ -1082,6 +1162,54 @@ export function CatalogSection({
             >
               <X size={10} /> Limpiar
             </button>
+          </div>
+        )}
+
+        {/* M2 — Onboarding banner for new clients */}
+        {isNewClient && !onboardingDismissed && !search && !hasActiveFilters && !hasAdvancedFilters && (
+          <div className="relative rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 via-background to-primary/3 p-5">
+            <button
+              type="button"
+              onClick={() => {
+                setOnboardingDismissed(true);
+                window.localStorage.setItem("b2b_onboarding_dismissed", "1");
+              }}
+              className="absolute right-3 top-3 rounded-full p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              title="Cerrar"
+            >
+              <X size={14} />
+            </button>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-primary">Bienvenido al catálogo B2B</p>
+            <h3 className="mb-4 text-base font-bold text-foreground">Tres formas de comprar más rápido</h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-background p-3.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Zap size={16} />
+                </div>
+                <div>
+                  <p className="text-[13px] font-semibold text-foreground">Carga masiva</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">Pegá una lista de SKUs y cantidades para armar el pedido en segundos.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-background p-3.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+                  <RotateCcw size={16} />
+                </div>
+                <div>
+                  <p className="text-[13px] font-semibold text-foreground">Recompra rápida</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">Una vez que hayas comprado, tus productos frecuentes aparecen primero con un clic.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-background p-3.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-500">
+                  <ArrowRight size={16} />
+                </div>
+                <div>
+                  <p className="text-[13px] font-semibold text-foreground">Cotización exprés</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">Agregá productos al carrito y solicitá una cotización formal en un paso.</p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1154,6 +1282,8 @@ export function CatalogSection({
                       : 0
                   }
                   onAddToList={hasPurchaseListActions ? (product) => setListDialogProduct(product) : undefined}
+                  computePrice={computePrice}
+                  isCustomPrice={price.isCustomPrice}
                 />
               );
             })}
@@ -1211,6 +1341,8 @@ export function CatalogSection({
                       : 0
                   }
                   onAddToList={hasPurchaseListActions ? (product) => setListDialogProduct(product) : undefined}
+                  computePrice={computePrice}
+                  isCustomPrice={price.isCustomPrice}
                 />
               </div>
             );
@@ -1277,7 +1409,10 @@ export function CatalogSection({
           </div>
         </div>
       ) : null}
+        </div>
+        {/* /MAIN CONTENT */}
       </div>
+      {/* /CATALOG LAYOUT */}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   BriefcaseBusiness,
@@ -6,6 +6,8 @@ import {
   CheckCircle2,
   ChevronsUpDown,
   Cpu,
+  Database,
+  Film,
   FolderOpen,
   Gamepad2,
   HardDrive,
@@ -13,6 +15,7 @@ import {
   Monitor,
   Package,
   Pencil,
+  Radio,
   Save,
   Server,
   Share,
@@ -46,6 +49,8 @@ import {
   getCanonicalKeyLabel,
   getPcBuildProfilePreset,
   getPcBuildDiscount,
+  inferCpuHasIgpu,
+  inferCpuIncludesCooler,
   PC_COMPONENT_LABELS,
   PC_COMPONENT_ORDER,
   PC_COMPONENT_PREREQUISITES,
@@ -85,40 +90,100 @@ interface BuildPreset {
   description: string;
   goal: PcBuilderGoal;
   priority: PcBuilderPriority;
+  /** Componentes que se omiten en la generación automática */
+  skipComponents: PcComponentType[];
   colorClass: string;
   badgeClass: string;
 }
 
 const BUILD_PRESETS: BuildPreset[] = [
   {
-    id: "office",
+    id: "office_basic",
     icon: <BriefcaseBusiness size={18} />,
-    label: "Oficina",
-    description: "Estable, silencioso y eficiente para tareas administrativas",
+    label: "Oficina Básica",
+    description: "Texto, correo, web y videollamadas. Gráfica integrada.",
     goal: "office",
     priority: "price",
+    skipComponents: [],
     colorClass: "border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10",
     badgeClass: "text-blue-600 dark:text-blue-300",
   },
   {
-    id: "gaming",
+    id: "office_pro",
+    icon: <BriefcaseBusiness size={18} />,
+    label: "Oficina Pro",
+    description: "Multitarea, ERP, contabilidad y trabajo remoto.",
+    goal: "office",
+    priority: "balanced",
+    skipComponents: [],
+    colorClass: "border-sky-500/30 bg-sky-500/5 hover:bg-sky-500/10",
+    badgeClass: "text-sky-600 dark:text-sky-300",
+  },
+  {
+    id: "gaming_budget",
     icon: <Gamepad2 size={18} />,
-    label: "Gaming",
-    description: "Alto rendimiento gráfico para juegos y entretenimiento",
+    label: "Gaming Entrada",
+    description: "1080p con buen fps en títulos actuales. Mejor relación precio-rendimiento.",
     goal: "gaming",
-    priority: "performance",
+    priority: "price",
+    skipComponents: [],
     colorClass: "border-violet-500/30 bg-violet-500/5 hover:bg-violet-500/10",
     badgeClass: "text-violet-600 dark:text-violet-300",
   },
   {
-    id: "workstation",
+    id: "gaming_high",
+    icon: <Gamepad2 size={18} />,
+    label: "Gaming Alto",
+    description: "1440p o 4K, máximo fps y sin cuellos de botella.",
+    goal: "gaming",
+    priority: "performance",
+    skipComponents: [],
+    colorClass: "border-purple-500/30 bg-purple-500/5 hover:bg-purple-500/10",
+    badgeClass: "text-purple-600 dark:text-purple-300",
+  },
+  {
+    id: "streaming",
+    icon: <Radio size={18} />,
+    label: "Streaming",
+    description: "Jugar y transmitir en simultáneo. CPU con muchos núcleos.",
+    goal: "gaming",
+    priority: "balanced",
+    skipComponents: [],
+    colorClass: "border-pink-500/30 bg-pink-500/5 hover:bg-pink-500/10",
+    badgeClass: "text-pink-600 dark:text-pink-300",
+  },
+  {
+    id: "design_workstation",
     icon: <Server size={18} />,
-    label: "Workstation",
-    description: "Multitarea intensa: diseño, render, desarrollo y análisis",
+    label: "Diseño / CAD",
+    description: "AutoCAD, Photoshop, Illustrator y modelado 3D ligero.",
     goal: "workstation",
     priority: "balanced",
+    skipComponents: [],
     colorClass: "border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10",
     badgeClass: "text-emerald-600 dark:text-emerald-300",
+  },
+  {
+    id: "video_editing",
+    icon: <Film size={18} />,
+    label: "Edición de Video",
+    description: "Premiere, DaVinci, After Effects. Render en GPU (CUDA / OpenCL).",
+    goal: "workstation",
+    priority: "performance",
+    skipComponents: [],
+    colorClass: "border-orange-500/30 bg-orange-500/5 hover:bg-orange-500/10",
+    badgeClass: "text-orange-600 dark:text-orange-300",
+  },
+  {
+    id: "server_nas",
+    icon: <Database size={18} />,
+    label: "Servidor / NAS",
+    description: "Servidor de archivos, NAS doméstico o virtualización ligera.",
+    goal: "office",
+    priority: "balanced",
+    skipComponents: ["gpu"],
+    colorClass: "border-slate-500/30 bg-slate-500/5 hover:bg-slate-500/10",
+    badgeClass: "text-slate-600 dark:text-slate-300",
   },
 ];
 
@@ -385,6 +450,8 @@ export function PcBuilderPanel({
   const [mode, setMode] = useState<PcBuilderMode>("guided");
   const [goal, setGoal] = useState<PcBuilderGoal>("office");
   const [priority, setPriority] = useState<PcBuilderPriority>("balanced");
+  const [activePresetId, setActivePresetId] = useState<string | undefined>("office_basic");
+  const [guidedSkips, setGuidedSkips] = useState<PcComponentType[]>(["gpu"]);
   const [budgetMin, setBudgetMin] = useState("");
   const [budgetMax, setBudgetMax] = useState("");
   const [draftName, setDraftName] = useState("");
@@ -528,23 +595,36 @@ export function PcBuilderPanel({
   const psuEntry = selectedEntryMap.psu;
   const psuUnderRated = Boolean(psuEntry?.specs.wattage && psuEntry.specs.wattage < recommendedPsu);
 
-  const getFilteredOptionsForStep = useCallback(
-    (componentType: PcComponentType): PcCatalogEntry[] => {
-      const baseSelection: PcBuildSelection = { ...selection };
+  // Deferred values: urgent renders (selection/UI state) proceed immediately;
+  // the expensive option filtering catches up in a lower-priority pass.
+  const deferredSelection = useDeferredValue(selection);
+  const deferredQuantities = useDeferredValue(quantities);
+  const deferredGoal = useDeferredValue(goal);
+
+  // Compute ALL slot options once — uses deferred selection so this never blocks urgent renders.
+  // Cost: O(slots × candidates × compat_check) but runs only when deps change, not on every render.
+  const filteredOptionsBySlot = useMemo(() => {
+    const result = {} as Record<PcComponentType, PcCatalogEntry[]>;
+    for (const componentType of PC_COMPONENT_ORDER) {
+      const baseSelection: PcBuildSelection = { ...deferredSelection };
       delete baseSelection[componentType];
-      const baseReasons = evaluatePcCompatibility(buildSelectedEntryMap(baseSelection), { quantities, goal }).reasons;
-      return (optionsByType[componentType] ?? [])
+      const baseEntryMap = buildSelectedEntryMap(baseSelection);
+      const baseErrors = evaluatePcCompatibility(baseEntryMap, {
+        quantities: deferredQuantities,
+        goal: deferredGoal,
+      }).reasons;
+      result[componentType] = (optionsByType[componentType] ?? [])
         .filter((entry) => {
-          const nextReasons = evaluatePcCompatibility(
+          const nextErrors = evaluatePcCompatibility(
             buildSelectedEntryMap({ ...baseSelection, [componentType]: entry.product.id }),
-            { quantities, goal },
+            { quantities: deferredQuantities, goal: deferredGoal },
           ).reasons;
-          return !nextReasons.some((r) => !baseReasons.includes(r));
+          return !nextErrors.some((r) => !baseErrors.includes(r));
         })
         .sort((l, r) => computePrice(l.product, 1).totalWithIVA - computePrice(r.product, 1).totalWithIVA);
-    },
-    [buildSelectedEntryMap, computePrice, goal, optionsByType, quantities, selection],
-  );
+    }
+    return result;
+  }, [buildSelectedEntryMap, computePrice, deferredGoal, deferredQuantities, deferredSelection, optionsByType]);
 
   /* ── actions ── */
 
@@ -564,6 +644,8 @@ export function PcBuilderPanel({
   const applyPreset = (preset: BuildPreset) => {
     setGoal(preset.goal);
     setPriority(preset.priority);
+    setGuidedSkips(preset.skipComponents);
+    setActivePresetId(preset.id);
     setMode("guided");
   };
 
@@ -574,8 +656,37 @@ export function PcBuilderPanel({
     const nextQuantities: Partial<Record<PcComponentType, number>> = {};
 
     for (const componentType of PC_COMPONENT_ORDER) {
+      // Monitor nunca se agrega automáticamente — siempre se elige a mano
+      if (componentType === "monitor") continue;
+
+      // Skip estático del preset
+      if (guidedSkips.includes(componentType)) continue;
+
+      // GPU: solo agregar si el CPU no tiene gráfica integrada, o si el objetivo es gaming/workstation
+      if (componentType === "gpu") {
+        const isGamingOrWorkstation = goal === "gaming" || goal === "workstation";
+        if (!isGamingOrWorkstation) {
+          const cpuEntry = nextSelection.cpu ? entryByProductId.get(nextSelection.cpu) : null;
+          // Si el CPU tiene iGPU, no hace falta GPU discreta
+          if (!cpuEntry || inferCpuHasIgpu(cpuEntry.product)) continue;
+        }
+      }
+
+      // Cooler: solo agregar si el CPU NO incluye cooler de fábrica
+      if (componentType === "cooler") {
+        const cpuEntry = nextSelection.cpu ? entryByProductId.get(nextSelection.cpu) : null;
+        if (cpuEntry && inferCpuIncludesCooler(cpuEntry.product)) continue;
+      }
+
+      // PSU: omitir si el gabinete ya incluye fuente
+      if (componentType === "psu" && nextSelection.case) {
+        const caseEntry = entryByProductId.get(nextSelection.case);
+        if (caseEntry?.specs.case_has_psu) continue;
+      }
+
       const prerequisite = PC_COMPONENT_PREREQUISITES[componentType];
       if (prerequisite && !nextSelection[prerequisite]) continue;
+
       const candidates = (optionsByType[componentType] ?? []).filter((entry) =>
         evaluatePcCompatibility(buildSelectedEntryMap({ ...nextSelection, [componentType]: entry.product.id }), {
           quantities: nextQuantities,
@@ -583,9 +694,11 @@ export function PcBuilderPanel({
         }).compatible,
       );
       if (candidates.length === 0) continue;
+
       const ranked = rankByPriority(candidates, componentType, priority, goal, computePrice);
       let chosen = priority === "balanced" ? ranked[Math.floor((ranked.length - 1) / 2)] : ranked[0];
-      const qty = componentType === "ram" && goal === "workstation" ? 2 : 1;
+      // qty: workstation builds get 2x RAM sticks for dual-channel
+      const qty = componentType === "ram" && (goal === "workstation") ? 2 : 1;
       if (maxBudget > 0) {
         const within = ranked.find((e) => runningTotal + computePrice(e.product, qty).totalWithIVA <= maxBudget);
         if (within) chosen = within;
@@ -747,22 +860,22 @@ export function PcBuilderPanel({
       {/* ── Build presets ── */}
       <div>
         <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Empezar desde una plantilla</p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {BUILD_PRESETS.map((preset) => {
-            const isActive = goal === preset.goal;
+            const isActive = activePresetId === preset.id;
             return (
               <button
                 key={preset.id}
                 type="button"
                 onClick={() => applyPreset(preset)}
-                className={`group relative flex cursor-pointer flex-col gap-1.5 rounded-2xl border p-4 text-left transition-all ${preset.colorClass} ${isActive ? "ring-2 ring-primary/40" : ""}`}
+                className={`group relative flex cursor-pointer flex-col gap-1 rounded-2xl border p-3 text-left transition-all ${preset.colorClass} ${isActive ? "ring-2 ring-primary/40" : ""}`}
               >
                 <div className={`flex items-center gap-2 font-semibold text-sm ${preset.badgeClass}`}>
                   {preset.icon}
-                  {preset.label}
-                  {isActive && <Check size={13} className="ml-auto" />}
+                  <span className="flex-1 truncate">{preset.label}</span>
+                  {isActive && <Check size={12} className="shrink-0" />}
                 </div>
-                <p className="text-[11px] text-muted-foreground leading-snug">{preset.description}</p>
+                <p className="text-[10px] text-muted-foreground leading-snug">{preset.description}</p>
               </button>
             );
           })}
@@ -901,21 +1014,19 @@ export function PcBuilderPanel({
             const prerequisite = PC_COMPONENT_PREREQUISITES[componentType];
             const isBlocked = prerequisite ? !selection[prerequisite] : false;
             const isSelected = Boolean(selection[componentType]);
-            const options = getFilteredOptionsForStep(componentType);
+            const options = filteredOptionsBySlot[componentType] ?? [];
             const selectedEntry = selection[componentType] ? entryByProductId.get(selection[componentType] as number) : null;
             const SlotIcon = SLOT_ICONS[componentType];
             const isRequired = PC_REQUIRED_COMPONENTS.includes(componentType);
 
-            // Per-slot compatibility context
-            const thisSlotCompatibility = isSelected
-              ? evaluatePcCompatibility(buildSelectedEntryMap(selection), { quantities, goal })
-              : null;
-            const slotErrors = thisSlotCompatibility?.reasons ?? [];
-            const slotWarnings = thisSlotCompatibility?.warnings ?? [];
+            // Reuse the already-computed snapshot — avoids 10 redundant compat checks per render
+            const slotErrors = isSelected ? compatibilitySnapshot.reasons : [];
+            const slotWarnings = isSelected ? compatibilitySnapshot.warnings : [];
             const slotStatus = getSlotStatus(componentType, isBlocked, isSelected, slotWarnings, slotErrors, psuUnderRated && componentType === "psu");
 
             // PSU inline warning
             const showPsuWarning = componentType === "psu" && psuUnderRated && isSelected;
+            const showCaseHasPsuNote = componentType === "psu" && !isSelected && Boolean(selectedEntryMap.case?.specs.case_has_psu);
 
             return (
               <div
@@ -956,6 +1067,15 @@ export function PcBuilderPanel({
                   </p>
                 ) : (
                   <div className="mt-2 space-y-2">
+                    {/* Case-has-PSU note before the picker */}
+                    {showCaseHasPsuNote && (
+                      <div className="flex items-start gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/8 px-2.5 py-1.5">
+                        <Zap size={12} className="mt-0.5 shrink-0 text-emerald-600" />
+                        <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-medium leading-snug">
+                          El gabinete elegido incluye fuente integrada. No es necesario agregar una fuente por separado, aunque podés reemplazarla si querés mayor potencia.
+                        </p>
+                      </div>
+                    )}
                     <PcComponentPicker
                       componentType={componentType}
                       options={options}

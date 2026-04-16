@@ -1,8 +1,10 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  ArrowRight,
   CreditCard,
   LogOut,
   Moon,
+  Package,
   RefreshCw,
   Search,
   ShoppingCart,
@@ -32,6 +34,15 @@ const PARTNER_BADGE: Record<PartnerLevel, { label: string; icon: string; class: 
   platinum: { label: "Platinum Partner", icon: "💎", class: "border-violet-400/30 bg-violet-500/10 text-violet-600 dark:text-violet-400" },
 };
 
+export interface SearchResult {
+  id: number;
+  name: string;
+  sku: string | null;
+  brand: string | null;
+  price: string;
+  stock: number;
+}
+
 interface PortalHeaderProps {
   clientName: string;
   search: string;
@@ -52,6 +63,8 @@ interface PortalHeaderProps {
   creditLimit?: number;
   creditAvailable?: number;
   partnerLevel?: string;
+  searchResults?: SearchResult[];
+  onSearchResultSelect?: (id: number) => void;
 }
 
 export const PortalHeader: React.FC<PortalHeaderProps> = ({
@@ -74,6 +87,8 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
   creditLimit,
   creditAvailable,
   partnerLevel,
+  searchResults = [],
+  onSearchResultSelect,
 }) => {
   const effectiveLevel = (partnerLevel as PartnerLevel) || "cliente";
   const partnerBadge = PARTNER_BADGE[effectiveLevel] ?? null;
@@ -82,6 +97,8 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
   const ageLabel =
     ageMin < 2 ? "Ahora" : ageMin < 60 ? `hace ${ageMin}m` : `hace ${Math.floor(ageMin / 60)}h`;
   const headerRef = useRef<HTMLElement | null>(null);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const showDropdown = searchFocused && search.length >= 2 && searchResults.length > 0;
 
   useEffect(() => {
     const node = headerRef.current;
@@ -152,6 +169,8 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
             placeholder="Buscar productos, SKU o marca…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
             className="h-11 rounded-2xl border-border/80 bg-surface pl-10 pr-10 text-sm shadow-sm"
           />
           {search ? (
@@ -163,6 +182,43 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
               <X size={12} />
             </button>
           ) : null}
+          {showDropdown && (
+            <div className="absolute top-[calc(100%+6px)] z-50 w-full overflow-hidden rounded-2xl border border-border/80 bg-card shadow-xl shadow-black/8">
+              {searchResults.map((result) => (
+                <button
+                  key={result.id}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    onSearchResultSelect?.(result.id);
+                    setSearchFocused(false);
+                  }}
+                  className="flex w-full items-center justify-between gap-3 border-b border-border/40 px-4 py-2.5 text-left transition last:border-b-0 hover:bg-secondary/70"
+                >
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <Package size={13} className="shrink-0 text-muted-foreground" />
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium text-foreground">{result.name}</p>
+                      {(result.sku || result.brand) && (
+                        <p className="text-[10px] text-muted-foreground">
+                          {[result.sku, result.brand].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {result.stock > 0 ? (
+                      <span className="text-[10px] font-medium text-emerald-600">{result.stock} u.</span>
+                    ) : (
+                      <span className="text-[10px] font-medium text-destructive">Sin stock</span>
+                    )}
+                    <span className="text-xs font-bold tabular-nums text-foreground">{result.price}</span>
+                    <ArrowRight size={12} className="text-muted-foreground" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ── Right controls ────────────────────────────────────────── */}

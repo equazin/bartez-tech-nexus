@@ -42,6 +42,8 @@ interface UsePortalCartOptions {
   updateQuoteStatus: (id: number, status: string) => Promise<unknown>;
   navigate: (path: string) => void;
   setActiveTab: (tab: string) => void;
+  /** ARS credit remaining for this client; undefined = no limit */
+  creditAvailable?: number;
 }
 
 export function usePortalCart({
@@ -57,6 +59,7 @@ export function usePortalCart({
   updateQuoteStatus,
   navigate,
   setActiveTab,
+  creditAvailable,
 }: UsePortalCartOptions) {
   const cartKey = `b2b_cart_${profile?.id || "guest"}`;
 
@@ -209,6 +212,19 @@ export function usePortalCart({
 
     const remaining = available - safeQty;
     const actuallyAdded = safeQty - inCart;
+
+    // ── Credit check ──────────────────────────────────────────────────────────
+    if (creditAvailable != null && creditAvailable > 0) {
+      const addedCost = computePrice(product, actuallyAdded).totalWithIVA;
+      if (cartTotal + addedCost > creditAvailable) {
+        const fmt = (n: number) => `$${Math.round(n).toLocaleString("es-AR")}`;
+        toast.warning(
+          `Límite de crédito: disponible ${fmt(creditAvailable)}, carrito supera ese monto.`,
+          { duration: 5000 }
+        );
+        return;
+      }
+    }
 
     if (remaining < 5 && remaining >= 0) {
       toast.warning(`Atención: Quedan solo ${remaining} unidades disponibles.`);

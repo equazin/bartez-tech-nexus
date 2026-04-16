@@ -1,5 +1,5 @@
-import React from "react";
-import { Star, Truck } from "lucide-react";
+import React, { useState } from "react";
+import { AlignJustify, LayoutList, Star, Truck } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -43,21 +43,46 @@ export function ProductTable({
   getPriceInfo,
   onAddToList,
 }: ProductTableProps) {
+  const [density, setDensity] = useState<"normal" | "compact">("normal");
+  const isCompact = density === "compact";
+
   return (
     <DataTableShell
       title="Tabla de precios"
-      description="Vista compacta para comparar stock, precio y accion inmediata sin salir del catalogo."
-      meta={<Badge variant="muted">{products.length} resultados</Badge>}
+      description={isCompact ? undefined : "Vista compacta para comparar stock, precio y accion inmediata sin salir del catalogo."}
+      meta={
+        <div className="flex items-center gap-2">
+          <Badge variant="muted">{products.length} resultados</Badge>
+          <div className="flex items-center rounded-lg border border-border/70 bg-background p-0.5">
+            <button
+              type="button"
+              onClick={() => setDensity("normal")}
+              className={cn("flex items-center rounded-md px-2 py-1 text-[11px] font-semibold transition", density === "normal" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+              title="Vista normal"
+            >
+              <LayoutList size={12} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setDensity("compact")}
+              className={cn("flex items-center rounded-md px-2 py-1 text-[11px] font-semibold transition", isCompact ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+              title="Vista ultra-compacta"
+            >
+              <AlignJustify size={12} />
+            </button>
+          </div>
+        </div>
+      }
     >
       <Table>
         <TableHeader>
-          <TableRow>
+          <TableRow className={isCompact ? "[&>th]:py-1.5 [&>th]:text-[10px]" : ""}>
             <TableHead>SKU</TableHead>
             <TableHead>Nombre</TableHead>
-            <TableHead className="hidden sm:table-cell">Categoria</TableHead>
+            {!isCompact && <TableHead className="hidden sm:table-cell">Categoría</TableHead>}
             <TableHead className="text-center">Stock</TableHead>
-            <TableHead className="text-right">Precio s/IVA</TableHead>
-            <TableHead className="text-right">Accion</TableHead>
+            <TableHead className="text-right">Precio</TableHead>
+            <TableHead className="text-right">Acción</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -74,52 +99,51 @@ export function ProductTable({
             const deltaPct = lastUnit ? ((finalPrice - lastUnit) / lastUnit) * 100 : 0;
 
             return (
-              <TableRow key={product.id} className={outOfStock ? "opacity-50" : ""}>
+              <TableRow key={product.id} className={cn(outOfStock ? "opacity-50" : "", isCompact ? "[&>td]:py-1" : "")}>
                 <TableCell>
                   <button type="button" className="text-left" onClick={() => onSelect(product)}>
-                    <span className="font-mono text-xs text-muted-foreground">{product.sku ?? "-"}</span>
+                    <span className={cn("font-mono text-muted-foreground", isCompact ? "text-[10px]" : "text-xs")}>{product.sku ?? "-"}</span>
                   </button>
                 </TableCell>
-                <TableCell className="max-w-[280px]">
+                <TableCell className={isCompact ? "max-w-[200px]" : "max-w-[280px]"}>
                   <button type="button" className="w-full text-left" onClick={() => onSelect(product)}>
-                    <span className="line-clamp-1 text-sm font-semibold text-foreground">
+                    <span className={cn("line-clamp-1 font-semibold text-foreground", isCompact ? "text-xs" : "text-sm")}>
                       {product.name}
                       {isFavorite ? <Star size={10} className="ml-1 inline text-amber-500" fill="currentColor" /> : null}
                     </span>
-                    {hasTiers ? <span className="mt-1 block text-[11px] font-medium text-primary">Precio por volumen</span> : null}
+                    {!isCompact && hasTiers ? <span className="mt-1 block text-[11px] font-medium text-primary">Precio por volumen</span> : null}
                   </button>
                 </TableCell>
-                <TableCell className="hidden sm:table-cell">
-                  <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{product.category}</span>
-                    {isPosProduct(product) ? (
-                      <Badge variant="outline" className="gap-1 border-blue-500/20 bg-blue-500/10 text-blue-500">
-                        <Truck size={10} /> POS
-                      </Badge>
-                    ) : null}
-                  </div>
-                </TableCell>
+                {!isCompact && (
+                  <TableCell className="hidden sm:table-cell">
+                    <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{product.category}</span>
+                      {isPosProduct(product) ? (
+                        <Badge variant="outline" className="gap-1 border-blue-500/20 bg-blue-500/10 text-blue-500">
+                          <Truck size={10} /> POS
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </TableCell>
+                )}
                 <TableCell className="text-center">
-                      <StockBadge stock={available} />
+                  <StockBadge stock={available} />
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {price.isOffer && price.originalUnitPrice > finalPrice ? (
+                  {!isCompact && price.isOffer && price.originalUnitPrice > finalPrice ? (
                     <span className="mb-0.5 block text-[10px] line-through text-muted-foreground/60">
                       {formatPrice(price.originalUnitPrice)}
                     </span>
                   ) : null}
-                  <span className={cn(
-                    "text-sm font-bold",
-                    price.isOffer ? "text-sky-500" : "text-primary"
-                  )}>
+                  <span className={cn("font-bold", isCompact ? "text-xs" : "text-sm", price.isOffer ? "text-sky-500" : "text-primary")}>
                     {formatPrice(finalPrice)}
                   </span>
-                  <span className="mt-1 block text-[11px] text-muted-foreground">+{product.iva_rate ?? 21}% IVA</span>
-                  {lastUnit && deltaPct > 0 ? <span className="block text-[11px] font-semibold text-amber-500">+{deltaPct.toFixed(1)}%</span> : null}
+                  {!isCompact && <span className="mt-1 block text-[11px] text-muted-foreground">+{product.iva_rate ?? 21}% IVA</span>}
+                  {!isCompact && lastUnit && deltaPct > 0 ? <span className="block text-[11px] font-semibold text-amber-500">+{deltaPct.toFixed(1)}%</span> : null}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
-                    {onAddToList ? (
+                    {!isCompact && onAddToList ? (
                       <button
                         type="button"
                         onClick={() => onAddToList(product)}
@@ -135,6 +159,7 @@ export function ProductTable({
                       compact
                       onAddQty={(qty) => onAddQty(product, qty)}
                       onRemoveOne={() => onRemoveFromCart(product)}
+                      onNotifyClick={outOfStock ? () => onSelect(product) : undefined}
                     />
                   </div>
                 </TableCell>
