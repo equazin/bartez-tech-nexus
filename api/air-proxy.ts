@@ -22,6 +22,9 @@ const ALLOWED_QUERIES = new Set([
   "get_meta",
 ]);
 
+// Timeout upstream: slightly under Vercel maxDuration (60s) to return clean 504
+const UPSTREAM_TIMEOUT_MS = 55_000;
+
 // ── Token cache (module-scope, survives warm instances) ──────────────────────
 let cachedToken = "";
 let tokenExpiresAt = 0; // Unix ms
@@ -46,6 +49,7 @@ async function resolveToken(): Promise<string> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ user, pass }),
+    signal: AbortSignal.timeout(15_000),
   });
 
   if (!loginRes.ok) {
@@ -67,7 +71,7 @@ async function resolveToken(): Promise<string> {
 
   cachedToken = token;
   // expira looks like a Unix timestamp in seconds (common in ARG APIs)
-  tokenExpiresAt = expira > 1_000_000_000 ? expira * 1000 : Date.now() + 8 * 60 * 60 * 1000; // fallback: 8h
+  tokenExpiresAt = expira > 1_000_000_000 ? expira * 1000 : Date.now() + 8 * 60 * 60 * 1000;
   console.info("[air-proxy] Token obtained, expires at:", new Date(tokenExpiresAt).toISOString());
   return token;
 }
@@ -128,7 +132,12 @@ export default async function handler(request: Request): Promise<Response> {
     const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
     if (body) headers["Content-Type"] = "application/json";
 
-    const airRes = await fetch(airUrl, { method: "POST", headers, body });
+    const airRes = await fetch(airUrl, {
+      method: "POST",
+      headers,
+      body,
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
 
     // Log and forward non-OK responses with structured error for easier debugging
     if (!airRes.ok) {
@@ -159,8 +168,12 @@ export default async function handler(request: Request): Promise<Response> {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`[air-proxy] network error q=${q}:`, message);
-    return json({ ok: false, error: `Proxy network error: ${message}` }, 502);
+    const isTimeout = message.includes("abort") || message.includes("timeout") || message.includes("TimeoutError");
+    console.error(`[air-proxy] ${isTimeout ? "timeout" : "network error"} q=${q}:`, message);
+    return json(
+      { ok: false, error: isTimeout ? "AIR API timeout — intenta de nuevo" : `Proxy network error: ${message}` },
+      isTimeout ? 504 : 502
+    );
   }
 }
 

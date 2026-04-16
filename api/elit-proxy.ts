@@ -11,6 +11,9 @@ const ELIT_BASE = "https://clientes.elit.com.ar/v1/api";
 
 const ALLOWED_PATHS = new Set(["productos"]);
 
+// Timeout upstream: slightly under Vercel maxDuration (60s) to return clean 504
+const UPSTREAM_TIMEOUT_MS = 55_000;
+
 export default async function handler(request: Request): Promise<Response> {
   // CORS preflight
   if (request.method === "OPTIONS") {
@@ -77,6 +80,7 @@ export default async function handler(request: Request): Promise<Response> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(elitBody),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
 
     if (!elitRes.ok) {
@@ -100,8 +104,12 @@ export default async function handler(request: Request): Promise<Response> {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`[elit-proxy] network error path=${path}:`, message);
-    return json({ ok: false, error: `Proxy network error: ${message}` }, 502);
+    const isTimeout = message.includes("abort") || message.includes("timeout") || message.includes("TimeoutError");
+    console.error(`[elit-proxy] ${isTimeout ? "timeout" : "network error"} path=${path}:`, message);
+    return json(
+      { ok: false, error: isTimeout ? "ELIT API timeout — intenta de nuevo" : `Proxy network error: ${message}` },
+      isTimeout ? 504 : 502
+    );
   }
 }
 
