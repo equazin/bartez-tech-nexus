@@ -168,8 +168,10 @@ export default async function handler(request: Request): Promise<Response> {
       },
     });
   } catch (err) {
+    const isTimeout =
+      (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) ||
+      (err instanceof DOMException && err.name === "TimeoutError");
     const message = err instanceof Error ? err.message : String(err);
-    const isTimeout = message.includes("abort") || message.includes("timeout") || message.includes("TimeoutError");
     console.error(`[air-proxy] ${isTimeout ? "timeout" : "network error"} q=${q}:`, message);
     return json(
       { ok: false, error: isTimeout ? "AIR API timeout — intenta de nuevo" : `Proxy network error: ${message}` },
