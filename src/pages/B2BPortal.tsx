@@ -63,6 +63,10 @@ import { MapPin } from "lucide-react";
 import { OrderStatusBadge as StatusBadge } from "@/components/OrderStatusBadge";
 import { EmptyQuotesState } from "@/components/b2b/empty-states/EmptyQuotesState";
 import { OnboardingWizard, useOnboardingWizard } from "@/components/b2b/OnboardingWizard";
+import { BundleCard } from "@/components/b2b/BundleCard";
+import { BundleDetail } from "@/components/b2b/BundleDetail";
+import { fetchActiveBundles } from "@/lib/api/bundleApi";
+import type { BundleWithSlots } from "@/models/bundle";
 
 // â”€â”€ Theme helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -134,6 +138,12 @@ export default function B2BPortal() {
   const [ordersMenuOpen, setOrdersMenuOpen] = useState(false);
   const ordersMenuRef = useRef<HTMLDivElement | null>(null);
 
+  // ── Bundles ──────────────────────────────────────────────────────────────────
+  const [bundles, setBundles] = useState<BundleWithSlots[]>([]);
+  const [bundlesLoading, setBundlesLoading] = useState(true);
+  const [selectedBundleId, setSelectedBundleId] = useState<string | null>(null);
+  const selectedBundle = bundles.find((b) => b.id === selectedBundleId) ?? null;
+
   const { isDark, toggleTheme: toggleAppTheme } = useAppTheme();
   const onboarding = useOnboardingWizard();
 
@@ -156,6 +166,14 @@ export default function B2BPortal() {
   }, [profile?.assigned_seller_id]);
 
   // â”€â”€ Catalog data (categories, filters, display products) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  useEffect(() => {
+    setBundlesLoading(true);
+    fetchActiveBundles()
+      .then(setBundles)
+      .catch(() => setBundles([]))
+      .finally(() => setBundlesLoading(false));
+  }, []);
+
   const { hiddenProductIds } = useCatalogSegments(profile?.id);
 
   const catalog = usePortalCatalog({
@@ -936,19 +954,54 @@ export default function B2BPortal() {
 
           {/* HOME */}
           {activeTab === "home" && profile && (
-            <ClientDashboard
-              profile={profile}
-              orders={orders}
-              invoices={myInvoices}
-              products={catalog.products}
-              creditLimit={profile.credit_limit ?? 0}
-              creditUsed={creditUsed}
-              onGoTo={(tab) => setPortalTab(tab as PortalTab)}
-              onAddToCart={cart.handleSmartAddToCart}
-              alerts={alerts}
-              assignedSeller={assignedSeller}
-              activeAgreement={activeAgreement}
-            />
+            <div className="space-y-6">
+              {/* Sección de Bundles — primer bloque antes del catálogo general */}
+              {bundlesLoading ? (
+                <div className="space-y-3">
+                  <div className="h-5 w-48 rounded-lg bg-muted animate-pulse" />
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="animate-pulse rounded-[22px] border border-border/70 bg-card p-3 h-44">
+                        <div className="mb-2 h-4 w-1/2 rounded bg-muted" />
+                        <div className="mb-2 h-3.5 w-3/4 rounded bg-muted" />
+                        <div className="mb-1 h-3 w-2/3 rounded bg-muted" />
+                        <div className="mb-1 h-3 w-1/2 rounded bg-muted" />
+                        <div className="mt-3 h-6 w-24 rounded bg-muted" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : bundles.length > 0 ? (
+                <div className="space-y-3">
+                  <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground px-1">
+                    PCs y esquemas armados
+                  </h2>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                    {bundles.map((bundle) => (
+                      <BundleCard
+                        key={bundle.id}
+                        bundle={bundle}
+                        formatPrice={formatPrice}
+                        onClick={setSelectedBundleId}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              <ClientDashboard
+                profile={profile}
+                orders={orders}
+                invoices={myInvoices}
+                products={catalog.products}
+                creditLimit={profile.credit_limit ?? 0}
+                creditUsed={creditUsed}
+                onGoTo={(tab) => setPortalTab(tab as PortalTab)}
+                onAddToCart={cart.handleSmartAddToCart}
+                alerts={alerts}
+                assignedSeller={assignedSeller}
+                activeAgreement={activeAgreement}
+              />
+            </div>
           )}
 
           {/* CATALOG */}
@@ -1021,6 +1074,8 @@ export default function B2BPortal() {
                 onCreatePurchaseList={purchaseLists.createList}
                 onAddProductToList={handleAddProductToList}
                 onExportFilteredCSV={exportCatalogCSV}
+                bundles={bundles}
+                onBundleClick={setSelectedBundleId}
               />
             </div>
           )}
@@ -1400,6 +1455,16 @@ export default function B2BPortal() {
       </nav>
 
       {!isAdmin && <WhatsAppFloat />}
+
+      {/* BUNDLE DETAIL — sheet lateral al hacer click en una BundleCard */}
+      <BundleDetail
+        bundle={selectedBundle}
+        open={!!selectedBundleId}
+        onClose={() => setSelectedBundleId(null)}
+        formatPrice={formatPrice}
+        onAddToCart={cart.handleSmartAddToCart}
+        products={catalog.products}
+      />
 
       {/* ONBOARDING WIZARD — shown once on first visit for non-admin clients */}
       {!isAdmin && profile && (

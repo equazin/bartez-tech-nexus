@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownAZ, ChevronDown, Loader2, Package, Search, Star, Truck, X, LayoutGrid, ChevronRight,
   Cpu, Zap, HardDrive, Monitor, Globe, Gamepad2, Box, Mouse, Headphones, Printer, Smartphone, Server, Speaker,
-  ArrowRight, Flame, SlidersHorizontal, RotateCcw, TrendingUp, Download
+  ArrowRight, Flame, SlidersHorizontal, RotateCcw, TrendingUp, Download, Layers,
 } from "lucide-react";
+import { BundleCard } from "@/components/b2b/BundleCard";
 
 import type { Product } from "@/models/products";
 import type { PriceResult } from "@/hooks/usePricing";
@@ -26,7 +27,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export type ViewMode = "grid" | "list" | "table";
-export type CatalogContext = "default" | "featured" | "pos";
+export type CatalogContext = "default" | "featured" | "pos" | "bundles";
 export type SortOption = "price_asc" | "price_desc" | "name_asc" | "name_desc" | "brand_asc" | "brand_desc" | "stock_asc" | "stock_desc" | "purchase_desc";
 
 type AdvancedFilterKey = "brands" | "ram" | "storage" | "refreshRate" | "screen";
@@ -45,6 +46,7 @@ const CATALOG_CONTEXTS: { id: CatalogContext; label: string; icon: typeof Packag
   { id: "default", label: "Catalogo general", icon: Package },
   { id: "featured", label: "Destacados", icon: Star },
   { id: "pos", label: "Punto de venta", icon: Truck },
+  { id: "bundles", label: "Kits armados", icon: Layers },
 ];
 
 interface AdvancedFilterDropdownProps {
@@ -359,6 +361,10 @@ export interface CatalogSectionProps {
   onCreatePurchaseList?: (name: string, items?: PurchaseListItem[]) => Promise<PurchaseList | null>;
   onAddProductToList?: (listId: number, product: Product) => Promise<void>;
   onExportFilteredCSV?: (products: Product[]) => void;
+  /** Bundles activos para mostrar cuando catalogContext === "bundles". */
+  bundles?: import("@/models/bundle").BundleWithSlots[];
+  /** Callback al hacer click en una BundleCard. */
+  onBundleClick?: (bundleId: string) => void;
 }
 
 export function CatalogSection({
@@ -406,6 +412,8 @@ export function CatalogSection({
   onCreatePurchaseList,
   onAddProductToList,
   onExportFilteredCSV,
+  bundles = [],
+  onBundleClick,
 }: CatalogSectionProps) {
   const [activeParentInMenu, setActiveParentInMenu] = useState<string | null>(null);
   const [listDialogProduct, setListDialogProduct] = useState<Product | null>(null);
@@ -1213,7 +1221,28 @@ export function CatalogSection({
           </div>
         )}
 
-        {productsLoading ? (
+        {/* ── Kits armados ──────────────────────────────────────────────────── */}
+        {catalogContext === "bundles" ? (
+          bundles.length === 0 ? (
+            <EmptyState
+              title="No hay kits disponibles"
+              description="El catálogo de kits armados está vacío por el momento."
+              icon={<Layers size={20} />}
+              className="py-16"
+            />
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              {bundles.map((bundle) => (
+                <BundleCard
+                  key={bundle.id}
+                  bundle={bundle}
+                  formatPrice={formatPrice}
+                  onClick={(id) => onBundleClick?.(id)}
+                />
+              ))}
+            </div>
+          )
+        ) : productsLoading ? (
         viewMode === "list" || viewMode === "table" ? (
           <div className="flex flex-col gap-2">
             {Array.from({ length: 6 }).map((_, index) => (
@@ -1367,7 +1396,7 @@ export function CatalogSection({
         />
       )}
 
-      {totalCount > 200 && !productsLoading && filteredProducts.length > 0 ? (
+      {catalogContext !== "bundles" && totalCount > 200 && !productsLoading && filteredProducts.length > 0 ? (
         <div className="mb-12 mt-8 flex flex-wrap items-center justify-center gap-2">
           <Button
             variant="outline"

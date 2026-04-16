@@ -3,14 +3,14 @@ import {
   ClipboardList, Layers, CheckCircle2, MessageSquare, Users, UserPlus,
   CreditCard, Bell, FileText, BarChart2, Building2, Bookmark, Wifi,
   ShieldCheck, ShieldAlert, History, ShoppingBag, RotateCcw, Handshake, LifeBuoy,
-  Ticket, Globe, Activity, Megaphone, Cpu, type LucideIcon,
+  Ticket, Globe, Activity, Megaphone, Cpu, PackagePlus, type LucideIcon,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type Tab =
   | "dashboard"
-  | "products" | "imports" | "categories" | "images" | "opportunities" | "pos"
+  | "products" | "imports" | "categories" | "images" | "opportunities" | "pos" | "bundles"
   | "orders" | "kanban" | "approvals" | "quotes_admin" | "registration_requests" | "exception_inbox"
   | "seller_mode" | "seller_management" | "seller_portfolio" | "seller_targets" | "seller_activity"
   | "clients" | "users_permissions" | "credit" | "business_alerts" | "documents" | "support"
@@ -58,6 +58,7 @@ export const NAV_MODULES: NavModule[] = [
       { id: "images",        label: "Imágenes",      icon: Image,      manageProducts: true },
       { id: "opportunities", label: "Oportunidades", icon: Flame,      manageProducts: true },
       { id: "pos",           label: "POS",           icon: Truck,      manageProducts: true },
+      { id: "bundles",       label: "Bundles",       icon: PackagePlus, manageProducts: true },
     ],
   },
   {

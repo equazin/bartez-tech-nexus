@@ -75,6 +75,7 @@ const RmaAdminTab = lazy(() => import("@/components/admin/RmaAdminTab").then(m =
 const PriceAgreementsTab = lazy(() => import("@/components/admin/PriceAgreementsTab").then(m => ({ default: m.PriceAgreementsTab })));
 const SerialsTab = lazy(() => import("@/components/admin/SerialsTab").then(m => ({ default: m.SerialsTab })));
 const PcBuilderSpecsTab = lazy(() => import("@/components/admin/PcBuilderSpecsTab").then(m => ({ default: m.PcBuilderSpecsTab })));
+const BundlesAdminTab = lazy(() => import("@/components/admin/BundlesAdminTab").then(m => ({ default: m.BundlesAdminTab })));
 import {
   fetchProductsForContent,
   processProductContent,
@@ -2855,6 +2856,11 @@ async function handleCreateSeller() {
         {/* -- MOTOR DE PRECIOS -- */}
         {activeTab === "pricing" && (
           <PricingRulesTab isDark={isDark} categories={categoryNames} />
+        )}
+
+        {/* -- BUNDLES / KITS -- */}
+        {activeTab === "bundles" && (
+          <BundlesAdminTab products={products} isDark={isDark} />
         )}
 
         {/* -- ARMADOR PC -- */}

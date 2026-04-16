@@ -85,7 +85,15 @@
       "Bash(xargs wc:*)",
       "Bash(grep -c \"CREATE POLICY\" e:/Github/bartez-tech-nexus/supabase/migrations/*.sql)",
       "Bash(awk -F: '{sum += $2} END {print sum}')",
-      "Bash(wc -l e:/Github/bartez-tech-nexus/src/components/admin/*.tsx)"
+      "Bash(wc -l e:/Github/bartez-tech-nexus/src/components/admin/*.tsx)",
+      "Bash(gh api *)",
+      "Bash(git --version)",
+      "Bash(git ls-remote *)",
+      "mcp__claude_ai_Vercel__list_teams",
+      "mcp__claude_ai_Vercel__list_deployments",
+      "mcp__claude_ai_Vercel__get_deployment",
+      "mcp__claude_ai_Vercel__get_runtime_logs",
+      "mcp__claude_ai_Vercel__list_projects"
     ]
   }
 }
