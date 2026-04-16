@@ -11,8 +11,8 @@ const ELIT_BASE = "https://clientes.elit.com.ar/v1/api";
 
 const ALLOWED_PATHS = new Set(["productos"]);
 
-// Timeout upstream: slightly under Vercel maxDuration (60s) to return clean 504
-const UPSTREAM_TIMEOUT_MS = 55_000;
+// Edge Runtime: no hard Lambda timeout. Allow up to 4.5 min for large catalog pages.
+const UPSTREAM_TIMEOUT_MS = 270_000;
 
 export default async function handler(request: Request): Promise<Response> {
   // CORS preflight
@@ -115,6 +115,9 @@ export default async function handler(request: Request): Promise<Response> {
     );
   }
 }
+
+// Run as Edge Function — no hard Lambda timeout; streaming responses can run indefinitely.
+export const config = { runtime: "edge" };
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
