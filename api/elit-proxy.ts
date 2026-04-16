@@ -31,7 +31,8 @@ export default async function handler(request: Request): Promise<Response> {
     return json({ ok: false, error: "Method not allowed. Use POST." }, 405);
   }
 
-  const url = new URL(request.url);
+  const host = request.headers.get?.("host") ?? "localhost";
+  const url = new URL(request.url, `https://${host}`);
   const path = url.searchParams.get("path") ?? "";
   if (!path || !ALLOWED_PATHS.has(path)) {
     return json({ ok: false, error: "Missing or disallowed path parameter." }, 400);
