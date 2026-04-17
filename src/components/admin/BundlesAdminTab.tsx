@@ -780,8 +780,8 @@ export function BundlesAdminTab({ products }: Props) {
         </div>
       </div>
 
-      {/* 3-column grid */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[340px_1fr_300px] xl:grid-cols-[360px_1fr_320px]">
+      {/* 3-column grid: 1-col mobile → 2-col lg → 3-col xl */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[260px_1fr] xl:grid-cols-[260px_1fr_220px]">
 
         {/* ── COLUMNA 1: Configuración ──────────────────────────────────── */}
         <div className="space-y-4">
@@ -1344,8 +1344,8 @@ export function BundlesAdminTab({ products }: Props) {
           )}
         </div>
 
-        {/* ── COLUMNA 3: Resumen ────────────────────────────────────────── */}
-        <div className="sticky top-4 space-y-4 self-start">
+        {/* ── COLUMNA 3: Resumen — full-width on lg, 3rd col on xl ──── */}
+        <div className="space-y-4 lg:col-span-2 xl:col-span-1 xl:sticky xl:top-4 xl:self-start lg:max-w-md xl:max-w-none">
           <Card className="overflow-hidden">
             <div className={`px-4 pt-4 pb-3 bg-gradient-to-br ${
               config.type === "pc_armada" ? "from-blue-500/10 to-blue-500/5" :
