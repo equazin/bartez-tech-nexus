@@ -169,7 +169,20 @@ export default async function handler(request: Request): Promise<Response> {
         const errBody = await airRes.text().catch(() => "(no body)");
         console.error(`[air-proxy] AIR returned ${airRes.status} for q=${q}: ${errBody}`);
 
-        // Invalidar cache para que la próxima llamada re-autentique.
+        // Detectar rate-limit (error_id:403 "Too many queries") vs error de auth.
+        let isRateLimit = false;
+        try {
+          const parsed = JSON.parse(errBody) as Record<string, unknown>;
+          if (parsed.error_id === 403 || (typeof parsed.error_name === "string" && parsed.error_name.toLowerCase().includes("too many"))) {
+            isRateLimit = true;
+          }
+        } catch { /* no-JSON */ }
+
+        if (isRateLimit) {
+          return json({ ok: false, error: "Rate limit AIR — esperá 5 minutos antes de volver a sincronizar.", detail: errBody }, 429);
+        }
+
+        // Invalidar cache solo en errores de autenticación reales.
         if (airRes.status === 401 || airRes.status === 403) {
           cachedToken = "";
           tokenExpiresAt = 0;
@@ -210,11 +223,24 @@ export default async function handler(request: Request): Promise<Response> {
   // Primer intento con token cacheado / estático.
   const firstResponse = await executeRequest(false);
 
-  // Si el upstream respondió 401/403 y tenemos credenciales, re-login y reintentamos una vez.
-  // Evita que un AIR_API_TOKEN vencido bloquee todas las syncs hasta el próximo redeploy.
-  if ((firstResponse.status === 401 || firstResponse.status === 403) && hasCredentials) {
-    console.warn(`[air-proxy] Upstream ${firstResponse.status} — reintentando con token fresco.`);
-    return executeRequest(true);
+  // Solo reintentamos si el error es de autenticación (token vencido), NO si es rate-limit.
+  // AIR usa 403 para ambos casos — distinguimos por error_id en el body.
+  if (firstResponse.status === 401 || firstResponse.status === 403) {
+    let isRateLimit = false;
+    try {
+      const clone = firstResponse.clone();
+      const body = await clone.json() as Record<string, unknown>;
+      // AIR devuelve error_id:403 para rate-limit, distinto de un 403 por token inválido.
+      if (body.error_id === 403 || (typeof body.error_name === "string" && body.error_name.toLowerCase().includes("too many"))) {
+        isRateLimit = true;
+        console.warn(`[air-proxy] Rate limit hit for q=${q}. Wait 5 minutes before retrying.`);
+      }
+    } catch { /* non-JSON — asumir error de auth */ }
+
+    if (!isRateLimit && hasCredentials) {
+      console.warn(`[air-proxy] Upstream ${firstResponse.status} — reintentando con token fresco.`);
+      return executeRequest(true);
+    }
   }
 
   return firstResponse;
