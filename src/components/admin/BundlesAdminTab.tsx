@@ -677,51 +677,63 @@ export function BundlesAdminTab({ products }: Props) {
               const BIcon  = TYPE_ICONS[bundle.type] ?? Package;
               const bColor = TYPE_COLORS[bundle.type] ?? TYPE_COLORS.bundle;
               return (
-                <Card key={bundle.id} className="hover:border-primary/40 transition-colors duration-150">
+                <Card key={bundle.id} className="hover:border-primary/40 transition-colors duration-150 overflow-hidden">
                   <CardContent className="p-4">
-                    <div className="flex items-center gap-4">
-                      {bundle.image_url ? (
-                        <img
-                          src={bundle.image_url}
-                          alt={bundle.title}
-                          className="h-14 w-14 rounded-xl object-cover shrink-0 border border-border/60"
-                        />
-                      ) : (
-                        <div className="h-14 w-14 rounded-xl bg-muted/60 flex items-center justify-center shrink-0">
-                          <ImageIcon size={18} className="text-muted-foreground/40" />
-                        </div>
-                      )}
+                    <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
+                      <div className="flex items-start gap-3 md:gap-4 flex-1 min-w-0 w-full">
+                        {bundle.image_url ? (
+                          <img
+                            src={bundle.image_url}
+                            alt={bundle.title}
+                            className="h-14 w-14 rounded-xl object-cover shrink-0 border border-border/60"
+                          />
+                        ) : (
+                          <div className="h-14 w-14 rounded-xl bg-muted/60 flex items-center justify-center shrink-0">
+                            <ImageIcon size={18} className="text-muted-foreground/40" />
+                          </div>
+                        )}
 
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span className="font-semibold text-sm text-foreground truncate">{bundle.title}</span>
-                          <Badge className={`gap-1 text-[10px] py-0 px-1.5 ${bColor}`}>
-                            <BIcon size={8} />
-                            {BUNDLE_TYPE_LABELS[bundle.type]}
-                          </Badge>
-                          {!bundle.active && (
-                            <Badge variant="secondary" className="text-[10px] py-0">Inactivo</Badge>
-                          )}
-                          {bundle.discount_type === "percentage" && bundle.discount_pct > 0 && (
-                            <Badge variant="outline" className="text-[10px] py-0 text-green-500 border-green-500/40">
-                              <Tag size={8} className="mr-0.5" />-{bundle.discount_pct}%
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1 min-w-0">
+                            <span
+                              className="font-semibold text-sm text-foreground truncate max-w-full"
+                              title={bundle.title}
+                            >
+                              {bundle.title}
+                            </span>
+                            <Badge className={`gap-1 text-[10px] py-0 px-1.5 shrink-0 ${bColor}`}>
+                              <BIcon size={8} />
+                              {BUNDLE_TYPE_LABELS[bundle.type]}
                             </Badge>
+                            {!bundle.active && (
+                              <Badge variant="secondary" className="text-[10px] py-0 shrink-0">Inactivo</Badge>
+                            )}
+                            {bundle.discount_type === "percentage" && bundle.discount_pct > 0 && (
+                              <Badge variant="outline" className="text-[10px] py-0 text-green-500 border-green-500/40 shrink-0">
+                                <Tag size={8} className="mr-0.5" />-{bundle.discount_pct}%
+                              </Badge>
+                            )}
+                            {bundle.discount_type === "fixed" && bundle.fixed_price != null && (
+                              <Badge variant="outline" className="text-[10px] py-0 text-amber-500 border-amber-500/40 shrink-0">
+                                Precio fijo
+                              </Badge>
+                            )}
+                          </div>
+                          {bundle.description && (
+                            <p
+                              className="text-xs text-muted-foreground line-clamp-1 break-words"
+                              title={bundle.description}
+                            >
+                              {bundle.description}
+                            </p>
                           )}
-                          {bundle.discount_type === "fixed" && bundle.fixed_price != null && (
-                            <Badge variant="outline" className="text-[10px] py-0 text-amber-500 border-amber-500/40">
-                              Precio fijo
-                            </Badge>
+                          {bundle.slug && (
+                            <p className="text-[10px] text-muted-foreground/50 mt-0.5 truncate">/{bundle.slug}</p>
                           )}
                         </div>
-                        {bundle.description && (
-                          <p className="text-xs text-muted-foreground truncate">{bundle.description}</p>
-                        )}
-                        {bundle.slug && (
-                          <p className="text-[10px] text-muted-foreground/50 mt-0.5">/{bundle.slug}</p>
-                        )}
                       </div>
 
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-1 shrink-0 self-end md:self-auto">
                         <Button
                           size="sm" variant="outline" className="h-8 gap-1.5 text-xs"
                           onClick={() => openEditBuilder(bundle)}
@@ -738,6 +750,7 @@ export function BundlesAdminTab({ products }: Props) {
                         <Button
                           size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive/80"
                           onClick={() => handleDeleteBundle(bundle)}
+                          title="Eliminar"
                         >
                           <Trash2 size={13} />
                         </Button>
