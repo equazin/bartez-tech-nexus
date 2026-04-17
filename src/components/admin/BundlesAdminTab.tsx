@@ -1172,6 +1172,137 @@ export function BundlesAdminTab({ products }: Props) {
       </div>
 
       {/* 3-column grid: 1-col mobile → 2-col lg → 3-col xl */}
+      <div className="mx-auto w-full max-w-5xl">
+        <div className="space-y-3 rounded-[32px] border border-border/60 bg-card/70 p-4 shadow-sm md:p-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Vista cliente</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                La preview ahora se muestra centrada para revisar mejor jerarquia, copy y percepcion comercial del kit.
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="flex items-center rounded-xl border border-border/70 bg-background p-1">
+                <button
+                  type="button"
+                  onClick={() => setPreviewViewport("desktop")}
+                  className={`inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-[11px] font-semibold transition ${
+                    previewViewport === "desktop" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  }`}
+                  aria-label="Ver preview en desktop"
+                >
+                  <Monitor size={12} />
+                  Desktop
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewViewport("mobile")}
+                  className={`inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-[11px] font-semibold transition ${
+                    previewViewport === "mobile" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  }`}
+                  aria-label="Ver preview en mobile"
+                >
+                  <Smartphone size={12} />
+                  Mobile
+                </button>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
+                onClick={() => {
+                  setPreviewBundle(builderPreviewBundle);
+                  setPreviewOpen(true);
+                }}
+              >
+                <Eye size={12} />
+                Abrir detalle
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { label: "Estado", value: builderPreviewMetrics.isAvailable ? "Compra directa" : "Cotizacion" },
+              { label: "Precio desde", value: formatPreviewPrice(builderPreviewMetrics.startingPrice) },
+              { label: "Ahorro", value: builderPreviewMetrics.discountAmount > 0 ? `${Math.round(builderPreviewMetrics.savingsPct)}%` : "Sin promo" },
+              { label: "Configuracion", value: builderPreviewMetrics.configurableSlots > 0 ? `${builderPreviewMetrics.configurableSlots} slots` : "Fijo" },
+            ].map((item) => (
+              <div key={item.label} className="rounded-2xl border border-border/60 bg-background/80 px-3 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{item.label}</p>
+                <p className="mt-2 text-sm font-semibold text-foreground">{item.value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="overflow-hidden rounded-[30px] border border-border/60 bg-gradient-to-br from-background via-background to-muted/30">
+            <div className="border-b border-border/60 px-4 py-3">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Portal B2B</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">Seccion Kits armados</p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="outline" className="text-[10px]">
+                    {builderPreviewMetrics.isAvailable ? "Disponible" : "Consultar disponibilidad"}
+                  </Badge>
+                  {builderPreviewMetrics.configurableSlots > 0 && (
+                    <Badge variant="outline" className="text-[10px]">Configurable</Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.07),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent)] px-4 py-5">
+              <div className={`mx-auto transition-all duration-200 ${previewViewport === "mobile" ? "max-w-[300px]" : "max-w-3xl"}`}>
+                <div className="mb-4 flex items-center justify-between rounded-2xl border border-border/50 bg-background/70 px-3 py-2">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Cliente</p>
+                    <p className="text-xs font-medium text-foreground">Preview {previewViewport === "mobile" ? "mobile" : "desktop"}</p>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">{builderPreviewBundle.title || "Kit sin nombre"}</p>
+                </div>
+
+                <BundleCard
+                  bundle={builderPreviewBundle}
+                  formatPrice={formatPreviewPrice}
+                  onClick={() => {
+                    setPreviewBundle(builderPreviewBundle);
+                    setPreviewOpen(true);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border/60 bg-background/70 px-3 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Lo que se comunica</p>
+              <span className="text-[10px] text-muted-foreground">{builderPreviewComponents.length} destacados</span>
+            </div>
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              {builderPreviewComponents.map((component, index) => (
+                <div key={`${component.label}-${index}`} className="flex items-start justify-between gap-3 rounded-xl border border-border/50 bg-background/70 px-3 py-2 text-[11px]">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-foreground">{component.label}</p>
+                    <p className="truncate text-muted-foreground">{component.productName}</p>
+                  </div>
+                  <div className="shrink-0 text-right text-muted-foreground">
+                    {component.quantity > 1 ? `x${component.quantity}` : "1 u."}
+                    {component.optional ? " opc." : ""}
+                  </div>
+                </div>
+              ))}
+              {builderPreviewBundle.slots.length > builderPreviewComponents.length && (
+                <p className="text-[11px] text-muted-foreground">
+                  +{builderPreviewBundle.slots.length - builderPreviewComponents.length} componente(s) mas en el detalle.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[260px_1fr] xl:grid-cols-[260px_1fr_220px]">
 
         {/* ── COLUMNA 1: Configuración ──────────────────────────────────── */}
@@ -1790,7 +1921,7 @@ export function BundlesAdminTab({ products }: Props) {
             </div>
 
             <CardContent className="px-4 pb-4 pt-3 space-y-3">
-              <div className="space-y-2">
+              <div className="hidden space-y-2" aria-hidden="true">
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
