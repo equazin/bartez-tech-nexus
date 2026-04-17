@@ -197,10 +197,23 @@ export default async function handler(request: Request): Promise<Response> {
         );
       }
 
+      // Detectar respuestas HTML de AIR (página de error PHP / redirect de login)
+      const ct = airRes.headers.get("content-type") ?? "";
+      if (!ct.includes("application/json") && !ct.includes("text/plain") && !ct.includes("application/octet-stream")) {
+        const errBody = await airRes.text().catch(() => "(no body)");
+        console.error(`[air-proxy] AIR devolvió contenido no-JSON (${ct}) para q=${q}: ${errBody.slice(0, 300)}`);
+        cachedToken = "";
+        tokenExpiresAt = 0;
+        return json(
+          { ok: false, error: `AIR devolvió respuesta inválida — posible token expirado. Reintentá en unos segundos.`, detail: errBody.slice(0, 500) },
+          502
+        );
+      }
+
       return new Response(airRes.body, {
         status: airRes.status,
         headers: {
-          "Content-Type": airRes.headers.get("content-type") || "application/json",
+          "Content-Type": ct || "application/json",
           "Access-Control-Allow-Origin": "*",
         },
       });
@@ -225,7 +238,8 @@ export default async function handler(request: Request): Promise<Response> {
 
   // Solo reintentamos si el error es de autenticación (token vencido), NO si es rate-limit.
   // AIR usa 403 para ambos casos — distinguimos por error_id en el body.
-  if (firstResponse.status === 401 || firstResponse.status === 403) {
+  // También reintentamos con 502 porque puede indicar respuesta HTML (token expirado).
+  if (firstResponse.status === 401 || firstResponse.status === 403 || firstResponse.status === 502) {
     let isRateLimit = false;
     try {
       const clone = firstResponse.clone();
