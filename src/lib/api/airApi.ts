@@ -54,11 +54,23 @@ async function airFetch<T>(query: string, body?: Record<string, unknown>): Promi
     throw new AirApiError(res.status, `${message} (${res.status})`, detail);
   }
 
-  const data = await res.json();
+  const rawText = await res.text();
+  let data: unknown;
+  try {
+    data = JSON.parse(rawText);
+  } catch {
+    // AIR devolvió HTML u otro contenido no-JSON (error PHP, redirect de login, etc.)
+    throw new AirApiError(
+      502,
+      `AIR devolvió respuesta inválida — no es JSON. Intentá de nuevo en unos segundos.`,
+      rawText.slice(0, 300)
+    );
+  }
 
   // La API devuelve { error_id, error_name, error_detail } cuando hay error
-  if (data && typeof data === "object" && !Array.isArray(data) && "error_id" in data) {
-    throw new AirApiError(data.error_id, data.error_name ?? `AIR error ${data.error_id}`, data.error_detail ?? "");
+  if (data && typeof data === "object" && !Array.isArray(data) && "error_id" in (data as object)) {
+    const d = data as Record<string, unknown>;
+    throw new AirApiError(d.error_id as number, (d.error_name as string) ?? `AIR error ${d.error_id}`, (d.error_detail as string) ?? "");
   }
 
   return data as T;
