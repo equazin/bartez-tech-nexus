@@ -12,7 +12,7 @@ import {
   LogOut, ShoppingCart, Search, LayoutGrid, List, Package,
   ClipboardList, ShieldCheck, AlertTriangle, CheckCircle2,
   Star, Sun, Moon, FileText, Table2, Zap, RotateCcw, Truck,
-  Briefcase, Sparkles, Users, MessageSquare, Shield, BadgeCheck, Cpu, Upload,
+  Briefcase, Sparkles, Users, MessageSquare, Shield, BadgeCheck, Cpu, Upload, Layers,
 } from "lucide-react";
 import { usePricing } from "@/hooks/usePricing";
 import { exportCatalogCSV } from "@/lib/exportCsv";
@@ -68,7 +68,7 @@ import type { BundleWithSlots } from "@/models/bundle";
 
 // â”€â”€ Theme helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-type PortalTab = "home" | "catalog" | "configurator" | "orders" | "quotes" | "projects" | "express" | "invoices" | "cuenta" | "approvals" | "support" | "rma" | "bulk";
+type PortalTab = "home" | "catalog" | "configurator" | "bundles" | "orders" | "quotes" | "projects" | "express" | "invoices" | "cuenta" | "approvals" | "support" | "rma" | "bulk";
 type ViewModeByContext = Record<CatalogContext, ViewMode>;
 
 const VIEW_MODE_BY_CONTEXT_KEY = "b2b_view_mode_by_context";
@@ -113,7 +113,7 @@ export default function B2BPortal() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<PortalTab>(() => {
     const t = searchParams.get("tab") as PortalTab;
-    if (["home", "catalog", "configurator", "orders", "quotes", "cuenta", "approvals", "support", "rma", "bulk"].includes(t)) return t;
+    if (["home", "catalog", "configurator", "bundles", "orders", "quotes", "cuenta", "approvals", "support", "rma", "bulk"].includes(t)) return t;
     if (window.location.pathname === "/catalogo") return "catalog";
     if (searchParams.get("category") || searchParams.get("categoria")) return "catalog";
     return "home";
@@ -623,6 +623,20 @@ export default function B2BPortal() {
             <Cpu size={13} /> Configurador
           </button>
 
+          <button
+            onClick={() => setPortalTab("bundles")}
+            className={`mx-0.5 my-0.5 flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-2xl px-3.5 py-2 text-sm font-medium transition ${
+              activeTab === "bundles" ? "bg-accent text-foreground shadow-sm" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            }`}
+          >
+            <Layers size={13} /> Kits armados
+            {bundles.length > 0 && (
+              <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold text-primary leading-none">
+                {bundles.length}
+              </span>
+            )}
+          </button>
+
           {/* Pedidos dropdown (orders + quotes + approvals) */}
           <div ref={ordersMenuRef} className="relative shrink-0">
             <button
@@ -977,75 +991,84 @@ export default function B2BPortal() {
           )}
 
           {activeTab === "configurator" && (
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
-              <div className="min-w-0">
-                <ProductConfigurator
-                  profileId={profile?.id}
-                  products={catalog.products}
-                  computePrice={computePrice}
-                  formatPrice={formatPrice}
-                  onAddToCart={cart.handleSmartAddToCart}
-                />
-              </div>
+            <ProductConfigurator
+              profileId={profile?.id}
+              products={catalog.products}
+              computePrice={computePrice}
+              formatPrice={formatPrice}
+              onAddToCart={cart.handleSmartAddToCart}
+            />
+          )}
 
-              <aside className="space-y-3 lg:sticky lg:top-4 lg:self-start">
-                <div className="flex items-center justify-between px-1">
-                  <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
+          {activeTab === "bundles" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between px-1">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                    <Layers size={18} className="text-primary" />
                     PCs y esquemas armados
                   </h2>
-                  {bundles.length > 0 && (
-                    <span className="text-[11px] text-muted-foreground">{bundles.length}</span>
-                  )}
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Kits preconfigurados listos para cotizar o personalizar.
+                  </p>
                 </div>
-
-                {bundlesLoading ? (
-                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
-                    {[1, 2, 3, 4].map((i) => (
-                      <div
-                        key={i}
-                        className="animate-pulse rounded-[22px] border border-border/70 bg-card p-3 h-44"
-                      >
-                        <div className="mb-2 h-4 w-1/2 rounded bg-muted" />
-                        <div className="mb-2 h-3.5 w-3/4 rounded bg-muted" />
-                        <div className="mt-3 h-6 w-24 rounded bg-muted" />
-                      </div>
-                    ))}
-                  </div>
-                ) : bundlesError ? (
-                  <div className="flex items-center justify-between rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
-                    <span className="text-sm text-destructive">No se pudieron cargar los bundles.</span>
-                    <button
-                      onClick={() => {
-                        setBundlesError(false);
-                        setBundlesLoading(true);
-                        fetchActiveBundles()
-                          .then(setBundles)
-                          .catch(() => { setBundles([]); setBundlesError(true); })
-                          .finally(() => setBundlesLoading(false));
-                      }}
-                      className="text-xs font-semibold text-destructive hover:underline"
-                    >
-                      Reintentar
-                    </button>
-                  </div>
-                ) : bundles.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-1 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-1">
-                    {bundles.map((bundle) => (
-                      <BundleCard
-                        key={bundle.id}
-                        bundle={bundle}
-                        formatPrice={formatPrice}
-                        onClick={setSelectedBundleId}
-                        clientMargin={defaultMargin}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-border/60 bg-card/50 px-4 py-6 text-center">
-                    <p className="text-xs text-muted-foreground">No hay bundles disponibles.</p>
-                  </div>
+                {bundles.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {bundles.length} disponible{bundles.length !== 1 ? "s" : ""}
+                  </span>
                 )}
-              </aside>
+              </div>
+
+              {bundlesLoading ? (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                    <div
+                      key={i}
+                      className="animate-pulse rounded-[22px] border border-border/70 bg-card p-3 h-44"
+                    >
+                      <div className="mb-2 h-4 w-1/2 rounded bg-muted" />
+                      <div className="mb-2 h-3.5 w-3/4 rounded bg-muted" />
+                      <div className="mb-1 h-3 w-2/3 rounded bg-muted" />
+                      <div className="mt-3 h-6 w-24 rounded bg-muted" />
+                    </div>
+                  ))}
+                </div>
+              ) : bundlesError ? (
+                <div className="flex items-center justify-between rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
+                  <span className="text-sm text-destructive">No se pudieron cargar los bundles.</span>
+                  <button
+                    onClick={() => {
+                      setBundlesError(false);
+                      setBundlesLoading(true);
+                      fetchActiveBundles()
+                        .then(setBundles)
+                        .catch(() => { setBundles([]); setBundlesError(true); })
+                        .finally(() => setBundlesLoading(false));
+                    }}
+                    className="text-xs font-semibold text-destructive hover:underline"
+                  >
+                    Reintentar
+                  </button>
+                </div>
+              ) : bundles.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+                  {bundles.map((bundle) => (
+                    <BundleCard
+                      key={bundle.id}
+                      bundle={bundle}
+                      formatPrice={formatPrice}
+                      onClick={setSelectedBundleId}
+                      clientMargin={defaultMargin}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-border/60 bg-card/50 px-6 py-16 text-center">
+                  <Layers size={28} className="mx-auto mb-2 text-muted-foreground opacity-40" />
+                  <p className="text-sm font-medium text-foreground">No hay kits disponibles</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Aún no hay bundles publicados en tu portal.</p>
+                </div>
+              )}
             </div>
           )}
 
