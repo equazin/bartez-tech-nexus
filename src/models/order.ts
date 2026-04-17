@@ -13,6 +13,10 @@ export interface OrderProduct {
   unit_price?: number;
   total_price?: number;
   margin?: number;
+  /** UUID of the bundle this item belongs to (nullable) */
+  bundle_id?: string | null;
+  /** Snapshot of bundle title at order time (nullable) */
+  bundle_name?: string | null;
 }
 
 export type OrderStatus =

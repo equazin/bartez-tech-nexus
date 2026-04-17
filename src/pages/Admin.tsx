@@ -13,7 +13,6 @@ import { useCurrency } from "@/context/CurrencyContext";
 import { OrderStatusBadge as StatusBadge } from "@/components/OrderStatusBadge";
 import { toggleSetValue } from "@/lib/toggleSet";
 import { calculateOrderProfitability } from "@/lib/commercialOps";
-import { buildPcCatalogEntries } from "@/lib/pcBuilder";
 import {
   CheckCircle2, XCircle, Clock, Trash2, RefreshCw, Save, Sparkles,
   Users, Package, ClipboardList, LogOut, UserPlus, X, Plus,
@@ -74,7 +73,6 @@ const BusinessAlertsTab = lazy(() => import("@/components/admin/BusinessAlertsTa
 const RmaAdminTab = lazy(() => import("@/components/admin/RmaAdminTab").then(m => ({ default: m.RmaAdminTab })));
 const PriceAgreementsTab = lazy(() => import("@/components/admin/PriceAgreementsTab").then(m => ({ default: m.PriceAgreementsTab })));
 const SerialsTab = lazy(() => import("@/components/admin/SerialsTab").then(m => ({ default: m.SerialsTab })));
-const PcBuilderSpecsTab = lazy(() => import("@/components/admin/PcBuilderSpecsTab").then(m => ({ default: m.PcBuilderSpecsTab })));
 const BundlesAdminTab = lazy(() => import("@/components/admin/BundlesAdminTab").then(m => ({ default: m.BundlesAdminTab })));
 import {
   fetchProductsForContent,
@@ -212,6 +210,7 @@ function backendProductToProduct(row: BackendProduct): Product {
     name_custom: row.name_custom ?? undefined,
     description: row.description ?? "",
     image: row.image ?? row.images?.[0] ?? "/placeholder.png",
+    unit_price: row.price,
     cost_price: row.cost ?? undefined,
     category: row.category ?? "General",
     stock: row.stock,
@@ -1387,13 +1386,6 @@ async function handleCreateSeller() {
   }
 
   const lowStockCount = products.filter((p) => p.stock <= 3 && p.active !== false).length;
-  const incompletePcSpecsCount = useMemo(
-    () =>
-      buildPcCatalogEntries(products, { includeInactive: true, includeUnknownType: false }).filter(
-        (entry) => entry.componentType && entry.missingCritical.length > 0,
-      ).length,
-    [products],
-  );
   const groupedPendingSuggestions = []; // Cleaned up logic results in empty group
 
   const selectedOrderProfitability = useMemo(() => {
@@ -1444,7 +1436,6 @@ async function handleCreateSeller() {
     exception_inbox: exceptionQueueCount || undefined,
     clients:   customerProfiles.length || undefined,
     reports:   lowStockCount   || undefined,
-    pc_builder_specs: incompletePcSpecsCount || undefined,
   };
 
   async function handleExportAdminCatalogPdf() {
@@ -2863,14 +2854,6 @@ async function handleCreateSeller() {
           <BundlesAdminTab products={products} isDark={isDark} />
         )}
 
-        {/* -- ARMADOR PC -- */}
-        {activeTab === "pc_builder_specs" && (
-          <PcBuilderSpecsTab
-            products={products}
-            isDark={isDark}
-            onRefresh={fetchProducts}
-          />
-        )}
 
         {/* -- REPORTES -- */}
         {activeTab === "reports" && (

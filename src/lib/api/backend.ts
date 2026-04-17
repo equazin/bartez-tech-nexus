@@ -56,7 +56,13 @@ export interface AdminPatchProfileInput {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface CheckoutInput {
-  items: { product_id: number; quantity: number }[];
+  items: {
+    product_id: number;
+    quantity: number;
+    /** Optional bundle tracking — written to order_items.bundle_id / bundle_name */
+    bundle_id?: string | null;
+    bundle_name?: string | null;
+  }[];
   coupon_code?: string | null;
   notes?: string | null;
   payment_method?: string | null;

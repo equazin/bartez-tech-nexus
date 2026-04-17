@@ -46,6 +46,11 @@ interface UsePortalCartOptions {
   creditAvailable?: number;
 }
 
+export interface BundleMeta {
+  bundleId: string;
+  bundleName: string;
+}
+
 export function usePortalCart({
   profile,
   products,
@@ -62,10 +67,15 @@ export function usePortalCart({
   creditAvailable,
 }: UsePortalCartOptions) {
   const cartKey = `b2b_cart_${profile?.id || "guest"}`;
+  const metaKey = `b2b_cart_meta_${profile?.id || "guest"}`;
 
   // ── Cart state ────────────────────────────────────────────────────────────
   const [cart, setCart] = useState<Record<number, number>>(() => {
     try { return JSON.parse(localStorage.getItem(cartKey) || "{}"); }
+    catch { return {}; }
+  });
+  const [bundleCartMeta, setBundleCartMeta] = useState<Record<number, BundleMeta>>(() => {
+    try { return JSON.parse(localStorage.getItem(metaKey) || "{}"); }
     catch { return {}; }
   });
   const [productMargins, setProductMargins] = useState<Record<number, number>>({});
@@ -78,6 +88,10 @@ export function usePortalCart({
   useEffect(() => {
     localStorage.setItem(cartKey, JSON.stringify(cart));
   }, [cart, cartKey]);
+
+  useEffect(() => {
+    localStorage.setItem(metaKey, JSON.stringify(bundleCartMeta));
+  }, [bundleCartMeta, metaKey]);
 
   // ── Saved carts & favorites ───────────────────────────────────────────────
   const [savedCarts, setSavedCarts] = useState<SavedCart[]>(() =>
@@ -237,6 +251,43 @@ export function usePortalCart({
     }, 900);
   }
 
+  /**
+   * Agrega todos los productos de un bundle al carrito y registra el meta del bundle
+   * para permitir agrupación visual en CartPage y trazabilidad en order_items.
+   */
+  function addBundleToCart(
+    bundleId: string,
+    bundleName: string,
+    items: Array<{ product: Product; qty: number }>,
+  ) {
+    const metaUpdates: Record<number, BundleMeta> = {};
+    setCart((prev) => {
+      const next = { ...prev };
+      for (const { product, qty } of items) {
+        const available = getAvailableStock(product);
+        const safe      = Math.min(qty, available);
+        if (safe > 0) {
+          next[product.id] = (next[product.id] ?? 0) + safe;
+          metaUpdates[product.id] = { bundleId, bundleName };
+        }
+      }
+      return next;
+    });
+    setBundleCartMeta((prev) => ({ ...prev, ...metaUpdates }));
+    setAddedIds((prev) => {
+      const s = new Set(prev);
+      items.forEach(({ product }) => s.add(product.id));
+      return s;
+    });
+    setTimeout(() => {
+      setAddedIds((prev) => {
+        const s = new Set(prev);
+        items.forEach(({ product }) => s.delete(product.id));
+        return s;
+      });
+    }, 900);
+  }
+
   const onRemoveFromCart = (product: Product) =>
     setCart((prev) => {
       const qty = prev[product.id] || 0;
@@ -383,12 +434,18 @@ export function usePortalCart({
 
     setOrderSubmitting(true);
     try {
-      // Los precios se resuelven server-side — sólo enviamos product_id + quantity
+      // Los precios se resuelven server-side — sólo enviamos product_id + quantity + bundle meta
       const result = await backend.orders.checkout({
-        items: Object.entries(cart).map(([productId, qty]) => ({
-          product_id: Number(productId),
-          quantity: qty,
-        })),
+        items: Object.entries(cart).map(([productId, qty]) => {
+          const pid  = Number(productId);
+          const meta = bundleCartMeta[pid];
+          return {
+            product_id:  pid,
+            quantity:    qty,
+            bundle_id:   meta?.bundleId   ?? null,
+            bundle_name: meta?.bundleName ?? null,
+          };
+        }),
         coupon_code: (appliedCoupon?.code as string) ?? null,
         notes: null,
         payment_method: null,
@@ -452,6 +509,7 @@ export function usePortalCart({
 
       setOrderSuccess(true);
       setCart({});
+      setBundleCartMeta({});
       setAppliedCoupon(null);
       setCouponCode("");
       setActiveTab("orders");
@@ -563,6 +621,7 @@ export function usePortalCart({
     cartItems,
     cartSubtotal, cartIVATotal, cartTotal, cartCount,
     productMargins, globalMargin,
+    bundleCartMeta,
     // Coupon
     couponCode, setCouponCode,
     appliedCoupon, couponError, validatingCoupon,
@@ -577,7 +636,7 @@ export function usePortalCart({
     // Quick order
     quickSku, setQuickSku, quickError,
     // Handlers — cart
-    handleAddToCart, handleSmartAddToCart, onRemoveFromCart, onMarginChange,
+    handleAddToCart, handleSmartAddToCart, addBundleToCart, onRemoveFromCart, onMarginChange,
     handleSaveCart, handleSaveNamedCart, handleLoadSavedCart, handleDeleteSavedCart,
     handleToggleFavorite,
     // Handlers — quick order

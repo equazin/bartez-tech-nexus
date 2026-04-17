@@ -3,7 +3,7 @@ import {
   ClipboardList, Layers, CheckCircle2, MessageSquare, Users, UserPlus,
   CreditCard, Bell, FileText, BarChart2, Building2, Bookmark, Wifi,
   ShieldCheck, ShieldAlert, History, ShoppingBag, RotateCcw, Handshake, LifeBuoy,
-  Ticket, Globe, Activity, Megaphone, Cpu, PackagePlus, type LucideIcon,
+  Ticket, Globe, Activity, Megaphone, PackagePlus, type LucideIcon,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -16,7 +16,7 @@ export type Tab =
   | "clients" | "users_permissions" | "credit" | "business_alerts" | "documents" | "support"
   | "invoices" | "reports"
   | "suppliers" | "brands" | "pricing" | "supplier_sync" | "stock" | "serials"
-  | "movements" | "purchase_orders" | "rma" | "price_agreements" | "pc_builder_specs" | "marketing" | "webhooks" | "activity" | "admin_management";
+  | "movements" | "purchase_orders" | "rma" | "price_agreements" | "marketing" | "webhooks" | "activity" | "admin_management";
 
 export type ModuleId = "top" | "catalogo" | "pedidos" | "vendedores" | "clientes" | "finanzas" | "marketing" | "inventario" | "configuracion" | "sistema";
 
@@ -136,7 +136,6 @@ export const NAV_MODULES: NavModule[] = [
       { id: "suppliers",        label: "Proveedores",     icon: Building2,  adminOnly: true },
       { id: "brands",           label: "Marcas",          icon: Bookmark,   adminOnly: true },
       { id: "pricing",          label: "Precios",         icon: Tag,        adminOnly: true },
-      { id: "pc_builder_specs", label: "Armador PC",      icon: Cpu,        adminOnly: true },
       { id: "price_agreements", label: "Acuerdos Precio", icon: Handshake,  adminOnly: true },
       { id: "supplier_sync",    label: "Sync",            icon: Wifi,       adminOnly: true },
     ],
