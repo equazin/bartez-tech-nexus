@@ -170,7 +170,11 @@ export default function B2BPortal() {
     setBundlesError(false);
     fetchActiveBundles()
       .then(setBundles)
-      .catch(() => { setBundles([]); setBundlesError(true); })
+      .catch((err) => {
+        console.error("[B2BPortal] fetchActiveBundles failed:", err);
+        setBundles([]);
+        setBundlesError(true);
+      })
       .finally(() => setBundlesLoading(false));
   }, []);
 

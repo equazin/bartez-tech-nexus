@@ -15,11 +15,23 @@ import type {
 
 // ── Helpers internos ──────────────────────────────────────────────────────────
 
-const OPTION_SELECT = `
+const OPTION_SELECT_FULL = `
   id, slot_id, product_id, is_default, sort_order, created_at,
   quantity, is_optional, is_replaceable,
   products ( id, name, sku, unit_price, cost_price, stock, image, category )
 ` as const;
+
+const OPTION_SELECT_MIN = `
+  id, slot_id, product_id, is_default, sort_order, created_at,
+  products ( id, name, sku, unit_price, cost_price, stock, image, category )
+` as const;
+
+function isMissingColumnError(err: { code?: string; message?: string } | null | undefined): boolean {
+  if (!err) return false;
+  if (err.code === "42703") return true;
+  const msg = err.message ?? "";
+  return /column .* does not exist|quantity|is_optional|is_replaceable|deleted_at/i.test(msg);
+}
 
 function mapOption(opt: any) {
   return {
@@ -52,54 +64,90 @@ function mapOption(opt: any) {
  * Usado en home, catálogo con filtro "Kits" y CatalogSection bundles context.
  */
 export async function fetchActiveBundles(): Promise<BundleWithSlots[]> {
-  // Try with deleted_at filter (migration 091). If the column doesn't exist yet,
-  // fall back to querying without it so the portal still works.
-  let { data: bundles, error: bundlesErr } = await supabase
-    .from("product_bundles")
-    .select("*")
-    .eq("active", true)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-
-  if (bundlesErr) {
-    // "42703" = column does not exist (migration 091 not applied yet)
-    const isMissingColumn = bundlesErr.code === "42703" ||
-      bundlesErr.message?.includes("deleted_at");
-    if (!isMissingColumn) throw bundlesErr;
-
-    // Retry without deleted_at filter
-    const fallback = await supabase
+  // ── 1. Bundles (con fallback si deleted_at no existe) ──────────────────────
+  let bundles: any[] | null;
+  {
+    const primary = await supabase
       .from("product_bundles")
       .select("*")
       .eq("active", true)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
-    if (fallback.error) throw fallback.error;
-    bundles = fallback.data;
+
+    if (primary.error) {
+      if (!isMissingColumnError(primary.error)) {
+        console.error("[fetchActiveBundles] product_bundles query failed:", primary.error);
+        throw primary.error;
+      }
+      const fallback = await supabase
+        .from("product_bundles")
+        .select("*")
+        .eq("active", true)
+        .order("created_at", { ascending: false });
+      if (fallback.error) {
+        console.error("[fetchActiveBundles] product_bundles fallback failed:", fallback.error);
+        throw fallback.error;
+      }
+      bundles = fallback.data;
+    } else {
+      bundles = primary.data;
+    }
   }
   if (!bundles || bundles.length === 0) return [];
 
   const bundleIds = bundles.map((b) => b.id);
 
+  // ── 2. Slots ───────────────────────────────────────────────────────────────
   const { data: slots, error: slotsErr } = await supabase
     .from("bundle_slots")
     .select("*")
     .in("bundle_id", bundleIds)
     .order("sort_order", { ascending: true });
 
-  if (slotsErr) throw slotsErr;
+  if (slotsErr) {
+    console.error("[fetchActiveBundles] bundle_slots query failed:", slotsErr);
+    throw slotsErr;
+  }
   if (!slots || slots.length === 0) {
-    return bundles.map((b) => ({ ...b, slots: [] }));
+    return bundles.map((b) => ({
+      ...b,
+      type: b.type ?? "bundle",
+      discount_type: b.discount_type ?? "percentage",
+      slots: [],
+    }));
   }
 
   const slotIds = slots.map((s) => s.id);
 
-  const { data: options, error: optsErr } = await supabase
-    .from("bundle_slot_options")
-    .select(OPTION_SELECT)
-    .in("slot_id", slotIds)
-    .order("sort_order", { ascending: true });
+  // ── 3. Options (con fallback si quantity/is_optional/is_replaceable no existen) ──
+  let options: any[] | null = null;
+  {
+    const full = await supabase
+      .from("bundle_slot_options")
+      .select(OPTION_SELECT_FULL)
+      .in("slot_id", slotIds)
+      .order("sort_order", { ascending: true });
 
-  if (optsErr) throw optsErr;
+    if (full.error) {
+      if (!isMissingColumnError(full.error)) {
+        console.error("[fetchActiveBundles] bundle_slot_options query failed:", full.error);
+        throw full.error;
+      }
+      console.warn("[fetchActiveBundles] fallback to minimal option select (migration 090 not fully applied?)");
+      const minimal = await supabase
+        .from("bundle_slot_options")
+        .select(OPTION_SELECT_MIN)
+        .in("slot_id", slotIds)
+        .order("sort_order", { ascending: true });
+      if (minimal.error) {
+        console.error("[fetchActiveBundles] bundle_slot_options minimal query failed:", minimal.error);
+        throw minimal.error;
+      }
+      options = minimal.data;
+    } else {
+      options = full.data;
+    }
+  }
 
   const optsBySlot = new Map<string, any[]>();
   (options ?? []).forEach((opt) => {
@@ -149,13 +197,33 @@ export async function fetchBundle(id: string): Promise<BundleWithSlots | null> {
 
   const slotIds = slots.map((s) => s.id);
 
-  const { data: options, error: optsErr } = await supabase
-    .from("bundle_slot_options")
-    .select(OPTION_SELECT)
-    .in("slot_id", slotIds)
-    .order("sort_order", { ascending: true });
+  let options: any[] | null = null;
+  {
+    const full = await supabase
+      .from("bundle_slot_options")
+      .select(OPTION_SELECT_FULL)
+      .in("slot_id", slotIds)
+      .order("sort_order", { ascending: true });
 
-  if (optsErr) return null;
+    if (full.error) {
+      if (!isMissingColumnError(full.error)) {
+        console.error("[fetchBundle] bundle_slot_options query failed:", full.error);
+        return null;
+      }
+      const minimal = await supabase
+        .from("bundle_slot_options")
+        .select(OPTION_SELECT_MIN)
+        .in("slot_id", slotIds)
+        .order("sort_order", { ascending: true });
+      if (minimal.error) {
+        console.error("[fetchBundle] bundle_slot_options minimal query failed:", minimal.error);
+        return null;
+      }
+      options = minimal.data;
+    } else {
+      options = full.data;
+    }
+  }
 
   const optsBySlot = new Map<string, any[]>();
   (options ?? []).forEach((opt) => {
