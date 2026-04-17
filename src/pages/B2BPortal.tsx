@@ -72,7 +72,7 @@ type PortalTab = "home" | "catalog" | "configurator" | "orders" | "quotes" | "pr
 type ViewModeByContext = Record<CatalogContext, ViewMode>;
 
 const VIEW_MODE_BY_CONTEXT_KEY = "b2b_view_mode_by_context";
-const DEFAULT_VIEW_MODE_BY_CONTEXT: ViewModeByContext = { default: "list", featured: "grid", pos: "grid", bundles: "grid" };
+const DEFAULT_VIEW_MODE_BY_CONTEXT: ViewModeByContext = { default: "list", featured: "grid", pos: "grid" };
 
 function loadViewModeByContext(): ViewModeByContext {
   try {
@@ -84,7 +84,6 @@ function loadViewModeByContext(): ViewModeByContext {
       default:  valid(parsed.default)  ? parsed.default  : DEFAULT_VIEW_MODE_BY_CONTEXT.default,
       featured: valid(parsed.featured) ? parsed.featured : DEFAULT_VIEW_MODE_BY_CONTEXT.featured,
       pos:      valid(parsed.pos)      ? parsed.pos      : DEFAULT_VIEW_MODE_BY_CONTEXT.pos,
-      bundles:  valid(parsed.bundles)  ? parsed.bundles  : DEFAULT_VIEW_MODE_BY_CONTEXT.bundles,
     };
   } catch {
     return DEFAULT_VIEW_MODE_BY_CONTEXT;
@@ -973,21 +972,81 @@ export default function B2BPortal() {
                 onCreatePurchaseList={purchaseLists.createList}
                 onAddProductToList={handleAddProductToList}
                 onExportFilteredCSV={exportCatalogCSV}
-                bundles={bundles}
-                onBundleClick={setSelectedBundleId}
-                clientMargin={defaultMargin}
               />
             </div>
           )}
 
           {activeTab === "configurator" && (
-            <ProductConfigurator
-              profileId={profile?.id}
-              products={catalog.products}
-              computePrice={computePrice}
-              formatPrice={formatPrice}
-              onAddToCart={cart.handleSmartAddToCart}
-            />
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="min-w-0">
+                <ProductConfigurator
+                  profileId={profile?.id}
+                  products={catalog.products}
+                  computePrice={computePrice}
+                  formatPrice={formatPrice}
+                  onAddToCart={cart.handleSmartAddToCart}
+                />
+              </div>
+
+              <aside className="space-y-3 lg:sticky lg:top-4 lg:self-start">
+                <div className="flex items-center justify-between px-1">
+                  <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
+                    PCs y esquemas armados
+                  </h2>
+                  {bundles.length > 0 && (
+                    <span className="text-[11px] text-muted-foreground">{bundles.length}</span>
+                  )}
+                </div>
+
+                {bundlesLoading ? (
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div
+                        key={i}
+                        className="animate-pulse rounded-[22px] border border-border/70 bg-card p-3 h-44"
+                      >
+                        <div className="mb-2 h-4 w-1/2 rounded bg-muted" />
+                        <div className="mb-2 h-3.5 w-3/4 rounded bg-muted" />
+                        <div className="mt-3 h-6 w-24 rounded bg-muted" />
+                      </div>
+                    ))}
+                  </div>
+                ) : bundlesError ? (
+                  <div className="flex items-center justify-between rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
+                    <span className="text-sm text-destructive">No se pudieron cargar los bundles.</span>
+                    <button
+                      onClick={() => {
+                        setBundlesError(false);
+                        setBundlesLoading(true);
+                        fetchActiveBundles()
+                          .then(setBundles)
+                          .catch(() => { setBundles([]); setBundlesError(true); })
+                          .finally(() => setBundlesLoading(false));
+                      }}
+                      className="text-xs font-semibold text-destructive hover:underline"
+                    >
+                      Reintentar
+                    </button>
+                  </div>
+                ) : bundles.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-1 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-1">
+                    {bundles.map((bundle) => (
+                      <BundleCard
+                        key={bundle.id}
+                        bundle={bundle}
+                        formatPrice={formatPrice}
+                        onClick={setSelectedBundleId}
+                        clientMargin={defaultMargin}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-border/60 bg-card/50 px-4 py-6 text-center">
+                    <p className="text-xs text-muted-foreground">No hay bundles disponibles.</p>
+                  </div>
+                )}
+              </aside>
+            </div>
           )}
 
           {/* ORDERS */}

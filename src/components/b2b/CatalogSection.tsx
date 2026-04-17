@@ -2,11 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownAZ, ChevronDown, Loader2, Package, Search, Star, Truck, X, LayoutGrid, ChevronRight,
   Cpu, Zap, HardDrive, Monitor, Globe, Gamepad2, Box, Mouse, Headphones, Printer, Smartphone, Server, Speaker,
-  ArrowRight, Flame, SlidersHorizontal, RotateCcw, TrendingUp, Download, Layers,
+  ArrowRight, Flame, SlidersHorizontal, RotateCcw, TrendingUp, Download,
 } from "lucide-react";
-import { BundleCard } from "@/components/b2b/BundleCard";
-import type { BundleType } from "@/models/bundle";
-import { BUNDLE_TYPE_LABELS } from "@/models/bundle";
 
 import type { Product } from "@/models/products";
 import type { PriceResult } from "@/hooks/usePricing";
@@ -29,7 +26,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export type ViewMode = "grid" | "list" | "table";
-export type CatalogContext = "default" | "featured" | "pos" | "bundles";
+export type CatalogContext = "default" | "featured" | "pos";
 export type SortOption = "price_asc" | "price_desc" | "name_asc" | "name_desc" | "brand_asc" | "brand_desc" | "stock_asc" | "stock_desc" | "purchase_desc";
 
 type AdvancedFilterKey = "brands" | "ram" | "storage" | "refreshRate" | "screen";
@@ -48,7 +45,6 @@ const CATALOG_CONTEXTS: { id: CatalogContext; label: string; icon: typeof Packag
   { id: "default", label: "Catalogo general", icon: Package },
   { id: "featured", label: "Destacados", icon: Star },
   { id: "pos", label: "Punto de venta", icon: Truck },
-  { id: "bundles", label: "Kits armados", icon: Layers },
 ];
 
 interface AdvancedFilterDropdownProps {
@@ -363,12 +359,6 @@ export interface CatalogSectionProps {
   onCreatePurchaseList?: (name: string, items?: PurchaseListItem[]) => Promise<PurchaseList | null>;
   onAddProductToList?: (listId: number, product: Product) => Promise<void>;
   onExportFilteredCSV?: (products: Product[]) => void;
-  /** Bundles activos para mostrar cuando catalogContext === "bundles". */
-  bundles?: import("@/models/bundle").BundleWithSlots[];
-  /** Callback al hacer click en una BundleCard. */
-  onBundleClick?: (bundleId: string) => void;
-  /** Margen del cliente para precios de bundles. */
-  clientMargin?: number;
 }
 
 export function CatalogSection({
@@ -416,14 +406,10 @@ export function CatalogSection({
   onCreatePurchaseList,
   onAddProductToList,
   onExportFilteredCSV,
-  bundles = [],
-  onBundleClick,
-  clientMargin = 0,
 }: CatalogSectionProps) {
   const [activeParentInMenu, setActiveParentInMenu] = useState<string | null>(null);
   const [listDialogProduct, setListDialogProduct] = useState<Product | null>(null);
   const [newListName, setNewListName] = useState("");
-  const [bundleTypeFilter, setBundleTypeFilter] = useState<"all" | BundleType>("all");
 
   useEffect(() => {
     if (categoryTree.parents.length > 0 && !activeParentInMenu) {
@@ -1227,67 +1213,7 @@ export function CatalogSection({
           </div>
         )}
 
-        {/* ── Kits armados ──────────────────────────────────────────────────── */}
-        {catalogContext === "bundles" ? (
-          (() => {
-            const visibleBundles = bundleTypeFilter === "all"
-              ? bundles
-              : bundles.filter((b) => b.type === bundleTypeFilter);
-            const BUNDLE_TYPE_FILTER_OPTIONS: { id: "all" | BundleType; label: string }[] = [
-              { id: "all", label: "Todos" },
-              { id: "pc_armada", label: BUNDLE_TYPE_LABELS.pc_armada },
-              { id: "esquema", label: BUNDLE_TYPE_LABELS.esquema },
-              { id: "bundle", label: BUNDLE_TYPE_LABELS.bundle },
-            ];
-            return (
-              <div className="space-y-3">
-                {/* Type filter chips */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {BUNDLE_TYPE_FILTER_OPTIONS.map(({ id, label }) => (
-                    <button
-                      key={id}
-                      onClick={() => setBundleTypeFilter(id)}
-                      className={cn(
-                        "h-7 rounded-full px-3 text-[11px] font-semibold transition-all border",
-                        bundleTypeFilter === id
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                          : "bg-secondary/40 text-muted-foreground border-border/60 hover:bg-secondary/60 hover:text-foreground",
-                      )}
-                    >
-                      {label}
-                      {id !== "all" && (
-                        <span className="ml-1.5 font-normal opacity-60">
-                          ({bundles.filter((b) => b.type === id).length})
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                {visibleBundles.length === 0 ? (
-                  <EmptyState
-                    title="No hay kits disponibles"
-                    description="No hay kits de este tipo por el momento."
-                    icon={<Layers size={20} />}
-                    className="py-16"
-                  />
-                ) : (
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                    {visibleBundles.map((bundle) => (
-                      <BundleCard
-                        key={bundle.id}
-                        bundle={bundle}
-                        formatPrice={formatPrice}
-                        onClick={(id) => onBundleClick?.(id)}
-                        clientMargin={clientMargin}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })()
-        ) : productsLoading ? (
+        {productsLoading ? (
         viewMode === "list" || viewMode === "table" ? (
           <div className="flex flex-col gap-2">
             {Array.from({ length: 6 }).map((_, index) => (
@@ -1441,7 +1367,7 @@ export function CatalogSection({
         />
       )}
 
-      {catalogContext !== "bundles" && totalCount > 200 && !productsLoading && filteredProducts.length > 0 ? (
+      {totalCount > 200 && !productsLoading && filteredProducts.length > 0 ? (
         <div className="mb-12 mt-8 flex flex-wrap items-center justify-center gap-2">
           <Button
             variant="outline"
