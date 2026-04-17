@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Plus, Pencil, Trash2, Layers, ArrowLeft, Check, X, Package, Loader2,
   Power, Cpu, Sliders, Tag, Search, Image as ImageIcon,
-  ShoppingBag, Sparkles, ChevronDown, ChevronUp, AlertTriangle,
+  ShoppingBag, Sparkles, ChevronDown, ChevronUp, AlertTriangle, Copy, Eye, Monitor, Smartphone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button }    from "@/components/ui/button";
@@ -21,8 +21,11 @@ import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/lib/supabase";
 import { storageUrl, BUNDLES_BUCKET } from "@/lib/constants";
 import type { Product } from "@/models/products";
-import type { Bundle, BundleType, DiscountType } from "@/models/bundle";
+import type { Bundle, BundleType, DiscountType, BundleWithSlots } from "@/models/bundle";
 import { BUNDLE_TYPE_LABELS, DISCOUNT_TYPE_LABELS } from "@/models/bundle";
+import { BundleCard } from "@/components/b2b/BundleCard";
+import { BundleDetail } from "@/components/b2b/BundleDetail";
+import { getBundleComponentSummary, getBundlePortalMetrics, isProcessorDescriptor } from "@/lib/bundlePricing";
 import {
   fetchAllBundles, fetchBundleSlots, fetchSlotOptions,
   createBundle, updateBundle, deleteBundle,
@@ -113,6 +116,103 @@ function titleToSlug(title: string): string {
     .trim().replace(/\s+/g, "-");
 }
 
+function productToBundlePreviewProduct(product: Product) {
+  return {
+    id: product.id,
+    name: product.name,
+    sku: product.sku ?? null,
+    unit_price: adminPrice(product),
+    cost_price: product.cost_price ?? null,
+    stock: product.stock ?? 0,
+    image: product.image,
+    category: product.category,
+  };
+}
+
+function buildPreviewBundle(
+  config: BuilderConfig,
+  components: ComponentItem[],
+  bundleId = "preview-bundle",
+): BundleWithSlots {
+  const now = new Date().toISOString();
+
+  return {
+    id: bundleId,
+    title: config.title.trim() || "Kit sin nombre",
+    description: config.description.trim() || null,
+    type: config.type,
+    slug: config.slug.trim() || titleToSlug(config.title || "kit-preview"),
+    image_url: config.image_url.trim() || null,
+    discount_type: config.discount_type,
+    discount_pct: config.discount_type === "percentage" ? Number(config.discount_pct) || 0 : 0,
+    fixed_price: config.discount_type === "fixed" && config.fixed_price ? Number(config.fixed_price) : null,
+    allows_customization: config.allows_customization,
+    active: config.active,
+    created_at: now,
+    updated_at: now,
+    slots: components.map((component, index) => ({
+      id: component.slotId ?? component.localId,
+      bundle_id: bundleId,
+      label: component.label,
+      category_id: null,
+      required: !component.is_optional,
+      client_configurable: component.client_configurable || component.alternatives.length > 0,
+      sort_order: component.sort_order ?? index,
+      created_at: now,
+      options: [
+        {
+          id: component.optionId ?? `${component.localId}-default`,
+          slot_id: component.slotId ?? component.localId,
+          product_id: component.product.id,
+          is_default: true,
+          sort_order: 0,
+          quantity: component.quantity,
+          is_optional: component.is_optional,
+          is_replaceable: component.is_replaceable,
+          created_at: now,
+          product: productToBundlePreviewProduct(component.product),
+        },
+        ...component.alternatives.map((alternative, altIndex) => ({
+          id: alternative.optionId ?? alternative.localId,
+          slot_id: component.slotId ?? component.localId,
+          product_id: alternative.product.id,
+          is_default: false,
+          sort_order: altIndex + 1,
+          quantity: alternative.quantity,
+          is_optional: component.is_optional,
+          is_replaceable: true,
+          created_at: now,
+          product: productToBundlePreviewProduct(alternative.product),
+        })),
+      ],
+    })),
+  };
+}
+
+function isBundleEditoriallyIncomplete(bundle: Bundle) {
+  return !bundle.image_url?.trim() || !bundle.description?.trim();
+}
+
+function isProcessorComponent(component: Pick<ComponentItem, "label" | "product">): boolean {
+  return isProcessorDescriptor(
+    `${component.label} ${component.product.name} ${component.product.category ?? ""}`,
+  );
+}
+
+function applyTypeRulesToComponent(
+  bundleType: BundleType,
+  component: ComponentItem,
+): ComponentItem {
+  if (bundleType !== "pc_armada") return component;
+
+  const processor = isProcessorComponent(component);
+  return {
+    ...component,
+    client_configurable: !processor,
+    is_replaceable: !processor,
+  };
+}
+
 // ── Description generator (local — no API cost) ──────────────────────────────
 
 type BundleDescComponent = { label: string; product_name: string; quantity: number };
@@ -186,6 +286,14 @@ export function BundlesAdminTab({ products }: Props) {
   const [view, setView]         = useState<View>("list");
   const [bundles, setBundles]   = useState<Bundle[]>([]);
   const [loading, setLoading]   = useState(true);
+  const [listSearch, setListSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | BundleType>("all");
+  const [completionFilter, setCompletionFilter] = useState<"all" | "incomplete">("all");
+  const [previewBundle, setPreviewBundle] = useState<BundleWithSlots | null>(null);
+  const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewViewport, setPreviewViewport] = useState<"desktop" | "mobile">("desktop");
 
   // ── Builder state ─────────────────────────────────────────────────────────
   const [editingBundle, setEditingBundle] = useState<Bundle | null>(null);
@@ -249,73 +357,143 @@ export function BundlesAdminTab({ products }: Props) {
 
   // ── Builder open ──────────────────────────────────────────────────────────
 
+  function resetBuilderUiState() {
+    setProductSearch("");
+    setAltSearch({});
+    setShowAltSearch({});
+    setImageFile(null);
+  }
+
+  async function loadBundleComponentItems(bundle: Bundle) {
+    const slots = await fetchBundleSlots(bundle.id);
+    const items: ComponentItem[] = [];
+
+    for (const slot of slots) {
+      const opts = await fetchSlotOptions(slot.id);
+      const def = opts.find((option) => option.is_default) ?? opts[0];
+      if (!def) continue;
+
+      const product = products.find((candidate) => candidate.id === def.product_id);
+      if (!product) continue;
+
+      const alternatives: AlternativeOption[] = opts
+        .filter((option) => option.id !== def.id)
+        .map((option): AlternativeOption | null => {
+          const optionProduct = products.find((candidate) => candidate.id === option.product_id);
+          return optionProduct
+            ? {
+                localId: option.id,
+                optionId: option.id,
+                product: optionProduct,
+                quantity: option.quantity,
+              }
+            : null;
+        })
+        .filter((value): value is AlternativeOption => value !== null);
+
+      items.push({
+        localId: slot.id,
+        slotId: slot.id,
+        optionId: def.id,
+        product,
+        label: slot.label,
+        quantity: def.quantity,
+        is_optional: def.is_optional,
+        is_replaceable: def.is_replaceable,
+        client_configurable: slot.client_configurable,
+        sort_order: slot.sort_order,
+        alternatives,
+        expanded: false,
+      });
+    }
+
+    return items
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((item) => applyTypeRulesToComponent(bundle.type, item));
+  }
+
   function openNewBuilder() {
     setEditingBundle(null);
     setConfig(EMPTY_CONFIG);
     setComponents([]);
-    setProductSearch("");
-    setAltSearch({});
-    setShowAltSearch({});
-    setImageFile(null);
+    resetBuilderUiState();
     setView("builder");
   }
 
-  async function openEditBuilder(bundle: Bundle) {
-    setEditingBundle(bundle);
+  async function openBundleBuilder(bundle: Bundle, mode: "edit" | "duplicate") {
+    const isDuplicate = mode === "duplicate";
+    setEditingBundle(isDuplicate ? null : bundle);
     setConfig({
-      title:               bundle.title,
-      slug:                bundle.slug ?? "",
-      description:         bundle.description ?? "",
-      type:                bundle.type,
-      image_url:           bundle.image_url ?? "",
-      discount_type:       bundle.discount_type,
-      discount_pct:        bundle.discount_pct,
-      fixed_price:         bundle.fixed_price != null ? String(bundle.fixed_price) : "",
+      title: isDuplicate ? `${bundle.title} copia` : bundle.title,
+      slug: isDuplicate
+        ? `${bundle.slug ?? titleToSlug(bundle.title)}-copia`
+        : bundle.slug ?? "",
+      description: bundle.description ?? "",
+      type: bundle.type,
+      image_url: bundle.image_url ?? "",
+      discount_type: bundle.discount_type,
+      discount_pct: bundle.discount_pct,
+      fixed_price: bundle.fixed_price != null ? String(bundle.fixed_price) : "",
       allows_customization: bundle.allows_customization,
-      active:              bundle.active,
+      active: isDuplicate ? false : bundle.active,
     });
     setComponents([]);
-    setProductSearch("");
-    setAltSearch({});
-    setShowAltSearch({});
-    setImageFile(null);
+    resetBuilderUiState();
     setView("builder");
 
     try {
-      const slots = await fetchBundleSlots(bundle.id);
-      const items: ComponentItem[] = [];
-      for (const slot of slots) {
-        const opts = await fetchSlotOptions(slot.id);
-        const def  = opts.find((o) => o.is_default) ?? opts[0];
-        if (!def) continue;
-        const product = products.find((p) => p.id === def.product_id);
-        if (!product) continue;
-        const alternatives: AlternativeOption[] = opts
-          .filter((o) => o.id !== def.id)
-          .map((o): AlternativeOption | null => {
-            const p = products.find((pr) => pr.id === o.product_id);
-            return p ? { localId: o.id, optionId: o.id, product: p, quantity: o.quantity } : null;
-          })
-          .filter((x): x is AlternativeOption => x !== null);
-
-        items.push({
-          localId:            slot.id,
-          slotId:             slot.id,
-          optionId:           def.id,
-          product,
-          label:              slot.label,
-          quantity:           def.quantity,
-          is_optional:        def.is_optional,
-          is_replaceable:     def.is_replaceable,
-          client_configurable: slot.client_configurable,
-          sort_order:         slot.sort_order,
-          alternatives,
-          expanded:           false,
-        });
-      }
-      setComponents(items.sort((a, b) => a.sort_order - b.sort_order));
+      const loadedItems = await loadBundleComponentItems(bundle);
+      setComponents(
+        isDuplicate
+          ? loadedItems.map((item, index) => ({
+              ...item,
+              localId: genLocalId(),
+              slotId: undefined,
+              optionId: undefined,
+              sort_order: index,
+              alternatives: item.alternatives.map((alternative) => ({
+                ...alternative,
+                localId: genLocalId(),
+                optionId: undefined,
+              })),
+            }))
+          : loadedItems,
+      );
     } catch {
       toast.error("No se pudieron cargar los componentes.");
+    }
+  }
+
+  async function openEditBuilder(bundle: Bundle) {
+    await openBundleBuilder(bundle, "edit");
+  }
+
+  async function openDuplicateBuilder(bundle: Bundle) {
+    await openBundleBuilder(bundle, "duplicate");
+  }
+
+  async function handlePreviewBundle(bundle: Bundle) {
+    setPreviewLoadingId(bundle.id);
+    try {
+      const previewConfig: BuilderConfig = {
+        title: bundle.title,
+        slug: bundle.slug ?? "",
+        description: bundle.description ?? "",
+        type: bundle.type,
+        image_url: bundle.image_url ?? "",
+        discount_type: bundle.discount_type,
+        discount_pct: bundle.discount_pct,
+        fixed_price: bundle.fixed_price != null ? String(bundle.fixed_price) : "",
+        allows_customization: bundle.allows_customization,
+        active: bundle.active,
+      };
+      const previewComponents = await loadBundleComponentItems(bundle);
+      setPreviewBundle(buildPreviewBundle(previewConfig, previewComponents, bundle.id));
+      setPreviewOpen(true);
+    } catch {
+      toast.error("No se pudo cargar la previsualizacion.");
+    } finally {
+      setPreviewLoadingId(null);
     }
   }
 
@@ -337,7 +515,7 @@ export function BundlesAdminTab({ products }: Props) {
           label,
           category_id:        null,
           required:           true,
-          client_configurable: false,
+          client_configurable: config.type === "pc_armada" ? !isProcessorDescriptor(`${label} ${product.name} ${product.category ?? ""}`) : false,
           sort_order:         sortOrder,
         });
         const opt = await createSlotOption({
@@ -347,21 +525,21 @@ export function BundlesAdminTab({ products }: Props) {
           sort_order:     0,
           quantity:       1,
           is_optional:    false,
-          is_replaceable: false,
+          is_replaceable: config.type === "pc_armada" ? !isProcessorDescriptor(`${label} ${product.name} ${product.category ?? ""}`) : false,
         });
-        setComponents((prev) => [...prev, {
+        setComponents((prev) => [...prev, applyTypeRulesToComponent(config.type, {
           localId: slot.id, slotId: slot.id, optionId: opt.id,
           product, label, quantity: 1, is_optional: false, is_replaceable: false,
           client_configurable: false, sort_order: sortOrder,
           alternatives: [], expanded: false,
-        }]);
+        })]);
       } else {
-        setComponents((prev) => [...prev, {
+        setComponents((prev) => [...prev, applyTypeRulesToComponent(config.type, {
           localId: genLocalId(),
           product, label, quantity: 1, is_optional: false, is_replaceable: false,
           client_configurable: false, sort_order: sortOrder,
           alternatives: [], expanded: false,
-        }]);
+        })]);
       }
 
       setProductSearch("");
@@ -502,6 +680,10 @@ export function BundlesAdminTab({ products }: Props) {
   // ── Save bundle ───────────────────────────────────────────────────────────
 
   async function handleSave() {
+    if (builderValidation.errors.length > 0) {
+      toast.error(builderValidation.errors[0]);
+      return;
+    }
     if (!config.title.trim()) { toast.error("El título es obligatorio."); return; }
     setSaving(true);
     try {
@@ -635,6 +817,103 @@ export function BundlesAdminTab({ products }: Props) {
     return { subtotal, total, saving, savingPct, fixedTooLow };
   }, [components, config.discount_type, config.discount_pct, config.fixed_price]);
 
+  const builderValidation = useMemo(() => {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    if (!config.title.trim()) errors.push("El titulo es obligatorio.");
+    if (components.length === 0) errors.push("Agrega al menos 1 componente al bundle.");
+
+    if (config.discount_type === "fixed") {
+      const fixedPrice = Number(config.fixed_price);
+      if (!config.fixed_price.trim() || fixedPrice <= 0) {
+        errors.push("El precio fijo debe ser mayor a 0.");
+      }
+      if (config.fixed_price.trim() && fixedPrice < summary.subtotal) {
+        warnings.push("El precio fijo quedo por debajo del subtotal de componentes.");
+      }
+    }
+
+    components.forEach((component) => {
+      if (component.client_configurable && component.alternatives.length < 1) {
+        errors.push(`"${component.label}" necesita al menos 2 opciones para ser configurable.`);
+      }
+    });
+
+    if (!config.image_url.trim() && !imageFile) {
+      warnings.push("El bundle no tiene imagen de portada.");
+    }
+    if (!config.description.trim()) {
+      warnings.push("Falta una descripcion comercial para el portal.");
+    }
+
+    return { errors, warnings };
+  }, [components, config.description, config.discount_type, config.fixed_price, config.image_url, config.title, imageFile, summary.subtotal]);
+
+  const listStats = useMemo(() => ({
+    total: bundles.length,
+    active: bundles.filter((bundle) => bundle.active).length,
+    inactive: bundles.filter((bundle) => !bundle.active).length,
+    incomplete: bundles.filter((bundle) => isBundleEditoriallyIncomplete(bundle)).length,
+  }), [bundles]);
+
+  const filteredBundles = useMemo(() => {
+    const query = listSearch.trim().toLowerCase();
+
+    return bundles.filter((bundle) => {
+      const matchesSearch = query.length === 0 || [
+        bundle.title,
+        bundle.description ?? "",
+        bundle.slug ?? "",
+      ].some((value) => value.toLowerCase().includes(query));
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" ? bundle.active : !bundle.active);
+      const matchesType = typeFilter === "all" || bundle.type === typeFilter;
+      const matchesCompletion =
+        completionFilter === "all" ||
+        (completionFilter === "incomplete" && isBundleEditoriallyIncomplete(bundle));
+
+      return matchesSearch && matchesStatus && matchesType && matchesCompletion;
+    });
+  }, [bundles, completionFilter, listSearch, statusFilter, typeFilter]);
+
+  const builderPreviewBundle = useMemo(
+    () => buildPreviewBundle(config, components, editingBundle?.id ?? "preview-bundle"),
+    [components, config, editingBundle?.id],
+  );
+
+  const builderPreviewMetrics = useMemo(
+    () => getBundlePortalMetrics(builderPreviewBundle, 0),
+    [builderPreviewBundle],
+  );
+
+  const builderPreviewComponents = useMemo(
+    () => getBundleComponentSummary(builderPreviewBundle, 4),
+    [builderPreviewBundle],
+  );
+
+  useEffect(() => {
+    setComponents((prev) => {
+      const next = prev.map((component) => applyTypeRulesToComponent(config.type, component));
+      const changed = next.some((component, index) =>
+        component.client_configurable !== prev[index]?.client_configurable ||
+        component.is_replaceable !== prev[index]?.is_replaceable
+      );
+      return changed ? next : prev;
+    });
+  }, [config.type]);
+
+  const formatPreviewPrice = useCallback(
+    (amount: number) =>
+      new Intl.NumberFormat("es-AR", {
+        style: "currency",
+        currency: "ARS",
+        maximumFractionDigits: 0,
+      }).format(amount),
+    [],
+  );
+
   // ── View: List ────────────────────────────────────────────────────────────
 
   if (view === "list") {
@@ -655,11 +934,64 @@ export function BundlesAdminTab({ products }: Props) {
           </Button>
         </div>
 
+        <div className="grid gap-3 md:grid-cols-4">
+          {[
+            { label: "Total", value: listStats.total },
+            { label: "Activos", value: listStats.active },
+            { label: "Inactivos", value: listStats.inactive },
+            { label: "Incompletos", value: listStats.incomplete },
+          ].map((stat) => (
+            <div key={stat.label} className="rounded-2xl border border-border/60 bg-card/70 px-3 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{stat.label}</p>
+              <p className="mt-2 text-2xl font-black text-foreground">{stat.value}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,1fr))]">
+          <div className="relative">
+            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={listSearch}
+              onChange={(event) => setListSearch(event.target.value)}
+              placeholder="Buscar por titulo, slug o descripcion"
+              className="h-10 pl-9"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as "all" | "active" | "inactive")}
+            className="h-10 rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground"
+          >
+            <option value="all">Todos los estados</option>
+            <option value="active">Activos</option>
+            <option value="inactive">Inactivos</option>
+          </select>
+          <select
+            value={typeFilter}
+            onChange={(event) => setTypeFilter(event.target.value as "all" | BundleType)}
+            className="h-10 rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground"
+          >
+            <option value="all">Todos los tipos</option>
+            <option value="bundle">Kit</option>
+            <option value="pc_armada">PC Armada</option>
+            <option value="esquema">Esquema</option>
+          </select>
+          <select
+            value={completionFilter}
+            onChange={(event) => setCompletionFilter(event.target.value as "all" | "incomplete")}
+            className="h-10 rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground"
+          >
+            <option value="all">Todos</option>
+            <option value="incomplete">Solo incompletos</option>
+          </select>
+        </div>
+
         {loading ? (
           <div className="flex justify-center py-16">
             <Loader2 className="animate-spin text-muted-foreground" size={28} />
           </div>
-        ) : bundles.length === 0 ? (
+        ) : filteredBundles.length === 0 ? (
           <Card className="text-center py-16">
             <div className="flex flex-col items-center gap-3">
               <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
@@ -673,7 +1005,7 @@ export function BundlesAdminTab({ products }: Props) {
           </Card>
         ) : (
           <div className="grid gap-3">
-            {bundles.map((bundle) => {
+            {filteredBundles.map((bundle) => {
               const BIcon  = TYPE_ICONS[bundle.type] ?? Package;
               const bColor = TYPE_COLORS[bundle.type] ?? TYPE_COLORS.bundle;
               return (
@@ -708,6 +1040,11 @@ export function BundlesAdminTab({ products }: Props) {
                             {!bundle.active && (
                               <Badge variant="secondary" className="text-[10px] py-0 shrink-0">Inactivo</Badge>
                             )}
+                            {isBundleEditoriallyIncomplete(bundle) && (
+                              <Badge variant="outline" className="text-[10px] py-0 text-amber-600 border-amber-500/40 shrink-0">
+                                Incompleto
+                              </Badge>
+                            )}
                             {bundle.discount_type === "percentage" && bundle.discount_pct > 0 && (
                               <Badge variant="outline" className="text-[10px] py-0 text-green-500 border-green-500/40 shrink-0">
                                 <Tag size={8} className="mr-0.5" />-{bundle.discount_pct}%
@@ -741,9 +1078,31 @@ export function BundlesAdminTab({ products }: Props) {
                           <Pencil size={12} /> Editar
                         </Button>
                         <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                          onClick={() => handlePreviewBundle(bundle)}
+                          title="Previsualizar"
+                          aria-label={`Previsualizar ${bundle.title}`}
+                          disabled={previewLoadingId === bundle.id}
+                        >
+                          {previewLoadingId === bundle.id ? <Loader2 size={13} className="animate-spin" /> : <Eye size={13} />}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                          onClick={() => openDuplicateBuilder(bundle)}
+                          title="Duplicar"
+                          aria-label={`Duplicar ${bundle.title}`}
+                        >
+                          <Copy size={13} />
+                        </Button>
+                        <Button
                           size="icon" variant="ghost" className="h-8 w-8"
                           onClick={() => handleToggleActive(bundle)}
                           title={bundle.active ? "Desactivar" : "Activar"}
+                          aria-label={bundle.active ? `Desactivar ${bundle.title}` : `Activar ${bundle.title}`}
                         >
                           <Power size={13} className={bundle.active ? "text-green-500" : "text-muted-foreground"} />
                         </Button>
@@ -751,6 +1110,7 @@ export function BundlesAdminTab({ products }: Props) {
                           size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive/80"
                           onClick={() => handleDeleteBundle(bundle)}
                           title="Eliminar"
+                          aria-label={`Eliminar ${bundle.title}`}
                         >
                           <Trash2 size={13} />
                         </Button>
@@ -762,6 +1122,24 @@ export function BundlesAdminTab({ products }: Props) {
             })}
           </div>
         )}
+
+        <BundleDetail
+          bundle={previewBundle}
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+          formatPrice={formatPreviewPrice}
+          products={products}
+          onAddBundleItems={() => {
+            toast.message("Previsualizacion", {
+              description: "Esta vista usa el mismo detalle del portal, pero no agrega items desde admin.",
+            });
+          }}
+          onRequestQuote={() => {
+            toast.message("Previsualizacion", {
+              description: "La cotizacion del kit se valida desde el portal cliente.",
+            });
+          }}
+        />
       </div>
     );
   }
@@ -1147,7 +1525,12 @@ export function BundlesAdminTab({ products }: Props) {
             </Card>
           ) : (
             <div className="space-y-2">
-              {components.map((comp, idx) => (
+              {components.map((comp, idx) => {
+                const processorLocked = config.type === "pc_armada" && isProcessorComponent(comp);
+                const pcArmadaRuleActive = config.type === "pc_armada";
+                const lockedConfigBehavior = pcArmadaRuleActive;
+
+                return (
                 <Card key={comp.localId} className="group hover:border-primary/30 transition-colors duration-100">
                   <CardContent className="p-3">
                     <div className="flex items-start gap-3">
@@ -1233,28 +1616,30 @@ export function BundlesAdminTab({ products }: Props) {
                           </label>
 
                           {/* Replaceable */}
-                          <label className={`flex items-center gap-1 rounded-full border px-2 py-0.5 cursor-pointer transition-colors ${comp.is_replaceable ? "border-blue-500/40 bg-blue-500/10" : "border-border/50"}`}>
+                          <label className={`flex items-center gap-1 rounded-full border px-2 py-0.5 transition-colors ${lockedConfigBehavior ? "cursor-not-allowed opacity-80" : "cursor-pointer"} ${comp.is_replaceable ? "border-blue-500/40 bg-blue-500/10" : "border-border/50"}`}>
                             <input
                               type="checkbox"
                               checked={comp.is_replaceable}
+                              disabled={lockedConfigBehavior}
                               onChange={(e) => patchComponent(comp.localId, { is_replaceable: e.target.checked })}
                               className="sr-only"
                             />
                             <span className={`text-[10px] font-semibold ${comp.is_replaceable ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground"}`}>
-                              Reemplazable
+                              {processorLocked ? "Procesador fijo" : "Reemplazable"}
                             </span>
                           </label>
 
                           {/* Client configurable */}
-                          <label className={`flex items-center gap-1 rounded-full border px-2 py-0.5 cursor-pointer transition-colors ${comp.client_configurable ? "border-violet-500/40 bg-violet-500/10" : "border-border/50"}`}>
+                          <label className={`flex items-center gap-1 rounded-full border px-2 py-0.5 transition-colors ${lockedConfigBehavior ? "cursor-not-allowed opacity-80" : "cursor-pointer"} ${comp.client_configurable ? "border-violet-500/40 bg-violet-500/10" : "border-border/50"}`}>
                             <input
                               type="checkbox"
                               checked={comp.client_configurable}
+                              disabled={lockedConfigBehavior}
                               onChange={(e) => patchComponent(comp.localId, { client_configurable: e.target.checked })}
                               className="sr-only"
                             />
                             <span className={`text-[10px] font-semibold ${comp.client_configurable ? "text-violet-600 dark:text-violet-400" : "text-muted-foreground"}`}>
-                              Cliente elige
+                              {processorLocked ? "Cliente no elige" : "Cliente elige"}
                             </span>
                           </label>
 
@@ -1263,6 +1648,14 @@ export function BundlesAdminTab({ products }: Props) {
                             ${(adminPrice(comp.product) * comp.quantity).toLocaleString("es-AR")}
                           </span>
                         </div>
+
+                        {pcArmadaRuleActive && (
+                          <p className="text-[10px] text-muted-foreground/80">
+                            {processorLocked
+                              ? "En PC Armada el procesador queda fijo."
+                              : "En PC Armada este componente debe tener alternativas para que el cliente pueda modificarlo."}
+                          </p>
+                        )}
 
                         {/* Alternatives section (expand) */}
                         <div>
@@ -1352,7 +1745,7 @@ export function BundlesAdminTab({ products }: Props) {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+              )})}
             </div>
           )}
         </div>
@@ -1397,6 +1790,170 @@ export function BundlesAdminTab({ products }: Props) {
             </div>
 
             <CardContent className="px-4 pb-4 pt-3 space-y-3">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                      Vista cliente
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Usa los mismos componentes del portal para revisar percepción, precio y estado comercial.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex items-center rounded-xl border border-border/70 bg-background p-1">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewViewport("desktop")}
+                        className={`inline-flex h-7 items-center gap-1 rounded-lg px-2 text-[11px] font-semibold transition ${
+                          previewViewport === "desktop"
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        }`}
+                        aria-label="Ver preview en desktop"
+                      >
+                        <Monitor size={12} />
+                        Desktop
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewViewport("mobile")}
+                        className={`inline-flex h-7 items-center gap-1 rounded-lg px-2 text-[11px] font-semibold transition ${
+                          previewViewport === "mobile"
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        }`}
+                        aria-label="Ver preview en mobile"
+                      >
+                        <Smartphone size={12} />
+                        Mobile
+                      </button>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5 text-xs"
+                      onClick={() => {
+                        setPreviewBundle(builderPreviewBundle);
+                        setPreviewOpen(true);
+                      }}
+                    >
+                      <Eye size={12} />
+                      Abrir detalle
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    {
+                      label: "Estado",
+                      value: builderPreviewMetrics.isAvailable ? "Compra directa" : "Cotizacion",
+                    },
+                    {
+                      label: "Precio desde",
+                      value: formatPreviewPrice(builderPreviewMetrics.startingPrice),
+                    },
+                    {
+                      label: "Ahorro",
+                      value: builderPreviewMetrics.discountAmount > 0
+                        ? `${Math.round(builderPreviewMetrics.savingsPct)}%`
+                        : "Sin promo",
+                    },
+                    {
+                      label: "Configuracion",
+                      value: builderPreviewMetrics.configurableSlots > 0
+                        ? `${builderPreviewMetrics.configurableSlots} slots`
+                        : "Fijo",
+                    },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-2xl border border-border/60 bg-background/80 px-3 py-2.5">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{item.label}</p>
+                      <p className="mt-2 text-sm font-semibold text-foreground">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="overflow-hidden rounded-[28px] border border-border/60 bg-gradient-to-br from-background via-background to-muted/30">
+                  <div className="border-b border-border/60 px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Portal B2B</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">Sección Kits armados</p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant="outline" className="text-[10px]">
+                          {builderPreviewMetrics.isAvailable ? "Disponible" : "Consultar disponibilidad"}
+                        </Badge>
+                        {builderPreviewMetrics.configurableSlots > 0 && (
+                          <Badge variant="outline" className="text-[10px]">
+                            Configurable
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      El admin ve aquí la card exactamente en contexto de catálogo para validar jerarquía, copy y señales visuales.
+                    </p>
+                  </div>
+
+                  <div className="bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.07),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent)] px-3 py-4">
+                    <div className={`mx-auto transition-all duration-200 ${
+                      previewViewport === "mobile" ? "max-w-[280px]" : "max-w-full"
+                    }`}>
+                      <div className="mb-3 flex items-center justify-between rounded-2xl border border-border/50 bg-background/70 px-3 py-2">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Cliente</p>
+                          <p className="text-xs font-medium text-foreground">Preview {previewViewport === "mobile" ? "mobile" : "desktop"}</p>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          {builderPreviewBundle.title || "Kit sin nombre"}
+                        </p>
+                      </div>
+
+                      <BundleCard
+                        bundle={builderPreviewBundle}
+                        formatPrice={formatPreviewPrice}
+                        onClick={() => {
+                          setPreviewBundle(builderPreviewBundle);
+                          setPreviewOpen(true);
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-border/60 bg-background/70 px-3 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                      Lo que se comunica
+                    </p>
+                    <span className="text-[10px] text-muted-foreground">
+                      {builderPreviewComponents.length} destacados
+                    </span>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {builderPreviewComponents.map((component, index) => (
+                      <div key={`${component.label}-${index}`} className="flex items-start justify-between gap-3 text-[11px]">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-foreground">{component.label}</p>
+                          <p className="truncate text-muted-foreground">{component.productName}</p>
+                        </div>
+                        <div className="shrink-0 text-right text-muted-foreground">
+                          {component.quantity > 1 ? `x${component.quantity}` : "1 u."}
+                          {component.optional ? " opc." : ""}
+                        </div>
+                      </div>
+                    ))}
+                    {builderPreviewBundle.slots.length > builderPreviewComponents.length && (
+                      <p className="text-[11px] text-muted-foreground">
+                        +{builderPreviewBundle.slots.length - builderPreviewComponents.length} componente(s) más en el detalle.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {components.length > 0 && (
                 <div className="space-y-1.5 text-xs">
                   {components.slice(0, 5).map((comp) => (
@@ -1460,12 +2017,29 @@ export function BundlesAdminTab({ products }: Props) {
                 )}
               </div>
 
+              {(builderValidation.errors.length > 0 || builderValidation.warnings.length > 0) && (
+                <div className="space-y-2">
+                  {builderValidation.errors.map((message) => (
+                    <div key={message} className="flex items-start gap-1.5 rounded-xl border border-destructive/25 bg-destructive/5 px-3 py-2 text-[11px] text-destructive">
+                      <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+                      <span>{message}</span>
+                    </div>
+                  ))}
+                  {builderValidation.warnings.map((message) => (
+                    <div key={message} className="flex items-start gap-1.5 rounded-xl border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-600 dark:text-amber-400">
+                      <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+                      <span>{message}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <Separator />
 
               <div className="space-y-2">
                 <Button
                   onClick={handleSave}
-                  disabled={saving || !config.title.trim()}
+                  disabled={saving || builderValidation.errors.length > 0}
                   className="w-full gap-2 h-10 font-bold"
                   size="lg"
                 >
@@ -1495,6 +2069,24 @@ export function BundlesAdminTab({ products }: Props) {
             </Card>
           )}
         </div>
+
+        <BundleDetail
+          bundle={previewBundle}
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+          formatPrice={formatPreviewPrice}
+          products={products}
+          onAddBundleItems={() => {
+            toast.message("Preview del admin", {
+              description: "La compra directa y la cotizacion se validan en el portal cliente.",
+            });
+          }}
+          onRequestQuote={() => {
+            toast.message("Preview del admin", {
+              description: "Esta previsualizacion usa el mismo configurador del portal.",
+            });
+          }}
+        />
       </div>
     </div>
   );

@@ -4,16 +4,14 @@
  * Muestra imagen (si existe), tipo, precio con margen del cliente y ahorro real.
  */
 
-import { Layers, Tag, Cpu, Sliders, Package } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Cpu, Package, Sliders, Tag, Wrench } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import type { BundleWithSlots, BundleType } from "@/models/bundle";
 import { BUNDLE_TYPE_LABELS } from "@/models/bundle";
 import {
-  getBundleDefaultPrice,
   getBundleComponentSummary,
-  isBundleAvailable,
-  buildDefaultSelection,
+  getBundlePortalMetrics,
 } from "@/lib/bundlePricing";
 
 interface BundleCardProps {
@@ -37,12 +35,16 @@ const TYPE_COLORS: Record<BundleType, string> = {
 };
 
 export function BundleCard({ bundle, formatPrice, onClick, clientMargin = 0 }: BundleCardProps) {
-  const defaultSel    = buildDefaultSelection(bundle);
-  const { subtotal, total, savingsPct } = getBundleDefaultPrice(bundle, clientMargin);
-  const available     = isBundleAvailable(bundle, defaultSel);
-  const components    = getBundleComponentSummary(bundle, 4);
-  const extraCount    = bundle.slots.length - 4;
-  const hasDiscount   = bundle.discount_type !== "none" && subtotal > total && total > 0;
+  const metrics = getBundlePortalMetrics(bundle, clientMargin);
+  const components = getBundleComponentSummary(bundle, 4);
+  const extraCount = bundle.slots.length - 4;
+  const hasDiscount = metrics.discountAmount > 0 && metrics.basePrice > metrics.startingPrice;
+  const hasCustomization = metrics.configurableSlots > 0;
+  const hasStockIssues = metrics.requiredOutOfStock > 0;
+  const available = metrics.isAvailable;
+  const subtotal = metrics.basePrice;
+  const total = metrics.startingPrice;
+  const savingsPct = metrics.savingsPct;
 
   const TypeIcon  = TYPE_ICONS[bundle.type] ?? Package;
   const typeColor = TYPE_COLORS[bundle.type] ?? TYPE_COLORS.bundle;
@@ -56,6 +58,7 @@ export function BundleCard({ bundle, formatPrice, onClick, clientMargin = 0 }: B
       onClick={() => onClick(bundle.id)}
       role="button"
       tabIndex={0}
+      aria-label={`Abrir kit ${bundle.title}`}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onClick(bundle.id); }}
     >
       {/* Imagen de portada */}
@@ -70,28 +73,33 @@ export function BundleCard({ bundle, formatPrice, onClick, clientMargin = 0 }: B
           {hasDiscount && (
             <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-green-500 px-2 py-0.5 text-[10px] font-bold text-white shadow">
               <Tag size={9} />
-              -{Math.round(savingsPct)}%
+              -{Math.round(metrics.savingsPct)}%
             </div>
           )}
         </div>
       )}
 
       <div className="p-3 flex flex-col gap-2 flex-1">
-        {/* Badges de tipo y descuento */}
+        {/* Badges de tipo y estado */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <Badge className={`gap-1 text-[10px] py-0 px-1.5 ${typeColor}`}>
             <TypeIcon size={9} />
             {typeLabel}
           </Badge>
-          {hasDiscount && !bundle.image_url && (
-            <Badge className="text-[10px] py-0 px-1.5 bg-green-500/10 text-green-500 border-green-500/30">
-              <Tag size={9} className="mr-0.5" />
-              -{Math.round(savingsPct)}% off
+          {hasCustomization && (
+            <Badge variant="outline" className="gap-1 text-[10px] py-0 px-1.5 text-muted-foreground">
+              <Wrench size={9} />
+              Configurable
             </Badge>
           )}
-          {bundle.allows_customization && bundle.type === "esquema" && (
-            <Badge variant="outline" className="text-[10px] py-0 px-1.5 text-muted-foreground">
-              Personalizable
+          {hasStockIssues ? (
+            <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-amber-500/30 text-amber-500">
+              Consultar stock
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="gap-1 text-[10px] py-0 px-1.5 border-emerald-500/30 text-emerald-500">
+              <CheckCircle2 size={9} />
+              Disponible
             </Badge>
           )}
         </div>
@@ -133,6 +141,9 @@ export function BundleCard({ bundle, formatPrice, onClick, clientMargin = 0 }: B
           {available ? (
             <div className="flex items-end justify-between gap-2">
               <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                  Desde
+                </p>
                 <span className="text-xl font-extrabold text-foreground tabular-nums">
                   {formatPrice(total)}
                 </span>
@@ -151,6 +162,10 @@ export function BundleCard({ bundle, formatPrice, onClick, clientMargin = 0 }: B
           ) : (
             <span className="text-sm font-semibold text-muted-foreground">Consultar disponibilidad</span>
           )}
+          <div className="mt-2 flex items-center justify-between text-[11px] font-semibold text-foreground">
+            <span>{hasCustomization ? "Ver configuracion" : "Ver kit"}</span>
+            <ArrowUpRight size={14} className="text-primary" />
+          </div>
         </div>
       </div>
     </SurfaceCard>

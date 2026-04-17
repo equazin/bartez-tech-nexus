@@ -25,8 +25,53 @@ export interface BundlePriceResult {
   total: number;
 }
 
+export interface BundlePortalMetrics {
+  startingPrice: number;
+  basePrice: number;
+  discountAmount: number;
+  savingsPct: number;
+  configurableSlots: number;
+  optionalSlots: number;
+  requiredOutOfStock: number;
+  isAvailable: boolean;
+}
+
+export interface BundleOptionInsights {
+  cheapestProductId: number | null;
+  bestStockProductId: number | null;
+}
+
+export function isProcessorDescriptor(value: string): boolean {
+  const normalized = value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  return [
+    "procesador",
+    "intel core",
+    "ryzen",
+    "athlon",
+    "xeon",
+    "celeron",
+    "pentium",
+    "core i",
+  ].some((token) => normalized.includes(token));
+}
+
+export function isBundleSlotConfigurable(
+  slot: BundleWithSlots["slots"][number],
+  bundleType?: BundleWithSlots["type"],
+): boolean {
+  const forcedPcArmadaConfig =
+    bundleType === "pc_armada" &&
+    !isProcessorDescriptor(slot.label);
+
+  return (slot.client_configurable || forcedPcArmadaConfig) && slot.options.length > 1;
+}
+
 /** Obtiene el precio base de una opción según margen del cliente. */
-function resolveOptionPrice(
+export function getBundleOptionPrice(
   option: BundleWithSlots["slots"][number]["options"][number],
   clientMargin: number,
 ): number {
@@ -63,7 +108,7 @@ export function calculateBundlePrice(
       if (!selectedProductId) continue;
       const option = slot.options.find((o) => o.product_id === selectedProductId);
       if (!option) continue;
-      subtotal += resolveOptionPrice(option, clientMargin);
+      subtotal += getBundleOptionPrice(option, clientMargin);
     }
     const total = bundle.fixed_price;
     const discountAmount = Math.max(0, subtotal - total);
@@ -78,7 +123,7 @@ export function calculateBundlePrice(
     if (!selectedProductId) continue; // omitido (null) o no seleccionado
     const option = slot.options.find((o) => o.product_id === selectedProductId);
     if (!option) continue;
-    subtotal += resolveOptionPrice(option, clientMargin);
+    subtotal += getBundleOptionPrice(option, clientMargin);
   }
 
   let discountAmount = 0;
@@ -142,6 +187,57 @@ export function getBundleDefaultPrice(
   clientMargin = 0,
 ): BundlePriceResult {
   return calculateBundlePrice(bundle, buildDefaultSelection(bundle), clientMargin);
+}
+
+export function getBundlePortalMetrics(
+  bundle: BundleWithSlots,
+  clientMargin = 0,
+): BundlePortalMetrics {
+  const defaultSelection = buildDefaultSelection(bundle);
+  const price = calculateBundlePrice(bundle, defaultSelection, clientMargin);
+
+  return {
+    startingPrice: price.total,
+    basePrice: price.subtotal,
+    discountAmount: price.discountAmount,
+    savingsPct: price.savingsPct,
+    configurableSlots: bundle.slots.filter((slot) => isBundleSlotConfigurable(slot, bundle.type)).length,
+    optionalSlots: bundle.slots.filter((slot) => !slot.required).length,
+    requiredOutOfStock: bundle.slots.filter((slot) => {
+      if (!slot.required) return false;
+      const productId = defaultSelection[slot.id];
+      if (!productId) return true;
+      const option = slot.options.find((candidate) => candidate.product_id === productId);
+      return (option?.product.stock ?? 0) <= 0;
+    }).length,
+    isAvailable: isBundleAvailable(bundle, defaultSelection),
+  };
+}
+
+export function getBundleOptionInsights(
+  slot: BundleWithSlots["slots"][number],
+  clientMargin = 0,
+): BundleOptionInsights {
+  if (slot.options.length === 0) {
+    return { cheapestProductId: null, bestStockProductId: null };
+  }
+
+  let cheapest = slot.options[0];
+  let bestStock = slot.options[0];
+
+  for (const option of slot.options) {
+    if (getBundleOptionPrice(option, clientMargin) < getBundleOptionPrice(cheapest, clientMargin)) {
+      cheapest = option;
+    }
+    if ((option.product.stock ?? 0) > (bestStock.product.stock ?? 0)) {
+      bestStock = option;
+    }
+  }
+
+  return {
+    cheapestProductId: cheapest.product_id,
+    bestStockProductId: (bestStock.product.stock ?? 0) > 0 ? bestStock.product_id : null,
+  };
 }
 
 /**

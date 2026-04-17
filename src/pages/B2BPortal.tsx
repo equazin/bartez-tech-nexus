@@ -65,11 +65,15 @@ import { BundleCard } from "@/components/b2b/BundleCard";
 import { BundleDetail } from "@/components/b2b/BundleDetail";
 import { fetchActiveBundles } from "@/lib/api/bundleApi";
 import type { BundleWithSlots } from "@/models/bundle";
+import { getBundlePortalMetrics } from "@/lib/bundlePricing";
 
 // â”€â”€ Theme helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type PortalTab = "home" | "catalog" | "configurator" | "bundles" | "orders" | "quotes" | "projects" | "express" | "invoices" | "cuenta" | "approvals" | "support" | "rma" | "bulk";
 type ViewModeByContext = Record<CatalogContext, ViewMode>;
+type BundleAvailabilityFilter = "all" | "available" | "quote";
+type BundleCustomizationFilter = "all" | "configurable" | "fixed";
+type BundleSort = "recommended" | "price_asc" | "savings_desc" | "configurable_desc";
 
 const VIEW_MODE_BY_CONTEXT_KEY = "b2b_view_mode_by_context";
 const DEFAULT_VIEW_MODE_BY_CONTEXT: ViewModeByContext = { default: "list", featured: "grid", pos: "grid" };
@@ -97,6 +101,20 @@ function normalizePortalText(value: unknown): string {
 function isPosCategoryValue(value: unknown): boolean {
   const norm = normalizePortalText(value);
   return norm.includes("punto de venta") || /\bpos\b/i.test(norm);
+}
+
+function parseBundleAvailabilityFilter(value: string | null): BundleAvailabilityFilter {
+  return value === "available" || value === "quote" ? value : "all";
+}
+
+function parseBundleCustomizationFilter(value: string | null): BundleCustomizationFilter {
+  return value === "configurable" || value === "fixed" ? value : "all";
+}
+
+function parseBundleSort(value: string | null): BundleSort {
+  return value === "price_asc" || value === "savings_desc" || value === "configurable_desc"
+    ? value
+    : "recommended";
 }
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -141,6 +159,11 @@ export default function B2BPortal() {
   const [bundlesLoading, setBundlesLoading] = useState(true);
   const [bundlesError, setBundlesError] = useState(false);
   const [selectedBundleId, setSelectedBundleId] = useState<string | null>(null);
+  const [bundleSearch, setBundleSearch] = useState("");
+  const [bundleTypeFilter, setBundleTypeFilter] = useState<string>(() => searchParams.get("bundleType") ?? "all");
+  const [bundleAvailabilityFilter, setBundleAvailabilityFilter] = useState<BundleAvailabilityFilter>(() => parseBundleAvailabilityFilter(searchParams.get("bundleAvailability")));
+  const [bundleCustomizationFilter, setBundleCustomizationFilter] = useState<BundleCustomizationFilter>(() => parseBundleCustomizationFilter(searchParams.get("bundleCustomization")));
+  const [bundleSort, setBundleSort] = useState<BundleSort>(() => parseBundleSort(searchParams.get("bundleSort")));
   const selectedBundle = bundles.find((b) => b.id === selectedBundleId) ?? null;
 
   const { isDark, toggleTheme: toggleAppTheme } = useAppTheme();
@@ -177,6 +200,24 @@ export default function B2BPortal() {
       })
       .finally(() => setBundlesLoading(false));
   }, []);
+
+  useEffect(() => {
+    setBundleTypeFilter(searchParams.get("bundleType") ?? "all");
+    setBundleAvailabilityFilter(parseBundleAvailabilityFilter(searchParams.get("bundleAvailability")));
+    setBundleCustomizationFilter(parseBundleCustomizationFilter(searchParams.get("bundleCustomization")));
+    setBundleSort(parseBundleSort(searchParams.get("bundleSort")));
+  }, [searchParams]);
+
+  useEffect(() => {
+    const bundleIdFromUrl = searchParams.get("bundle");
+    if (!bundleIdFromUrl) {
+      setSelectedBundleId(null);
+      return;
+    }
+    if (bundles.some((bundle) => bundle.id === bundleIdFromUrl)) {
+      setSelectedBundleId(bundleIdFromUrl);
+    }
+  }, [bundles, searchParams]);
 
   const { hiddenProductIds } = useCatalogSegments(profile?.id);
 
@@ -455,10 +496,80 @@ export default function B2BPortal() {
     [catalog, cart.purchaseHistory, cart.productMargins, cart.globalMargin]
   );
 
+  useEffect(() => {
+    const productIdFromUrl = Number(searchParams.get("product"));
+    if (!productIdFromUrl) {
+      setSelectedProduct(null);
+      return;
+    }
+    const resolvedProduct = catalog.products.find((product) => product.id === productIdFromUrl);
+    if (resolvedProduct) {
+      setSelectedProduct(resolvedProduct);
+    }
+  }, [catalog.products, searchParams]);
+
+  const clientName = profile?.company_name ?? profile?.contact_name ?? "Cliente";
+  const defaultMargin = profile?.default_margin ?? 20;
+
   const favoriteProducts = useMemo(
     () => catalog.products.filter((p) => cart.favoriteProductIds.includes(p.id)),
     [cart.favoriteProductIds, catalog.products]
   );
+
+  const bundleCards = useMemo(() => (
+    bundles.map((bundle) => ({
+      bundle,
+      metrics: getBundlePortalMetrics(bundle, defaultMargin),
+      searchableText: [
+        bundle.title,
+        bundle.description ?? "",
+        bundle.type,
+        ...bundle.slots.map((slot) => slot.label),
+        ...bundle.slots.flatMap((slot) => slot.options.map((option) => option.product.name)),
+      ].join(" ").toLowerCase(),
+    }))
+  ), [bundles, defaultMargin]);
+
+  const filteredBundles = useMemo(() => {
+    const searchTerm = bundleSearch.trim().toLowerCase();
+    const next = bundleCards.filter(({ bundle, metrics, searchableText }) => {
+      if (searchTerm && !searchableText.includes(searchTerm)) return false;
+      if (bundleTypeFilter !== "all" && bundle.type !== bundleTypeFilter) return false;
+      if (bundleAvailabilityFilter === "available" && !metrics.isAvailable) return false;
+      if (bundleAvailabilityFilter === "quote" && metrics.isAvailable) return false;
+      if (bundleCustomizationFilter === "configurable" && metrics.configurableSlots === 0 && !bundle.allows_customization) return false;
+      if (bundleCustomizationFilter === "fixed" && (metrics.configurableSlots > 0 || bundle.allows_customization)) return false;
+      return true;
+    });
+
+    next.sort((left, right) => {
+      switch (bundleSort) {
+        case "price_asc":
+          return left.metrics.startingPrice - right.metrics.startingPrice;
+        case "savings_desc":
+          return right.metrics.discountAmount - left.metrics.discountAmount;
+        case "configurable_desc":
+          return right.metrics.configurableSlots - left.metrics.configurableSlots;
+        case "recommended":
+        default: {
+          const leftScore = (left.metrics.isAvailable ? 1000 : 0) + (left.metrics.discountAmount > 0 ? 100 : 0) + left.metrics.configurableSlots;
+          const rightScore = (right.metrics.isAvailable ? 1000 : 0) + (right.metrics.discountAmount > 0 ? 100 : 0) + right.metrics.configurableSlots;
+          return rightScore - leftScore;
+        }
+      }
+    });
+
+    return next.map((item) => item.bundle);
+  }, [
+    bundleAvailabilityFilter,
+    bundleCards,
+    bundleCustomizationFilter,
+    bundleSearch,
+    bundleSort,
+    bundleTypeFilter,
+  ]);
+
+  const homeBundles = useMemo(() => filteredBundles.slice(0, 4), [filteredBundles]);
 
   async function handleExportCatalogPDF() {
     await exportCatalogPdf(displayProducts, formatPrice, currency);
@@ -467,19 +578,53 @@ export default function B2BPortal() {
   const quoteCount = quotes.length;
   const pendingApprovals = managedOrders.filter((order) => order.status === "pending_approval").length;
   const highlightedOrders = orders.filter((order) => !["delivered", "rejected"].includes(order.status)).length;
-  const clientName = profile?.company_name ?? profile?.contact_name ?? "Cliente";
-  const defaultMargin = profile?.default_margin ?? 20;
 
-  const setPortalTab = useCallback((tab: PortalTab, options?: { section?: string }) => {
-    setActiveTab(tab);
+  const setPortalParams = useCallback((mutate: (next: URLSearchParams) => void) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
-      next.set("tab", tab);
-      if (options?.section) next.set("section", options.section);
-      else next.delete("section");
+      mutate(next);
       return next;
     }, { replace: true });
   }, [setSearchParams]);
+
+  const setPortalTab = useCallback((tab: PortalTab, options?: { section?: string }) => {
+    setActiveTab(tab);
+    setPortalParams((next) => {
+      next.set("tab", tab);
+      if (options?.section) next.set("section", options.section);
+      else next.delete("section");
+    });
+  }, [setPortalParams]);
+
+  const openBundle = useCallback((bundleId: string) => {
+    setSelectedBundleId(bundleId);
+    setPortalParams((next) => {
+      next.set("bundle", bundleId);
+    });
+  }, [setPortalParams]);
+
+  const closeBundle = useCallback(() => {
+    setSelectedBundleId(null);
+    setPortalParams((next) => {
+      next.delete("bundle");
+    });
+  }, [setPortalParams]);
+
+  const openProduct = useCallback((product: Product | null) => {
+    if (!product) return;
+    setRecentlyViewedIds(addRecentlyViewed(product.id));
+    setSelectedProduct(product);
+    setPortalParams((next) => {
+      next.set("product", String(product.id));
+    });
+  }, [setPortalParams]);
+
+  const closeProduct = useCallback(() => {
+    setSelectedProduct(null);
+    setPortalParams((next) => {
+      next.delete("product");
+    });
+  }, [setPortalParams]);
 
   const handleQuickOrder = useCallback(() => {
     const [rawSku, rawQty] = quickSku.trim().split(/\s+/);
@@ -514,7 +659,10 @@ export default function B2BPortal() {
   }, [cart]);
 
   const handleExpressRequestQuote = useCallback(
-    async (items: Array<{ product: Product; qty: number }>) => {
+    async (
+      items: Array<{ product: Product; qty: number }>,
+      options?: { notes?: string },
+    ) => {
       if (!profile?.id) return;
       const now = new Date().toISOString();
       const quoteItems = items.map(({ product, qty }) => {
@@ -534,19 +682,19 @@ export default function B2BPortal() {
       });
       const subtotal = quoteItems.reduce((s, i) => s + i.totalPrice, 0);
       const ivaTotal = quoteItems.reduce((s, i) => s + i.ivaAmount, 0);
-      await addQuote({
-        client_id: profile.id,
-        client_name: clientName,
-        items: quoteItems,
-        subtotal,
-        ivaTotal,
-        total: subtotal + ivaTotal,
-        currency,
-        status: "draft",
-        notes: "Solicitud guiada (Express Quoter)",
-        created_at: now,
-        updated_at: now,
-      });
+        await addQuote({
+          client_id: profile.id,
+          client_name: clientName,
+          items: quoteItems,
+          subtotal,
+          ivaTotal,
+          total: subtotal + ivaTotal,
+          currency,
+          status: "draft",
+          notes: options?.notes?.trim() || "Solicitud guiada (Express Quoter)",
+          created_at: now,
+          updated_at: now,
+        });
       setPortalTab("cuenta", { section: "quotes" });
     },
     [addQuote, clientName, computePrice, currency, profile?.id, setPortalTab],
@@ -591,8 +739,7 @@ export default function B2BPortal() {
         onSearchResultSelect={(id) => {
           const p = catalog.products.find((x) => x.id === id);
           if (p) {
-            setRecentlyViewedIds(addRecentlyViewed(p.id));
-            setSelectedProduct(p);
+            openProduct(p);
             setPortalTab("catalog");
           }
         }}
@@ -888,16 +1035,30 @@ export default function B2BPortal() {
                 </div>
               ) : bundles.length > 0 ? (
                 <div className="space-y-3">
-                  <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground px-1">
-                    PCs y esquemas armados
-                  </h2>
+                  <div className="flex items-end justify-between gap-3 px-1">
+                    <div>
+                      <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
+                        Kits armados
+                      </h2>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Selecciones listas para comprar o cotizar con una base ya configurada.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPortalTab("bundles")}
+                      className="rounded-xl border border-border/70 bg-background px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-secondary"
+                    >
+                      Ver todos
+                    </button>
+                  </div>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                    {bundles.map((bundle) => (
+                    {homeBundles.map((bundle) => (
                       <BundleCard
                         key={bundle.id}
                         bundle={bundle}
                         formatPrice={formatPrice}
-                        onClick={setSelectedBundleId}
+                        onClick={openBundle}
                         clientMargin={defaultMargin}
                       />
                     ))}
@@ -952,10 +1113,7 @@ export default function B2BPortal() {
                 handleSmartAddToCart={cart.handleSmartAddToCart}
                 handleToggleFavorite={cart.handleToggleFavorite}
                 toggleCompare={toggleCompare}
-                setSelectedProduct={(p) => {
-                  if (p) setRecentlyViewedIds(addRecentlyViewed(p.id));
-                  setSelectedProduct(p);
-                }}
+                setSelectedProduct={openProduct}
                 isPosProduct={catalog.isPosProduct}
                 favoriteProductIds={cart.favoriteProductIds}
                 compareList={compareList}
@@ -1006,21 +1164,117 @@ export default function B2BPortal() {
 
           {activeTab === "bundles" && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between px-1">
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                    <Layers size={18} className="text-primary" />
-                    PCs y esquemas armados
-                  </h2>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Kits preconfigurados listos para cotizar o personalizar.
-                  </p>
+              <div className="rounded-[24px] border border-border/70 bg-card/60 px-4 py-4 shadow-sm">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                      <Layers size={18} className="text-primary" />
+                      Kits armados
+                    </h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Arrancá desde una base recomendada, compará señales comerciales y elegí si seguís por compra directa o cotización.
+                    </p>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {filteredBundles.length} resultado{filteredBundles.length !== 1 ? "s" : ""}
+                  </div>
                 </div>
-                {bundles.length > 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    {bundles.length} disponible{bundles.length !== 1 ? "s" : ""}
-                  </span>
-                )}
+
+                <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,0.8fr))]">
+                  <label className="space-y-1">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Buscar kit</span>
+                    <input
+                      value={bundleSearch}
+                      onChange={(event) => setBundleSearch(event.target.value)}
+                      placeholder="Título, descripción o componente..."
+                      className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary/40"
+                    />
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Tipo</span>
+                    <select
+                      value={bundleTypeFilter}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setBundleTypeFilter(value);
+                        setPortalParams((next) => {
+                          if (value === "all") next.delete("bundleType");
+                          else next.set("bundleType", value);
+                        });
+                      }}
+                      className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground"
+                    >
+                      <option value="all">Todos</option>
+                      <option value="pc_armada">PC armadas</option>
+                      <option value="esquema">Esquemas</option>
+                      <option value="bundle">Kits</option>
+                    </select>
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Disponibilidad</span>
+                    <select
+                      value={bundleAvailabilityFilter}
+                      onChange={(event) => {
+                        const value = event.target.value as BundleAvailabilityFilter;
+                        setBundleAvailabilityFilter(value);
+                        setPortalParams((next) => {
+                          if (value === "all") next.delete("bundleAvailability");
+                          else next.set("bundleAvailability", value);
+                        });
+                      }}
+                      className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground"
+                    >
+                      <option value="all">Todos</option>
+                      <option value="available">Compra directa</option>
+                      <option value="quote">Requiere cotización</option>
+                    </select>
+                  </label>
+
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                    <label className="space-y-1">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Configuración</span>
+                      <select
+                        value={bundleCustomizationFilter}
+                        onChange={(event) => {
+                          const value = event.target.value as BundleCustomizationFilter;
+                          setBundleCustomizationFilter(value);
+                          setPortalParams((next) => {
+                            if (value === "all") next.delete("bundleCustomization");
+                            else next.set("bundleCustomization", value);
+                          });
+                        }}
+                        className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground"
+                      >
+                        <option value="all">Todos</option>
+                        <option value="configurable">Configurables</option>
+                        <option value="fixed">Fijos</option>
+                      </select>
+                    </label>
+
+                    <label className="space-y-1">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Orden</span>
+                      <select
+                        value={bundleSort}
+                        onChange={(event) => {
+                          const value = event.target.value as BundleSort;
+                          setBundleSort(value);
+                          setPortalParams((next) => {
+                            if (value === "recommended") next.delete("bundleSort");
+                            else next.set("bundleSort", value);
+                          });
+                        }}
+                        className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground"
+                      >
+                        <option value="recommended">Recomendados</option>
+                        <option value="price_asc">Menor precio</option>
+                        <option value="savings_desc">Mayor ahorro</option>
+                        <option value="configurable_desc">Más configurables</option>
+                      </select>
+                    </label>
+                  </div>
+                </div>
               </div>
 
               {bundlesLoading ? (
@@ -1054,14 +1308,14 @@ export default function B2BPortal() {
                     Reintentar
                   </button>
                 </div>
-              ) : bundles.length > 0 ? (
+              ) : filteredBundles.length > 0 ? (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
-                  {bundles.map((bundle) => (
+                  {filteredBundles.map((bundle) => (
                     <BundleCard
                       key={bundle.id}
                       bundle={bundle}
                       formatPrice={formatPrice}
-                      onClick={setSelectedBundleId}
+                      onClick={openBundle}
                       clientMargin={defaultMargin}
                     />
                   ))}
@@ -1069,8 +1323,8 @@ export default function B2BPortal() {
               ) : (
                 <div className="rounded-xl border border-border/60 bg-card/50 px-6 py-16 text-center">
                   <Layers size={28} className="mx-auto mb-2 text-muted-foreground opacity-40" />
-                  <p className="text-sm font-medium text-foreground">No hay kits disponibles</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Aún no hay bundles publicados en tu portal.</p>
+                  <p className="text-sm font-medium text-foreground">No encontramos kits para ese filtro</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Probá limpiando filtros o cambiando la búsqueda.</p>
                 </div>
               )}
             </div>
@@ -1322,13 +1576,10 @@ export default function B2BPortal() {
           currency={currency}
           setCurrency={setCurrency}
           isDark={isDark}
-          onClose={() => setSelectedProduct(null)}
+          onClose={closeProduct}
           onAddToCart={cart.handleAddToCart}
           onRemoveFromCart={cart.onRemoveFromCart}
-          onSelectProduct={(p) => {
-            if (p) setRecentlyViewedIds(addRecentlyViewed(p.id));
-            setSelectedProduct(p);
-          }}
+          onSelectProduct={openProduct}
           allProducts={catalog.products}
           profileId={profile?.id}
           purchaseHistoryCount={cart.purchaseHistory[selectedProduct.id] ?? 0}
@@ -1421,11 +1672,48 @@ export default function B2BPortal() {
       <BundleDetail
         bundle={selectedBundle}
         open={!!selectedBundleId}
-        onClose={() => setSelectedBundleId(null)}
+        onClose={closeBundle}
         formatPrice={formatPrice}
         onAddBundleItems={cart.addBundleToCart}
         products={catalog.products}
         clientMargin={defaultMargin}
+        onRequestQuote={(items, meta) => {
+          void handleExpressRequestQuote(items, {
+            notes: `Cotizacion desde kit: ${meta.bundleName} x${meta.bundleQty}`,
+          });
+          return;
+          /*
+          handleExpressRequestQuote(items);
+          void addQuote({
+            client_id: profile?.id ?? "guest",
+            client_name: clientName,
+            items: items.map(({ product, qty }) => {
+              const pricing = computePrice(product, qty);
+              return {
+                product_id: product.id,
+                name: product.name,
+                quantity: qty,
+                cost: pricing.cost,
+                margin: pricing.margin,
+                unitPrice: pricing.unitPrice,
+                totalPrice: pricing.totalPrice,
+                ivaRate: pricing.ivaRate,
+                ivaAmount: pricing.ivaAmount,
+                totalWithIVA: pricing.totalWithIVA,
+              };
+            }),
+            subtotal: items.reduce((sum, { product, qty }) => sum + computePrice(product, qty).totalPrice, 0),
+            ivaTotal: items.reduce((sum, { product, qty }) => sum + computePrice(product, qty).ivaAmount, 0),
+            total: items.reduce((sum, { product, qty }) => sum + computePrice(product, qty).totalWithIVA, 0),
+            currency,
+            status: "draft",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            notes: `Cotización desde kit: ${meta.bundleName} x${meta.bundleQty}`,
+          });
+          setPortalTab("quotes");
+          */
+        }}
       />
 
       {/* ONBOARDING WIZARD — shown once on first visit for non-admin clients */}

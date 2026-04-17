@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bell, BellOff, Minus, Plus, Star, X, Flame, FileText } from "lucide-react";
+import { Bell, BellOff, Minus, Plus, Star, X, Flame, FileText, Maximize2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -169,7 +169,7 @@ export function ProductDetailModal({
   creditAvailable,
   cartTotal = 0,
 }: ProductDetailModalProps) {
-  const SPEC_PREVIEW_LIMIT = 20;
+  const SPEC_PREVIEW_LIMIT = 8;
   const SPEC_VIRTUALIZE_THRESHOLD = 80;
   const SPEC_ROW_HEIGHT = 52;
   const SPEC_OVERSCAN = 6;
@@ -231,6 +231,7 @@ export function ProductDetailModal({
   const [specScrollTop, setSpecScrollTop] = useState(0);
   const [showStickyBar, setShowStickyBar] = useState(false);
   const [showPriceHistory, setShowPriceHistory] = useState(false);
+  const [showImageZoom, setShowImageZoom] = useState(false);
   const modalScrollRef = useRef<HTMLDivElement | null>(null);
   const compatibilityRef = useRef<HTMLDivElement | null>(null);
   const ctaRef = useRef<HTMLDivElement | null>(null);
@@ -279,6 +280,7 @@ export function ProductDetailModal({
     setCompatibilityInView(true);
     setIsClosing(false);
     setSpecScrollTop(0);
+    setShowImageZoom(false);
 
     const raf = window.requestAnimationFrame(() => setIsVisible(true));
     const timer = window.setTimeout(() => setCompatibilityReady(true), 180);
@@ -358,7 +360,7 @@ export function ProductDetailModal({
               </Badge>
             ) : null}
           </div>
-          <Button variant="ghost" size="icon" onClick={handleRequestClose}>
+          <Button variant="ghost" size="icon" onClick={handleRequestClose} aria-label="Cerrar detalle de producto">
             <X size={16} />
           </Button>
         </div>
@@ -366,26 +368,39 @@ export function ProductDetailModal({
         <div ref={modalScrollRef} className="flex-1 overflow-y-auto overscroll-contain">
           <div className="grid gap-4 px-4 py-4 md:grid-cols-[240px_minmax(0,1fr)] md:px-5">
             <div className="space-y-3">
-              <div className="flex h-48 items-center justify-center rounded-2xl border border-border/70 bg-surface/70 p-4 md:sticky md:top-4">
+              <button
+                type="button"
+                onClick={() => setShowImageZoom(true)}
+                className="group flex h-56 w-full flex-col items-center justify-center rounded-2xl border border-border/70 bg-surface/70 p-4 text-left transition hover:border-primary/30 md:sticky md:top-4"
+                aria-label="Ampliar imagen del producto"
+              >
+                <div className="flex w-full justify-end">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/85 px-2 py-1 text-[10px] font-semibold text-muted-foreground">
+                    <Maximize2 size={10} />
+                    Ampliar
+                  </span>
+                </div>
                 <img
                   src={imageSrc}
                   alt={product.name}
                   onError={() => setImageSrc("/placeholder.png")}
-                  className="max-h-40 max-w-full object-contain drop-shadow-lg"
+                  className="max-h-40 max-w-full object-contain drop-shadow-lg transition group-hover:scale-[1.02]"
                 />
-              </div>
-              <div ref={compatibilityRef}>
-                {compatibilityReady ? (
-                  compatibilityInView ? (
-                    <SmartCompatibility productId={product.id} isDark={isDark} onAddToCart={onAddToCart} formatPrice={formatPrice} />
-                  ) : (
-                    <div className="flex min-h-24 items-center justify-center rounded-2xl border border-dashed border-border/60 bg-surface/30 px-4 py-3 text-center text-[11px] text-muted-foreground">
-                      Compatibilidad pausada hasta volver a esta seccion.
+                <span className="mt-3 text-[11px] text-muted-foreground">
+                  Imagen principal y referencia visual del SKU
+                </span>
+              </button>
+
+              <div className="rounded-2xl border border-border/70 bg-surface/30 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Decision rapida</p>
+                <div className="mt-3 space-y-2">
+                  {commercialSignals.slice(0, 3).map((signal) => (
+                    <div key={signal.label} className="flex items-start justify-between gap-3 text-xs">
+                      <span className="text-muted-foreground">{signal.label}</span>
+                      <span className="max-w-[65%] text-right font-semibold text-foreground">{signal.value}</span>
                     </div>
-                  )
-                ) : (
-                  <div className="h-24 w-full animate-pulse rounded-2xl border border-border/50 bg-surface/50" />
-                )}
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -652,6 +667,20 @@ export function ProductDetailModal({
                 )}
               </div>
 
+              <div ref={compatibilityRef}>
+                {compatibilityReady ? (
+                  compatibilityInView ? (
+                    <SmartCompatibility productId={product.id} isDark={isDark} onAddToCart={onAddToCart} formatPrice={formatPrice} />
+                  ) : (
+                    <div className="flex min-h-24 items-center justify-center rounded-2xl border border-dashed border-border/60 bg-surface/30 px-4 py-3 text-center text-[11px] text-muted-foreground">
+                      Compatibilidad pausada hasta volver a esta seccion.
+                    </div>
+                  )
+                ) : (
+                  <div className="h-24 w-full animate-pulse rounded-2xl border border-border/50 bg-surface/50" />
+                )}
+              </div>
+
               {profileId && purchaseHistoryCount > 0 ? (
                 <PriceHistoryChart
                   productId={product.id}
@@ -717,6 +746,7 @@ export function ProductDetailModal({
                   variant="outline"
                   disabled={notifyLoading}
                   onClick={handleToggleNotify}
+                  aria-label={notifySubscribed ? "Cancelar aviso de stock" : "Avisar cuando haya stock"}
                   className={notifySubscribed
                     ? "h-11 gap-1.5 rounded-xl border-primary/40 bg-primary/8 text-primary"
                     : "h-11 gap-1.5 rounded-xl border-border/70 text-muted-foreground hover:text-primary hover:border-primary/30"
@@ -740,11 +770,11 @@ export function ProductDetailModal({
             </div>
           ) : inCart > 0 ? (
             <div className="flex items-center gap-3">
-              <Button variant="toolbar" size="icon" className="h-11 w-11" onClick={() => onRemoveFromCart(product)}>
+              <Button variant="toolbar" size="icon" className="h-11 w-11" onClick={() => onRemoveFromCart(product)} aria-label="Quitar una unidad">
                 <Minus size={16} />
               </Button>
               <span className="flex-1 text-center text-xl font-extrabold text-foreground">{inCart}</span>
-              <Button size="icon" className="h-11 w-11" onClick={() => onAddToCart(product)}>
+              <Button size="icon" className="h-11 w-11" onClick={() => onAddToCart(product)} aria-label="Agregar una unidad">
                 <Plus size={16} />
               </Button>
             </div>
@@ -775,11 +805,11 @@ export function ProductDetailModal({
               <span className="shrink-0 text-sm font-bold tabular-nums text-primary">{formatPrice(unitPrice)}</span>
               {inCart > 0 ? (
                 <div className="flex items-center gap-1.5">
-                  <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => onRemoveFromCart(product)}>
+                  <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => onRemoveFromCart(product)} aria-label="Quitar una unidad">
                     <Minus size={12} />
                   </Button>
                   <span className="w-8 text-center text-sm font-bold text-foreground">{inCart}</span>
-                  <Button size="icon" className="h-8 w-8 rounded-lg" onClick={() => onAddToCart(product)}>
+                  <Button size="icon" className="h-8 w-8 rounded-lg" onClick={() => onAddToCart(product)} aria-label="Agregar una unidad">
                     <Plus size={12} />
                   </Button>
                 </div>
@@ -789,6 +819,27 @@ export function ProductDetailModal({
                 </Button>
               )}
             </div>
+          </div>
+        )}
+
+        {showImageZoom && (
+          <div
+            className="absolute inset-0 z-30 flex items-center justify-center bg-black/80 p-4"
+            onClick={() => setShowImageZoom(false)}
+          >
+            <button
+              type="button"
+              className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition hover:bg-white/20"
+              onClick={() => setShowImageZoom(false)}
+              aria-label="Cerrar imagen ampliada"
+            >
+              <X size={16} />
+            </button>
+            <img
+              src={imageSrc}
+              alt={product.name}
+              className="max-h-full max-w-full object-contain"
+            />
           </div>
         )}
       </div>

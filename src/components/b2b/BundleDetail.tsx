@@ -1,24 +1,42 @@
 /**
  * Detalle de Bundle/Kit para el portal cliente.
- * Soporta tipos pc_armada, esquema y bundle genérico.
+ * Soporta tipos pc_armada, esquema y bundle generico.
  * Precios con margen del cliente, slots opcionales toggle, desglose de ahorro.
  */
 
-import { useState, useEffect, useMemo } from "react";
-import { X, Check, AlertCircle, ShoppingCart, MessageSquare, Loader2,
-         Cpu, Sliders, Package, Tag, ChevronDown, RotateCcw, Minus, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/hooks/use-toast";
-import type { BundleWithSlots, BundleSelection, BundleType } from "@/models/bundle";
-import { BUNDLE_TYPE_LABELS } from "@/models/bundle";
+import { useEffect, useMemo, useState } from "react";
 import {
-  calculateBundlePrice,
+  AlertCircle,
+  Check,
+  CheckCircle2,
+  Cpu,
+  Loader2,
+  MessageSquare,
+  Minus,
+  Package,
+  Plus,
+  RotateCcw,
+  ShieldCheck,
+  ShoppingCart,
+  Sliders,
+  Sparkles,
+  Tag,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useToast } from "@/hooks/use-toast";
+import {
   buildDefaultSelection,
+  calculateBundlePrice,
+  getBundleOptionInsights,
+  getBundleOptionPrice,
+  isBundleSlotConfigurable,
   isBundleAvailable,
 } from "@/lib/bundlePricing";
+import type { BundleSelection, BundleType, BundleWithSlots } from "@/models/bundle";
+import { BUNDLE_TYPE_LABELS } from "@/models/bundle";
 import type { Product } from "@/models/products";
 
 interface BundleDetailProps {
@@ -26,48 +44,73 @@ interface BundleDetailProps {
   open: boolean;
   onClose: () => void;
   formatPrice: (amount: number) => string;
-  /** Catálogo completo para enriquecer productos del bundle al agregar al carrito. */
   products: Product[];
-  onQuote?: () => void;
-  /** Margen del cliente para calcular precios desde cost_price. Default 0. */
   clientMargin?: number;
-  /**
-   * Agrega todos los items del bundle al carrito de una vez, con trazabilidad de bundle.
-   * Si no se provee, se usa onAddToCart como fallback individual por producto.
-   */
   onAddBundleItems?: (
     bundleId: string,
     bundleName: string,
     items: Array<{ product: Product; qty: number }>,
   ) => void;
-  /** Fallback individual (sin bundle meta). */
   onAddToCart?: (product: Product, qty: number) => void;
+  onRequestQuote?: (
+    items: Array<{ product: Product; qty: number }>,
+    meta: { bundleId: string; bundleName: string; bundleQty: number },
+  ) => void;
+}
+
+type BundleOption = BundleWithSlots["slots"][number]["options"][number];
+
+interface SelectedBundleItem {
+  slotId: string;
+  slotLabel: string;
+  required: boolean;
+  configurable: boolean;
+  option: BundleOption;
+  price: number;
 }
 
 const TYPE_ICONS: Record<BundleType, typeof Cpu> = {
   pc_armada: Cpu,
-  esquema:   Sliders,
-  bundle:    Package,
+  esquema: Sliders,
+  bundle: Package,
 };
 
 const TYPE_COLORS: Record<BundleType, string> = {
-  pc_armada: "bg-blue-500/10 text-blue-500 border-blue-500/30",
-  esquema:   "bg-violet-500/10 text-violet-500 border-violet-500/30",
-  bundle:    "bg-primary/10 text-primary border-primary/30",
+  pc_armada: "border-sky-500/30 bg-sky-500/10 text-sky-500",
+  esquema: "border-violet-500/30 bg-violet-500/10 text-violet-500",
+  bundle: "border-primary/30 bg-primary/10 text-primary",
 };
 
-/** Precio de una opción con margen aplicado (espejo de resolveOptionPrice en bundlePricing). */
-function resolveDisplayPrice(
-  opt: BundleWithSlots["slots"][number]["options"][number],
+function getSelectedItems(
+  bundle: BundleWithSlots,
+  selection: BundleSelection,
+  disabledSlots: Set<string>,
   clientMargin: number,
-): number {
-  const qty = opt.quantity ?? 1;
-  const { cost_price, unit_price } = opt.product;
-  const base =
-    cost_price != null && cost_price > 0
-      ? cost_price * (1 + clientMargin / 100)
-      : unit_price ?? 0;
-  return base * qty;
+): SelectedBundleItem[] {
+  return bundle.slots.flatMap((slot) => {
+    if (disabledSlots.has(slot.id)) return [];
+    const selectedId = selection[slot.id];
+    const option = slot.options.find((candidate) => candidate.product_id === selectedId) ?? slot.options[0];
+    if (!option) return [];
+
+    return [{
+      slotId: slot.id,
+      slotLabel: slot.label,
+      required: slot.required,
+      configurable: isBundleSlotConfigurable(slot, bundle.type),
+      option,
+      price: getBundleOptionPrice(option, clientMargin),
+    }];
+  });
+}
+
+function productInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
 }
 
 export function BundleDetail({
@@ -76,18 +119,17 @@ export function BundleDetail({
   onClose,
   formatPrice,
   products,
-  onQuote,
   clientMargin = 0,
   onAddBundleItems,
   onAddToCart,
+  onRequestQuote,
 }: BundleDetailProps) {
   const { toast } = useToast();
-  const [selection, setSelection]           = useState<BundleSelection>({});
-  const [disabledSlots, setDisabledSlots]   = useState<Set<string>>(new Set());
-  const [bundleQty, setBundleQty]           = useState(1);
-  const [adding, setAdding]                 = useState(false);
+  const [selection, setSelection] = useState<BundleSelection>({});
+  const [disabledSlots, setDisabledSlots] = useState<Set<string>>(new Set());
+  const [bundleQty, setBundleQty] = useState(1);
+  const [adding, setAdding] = useState(false);
 
-  // Init selection, disabled slots and qty whenever bundle changes
   useEffect(() => {
     if (!bundle) return;
     setSelection(buildDefaultSelection(bundle));
@@ -95,25 +137,44 @@ export function BundleDetail({
     setBundleQty(1);
   }, [bundle]);
 
+  const effectiveSelection = useMemo(() => {
+    const next: BundleSelection = { ...selection };
+    disabledSlots.forEach((slotId) => {
+      next[slotId] = null;
+    });
+    return next;
+  }, [selection, disabledSlots]);
+
+  const selectedItems = useMemo(() => {
+    if (!bundle) return [];
+    return getSelectedItems(bundle, selection, disabledSlots, clientMargin);
+  }, [bundle, selection, disabledSlots, clientMargin]);
+
   const { subtotal, discountAmount, savingsPct, total } = useMemo(() => {
     if (!bundle) return { subtotal: 0, discountAmount: 0, savingsPct: 0, total: 0 };
-    const effectiveSel: BundleSelection = { ...selection };
-    disabledSlots.forEach((slotId) => { effectiveSel[slotId] = null; });
-    const base = calculateBundlePrice(bundle, effectiveSel, clientMargin);
+    const base = calculateBundlePrice(bundle, effectiveSelection, clientMargin);
     return {
-      subtotal:       base.subtotal       * bundleQty,
+      subtotal: base.subtotal * bundleQty,
       discountAmount: base.discountAmount * bundleQty,
-      savingsPct:     base.savingsPct,
-      total:          base.total          * bundleQty,
+      savingsPct: base.savingsPct,
+      total: base.total * bundleQty,
     };
-  }, [bundle, selection, disabledSlots, clientMargin, bundleQty]);
+  }, [bundle, effectiveSelection, clientMargin, bundleQty]);
 
   const available = useMemo(() => {
     if (!bundle) return false;
-    const effectiveSel: BundleSelection = { ...selection };
-    disabledSlots.forEach((slotId) => { effectiveSel[slotId] = null; });
-    return isBundleAvailable(bundle, effectiveSel);
-  }, [bundle, selection, disabledSlots]);
+    return isBundleAvailable(bundle, effectiveSelection);
+  }, [bundle, effectiveSelection]);
+
+  const TypeIcon = bundle ? (TYPE_ICONS[bundle.type] ?? Package) : Package;
+  const typeColor = bundle ? (TYPE_COLORS[bundle.type] ?? TYPE_COLORS.bundle) : TYPE_COLORS.bundle;
+  const typeLabel = bundle ? (BUNDLE_TYPE_LABELS[bundle.type] ?? "Kit") : "Kit";
+  const hasDiscount = bundle ? bundle.discount_type !== "none" && subtotal > total && total > 0 : false;
+  const stockIssues = selectedItems.filter((item) => item.required && item.option.product.stock <= 0).length;
+  const configurableCount = bundle?.slots.filter((slot) => isBundleSlotConfigurable(slot, bundle.type)).length ?? 0;
+  const requiredSlots = bundle?.slots.filter((slot) => slot.required) ?? [];
+  const optionalSlots = bundle?.slots.filter((slot) => !slot.required) ?? [];
+  const canRequestQuote = !!bundle && typeof onRequestQuote === "function";
 
   function handleSelectOption(slotId: string, productId: number) {
     setSelection((prev) => ({ ...prev, [slotId]: productId }));
@@ -122,7 +183,8 @@ export function BundleDetail({
   function handleToggleSlot(slotId: string, enabled: boolean) {
     setDisabledSlots((prev) => {
       const next = new Set(prev);
-      if (enabled) next.delete(slotId); else next.add(slotId);
+      if (enabled) next.delete(slotId);
+      else next.add(slotId);
       return next;
     });
   }
@@ -143,9 +205,9 @@ export function BundleDetail({
         if (disabledSlots.has(slot.id)) continue;
         const productId = selection[slot.id];
         if (!productId) continue;
-        const opt         = slot.options.find((o) => o.product_id === productId);
-        const qty         = (opt?.quantity ?? 1) * bundleQty;
-        const fullProduct = products.find((p) => p.id === productId);
+        const option = slot.options.find((candidate) => candidate.product_id === productId);
+        const qty = (option?.quantity ?? 1) * bundleQty;
+        const fullProduct = products.find((product) => product.id === productId);
         if (fullProduct) items.push({ product: fullProduct, qty });
       }
 
@@ -156,8 +218,8 @@ export function BundleDetail({
       }
 
       toast({
-        title: "Bundle agregado",
-        description: `${items.length} producto${items.length !== 1 ? "s" : ""} ${bundleQty > 1 ? `(×${bundleQty}) ` : ""}agregado${items.length !== 1 ? "s" : ""} al pedido.`,
+        title: "Kit agregado",
+        description: `${items.length} producto${items.length !== 1 ? "s" : ""} agregado${items.length !== 1 ? "s" : ""} al pedido.`,
       });
       onClose();
     } finally {
@@ -165,18 +227,209 @@ export function BundleDetail({
     }
   }
 
-  const TypeIcon  = bundle ? (TYPE_ICONS[bundle.type] ?? Package) : Package;
-  const typeColor = bundle ? (TYPE_COLORS[bundle.type] ?? TYPE_COLORS.bundle) : TYPE_COLORS.bundle;
-  const typeLabel = bundle ? (BUNDLE_TYPE_LABELS[bundle.type] ?? "Kit") : "Kit";
-  const hasDiscount = bundle
-    ? bundle.discount_type !== "none" && subtotal > total && total > 0
-    : false;
+  function buildSelectedQuoteItems() {
+    if (!bundle) return [];
+    return bundle.slots.flatMap((slot) => {
+      if (disabledSlots.has(slot.id)) return [];
+      const productId = selection[slot.id];
+      if (!productId) return [];
+      const option = slot.options.find((candidate) => candidate.product_id === productId);
+      if (!option) return [];
+      const fullProduct = products.find((product) => product.id === productId);
+      if (!fullProduct) return [];
+      return [{ product: fullProduct, qty: (option.quantity ?? 1) * bundleQty }];
+    });
+  }
+
+  function handleQuoteRequest() {
+    if (!bundle || !onRequestQuote) return;
+    onRequestQuote(buildSelectedQuoteItems(), {
+      bundleId: bundle.id,
+      bundleName: bundle.title,
+      bundleQty,
+    });
+    onClose();
+  }
+
+  const primaryAction = available || !canRequestQuote
+    ? {
+        label: `Agregar${bundleQty > 1 ? ` x${bundleQty}` : ""}`,
+        icon: ShoppingCart,
+        disabled: !available || adding,
+        onClick: handleAddToCart,
+      }
+    : {
+        label: "Cotizar esta configuración",
+        icon: MessageSquare,
+        disabled: false,
+        onClick: handleQuoteRequest,
+      };
+
+  function renderSlot(slot: BundleWithSlots["slots"][number]) {
+    const selectedId = selection[slot.id];
+    const isDisabled = disabledSlots.has(slot.id);
+    const isOptional = !slot.required;
+    const isConfigurable = isBundleSlotConfigurable(slot, bundle?.type);
+    const selectedOption = slot.options.find((option) => option.product_id === selectedId) ?? slot.options[0];
+    const optionSignals = getBundleOptionInsights(slot, clientMargin);
+
+    return (
+      <div
+        key={slot.id}
+        className={`rounded-2xl border border-border/70 bg-card/45 p-3 transition ${isDisabled ? "opacity-60" : ""}`}
+      >
+        <div className="mb-2 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-foreground">{slot.label}</span>
+              <span className="text-[10px] text-muted-foreground">
+                {slot.required ? "Requerido" : "Opcional"}
+              </span>
+            </div>
+            {selectedOption && (
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {selectedOption.product.category || "Componente del kit"}
+              </p>
+            )}
+          </div>
+
+          {isOptional && (
+            <button
+              type="button"
+              onClick={() => handleToggleSlot(slot.id, isDisabled)}
+              className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-bold transition ${
+                isDisabled
+                  ? "bg-muted text-muted-foreground hover:bg-muted/80"
+                  : "bg-primary/10 text-primary hover:bg-primary/20"
+              }`}
+            >
+              {isDisabled ? "Agregar" : "Quitar"}
+            </button>
+          )}
+        </div>
+
+        {!isDisabled && (
+          isConfigurable ? (
+            <div className="space-y-2">
+              {slot.options.map((option) => {
+                const isSelected = selectedId === option.product_id;
+                const noStock = option.product.stock <= 0;
+                const optionPrice = getBundleOptionPrice(option, clientMargin);
+                const isCheapest = optionSignals.cheapestProductId === option.product_id;
+                const isBestStock = optionSignals.bestStockProductId === option.product_id;
+
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    disabled={noStock}
+                    onClick={() => handleSelectOption(slot.id, option.product_id)}
+                    className={`group flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition ${
+                      isSelected
+                        ? "border-primary/70 bg-primary/10 shadow-sm"
+                        : noStock
+                          ? "cursor-not-allowed border-border/40 opacity-45"
+                          : "border-border/70 bg-background/60 hover:border-primary/40 hover:bg-muted/30"
+                    }`}
+                  >
+                    <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                      isSelected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/35 text-transparent"
+                    }`}>
+                      <Check size={12} />
+                    </span>
+
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-muted/45 text-xs font-bold text-muted-foreground">
+                      {option.product.image ? (
+                        <img src={option.product.image} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        productInitials(option.product.name)
+                      )}
+                    </span>
+
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-foreground">
+                        {option.product.name}
+                      </span>
+                      <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                        {option.quantity > 1 && <span>x{option.quantity}</span>}
+                        {noStock ? (
+                          <span className="text-amber-500">Sin stock</span>
+                        ) : (
+                          <span>Stock {option.product.stock}</span>
+                        )}
+                        {option.is_default && (
+                          <Badge variant="outline" className="h-5 px-1.5 text-[9px] border-primary/30 text-primary">
+                            Recomendado
+                          </Badge>
+                        )}
+                        {isCheapest && (
+                          <Badge variant="outline" className="h-5 px-1.5 text-[9px] border-emerald-500/30 text-emerald-500">
+                            Menor precio
+                          </Badge>
+                        )}
+                        {isBestStock && (
+                          <Badge variant="outline" className="h-5 px-1.5 text-[9px] border-sky-500/30 text-sky-500">
+                            Mejor stock
+                          </Badge>
+                        )}
+                      </span>
+                    </span>
+
+                    <span className="shrink-0 text-right text-xs font-semibold text-muted-foreground tabular-nums">
+                      {formatPrice(optionPrice)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : selectedOption ? (
+            <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/60 px-3 py-2.5">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-muted/45 text-xs font-bold text-muted-foreground">
+                {selectedOption.product.image ? (
+                  <img src={selectedOption.product.image} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  productInitials(selectedOption.product.name)
+                )}
+              </span>
+
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-foreground">{selectedOption.product.name}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  {selectedOption.product.stock > 0 ? (
+                    <Badge className="border border-emerald-500/25 bg-emerald-500/10 py-0 text-[10px] text-emerald-500">
+                      Stock {selectedOption.product.stock}
+                    </Badge>
+                  ) : (
+                    <Badge className="border border-amber-500/25 bg-amber-500/10 py-0 text-[10px] text-amber-500">
+                      Sin stock
+                    </Badge>
+                  )}
+                  {selectedOption.quantity > 1 && (
+                    <Badge variant="outline" className="py-0 text-[10px]">x{selectedOption.quantity}</Badge>
+                  )}
+                </div>
+              </div>
+
+              <span className="shrink-0 text-xs font-semibold text-muted-foreground tabular-nums">
+                {formatPrice(getBundleOptionPrice(selectedOption, clientMargin))}
+              </span>
+            </div>
+          ) : (
+            <p className="rounded-xl border border-dashed border-border/70 px-3 py-4 text-center text-xs text-muted-foreground">
+              Sin opciones configuradas.
+            </p>
+          )
+        )}
+      </div>
+    );
+  }
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="w-full max-w-lg overflow-y-auto p-0">
-
-        {/* Loading state */}
+    <Sheet open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+      <SheetContent
+        side="right"
+        className="flex h-full w-full flex-col overflow-hidden border-l border-border/70 bg-background p-0 sm:max-w-[620px]"
+      >
         {!bundle && (
           <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
             <Loader2 size={28} className="animate-spin text-muted-foreground" />
@@ -186,299 +439,242 @@ export function BundleDetail({
 
         {bundle && (
           <>
-            {/* Imagen de portada */}
-            {bundle.image_url && (
-              <div className="relative overflow-hidden bg-muted/40">
-                <img
-                  src={bundle.image_url}
-                  alt={bundle.title}
-                  className="h-40 w-full object-cover"
-                />
-                {hasDiscount && (
-                  <div className="absolute top-3 right-3 flex items-center gap-1 rounded-full bg-green-500 px-2.5 py-1 text-xs font-bold text-white shadow">
-                    <Tag size={11} />
-                    -{Math.round(savingsPct)}%
+            <div className="flex-1 overflow-y-auto">
+              <div className="relative overflow-hidden border-b border-border/70 bg-card/70">
+                {bundle.image_url ? (
+                  <img
+                    src={bundle.image_url}
+                    alt={bundle.title}
+                    className="h-44 w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-28 items-end bg-muted/30 px-5 pb-4">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary shadow-sm">
+                      <TypeIcon size={27} strokeWidth={1.8} />
+                    </div>
                   </div>
                 )}
-              </div>
-            )}
 
-            <SheetHeader className="p-5 pb-0">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  {/* Type badge row */}
-                  <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-                    <Badge className={`gap-1 text-[10px] py-0 px-1.5 ${typeColor}`}>
-                      <TypeIcon size={9} />
-                      {typeLabel}
-                    </Badge>
-                    {hasDiscount && !bundle.image_url && (
-                      <Badge className="text-[10px] py-0 px-1.5 bg-green-500/10 text-green-500 border-green-500/30">
-                        <Tag size={9} className="mr-0.5" />
-                        -{Math.round(savingsPct)}% off
+                <div className="px-5 pb-5 pt-4">
+                  <SheetHeader className="space-y-3 pr-8 text-left">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge className={`gap-1 border px-2 py-0.5 text-[11px] ${typeColor}`}>
+                        <TypeIcon size={11} />
+                        {typeLabel}
                       </Badge>
-                    )}
-                    {bundle.allows_customization && bundle.type === "esquema" && (
-                      <Badge variant="outline" className="text-[10px] py-0 px-1.5 text-muted-foreground">
-                        Personalizable
-                      </Badge>
-                    )}
-                  </div>
-                  <SheetTitle className="text-lg leading-snug">{bundle.title}</SheetTitle>
-                  {bundle.description && (
-                    <p className="text-sm text-muted-foreground mt-1">{bundle.description}</p>
-                  )}
-                </div>
-                <button
-                  onClick={onClose}
-                  className="shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition"
-                  aria-label="Cerrar"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {/* Esquema hint */}
-              {bundle.type === "esquema" && (
-                <p className="mt-2 text-xs text-muted-foreground rounded-lg border border-violet-500/20 bg-violet-500/5 px-3 py-2">
-                  <ChevronDown size={10} className="inline mr-1 text-violet-500" />
-                  Este esquema es personalizable: podés elegir la variante de cada componente según tus necesidades.
-                </p>
-              )}
-            </SheetHeader>
-
-            <div className="p-5 space-y-5">
-              {/* Slots */}
-              <div className="space-y-4">
-                {bundle.slots.map((slot) => {
-                  const selectedId     = selection[slot.id];
-                  const isDisabled     = disabledSlots.has(slot.id);
-                  const isOptional     = !slot.required;
-                  const isConfigurable = slot.client_configurable && slot.options.length > 1;
-
-                  return (
-                    <div key={slot.id} className={`space-y-1.5 ${isDisabled ? "opacity-50" : ""}`}>
-                      {/* Slot header */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-sm font-medium text-foreground">{slot.label}</span>
-                          {isOptional && (
-                            <span className="text-[10px] text-muted-foreground italic">(opcional)</span>
-                          )}
-                          {!isOptional && (
-                            <span className="text-[10px] text-muted-foreground">(requerido)</span>
-                          )}
-                        </div>
-                        {/* Toggle for optional slots */}
-                        {isOptional && (
-                          <button
-                            onClick={() => handleToggleSlot(slot.id, isDisabled)}
-                            className={`text-[10px] font-medium rounded-full px-2 py-0.5 transition
-                              ${isDisabled
-                                ? "bg-muted text-muted-foreground hover:bg-muted/80"
-                                : "bg-primary/10 text-primary hover:bg-primary/20"
-                              }`}
-                          >
-                            {isDisabled ? "Agregar" : "Quitar"}
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Slot content */}
-                      {!isDisabled && (
-                        isConfigurable ? (
-                          <div className="space-y-1">
-                            {slot.options.map((opt) => {
-                              const isSelected = selectedId === opt.product_id;
-                              const noStock    = opt.product.stock <= 0;
-                              const optPrice   = resolveDisplayPrice(opt, clientMargin);
-                              return (
-                                <button
-                                  key={opt.id}
-                                  disabled={noStock}
-                                  onClick={() => handleSelectOption(slot.id, opt.product_id)}
-                                  className={`w-full flex items-center justify-between rounded-xl border px-3 py-2 text-left transition
-                                    ${isSelected
-                                      ? "border-primary bg-primary/5 text-foreground"
-                                      : noStock
-                                        ? "border-border/40 opacity-40 cursor-not-allowed"
-                                        : "border-border/70 hover:border-primary/40 text-foreground hover:bg-muted/30"
-                                    }`}
-                                >
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <span
-                                      className={`shrink-0 w-4 h-4 rounded-full border flex items-center justify-center
-                                        ${isSelected ? "border-primary bg-primary" : "border-muted-foreground/40"}`}
-                                    >
-                                      {isSelected && <Check size={10} className="text-primary-foreground" />}
-                                    </span>
-                                    <span className="text-sm truncate">{opt.product.name}</span>
-                                    {opt.quantity > 1 && (
-                                      <span className="shrink-0 text-[10px] text-muted-foreground">×{opt.quantity}</span>
-                                    )}
-                                    {noStock && (
-                                      <Badge variant="secondary" className="text-[9px] py-0 shrink-0">Sin stock</Badge>
-                                    )}
-                                  </div>
-                                  <span className="text-xs text-muted-foreground shrink-0 ml-2 tabular-nums">
-                                    {formatPrice(optPrice)}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          /* Fixed slot: read-only with stock badge */
-                          (() => {
-                            const opt = slot.options.find((o) => o.product_id === selectedId) ?? slot.options[0];
-                            if (!opt) return (
-                              <p className="text-xs text-muted-foreground italic">Sin opciones configuradas.</p>
-                            );
-                            const optPrice = resolveDisplayPrice(opt, clientMargin);
-                            const noStock  = opt.product.stock <= 0;
-                            return (
-                              <div className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/20 px-3 py-2">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <span className="text-sm text-foreground truncate">{opt.product.name}</span>
-                                  {opt.quantity > 1 && (
-                                    <span className="shrink-0 text-[10px] text-muted-foreground">×{opt.quantity}</span>
-                                  )}
-                                  {opt.is_optional && (
-                                    <span className="shrink-0 text-[9px] text-muted-foreground/50 italic">(opc.)</span>
-                                  )}
-                                  {noStock && (
-                                    <Badge variant="secondary" className="text-[9px] py-0 shrink-0">Sin stock</Badge>
-                                  )}
-                                  {!noStock && (
-                                    <Badge className="text-[9px] py-0 shrink-0 bg-green-500/10 text-green-600 border-green-500/30">
-                                      Stock: {opt.product.stock}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <span className="text-xs text-muted-foreground shrink-0 ml-2 tabular-nums">
-                                  {formatPrice(optPrice)}
-                                </span>
-                              </div>
-                            );
-                          })()
-                        )
+                      {hasDiscount && (
+                        <Badge className="gap-1 border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-500">
+                          <Tag size={10} />
+                          -{Math.round(savingsPct)}% off
+                        </Badge>
+                      )}
+                      {bundle.allows_customization && (
+                        <Badge variant="outline" className="gap-1 px-2 py-0.5 text-[11px] text-muted-foreground">
+                          <Sliders size={10} />
+                          Configurable
+                        </Badge>
                       )}
                     </div>
-                  );
-                })}
-              </div>
 
-              <Separator />
-
-              {/* Price breakdown + qty spinner */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Desglose de precio
-                  </p>
-                  {/* Bundle quantity spinner */}
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-muted-foreground mr-1">Cantidad:</span>
-                    <button
-                      onClick={() => setBundleQty((q) => Math.max(1, q - 1))}
-                      disabled={bundleQty <= 1}
-                      className="w-6 h-6 rounded-md border border-border/70 flex items-center justify-center text-muted-foreground hover:bg-muted transition disabled:opacity-40"
-                    >
-                      <Minus size={11} />
-                    </button>
-                    <span className="w-7 text-center text-sm font-medium tabular-nums">{bundleQty}</span>
-                    <button
-                      onClick={() => setBundleQty((q) => Math.min(10, q + 1))}
-                      disabled={bundleQty >= 10}
-                      className="w-6 h-6 rounded-md border border-border/70 flex items-center justify-center text-muted-foreground hover:bg-muted transition disabled:opacity-40"
-                    >
-                      <Plus size={11} />
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-1.5 text-sm">
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Subtotal{bundleQty > 1 ? ` ×${bundleQty}` : ""}</span>
-                    <span className="tabular-nums">{formatPrice(subtotal)}</span>
-                  </div>
-                  {hasDiscount && discountAmount > 0 && (
-                    <div className="flex justify-between text-green-500">
-                      <span>
-                        {bundle.discount_type === "percentage"
-                          ? `Descuento -${bundle.discount_pct}%`
-                          : "Precio fijo especial"}
-                      </span>
-                      <span className="tabular-nums">-{formatPrice(discountAmount)}</span>
+                    <div className="space-y-2">
+                      <SheetTitle className="text-2xl font-bold leading-tight tracking-normal text-foreground">
+                        {bundle.title}
+                      </SheetTitle>
+                      {bundle.description && (
+                        <SheetDescription className="line-clamp-4 text-sm leading-6 text-muted-foreground">
+                          {bundle.description}
+                        </SheetDescription>
+                      )}
                     </div>
-                  )}
-                  <Separator className="my-1" />
-                  <div className="flex justify-between font-bold text-foreground text-base">
-                    <span>Total</span>
-                    {available ? (
-                      <span className="tabular-nums">{formatPrice(total)}</span>
-                    ) : (
-                      <span className="text-muted-foreground">Consultar</span>
+                  </SheetHeader>
+
+                  <div className="mt-5 grid grid-cols-3 gap-2">
+                    <div className="rounded-xl border border-border/60 bg-background/70 px-3 py-2">
+                      <p className="text-[10px] font-semibold uppercase text-muted-foreground">Items</p>
+                      <p className="mt-0.5 text-base font-bold text-foreground">{selectedItems.length}</p>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-background/70 px-3 py-2">
+                      <p className="text-[10px] font-semibold uppercase text-muted-foreground">Opciones</p>
+                      <p className="mt-0.5 text-base font-bold text-foreground">{configurableCount}</p>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-background/70 px-3 py-2">
+                      <p className="text-[10px] font-semibold uppercase text-muted-foreground">Stock</p>
+                      <p className={`mt-0.5 text-base font-bold ${stockIssues > 0 ? "text-amber-500" : "text-emerald-500"}`}>
+                        {stockIssues > 0 ? "Revisar" : "OK"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-end justify-between gap-4 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase text-muted-foreground">Total del kit</p>
+                      {available ? (
+                        <p className="mt-1 text-3xl font-black leading-none text-foreground tabular-nums">
+                          {formatPrice(total)}
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-xl font-bold text-muted-foreground">Consultar disponibilidad</p>
+                      )}
+                    </div>
+                    {hasDiscount && discountAmount > 0 && (
+                      <div className="text-right">
+                        <p className="text-[11px] text-muted-foreground line-through tabular-nums">
+                          {formatPrice(subtotal)}
+                        </p>
+                        <p className="mt-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-500">
+                          Ahorro {formatPrice(discountAmount)}
+                        </p>
+                      </div>
                     )}
                   </div>
-                  {hasDiscount && discountAmount > 0 && (
-                    <div className="flex items-center justify-end gap-1.5 pt-0.5">
-                      <span className="rounded-full bg-green-500/10 px-2.5 py-0.5 text-[11px] font-bold text-green-600 dark:text-green-400">
-                        Ahorrás {formatPrice(discountAmount)} ({Math.round(savingsPct)}%)
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
 
-              {/* Availability warning */}
-              {!available && (
-                <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-600 dark:text-amber-400">
-                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                  <span>
-                    Uno o más componentes requeridos no tienen stock disponible. Podés cotizarlo para consultar disponibilidad.
-                  </span>
-                </div>
-              )}
+              <div className="space-y-5 px-5 py-5">
+                <section className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-foreground">Componentes requeridos</h3>
+                      <p className="text-xs text-muted-foreground">Definen la configuración base del kit.</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 gap-1.5 px-2 text-xs text-muted-foreground"
+                      onClick={handleResetSelection}
+                    >
+                      <RotateCcw size={13} />
+                      Restablecer
+                    </Button>
+                  </div>
 
-              {/* Actions */}
-              <div className="flex flex-col gap-2 pt-1">
+                  <div className="space-y-3">
+                    {requiredSlots.map(renderSlot)}
+                  </div>
+                </section>
+
+                {optionalSlots.length > 0 && (
+                  <section className="space-y-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-foreground">Componentes opcionales</h3>
+                      <p className="text-xs text-muted-foreground">Podés incluirlos o quitarlos según el caso de uso.</p>
+                    </div>
+
+                    <div className="space-y-3">
+                      {optionalSlots.map(renderSlot)}
+                    </div>
+                  </section>
+                )}
+
+                {!available && (
+                  <div className="flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-500">
+                    <AlertCircle size={18} className="mt-0.5 shrink-0" />
+                    <span>
+                      Hay componentes requeridos sin stock. Podes cotizarlo para consultar reemplazos o disponibilidad.
+                    </span>
+                  </div>
+                )}
+
+                <section className="rounded-2xl border border-border/70 bg-card/45 p-4">
+                  <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                    <ShieldCheck size={16} className="text-primary" />
+                    Resumen comercial
+                  </div>
+                  <div className="mt-3 space-y-2 text-sm">
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Subtotal</span>
+                      <span className="tabular-nums">{formatPrice(subtotal)}</span>
+                    </div>
+                    {hasDiscount && discountAmount > 0 && (
+                      <div className="flex justify-between text-emerald-500">
+                        <span>
+                          {bundle.discount_type === "percentage"
+                            ? `Descuento ${bundle.discount_pct}%`
+                            : "Precio fijo especial"}
+                        </span>
+                        <span className="tabular-nums">-{formatPrice(discountAmount)}</span>
+                      </div>
+                    )}
+                    <Separator />
+                    <div className="flex justify-between text-base font-bold text-foreground">
+                      <span>Total</span>
+                      <span className="tabular-nums">{available ? formatPrice(total) : "Consultar"}</span>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            <div className="border-t border-border/70 bg-background/95 px-5 py-4 shadow-[0_-18px_45px_-34px_rgba(0,0,0,0.65)] backdrop-blur">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase text-muted-foreground">Total final</p>
+                  <p className="mt-0.5 text-xl font-black text-foreground tabular-nums">
+                    {available ? formatPrice(total) : "Consultar"}
+                  </p>
+                </div>
+
+                <div className="flex items-center rounded-xl border border-border/70 bg-card/50 p-1">
+                  <button
+                    type="button"
+                    aria-label="Restar kit"
+                    onClick={() => setBundleQty((qty) => Math.max(1, qty - 1))}
+                    disabled={bundleQty <= 1}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted disabled:opacity-40"
+                  >
+                    <Minus size={14} />
+                  </button>
+                  <span className="w-9 text-center text-sm font-bold tabular-nums">{bundleQty}</span>
+                  <button
+                    type="button"
+                    aria-label="Sumar kit"
+                    onClick={() => setBundleQty((qty) => Math.min(10, qty + 1))}
+                    disabled={bundleQty >= 10}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted disabled:opacity-40"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
                 <Button
-                  onClick={handleAddToCart}
-                  disabled={!available || adding}
-                  className="w-full gap-2"
-                  size="lg"
+                  onClick={primaryAction.onClick}
+                  disabled={primaryAction.disabled}
+                  className="h-11 flex-1 gap-2"
                 >
-                  {adding
-                    ? <Loader2 size={16} className="animate-spin" />
-                    : <ShoppingCart size={16} />
-                  }
-                  Agregar al pedido{bundleQty > 1 ? ` (×${bundleQty})` : ""}
+                  {adding && available ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <primaryAction.icon size={16} />
+                  )}
+                  {primaryAction.label}
                 </Button>
 
-                <div className="flex gap-2">
-                  {onQuote && (
-                    <Button
-                      variant="outline"
-                      className="flex-1 gap-2"
-                      onClick={onQuote}
-                      size="lg"
-                    >
-                      <MessageSquare size={16} />
-                      Cotizar
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    className="gap-1.5 text-muted-foreground"
-                    onClick={handleResetSelection}
-                    size="lg"
-                    title="Restablecer configuración"
-                  >
-                    <RotateCcw size={14} />
-                    Restablecer
-                  </Button>
-                </div>
+                <Button
+                  variant="outline"
+                  className="h-11 w-11 px-0"
+                  onClick={handleResetSelection}
+                  title="Restablecer configuracion"
+                  aria-label="Restablecer configuracion"
+                >
+                  <RotateCcw size={16} />
+                </Button>
               </div>
+
+              {available && hasDiscount && discountAmount > 0 && (
+                <p className="mt-2 flex items-center justify-center gap-1.5 text-xs font-semibold text-emerald-500">
+                  <Sparkles size={13} />
+                  Ahorro aplicado: {formatPrice(discountAmount)}
+                </p>
+              )}
+
+              {!available && (
+                <p className="mt-2 flex items-center justify-center gap-1.5 text-xs font-semibold text-amber-500">
+                  <CheckCircle2 size={13} />
+                  Cotizá esta configuración y validamos alternativas.
+                </p>
+              )}
             </div>
           </>
         )}
