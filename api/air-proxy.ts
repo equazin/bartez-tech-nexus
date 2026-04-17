@@ -34,16 +34,15 @@ let tokenExpiresAt = 0; // Unix ms
 
 async function loginAir(user: string, pass: string): Promise<{ token: string; expiresAt: number }> {
   console.info("[air-proxy] Obtaining token via user/pass login...");
-  const loginRes = await fetch(`${AIR_BASE}/?q=login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user, pass }),
+  // AIR espera GET con credenciales en URL params (no POST+JSON)
+  const loginUrl = `${AIR_BASE}/?q=login&user=${encodeURIComponent(user)}&pass=${encodeURIComponent(pass)}`;
+  const loginRes = await fetch(loginUrl, {
     signal: AbortSignal.timeout(15_000),
   });
 
   if (!loginRes.ok) {
     const errText = await loginRes.text().catch(() => "");
-    throw new Error(`Login failed ${loginRes.status}: ${errText}`);
+    throw new Error(`Login AIR fallido (${loginRes.status}): ${errText}`);
   }
 
   const data = (await loginRes.json()) as Record<string, unknown>;
@@ -51,12 +50,12 @@ async function loginAir(user: string, pass: string): Promise<{ token: string; ex
   const expira = typeof data.expira === "number" ? data.expira : 0;
 
   if (!token) {
-    throw new Error(`Login response missing token: ${JSON.stringify(data)}`);
+    throw new Error(`Login AIR sin token en respuesta: ${JSON.stringify(data)}`);
   }
 
   // `expira` suele venir como epoch en segundos; si no, asumimos 8 horas.
   const expiresAt = expira > 1_000_000_000 ? expira * 1000 : Date.now() + 8 * 60 * 60 * 1000;
-  console.info("[air-proxy] Token obtained, expires at:", new Date(expiresAt).toISOString());
+  console.info("[air-proxy] Token obtenido, expira:", new Date(expiresAt).toISOString());
   return { token, expiresAt };
 }
 
@@ -85,7 +84,8 @@ async function resolveToken(forceRefresh = false): Promise<string> {
         console.warn("[air-proxy] Falling back to static AIR_API_TOKEN after login failure.");
         return staticToken;
       }
-      return "";
+      // Propagar el error real de login para que el cliente lo vea
+      throw new Error(`Login AIR fallido: ${msg}`);
     }
   }
 
@@ -139,7 +139,7 @@ export default async function handler(request: Request): Promise<Response> {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[air-proxy] resolveToken error:", msg);
-      token = "";
+      return json({ ok: false, error: msg }, 500);
     }
 
     if (!token) {
@@ -148,7 +148,7 @@ export default async function handler(request: Request): Promise<Response> {
         {
           ok: false,
           error:
-            "AIR token not configured. Set AIR_API_USER + AIR_API_PASS (recomendado) o AIR_API_TOKEN en las variables de entorno.",
+            "Credenciales AIR no configuradas. Seteá AIR_API_USER + AIR_API_PASS o AIR_API_TOKEN en las variables de entorno de Vercel.",
         },
         500
       );
