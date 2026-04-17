@@ -51,7 +51,7 @@ export function BundleCard({ bundle, formatPrice, onClick, clientMargin = 0 }: B
   return (
     <SurfaceCard
       tone="glass"
-      padding={false}
+      padding="none"
       className="cursor-pointer group hover:border-primary/40 transition-colors duration-150 flex flex-col"
       onClick={() => onClick(bundle.id)}
       role="button"

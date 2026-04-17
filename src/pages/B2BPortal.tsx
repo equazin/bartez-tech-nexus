@@ -234,7 +234,7 @@ export default function B2BPortal() {
       .filter((p) => {
         const inName = p.name.toLowerCase().includes(q);
         const inSku = p.sku ? p.sku.toLowerCase().includes(q) : false;
-        const inBrand = p.brand ? p.brand.toLowerCase().includes(q) : false;
+        const inBrand = p.brand_name ? p.brand_name.toLowerCase().includes(q) : false;
         return inName || inSku || inBrand;
       })
       .slice(0, 6)
@@ -242,7 +242,7 @@ export default function B2BPortal() {
         id: p.id,
         name: p.name,
         sku: p.sku ?? null,
-        brand: p.brand ?? null,
+        brand: p.brand_name ?? null,
         price: formatPrice(computePrice(p, 1).unitPrice),
         stock: getAvailableStock(p),
       }));

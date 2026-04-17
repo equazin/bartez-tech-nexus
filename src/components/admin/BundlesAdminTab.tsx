@@ -292,7 +292,7 @@ export function BundlesAdminTab({ products }: Props) {
         if (!product) continue;
         const alternatives: AlternativeOption[] = opts
           .filter((o) => o.id !== def.id)
-          .map((o) => {
+          .map((o): AlternativeOption | null => {
             const p = products.find((pr) => pr.id === o.product_id);
             return p ? { localId: o.id, optionId: o.id, product: p, quantity: o.quantity } : null;
           })

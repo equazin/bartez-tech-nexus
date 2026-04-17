@@ -18,12 +18,12 @@ import type {
 const OPTION_SELECT_FULL = `
   id, slot_id, product_id, is_default, sort_order, created_at,
   quantity, is_optional, is_replaceable,
-  products ( id, name, sku, unit_price, cost_price, stock, image, category )
+  products ( id, name, sku, cost_price, stock, image, category )
 ` as const;
 
 const OPTION_SELECT_MIN = `
   id, slot_id, product_id, is_default, sort_order, created_at,
-  products ( id, name, sku, unit_price, cost_price, stock, image, category )
+  products ( id, name, sku, cost_price, stock, image, category )
 ` as const;
 
 function isMissingColumnError(err: { code?: string; message?: string } | null | undefined): boolean {
@@ -245,11 +245,12 @@ export async function fetchBundle(id: string): Promise<BundleWithSlots | null> {
 
 /** Para el admin: trae todos los bundles (incluyendo inactivos pero excluyendo eliminados). */
 export async function fetchAllBundles(): Promise<Bundle[]> {
-  let { data, error } = await supabase
+  const { data: initialData, error } = await supabase
     .from("product_bundles")
     .select("*")
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
+  let data = initialData;
 
   if (error) {
     const isMissingColumn = error.code === "42703" || error.message?.includes("deleted_at");

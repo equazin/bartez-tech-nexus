@@ -139,11 +139,6 @@ export default function CartPage() {
   const cartKey     = `b2b_cart_${userId}`;
   const metaKey     = `b2b_cart_meta_${userId}`;
   const globalMargin = profile?.default_margin ?? 20;
-  const bundleCartMeta = useMemo<Record<number, { bundleId: string; bundleName: string }>>(() => {
-    try { return JSON.parse(localStorage.getItem(metaKey) || "{}"); }
-    catch { return {}; }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metaKey, cart]);
   const clientName  = profile?.company_name ?? profile?.contact_name ?? "Cliente";
 
   // -- Cart state (synced to localStorage) -------------------------------------
@@ -151,6 +146,11 @@ export default function CartPage() {
     try { return JSON.parse(localStorage.getItem(cartKey) || "{}"); }
     catch { return {}; }
   });
+  const bundleCartMeta = useMemo<Record<number, { bundleId: string; bundleName: string }>>(() => {
+    try { return JSON.parse(localStorage.getItem(metaKey) || "{}"); }
+    catch { return {}; }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metaKey, cart]);
   useEffect(() => {
     localStorage.setItem(cartKey, JSON.stringify(cart));
   }, [cart, cartKey]);
