@@ -18,7 +18,6 @@ import { Badge }     from "@/components/ui/badge";
 import { Switch }    from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { supabase } from "@/lib/supabase";
 import type { Product } from "@/models/products";
 import type { Bundle, BundleType, DiscountType } from "@/models/bundle";
 import { BUNDLE_TYPE_LABELS, DISCOUNT_TYPE_LABELS } from "@/models/bundle";
@@ -112,30 +111,70 @@ function titleToSlug(title: string): string {
     .trim().replace(/\s+/g, "-");
 }
 
-// ── AI description helper (outside component — pure) ─────────────────────────
+// ── Description generator (local — no API cost) ──────────────────────────────
 
 type BundleDescComponent = { label: string; product_name: string; quantity: number };
 
-async function generateBundleDescription(
+/** Extrae specs clave del nombre del producto usando patrones comunes. */
+function extractSpec(name: string): string {
+  const n = name.toUpperCase();
+
+  // Procesador
+  const cpu = n.match(/\b(CORE\s+I[3579][-\s]\d{4,5}\w*|RYZEN\s+[357]\s+\d{4}\w*|CELERON\s+\w+|PENTIUM\s+\w+|ATHLON\s+\w+|XEON\s+\w+)\b/);
+  if (cpu) return cpu[0].replace(/\s+/g, " ").trim();
+
+  // RAM
+  const ram = n.match(/\b(\d+\s*GB\s+(?:DDR[345]|RAM|SODIMM|DIMM)|\b(?:DDR[345])\s+\d+\s*GB)\b/);
+  if (ram) return ram[0].trim();
+
+  // Almacenamiento
+  const storage = n.match(/\b(\d+\s*(?:GB|TB)\s+(?:SSD|HDD|NVME|M\.2|SATA)|(?:SSD|HDD|NVME)\s+\d+\s*(?:GB|TB))\b/);
+  if (storage) return storage[0].trim();
+
+  // GPU
+  const gpu = n.match(/\b(RTX\s*\d{4}\w*|GTX\s*\d{4}\w*|RX\s*\d{4}\w*|RADEON\s+\w+|GEFORCE\s+\w+)\b/);
+  if (gpu) return gpu[0].trim();
+
+  // Monitor
+  const monitor = n.match(/\b(\d{2}"\s*(?:FHD|QHD|4K|IPS|VA|LED)?|\d{2}\s*PULGADAS?)\b/);
+  if (monitor) return monitor[0].trim();
+
+  // Fallback: primeras 4 palabras del nombre
+  return name.split(/\s+/).slice(0, 4).join(" ");
+}
+
+const TYPE_DESC: Record<string, string> = {
+  pc_armada: "PC armada y testeada, lista para usar desde el primer día",
+  esquema:   "esquema configurable de PC, adaptable a las necesidades de cada puesto de trabajo",
+  bundle:    "combo de productos tecnológicos seleccionados para trabajo profesional",
+};
+
+function generateBundleDescription(
   bundleType: string,
   bundleTitle: string,
   comps: BundleDescComponent[],
-): Promise<string> {
-  const { data, error } = await supabase.functions.invoke<{ ok: boolean; description?: string; error?: string }>(
-    "bundle-description-generator",
-    {
-      body: {
-        bundle_type:  bundleType,
-        bundle_title: bundleTitle,
-        components:   comps,
-      },
-    },
-  );
+): string {
+  const specs = comps.map(c => {
+    const spec  = extractSpec(c.product_name);
+    const label = c.label && c.label !== c.product_name ? `${c.label}: ` : "";
+    const qty   = c.quantity > 1 ? ` (x${c.quantity})` : "";
+    return `${label}${spec}${qty}`;
+  });
 
-  if (error) throw new Error(error.message ?? "Edge function error");
-  if (!data?.ok || !data.description) throw new Error(data?.error ?? "Respuesta vacía de la IA");
+  const typeDesc = TYPE_DESC[bundleType] ?? "bundle de tecnología";
 
-  return data.description;
+  // Oraciones de descripción
+  const intro = `${bundleTitle} es una ${typeDesc} orientada a empresas, integradores y revendedores.`;
+
+  const specLine = specs.length > 0
+    ? `Incluye ${specs.slice(0, 5).join(", ")}${specs.length > 5 ? ` y ${specs.length - 5} componente(s) más` : ""}.`
+    : "";
+
+  const closing = bundleType === "esquema"
+    ? "Ideal para equipar múltiples puestos con flexibilidad de configuración según el perfil del usuario."
+    : "Solución completa para optimizar la productividad y escalar el equipamiento IT de forma eficiente.";
+
+  return [intro, specLine, closing].filter(Boolean).join(" ");
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -151,7 +190,6 @@ export function BundlesAdminTab({ products }: Props) {
   const [config, setConfig]               = useState<BuilderConfig>(EMPTY_CONFIG);
   const [components, setComponents]       = useState<ComponentItem[]>([]);
   const [saving, setSaving]               = useState(false);
-  const [genDesc, setGenDesc]             = useState(false);
 
   // Product search (main)
   const [productSearch, setProductSearch]         = useState("");
@@ -178,26 +216,19 @@ export function BundlesAdminTab({ products }: Props) {
 
   // ── AI description generation ─────────────────────────────────────────────
 
-  const handleGenerateDescription = useCallback(async () => {
+  const handleGenerateDescription = useCallback(() => {
     if (components.length === 0) {
       toast.warning("Agregá al menos un componente antes de generar la descripción.");
       return;
     }
-    setGenDesc(true);
-    try {
-      const comps = components.map(c => ({
-        label:        c.label || c.product.name,
-        product_name: c.product.name,
-        quantity:     c.quantity,
-      }));
-      const description = await generateBundleDescription(config.type, config.title || "Bundle", comps);
-      setConfig(p => ({ ...p, description }));
-      toast.success("Descripción generada.");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al generar descripción.");
-    } finally {
-      setGenDesc(false);
-    }
+    const comps = components.map(c => ({
+      label:        c.label || c.product.name,
+      product_name: c.product.name,
+      quantity:     c.quantity,
+    }));
+    const description = generateBundleDescription(config.type, config.title || "Bundle", comps);
+    setConfig(p => ({ ...p, description }));
+    toast.success("Descripción generada.");
   }, [components, config.type, config.title]);
 
   // Close main search dropdown when clicking outside
@@ -802,13 +833,10 @@ export function BundlesAdminTab({ products }: Props) {
                     size="sm"
                     variant="ghost"
                     className="h-6 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
-                    disabled={genDesc || components.length === 0}
+                    disabled={components.length === 0}
                     onClick={handleGenerateDescription}
                   >
-                    {genDesc
-                      ? <><Loader2 className="h-3 w-3 animate-spin" /> Generando...</>
-                      : <><Sparkles className="h-3 w-3" /> Generar con IA</>
-                    }
+                    <Sparkles className="h-3 w-3" /> Auto-descripción
                   </Button>
                 </div>
                 <Textarea

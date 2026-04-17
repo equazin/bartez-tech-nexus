@@ -21,6 +21,12 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const MODEL             = "claude-haiku-4-5-20251001";
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin":  "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 interface ComponentInput {
   label: string;
   product_name: string;
@@ -68,34 +74,43 @@ Respondé ÚNICAMENTE con el texto de la descripción, sin comillas, sin prefijo
 // ── Main handler ─────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { status: 200, headers: CORS_HEADERS });
+  }
+
   if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
+    return new Response("Method not allowed", { status: 405, headers: CORS_HEADERS });
   }
 
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
-    return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), { status: 401 });
+    return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
+      status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
   }
+
+  const JSON_HEADERS = { ...CORS_HEADERS, "Content-Type": "application/json" };
 
   if (!ANTHROPIC_API_KEY) {
     return new Response(JSON.stringify({
       ok: false,
       error: "ANTHROPIC_API_KEY not configured. Set it in Supabase Dashboard → Edge Functions → Secrets.",
-    }), { status: 200 });
+    }), { status: 200, headers: JSON_HEADERS });
   }
 
   let body: RequestBody;
   try {
     body = await req.json() as RequestBody;
   } catch {
-    return new Response(JSON.stringify({ ok: false, error: "Invalid JSON body" }), { status: 400 });
+    return new Response(JSON.stringify({ ok: false, error: "Invalid JSON body" }), { status: 400, headers: JSON_HEADERS });
   }
 
   if (!body.bundle_title?.trim() || !Array.isArray(body.components) || body.components.length === 0) {
     return new Response(JSON.stringify({
       ok: false,
       error: "bundle_title and at least one component are required",
-    }), { status: 400 });
+    }), { status: 400, headers: JSON_HEADERS });
   }
 
   try {
@@ -130,14 +145,14 @@ Deno.serve(async (req: Request) => {
 
     return new Response(JSON.stringify({ ok: true, description }), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: JSON_HEADERS,
     });
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return new Response(JSON.stringify({ ok: false, error: msg }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: JSON_HEADERS,
     });
   }
 });
