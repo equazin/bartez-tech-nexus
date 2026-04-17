@@ -18,6 +18,8 @@ import { Badge }     from "@/components/ui/badge";
 import { Switch }    from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { supabase } from "@/lib/supabase";
+import { storageUrl, BUNDLES_BUCKET } from "@/lib/constants";
 import type { Product } from "@/models/products";
 import type { Bundle, BundleType, DiscountType } from "@/models/bundle";
 import { BUNDLE_TYPE_LABELS, DISCOUNT_TYPE_LABELS } from "@/models/bundle";
@@ -190,6 +192,9 @@ export function BundlesAdminTab({ products }: Props) {
   const [config, setConfig]               = useState<BuilderConfig>(EMPTY_CONFIG);
   const [components, setComponents]       = useState<ComponentItem[]>([]);
   const [saving, setSaving]               = useState(false);
+  const [imageFile, setImageFile]         = useState<File | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Product search (main)
   const [productSearch, setProductSearch]         = useState("");
@@ -251,6 +256,7 @@ export function BundlesAdminTab({ products }: Props) {
     setProductSearch("");
     setAltSearch({});
     setShowAltSearch({});
+    setImageFile(null);
     setView("builder");
   }
 
@@ -272,6 +278,7 @@ export function BundlesAdminTab({ products }: Props) {
     setProductSearch("");
     setAltSearch({});
     setShowAltSearch({});
+    setImageFile(null);
     setView("builder");
 
     try {
@@ -498,12 +505,28 @@ export function BundlesAdminTab({ products }: Props) {
     if (!config.title.trim()) { toast.error("El título es obligatorio."); return; }
     setSaving(true);
     try {
+      // Upload image if a file was selected
+      let finalImageUrl = config.image_url.trim() || null;
+      if (imageFile) {
+        setImageUploading(true);
+        const ext  = imageFile.name.split(".").pop() ?? "jpg";
+        const path = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from(BUNDLES_BUCKET)
+          .upload(path, imageFile, { upsert: true });
+        setImageUploading(false);
+        if (upErr) throw new Error(`Error subiendo imagen: ${upErr.message}`);
+        finalImageUrl = storageUrl(BUNDLES_BUCKET, path);
+        setConfig(p => ({ ...p, image_url: finalImageUrl ?? "" }));
+        setImageFile(null);
+      }
+
       const payload = {
         title:               config.title.trim(),
         slug:                config.slug.trim() || titleToSlug(config.title),
         description:         config.description.trim() || null,
         type:                config.type,
-        image_url:           config.image_url.trim() || null,
+        image_url:           finalImageUrl,
         discount_type:       config.discount_type,
         discount_pct:        config.discount_type === "percentage" ? Number(config.discount_pct) : 0,
         fixed_price:         config.discount_type === "fixed" && config.fixed_price
@@ -849,21 +872,69 @@ export function BundlesAdminTab({ products }: Props) {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs">URL de imagen de portada</Label>
-                <Input
-                  value={config.image_url}
-                  onChange={(e) => setConfig((p) => ({ ...p, image_url: e.target.value }))}
-                  placeholder="https://..."
-                  className="h-9 text-xs"
+                <Label className="text-xs">Imagen de portada</Label>
+
+                {/* Upload button */}
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setImageFile(file);
+                    // Local preview
+                    setConfig(p => ({ ...p, image_url: URL.createObjectURL(file) }));
+                  }}
                 />
-                {config.image_url && (
-                  <img
-                    src={config.image_url}
-                    alt="preview"
-                    className="mt-1.5 h-24 w-full rounded-xl object-cover border border-border/40"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+
+                {/* Preview + actions */}
+                {(config.image_url || imageFile) ? (
+                  <div className="relative group">
+                    <img
+                      src={config.image_url}
+                      alt="preview"
+                      className="h-28 w-full rounded-xl object-cover border border-border/40"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                    {imageFile && (
+                      <div className="absolute top-1.5 left-1.5 rounded-md bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                        Sin subir — se guarda al crear/guardar
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => { setImageFile(null); setConfig(p => ({ ...p, image_url: "" })); }}
+                      className="absolute top-1.5 right-1.5 rounded-full bg-background/80 p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ) : null}
+
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs flex-1"
+                    onClick={() => imageInputRef.current?.click()}
+                    disabled={imageUploading}
+                  >
+                    {imageUploading
+                      ? <><Loader2 className="h-3 w-3 animate-spin" /> Subiendo...</>
+                      : <><ImageIcon className="h-3 w-3" /> Subir imagen</>
+                    }
+                  </Button>
+                  <Input
+                    value={imageFile ? "" : config.image_url}
+                    onChange={(e) => { setImageFile(null); setConfig((p) => ({ ...p, image_url: e.target.value })); }}
+                    placeholder="o pegar URL..."
+                    className="h-8 text-xs flex-1"
+                    disabled={!!imageFile}
                   />
-                )}
+                </div>
               </div>
             </CardContent>
           </Card>

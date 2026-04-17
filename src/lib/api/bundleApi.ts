@@ -52,14 +52,30 @@ function mapOption(opt: any) {
  * Usado en home, catálogo con filtro "Kits" y CatalogSection bundles context.
  */
 export async function fetchActiveBundles(): Promise<BundleWithSlots[]> {
-  const { data: bundles, error: bundlesErr } = await supabase
+  // Try with deleted_at filter (migration 091). If the column doesn't exist yet,
+  // fall back to querying without it so the portal still works.
+  let { data: bundles, error: bundlesErr } = await supabase
     .from("product_bundles")
     .select("*")
     .eq("active", true)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
-  if (bundlesErr) throw bundlesErr;
+  if (bundlesErr) {
+    // "42703" = column does not exist (migration 091 not applied yet)
+    const isMissingColumn = bundlesErr.code === "42703" ||
+      bundlesErr.message?.includes("deleted_at");
+    if (!isMissingColumn) throw bundlesErr;
+
+    // Retry without deleted_at filter
+    const fallback = await supabase
+      .from("product_bundles")
+      .select("*")
+      .eq("active", true)
+      .order("created_at", { ascending: false });
+    if (fallback.error) throw fallback.error;
+    bundles = fallback.data;
+  }
   if (!bundles || bundles.length === 0) return [];
 
   const bundleIds = bundles.map((b) => b.id);
@@ -161,13 +177,22 @@ export async function fetchBundle(id: string): Promise<BundleWithSlots | null> {
 
 /** Para el admin: trae todos los bundles (incluyendo inactivos pero excluyendo eliminados). */
 export async function fetchAllBundles(): Promise<Bundle[]> {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("product_bundles")
     .select("*")
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
-  if (error) throw error;
+  if (error) {
+    const isMissingColumn = error.code === "42703" || error.message?.includes("deleted_at");
+    if (!isMissingColumn) throw error;
+    const fallback = await supabase
+      .from("product_bundles")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (fallback.error) throw fallback.error;
+    data = fallback.data;
+  }
   return (data ?? []).map((b) => ({
     ...b,
     type: b.type ?? "bundle",
