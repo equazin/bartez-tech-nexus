@@ -306,6 +306,7 @@ const Admin = () => {
   const [showCreateOrder, setShowCreateOrder] = useState(false);
   const [confirmZeroStock, setConfirmZeroStock] = useState(false);
   const [deletingZeroStock, setDeletingZeroStock] = useState(false);
+  const [zeroStockCount, setZeroStockCount] = useState(0);
   const [newClient, setNewClient] = useState({ email: "", password: "", phone: "", company_name: "", contact_name: "", client_type: "reseller" as ClientType, default_margin: 20, role: "client" as "client" | "cliente" | "admin" | "vendedor" });
   const [creatingClient, setCreatingClient] = useState(false);
   const [createError, setCreateError] = useState("");
@@ -421,12 +422,128 @@ const Admin = () => {
   const [singleGenResult, setSingleGenResult] = useState<{ description_short?: string; description_full?: string; specs?: Record<string, string> } | null>(null);
   const [singleGenError, setSingleGenError] = useState<string | null>(null);
 
+  function chunkNumbers(values: number[], chunkSize = 500): number[][] {
+    const chunks: number[][] = [];
+    for (let index = 0; index < values.length; index += chunkSize) {
+      chunks.push(values.slice(index, index + chunkSize));
+    }
+    return chunks;
+  }
+
+  async function refreshZeroStockCount() {
+    const { count, error } = await supabase
+      .from("products")
+      .select("id", { count: "exact", head: true })
+      .eq("stock", 0);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    setZeroStockCount(count ?? 0);
+  }
+
+  async function fetchZeroStockProductIds(): Promise<number[]> {
+    const pageSize = 1000;
+    const ids: number[] = [];
+    let from = 0;
+
+    while (true) {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id")
+        .eq("stock", 0)
+        .order("id", { ascending: true })
+        .range(from, from + pageSize - 1);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      const batch = ((data ?? []) as Array<{ id: number }>).map((row) => row.id);
+      ids.push(...batch);
+      if (batch.length < pageSize) {
+        break;
+      }
+      from += pageSize;
+    }
+
+    return ids;
+  }
+
+  async function fetchProtectedProductIds(productIds: number[]): Promise<Set<number>> {
+    const protectedIds = new Set<number>();
+
+    for (const chunk of chunkNumbers(productIds)) {
+      const [
+        orderItemsResult,
+        bundleOptionsResult,
+        configurationsResult,
+      ] = await Promise.all([
+        supabase.from("order_items").select("product_id").in("product_id", chunk),
+        supabase.from("bundle_slot_options").select("product_id").in("product_id", chunk),
+        supabase.from("product_configurations").select("base_product_id").in("base_product_id", chunk),
+      ]);
+
+      if (orderItemsResult.error) throw new Error(orderItemsResult.error.message);
+      if (bundleOptionsResult.error) throw new Error(bundleOptionsResult.error.message);
+      if (configurationsResult.error) throw new Error(configurationsResult.error.message);
+
+      ((orderItemsResult.data ?? []) as Array<{ product_id: number | null }>).forEach((row) => {
+        if (typeof row.product_id === "number") protectedIds.add(row.product_id);
+      });
+      ((bundleOptionsResult.data ?? []) as Array<{ product_id: number | null }>).forEach((row) => {
+        if (typeof row.product_id === "number") protectedIds.add(row.product_id);
+      });
+      ((configurationsResult.data ?? []) as Array<{ base_product_id: number | null }>).forEach((row) => {
+        if (typeof row.base_product_id === "number") protectedIds.add(row.base_product_id);
+      });
+    }
+
+    return protectedIds;
+  }
+
   async function deleteZeroStockProducts() {
     setDeletingZeroStock(true);
-    await supabase.from("products").delete().eq("stock", 0);
-    setConfirmZeroStock(false);
-    setDeletingZeroStock(false);
-    fetchProducts();
+    try {
+      const zeroStockIds = await fetchZeroStockProductIds();
+      if (zeroStockIds.length === 0) {
+        setConfirmZeroStock(false);
+        await refreshZeroStockCount();
+        toast.success("No hay productos con stock 0 para eliminar.");
+        return;
+      }
+
+      const protectedIds = await fetchProtectedProductIds(zeroStockIds);
+      const deletableIds = zeroStockIds.filter((id) => !protectedIds.has(id));
+
+      if (deletableIds.length === 0) {
+        toast.error("No se pudo eliminar ningún producto sin stock porque están vinculados a pedidos, bundles o configuraciones.");
+        return;
+      }
+
+      for (const chunk of chunkNumbers(deletableIds)) {
+        const { error } = await supabase.from("products").delete().in("id", chunk);
+        if (error) {
+          throw new Error(error.message);
+        }
+      }
+
+      const skippedCount = zeroStockIds.length - deletableIds.length;
+      setConfirmZeroStock(false);
+      await fetchProducts();
+      await refreshZeroStockCount();
+      toast.success(
+        skippedCount > 0
+          ? `Se eliminaron ${deletableIds.length} productos sin stock. ${skippedCount} quedaron protegidos por referencias.`
+          : `Se eliminaron ${deletableIds.length} productos sin stock.`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudieron eliminar los productos sin stock.";
+      toast.error(message);
+    } finally {
+      setDeletingZeroStock(false);
+    }
   }
 
   async function fetchProducts() {
@@ -440,6 +557,11 @@ const Admin = () => {
         setProducts([]);
       }
       await fetchProductApiSources();
+      try {
+        await refreshZeroStockCount();
+      } catch {
+        setZeroStockCount(0);
+      }
       setLoadingProducts(false);
       return;
     }
@@ -460,7 +582,13 @@ const Admin = () => {
     }
     if (all.length > 0) setProducts(all);
     else setProducts([]);
+    setProductsTotal(all.length);
     await fetchProductApiSources();
+    try {
+      await refreshZeroStockCount();
+    } catch {
+      setZeroStockCount(0);
+    }
     setLoadingProducts(false);
   }
 
@@ -1930,7 +2058,7 @@ async function handleCreateSeller() {
               <div><SupplierPriceImport isDark={isDark} /></div>
               <div><BulkDeleteProducts isDark={isDark} onDone={fetchProducts} /></div>
               {(() => {
-                const zeroCount = products.filter((p) => (p.stock ?? 0) === 0).length;
+                const zeroCount = zeroStockCount;
                 return (
                   <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5 space-y-3`}>
                     <div>

@@ -245,7 +245,7 @@ export default function ProductTable({
   const [selected,     setSelected]     = useState<Set<number>>(new Set());
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 50;
+  const PAGE_SIZE = 40;
 
   // Inline cell edit
   const [inlineCell,  setInlineCell]  = useState<{ id: number; field: "cost_price" | "stock" } | null>(null);
