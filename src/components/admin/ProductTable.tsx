@@ -347,6 +347,7 @@ export default function ProductTable({
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const allVisibleSelected = paginated.length > 0 && paginated.every((product) => selected.has(product.id));
 
   // Reset page when filters change
   useEffect(() => { setPage(1); }, [search, filterCat, filterBrand, filterStatus, sortField, sortDir]);
@@ -397,8 +398,17 @@ export default function ProductTable({
 
   // ── Selection ────────────────────────────────────────────────
   function toggleAll() {
-    if (selected.size === filtered.length) setSelected(new Set());
-    else setSelected(new Set(filtered.map((p) => p.id)));
+    setSelected((prev) => {
+      const next = new Set(prev);
+
+      if (allVisibleSelected) {
+        paginated.forEach((product) => next.delete(product.id));
+      } else {
+        paginated.forEach((product) => next.add(product.id));
+      }
+
+      return next;
+    });
   }
   function toggleOne(id: number) {
     setSelected((prev) => toggleSetValue(prev, id));
@@ -696,7 +706,7 @@ export default function ProductTable({
             <thead className={`border-b ${dk("bg-[#1a1a1a] border-[#2a2a2a]", "bg-[#f5f5f5] border-[#e5e5e5]")}`}>
               <tr>
                 <th className="px-3 py-3 w-8">
-                  <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0}
+                  <input type="checkbox" checked={allVisibleSelected}
                     onChange={toggleAll}
                     className="accent-[#2D9F6A] w-3.5 h-3.5 cursor-pointer" />
                 </th>

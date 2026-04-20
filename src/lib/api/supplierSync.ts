@@ -38,6 +38,7 @@ export interface SupplierSyncResult {
 
 export interface SupplierSyncOptions {
   existingProductsMode?: "full" | "price_only";
+  createMissingProducts?: boolean;
   perRecordTimeoutMs?: number;
   onProgress?: (snapshot: {
     processed: number;
@@ -1104,6 +1105,7 @@ export async function syncSupplierCatalogRecords(
   let updated = 0;
   let skipped = 0;
   const existingMode = options.existingProductsMode ?? "full";
+  const createMissingProducts = options.createMissingProducts ?? true;
   const perRecordTimeoutMs = options.perRecordTimeoutMs ?? 20000;
   let processed = 0;
   let totalWork = records.length;
@@ -1142,6 +1144,11 @@ export async function syncSupplierCatalogRecords(
         const wasExisting = Boolean(product);
 
         if (!product) {
+          if (!createMissingProducts && !record.forceCreate) {
+            skipped++;
+            return;
+          }
+
           product = await insertCatalogProduct(record);
           context.products.push(product);
           context.productById.set(product.id, product);

@@ -220,6 +220,7 @@ export async function syncAirPricesStock(
       .filter((record) => record.supplierExternalId);
 
     const result = await syncSupplierCatalogRecords(records, userId, {
+      createMissingProducts: false,
       onProgress: (snapshot) => {
         report({
           processed: snapshot.processed,
