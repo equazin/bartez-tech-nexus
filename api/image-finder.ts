@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
-export const config = { maxDuration: 60 };
+export const config = { maxDuration: 120 };
 
 // ---------------------------------------------------------------------------
 // Types
@@ -172,6 +172,16 @@ async function fetchWithTimeout(input: string, init: RequestInit = {}, ms = 8000
   } finally {
     clearTimeout(timer);
   }
+}
+
+function mergeUniqueImages(candidates: ImageResult[]): ImageResult[] {
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => {
+    const normalizedUrl = candidate.url.split("?")[0].toLowerCase();
+    if (seen.has(normalizedUrl)) return false;
+    seen.add(normalizedUrl);
+    return true;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -501,25 +511,29 @@ export default async function handler(request: Request): Promise<Response> {
     const query = buildQuery(product);
     const strictQuery = buildQuery(product, true);
 
-    // Run all sources in parallel with individual timeouts already set
-    const [supplierImages, serperImages, mlImages, bingImages] = await Promise.all([
+    // Prioritize the fastest/highest-signal sources first to avoid Vercel timeouts.
+    const [supplierImages, serperImages, mlImages] = await Promise.all([
       getSupplierImages(supabase, product.id).catch(() => [] as ImageResult[]),
       searchSerper(query).catch(() => [] as ImageResult[]),
       searchMercadoLibre(strictQuery).catch(() => [] as ImageResult[]),
-      searchBing(query).catch(() => [] as ImageResult[]),
     ]);
 
-    const allCandidates: ImageResult[] = [
+    let allCandidates = mergeUniqueImages([
       ...supplierImages,
       ...serperImages,
       ...mlImages,
-      ...bingImages,
-    ];
+    ]);
 
-    // SerpAPI fallback only if we have too few candidates
+    // Bing is slower and noisier; use it only when the primary sources found too little.
+    if (allCandidates.length < 2) {
+      const bingImages = await searchBing(query).catch(() => [] as ImageResult[]);
+      allCandidates = mergeUniqueImages([...allCandidates, ...bingImages]);
+    }
+
+    // SerpAPI fallback only if we still have too few candidates
     if (allCandidates.length < 3) {
       const serpImages = await searchSerpApi(query).catch(() => [] as ImageResult[]);
-      allCandidates.push(...serpImages);
+      allCandidates = mergeUniqueImages([...allCandidates, ...serpImages]);
     }
 
     if (allCandidates.length === 0) {
@@ -542,13 +556,7 @@ export default async function handler(request: Request): Promise<Response> {
     }
 
     // Deduplicate & sort by score
-    const urlSeen = new Set<string>();
-    const unique = allCandidates.filter((c) => {
-      const normalizedUrl = c.url.split("?")[0].toLowerCase();
-      if (urlSeen.has(normalizedUrl)) return false;
-      urlSeen.add(normalizedUrl);
-      return true;
-    });
+    const unique = mergeUniqueImages(allCandidates);
     unique.sort((a, b) => b.score - a.score);
 
     const top3 = unique.slice(0, 3);

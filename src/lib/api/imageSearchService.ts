@@ -35,7 +35,7 @@ export type ImageSearchFilter = "missing_only" | "all" | "by_category";
 // Configuration
 // ---------------------------------------------------------------------------
 
-const BATCH_SIZE = 5;
+const BATCH_SIZE = 2;
 
 function resolveApiBaseUrl(): string {
   const configured = (import.meta.env.VITE_API_BASE_URL || "").trim();
