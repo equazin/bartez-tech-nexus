@@ -477,6 +477,11 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
     onSyncDone?.();
   }
 
+  async function handleAirIncoming() {
+    await air.runIncomingSync();
+    onSyncDone?.();
+  }
+
   async function handleElitCatalog() {
     await elit.runCatalogSync();
     onSyncDone?.();
@@ -1030,11 +1035,14 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
           running={air.running}
           onFullSync={handleAirCatalog}
           onDeltaSync={handleAirDelta}
+          onExtraAction={handleAirIncoming}
           onPreview={() => openPreview("air")}
           fullLabel="Sync catalogo AIR"
           fullHelp="Descarga y consolida todo el catalogo AIR."
           deltaLabel="Sync precios/stock AIR"
           deltaHelp="Actualiza costos y stock sin reprocesar todo."
+          extraActionLabel="Sync entrantes AIR"
+          extraActionHelp="Solo agrega productos con stock entrante y fecha estimada."
           previewLabel="Preview y seleccion"
           previewHelp="Muestra una vista previa para elegir que traer."
           isDark={isDark}
@@ -1342,11 +1350,14 @@ interface SupplierCardProps {
   running: boolean;
   onFullSync: () => Promise<void>;
   onDeltaSync: () => Promise<void>;
+  onExtraAction?: () => Promise<void>;
   onPreview: () => Promise<void>;
   fullLabel: string;
   fullHelp: string;
   deltaLabel: string;
   deltaHelp: string;
+  extraActionLabel?: string;
+  extraActionHelp?: string;
   previewLabel: string;
   previewHelp: string;
   isDark?: boolean;
@@ -1361,11 +1372,14 @@ function SupplierCard({
   running,
   onFullSync,
   onDeltaSync,
+  onExtraAction,
   onPreview,
   fullLabel,
   fullHelp,
   deltaLabel,
   deltaHelp,
+  extraActionLabel,
+  extraActionHelp,
   previewLabel,
   previewHelp,
   isDark = true,
@@ -1396,13 +1410,13 @@ function SupplierCard({
         </div>
         {lastSync && (
           <div className={`text-right text-[11px] ${dk("text-gray-500", "text-[#737373]")}`}>
-            <p>{lastSync.type === "catalog" ? "Catalogo" : "Incremental"}</p>
+            <p>{lastSync.type === "catalog" ? "Catalogo" : lastSync.type === "incoming" ? "Entrantes" : "Incremental"}</p>
             <p>{new Date(lastSync.finishedAt).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })}</p>
           </div>
         )}
       </div>
 
-      <div className="grid sm:grid-cols-3 gap-3 mb-5">
+      <div className={`grid gap-3 mb-5 ${onExtraAction ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
         <div className={`rounded-xl border p-2.5 ${dk("border-[#1f1f1f] bg-[#0f0f0f]", "border-[#e9e9e9] bg-[#fcfcfc]")}`}>
           <button
             onClick={() => { void onFullSync(); }}
@@ -1429,6 +1443,21 @@ function SupplierCard({
             ({deltaHelp})
           </p>
         </div>
+        {onExtraAction && extraActionLabel && extraActionHelp ? (
+          <div className={`rounded-xl border p-2.5 ${dk("border-[#1f1f1f] bg-[#0f0f0f]", "border-[#e9e9e9] bg-[#fcfcfc]")}`}>
+            <button
+              onClick={() => { void onExtraAction(); }}
+              disabled={running}
+              className={`w-full flex items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-semibold transition disabled:opacity-40 ${dk("border border-[#2a2a2a] bg-[#171717] text-sky-300 hover:bg-[#1e1e1e]", "border border-[#dcdcdc] bg-white text-sky-700 hover:bg-[#f5f5f5]")}`}
+            >
+              <Clock size={14} />
+              {running ? "Sincronizando..." : extraActionLabel}
+            </button>
+            <p className={`mt-2 px-1 text-[11px] leading-relaxed ${dk("text-gray-500", "text-[#737373]")}`}>
+              ({extraActionHelp})
+            </p>
+          </div>
+        ) : null}
         <div className={`rounded-xl border p-2.5 ${dk("border-[#1f1f1f] bg-[#0f0f0f]", "border-[#e9e9e9] bg-[#fcfcfc]")}`}>
           <button
             onClick={() => { void onPreview(); }}

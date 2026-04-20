@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
-export type SupplierSyncType = "catalog" | "delta" | "syp";
+export type SupplierSyncType = "catalog" | "delta" | "syp" | "incoming";
 
 export interface SupplierSyncSnapshot {
   type: SupplierSyncType;

@@ -14,6 +14,7 @@ import { PriceSparkline } from "@/components/PriceSparkline";
 import type { PriceResult } from "@/hooks/usePricing";
 import { getAvailableStock } from "@/lib/pricing";
 import { resolveProductImageUrl } from "@/lib/productImage";
+import { getAirIncomingStock, getPreferredLeadTimeDays } from "@/lib/stockUtils";
 import { subscribeStockNotification, unsubscribeStockNotification, isSubscribedToStockNotification } from "@/lib/api/stockNotifications";
 import type { Product } from "@/models/products";
 
@@ -177,6 +178,8 @@ export function ProductDetailModal({
   const priceInfo = computePrice(product, Math.max(inCart, 1));
   const { unitPrice, ivaAmount, ivaRate, totalWithIVA, originalUnitPrice, isOffer, calculatedOfferPercent } = priceInfo;
   const availableStock = getAvailableStock(product);
+  const incomingStock = getAirIncomingStock(product);
+  const leadTimeDays = getPreferredLeadTimeDays(product) || undefined;
   const outOfStock = availableStock === 0;
 
   // Stock notification subscription state
@@ -216,9 +219,12 @@ export function ProductDetailModal({
   const deliveryLabel = findCommercialSpec(product, ["lead_time", "entrega", "plazo"])
     ?? (availableStock > 0 ? "Entrega inmediata / stock operativo" : "Entrega bajo confirmación comercial");
   const priceStatusLabel = isOffer ? "Precio promocional vigente" : "Precio mayorista visible para tu cuenta";
+  const resolvedDeliveryLabel = leadTimeDays && availableStock <= 0 && incomingStock > 0
+    ? `Entrante AIR · ingreso estimado en ${leadTimeDays} dÃ­as hÃ¡biles`
+    : deliveryLabel;
   const commercialSignals = [
-    { label: "Stock", value: availableStock > 0 ? `${availableStock} unidades operativas` : "Sin stock inmediato" },
-    { label: "Entrega", value: deliveryLabel },
+    { label: "Stock", value: availableStock > 0 ? `${availableStock} unidades operativas` : incomingStock > 0 ? `${incomingStock} unidades entrantes` : "Sin stock inmediato" },
+    { label: "Entrega", value: resolvedDeliveryLabel },
     { label: "Garantía", value: warrantyLabel },
     { label: "Condición", value: product.min_order_qty && product.min_order_qty > 1 ? `Pedido mínimo ${product.min_order_qty} unidades` : "Venta directa disponible" },
   ];
@@ -423,7 +429,7 @@ export function ProductDetailModal({
                     ) : null}
                   </div>
                 </div>
-                <StockBadge stock={product.stock} />
+                <StockBadge stock={product.stock} incomingStock={incomingStock} />
               </div>
 
               <div className="rounded-2xl border border-border/70 bg-surface/70 p-4">
@@ -501,7 +507,7 @@ export function ProductDetailModal({
                 <div className="divide-y divide-border/40">
                   <div className="px-3 py-3 flex items-center justify-between gap-3">
                     <span className="text-[11px] font-medium text-muted-foreground">Entrega</span>
-                    <DeliveryEstimate stock={product.stock} stockReserved={product.stock_reserved} compact />
+                    <DeliveryEstimate stock={product.stock} stockReserved={product.stock_reserved} leadTimeDays={leadTimeDays} compact />
                   </div>
                   <div className="px-3 py-3 flex items-center justify-between gap-3">
                     <span className="text-[11px] font-medium text-muted-foreground">Garantía</span>
@@ -510,7 +516,7 @@ export function ProductDetailModal({
                   <div className="px-3 py-3 flex items-center justify-between gap-3">
                     <span className="text-[11px] font-medium text-muted-foreground">Stock</span>
                     <span className="text-sm font-semibold text-foreground">
-                      {availableStock > 0 ? `${availableStock} unidades disponibles` : "Sin stock inmediato"}
+                      {availableStock > 0 ? `${availableStock} unidades disponibles` : incomingStock > 0 ? `${incomingStock} unidades entrantes` : "Sin stock inmediato"}
                     </span>
                   </div>
                   <div className="px-3 py-3 flex items-center justify-between gap-3">

@@ -3,6 +3,7 @@ import {
   getLastSync,
   saveLastSync,
   syncAirCatalog,
+  syncAirIncomingCatalog,
   syncAirPricesStock,
   syncSelectedAirProducts,
   type LastSyncInfo,
@@ -35,7 +36,7 @@ export function useAirSync(userId?: string) {
         if (!remote || !active) return;
 
         const info: LastSyncInfo = {
-          type: remote.type === "syp" ? "syp" : "catalog",
+          type: remote.type === "syp" ? "syp" : remote.type === "incoming" ? "incoming" : "catalog",
           finishedAt: remote.finishedAt,
           inserted: remote.inserted,
           updated: remote.updated,
@@ -122,6 +123,30 @@ export function useAirSync(userId?: string) {
     return result;
   }, [persistSnapshot, running, userId]);
 
+  const runIncomingSync = useCallback(async () => {
+    if (running) return;
+    setRunning(true);
+    let result;
+    try {
+      result = await syncAirIncomingCatalog((p) => setProgress({ ...p }), userId);
+    } finally {
+      setRunning(false);
+    }
+
+    if (result?.phase === "done") {
+      const info: LastSyncInfo = {
+        type: "incoming",
+        finishedAt: result.finishedAt!,
+        inserted: result.inserted,
+        updated: result.updated,
+        errors: result.errors.length,
+      };
+      await persistSnapshot(info);
+    }
+
+    return result;
+  }, [persistSnapshot, running, userId]);
+
   const runSelectedCatalogSync = useCallback(async (
     products: AirProduct[],
     options?: { forceCreateExternalIds?: string[] }
@@ -149,5 +174,5 @@ export function useAirSync(userId?: string) {
     return result;
   }, [persistSnapshot, running, userId]);
 
-  return { progress, lastSync, running, runCatalogSync, runSypSync, runSelectedCatalogSync };
+  return { progress, lastSync, running, runCatalogSync, runSypSync, runIncomingSync, runSelectedCatalogSync };
 }

@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { ArrowRight, Layers } from "lucide-react";
 import { StockBadge } from "@/components/b2b/StockBadge";
 import { resolveProductImageUrl } from "@/lib/productImage";
+import { getAirIncomingStock } from "@/lib/stockUtils";
 import { cn } from "@/lib/utils";
 import type { PriceResult } from "@/hooks/usePricing";
 import type { Product } from "@/models/products";
@@ -79,6 +80,7 @@ export function RelatedProducts({
         {related.map((product) => {
           const price = computePrice(product, 1);
           const available = Math.max(0, product.stock - (product.stock_reserved ?? 0));
+          const incomingStock = getAirIncomingStock(product);
           const imgSrc = resolveProductImageUrl(product.image);
 
           return (
@@ -114,7 +116,7 @@ export function RelatedProducts({
 
               <div className="mt-auto space-y-2">
                 <div className="flex items-center justify-center gap-2">
-                  <StockBadge stock={available} />
+                  <StockBadge stock={available} incomingStock={incomingStock} />
                 </div>
 
                 <div className="flex items-center justify-between gap-1">

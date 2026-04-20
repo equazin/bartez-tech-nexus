@@ -1039,6 +1039,7 @@ async function reconcileCatalogProducts(
             preferred_supplier_cost_currency: preferred.source_currency ?? "USD",
             preferred_supplier_source_cost: preferred.source_cost_price ?? nextPrice,
             preferred_supplier_exchange_rate: preferred.source_exchange_rate ?? null,
+            preferred_supplier_lead_time_days: preferred.lead_time_days ?? 0,
           };
 
           const shouldUpdateProduct =

@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { DataTableShell } from "@/components/ui/data-table-shell";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getAirIncomingStock } from "@/lib/stockUtils";
 import type { Product } from "@/models/products";
 
 import { QuickAddControl } from "./QuickAddControl";
@@ -91,6 +92,7 @@ export function ProductTable({
             const price = getPriceInfo(product, Math.max(inCart, 1));
             const finalPrice = price.unitPrice;
             const available = Math.max(0, product.stock - (product.stock_reserved ?? 0));
+            const incomingStock = getAirIncomingStock(product);
             const outOfStock = available === 0;
             const wasAdded = addedIds.has(product.id);
             const isFavorite = favoriteProductIds.includes(product.id);
@@ -127,7 +129,7 @@ export function ProductTable({
                   </TableCell>
                 )}
                 <TableCell className="text-center">
-                  <StockBadge stock={available} />
+                  <StockBadge stock={available} incomingStock={incomingStock} />
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {!isCompact && price.isOffer && price.originalUnitPrice > finalPrice ? (

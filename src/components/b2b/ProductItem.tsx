@@ -4,10 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { preloadProductImage, resolveProductImageUrl } from "@/lib/productImage";
+import { getAirIncomingStock, getPreferredLeadTimeDays } from "@/lib/stockUtils";
 import { cn } from "@/lib/utils";
 import { StockBadge } from "./StockBadge";
 import { DeliveryEstimate } from "./DeliveryEstimate";
-import { WarrantyBadge } from "./WarrantyBadge";
 import { QuickAddControl } from "./QuickAddControl";
 import type { Product } from "@/models/products";
 
@@ -27,12 +27,6 @@ function resolveDeliveryLabel(available: number): string | null {
   if (available <= 0) return null;
   const days = available >= 5 ? 1 : 2;
   return `Llega ${nextBusinessDay(days)}`;
-}
-
-function resolveCommercialSignals(product: Product, available: number) {
-  return [
-    product.min_order_qty && product.min_order_qty > 1 ? `Min. ${product.min_order_qty}u` : "Venta unitaria",
-  ].filter(Boolean);
 }
 
 interface ProductItemProps {
@@ -85,8 +79,9 @@ export function ProductItem({
   isCustomPrice = false,
 }: ProductItemProps) {
   const available = Math.max(0, product.stock - (product.stock_reserved ?? 0));
+  const incomingStock = getAirIncomingStock(product);
+  const leadTimeDays = getPreferredLeadTimeDays(product) || undefined;
   const outOfStock = available === 0;
-  const commercialSignals = resolveCommercialSignals(product, available);
   const [imageSrc, setImageSrc] = useState(() => resolveProductImageUrl(product.image));
   const handlePreviewIntent = () => preloadProductImage(product.image);
 
@@ -197,13 +192,16 @@ export function ProductItem({
                 <span className="text-[11px] text-muted-foreground truncate">{product.category}</span>
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
-                <StockBadge stock={available} />
+                <StockBadge stock={available} incomingStock={incomingStock} />
 
                 {resolveDeliveryLabel(available) ? (
                   <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/20 bg-sky-500/8 px-2 py-0.5 text-[10px] font-semibold text-sky-600 dark:text-sky-400 shrink-0">
                     <CalendarClock size={9} />
                     {resolveDeliveryLabel(available)}
                   </span>
+                ) : null}
+                {available === 0 && leadTimeDays ? (
+                  <DeliveryEstimate stock={product.stock} stockReserved={product.stock_reserved} leadTimeDays={leadTimeDays} compact />
                 ) : null}
 
                 {product.supplier_name ? (
@@ -347,7 +345,7 @@ export function ProductItem({
           </div>
           
           <div className="flex flex-wrap items-center gap-1.5">
-            <StockBadge stock={available} size="md" />
+            <StockBadge stock={available} incomingStock={incomingStock} size="md" />
 
             {/* Fecha estimada de entrega */}
             {resolveDeliveryLabel(available) ? (
@@ -355,6 +353,9 @@ export function ProductItem({
                 <CalendarClock size={10} />
                 {resolveDeliveryLabel(available)}
               </span>
+            ) : null}
+            {available === 0 && leadTimeDays ? (
+              <DeliveryEstimate stock={product.stock} stockReserved={product.stock_reserved} leadTimeDays={leadTimeDays} compact />
             ) : null}
 
             {/* Garantía oficial — cuando viene de proveedor oficial */}

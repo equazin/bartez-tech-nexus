@@ -4,15 +4,25 @@ import { Clock } from "lucide-react";
 interface StockBadgeProps {
   stock: number;
   lugStock?: number;
+  incomingStock?: number;
   size?: "sm" | "md";
 }
 
-export function StockBadge({ stock, lugStock = 0, size = "sm" }: StockBadgeProps) {
+export function StockBadge({ stock, lugStock = 0, incomingStock = 0, size = "sm" }: StockBadgeProps) {
   const base = size === "md"
     ? "inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full shrink-0"
     : "inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0";
   const dot = size === "md" ? "w-2 h-2 rounded-full" : "w-1.5 h-1.5 rounded-full";
 
+  if (stock === 0 && incomingStock > 0)
+    return (
+      <span
+        className={`${base} bg-sky-500/10 text-sky-600 border border-sky-500/20 dark:text-sky-400`}
+        title={`${incomingStock} unidades entrantes`}
+      >
+        <Clock size={size === "md" ? 11 : 10} /> Entrante
+      </span>
+    );
   if (stock === 0 && lugStock > 0)
     return (
       <span className={`${base} bg-blue-500/10 text-blue-500 border border-blue-500/20 dark:text-blue-400`}>

@@ -17,7 +17,7 @@ const PHASE_LABELS: Record<string, string> = {
 };
 
 export function AirSyncTab({ isDark = true, userId, onSyncDone }: Props) {
-  const { progress, lastSync, running, runCatalogSync, runSypSync } = useAirSync(userId);
+  const { progress, lastSync, running, runCatalogSync, runSypSync, runIncomingSync } = useAirSync(userId);
   const dk = (dark: string, light: string) => (isDark ? dark : light);
 
   const card = `border rounded-xl p-5 ${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")}`;
@@ -32,6 +32,11 @@ export function AirSyncTab({ isDark = true, userId, onSyncDone }: Props) {
 
   async function handleSyp() {
     await runSypSync();
+    onSyncDone?.();
+  }
+
+  async function handleIncoming() {
+    await runIncomingSync();
     onSyncDone?.();
   }
 
@@ -50,7 +55,7 @@ export function AirSyncTab({ isDark = true, userId, onSyncDone }: Props) {
           <div className={`text-right text-xs ${dk("text-gray-500", "text-[#a3a3a3]")}`}>
             <p>
               Ultima sync:{" "}
-              <span className="font-semibold">{lastSync.type === "catalog" ? "Catalogo" : "Precios/Stock"}</span>
+              <span className="font-semibold">{lastSync.type === "catalog" ? "Catalogo" : lastSync.type === "incoming" ? "Entrantes" : "Precios/Stock"}</span>
             </p>
             <p>{new Date(lastSync.finishedAt).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })}</p>
             <p className="text-[#2D9F6A]">
@@ -60,7 +65,7 @@ export function AirSyncTab({ isDark = true, userId, onSyncDone }: Props) {
         )}
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-4">
+      <div className="grid sm:grid-cols-3 gap-4">
         <div className={card}>
           <div className="flex items-start gap-3 mb-4">
             <div className="h-9 w-9 rounded-lg bg-[#2D9F6A]/10 border border-[#2D9F6A]/20 flex items-center justify-center shrink-0">
@@ -104,6 +109,28 @@ export function AirSyncTab({ isDark = true, userId, onSyncDone }: Props) {
           >
             <Zap size={14} />
             {running ? "Sincronizando..." : "Sync rapido precios/stock"}
+          </button>
+        </div>
+
+        <div className={card}>
+          <div className="flex items-start gap-3 mb-4">
+            <div className="h-9 w-9 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center shrink-0">
+              <Package size={16} className="text-sky-400" />
+            </div>
+            <div>
+              <p className={`font-semibold text-sm ${dk("text-white", "text-[#171717]")}`}>Sync entrantes AIR</p>
+              <p className={`text-xs mt-0.5 ${dk("text-gray-500", "text-[#737373]")}`}>
+                Solo agrega productos con stock entrante y los marca con ingreso estimado.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleIncoming}
+            disabled={running}
+            className={`w-full flex items-center justify-center gap-2 text-sm font-bold py-2.5 rounded-lg border transition disabled:opacity-40 disabled:pointer-events-none ${dk("bg-[#1a1a1a] hover:bg-[#222] border-[#2a2a2a] text-sky-300 hover:text-sky-200", "bg-sky-50 hover:bg-sky-100 border-sky-200 text-sky-700")}`}
+          >
+            <Package size={14} />
+            {running ? "Sincronizando..." : "Sync solo entrantes"}
           </button>
         </div>
       </div>

@@ -19,7 +19,7 @@ vi.mock("@/lib/api/supplierSync", () => ({
   syncSupplierCatalogRecords: syncSupplierCatalogRecordsMock,
 }));
 
-import { syncAirCatalog, syncAirPricesStock } from "@/lib/api/airSync";
+import { syncAirCatalog, syncAirIncomingCatalog, syncAirPricesStock } from "@/lib/api/airSync";
 
 describe("air sync flows", () => {
   beforeEach(() => {
@@ -71,6 +71,43 @@ describe("air sync flows", () => {
     expect(syncSupplierCatalogRecordsMock).toHaveBeenCalledTimes(1);
     expect(syncSupplierCatalogRecordsMock.mock.calls[0][2]).toMatchObject({
       createMissingProducts: false,
+    });
+  });
+
+  it("syncs only AIR products with incoming stock in incoming mode", async () => {
+    fetchAllAirProductsMock.mockResolvedValue([
+      {
+        codigo: "SKU-IN",
+        descrip: "Producto entrante",
+        precio: 40,
+        ros: { disponible: 0, entrante: 6 },
+        lug: { disponible: 0, entrante: 0 },
+        estado: { id: "P" },
+        impuesto_iva: { alicuota: 21 },
+      },
+      {
+        codigo: "SKU-OUT",
+        descrip: "Producto normal",
+        precio: 20,
+        ros: { disponible: 4, entrante: 0 },
+        lug: { disponible: 0, entrante: 0 },
+        estado: { id: "P" },
+        impuesto_iva: { alicuota: 21 },
+      },
+    ]);
+
+    await syncAirIncomingCatalog();
+
+    expect(syncSupplierCatalogRecordsMock).toHaveBeenCalledTimes(1);
+    expect(syncSupplierCatalogRecordsMock.mock.calls[0][0]).toHaveLength(1);
+    expect(syncSupplierCatalogRecordsMock.mock.calls[0][0][0]).toMatchObject({
+      supplierExternalId: "SKU-IN",
+      stockAvailable: 0,
+      leadTimeDays: 5,
+      metadata: {
+        air_incoming_stock: "6",
+        air_incoming_lead_days: "5",
+      },
     });
   });
 });
