@@ -1,16 +1,18 @@
+import { extractAirJsonPayload } from "../src/lib/suppliers/air/response";
+
 /**
  * Proxy serverless para la API AIR Intranet.
- * Evita CORS agregando autenticación Bearer en el servidor.
+ * Evita CORS agregando autenticacion Bearer en el servidor.
  *
  * Variables de entorno requeridas (al menos una de las dos opciones):
- *   Opción A — credenciales (se obtiene y refresca el token automáticamente):
+ *   Opcion A - credenciales (se obtiene y refresca el token automaticamente):
  *     AIR_API_USER = <usuario AIR>
- *     AIR_API_PASS = <contraseña AIR>
+ *     AIR_API_PASS = <contrasena AIR>
  *
- *   Opción B — token directo (fallback si no hay user/pass):
+ *   Opcion B - token directo (fallback si no hay user/pass):
  *     AIR_API_TOKEN = <token emitido por AIR>
  *
- * Cuando ambas están presentes se prefiere user/pass porque el token estático
+ * Cuando ambas estan presentes se prefiere user/pass porque el token estatico
  * caduca silenciosamente y provoca 403 persistentes.
  */
 
@@ -25,16 +27,13 @@ const ALLOWED_QUERIES = new Set([
   "get_meta",
 ]);
 
-// Edge Runtime: no hard Lambda timeout. Allow up to 4.5 min for large catalog pages.
 const UPSTREAM_TIMEOUT_MS = 270_000;
 
-// ── Token cache (module-scope, survives warm instances) ──────────────────────
 let cachedToken = "";
-let tokenExpiresAt = 0; // Unix ms
+let tokenExpiresAt = 0;
 
 async function loginAir(user: string, pass: string): Promise<{ token: string; expiresAt: number }> {
   console.info("[air-proxy] Obtaining token via user/pass login...");
-  // AIR espera GET con credenciales en URL params (no POST+JSON)
   const loginUrl = `${AIR_BASE}/?q=login&user=${encodeURIComponent(user)}&pass=${encodeURIComponent(pass)}`;
   const loginRes = await fetch(loginUrl, {
     signal: AbortSignal.timeout(15_000),
@@ -45,16 +44,22 @@ async function loginAir(user: string, pass: string): Promise<{ token: string; ex
     throw new Error(`Login AIR fallido (${loginRes.status}): ${errText}`);
   }
 
-  const data = (await loginRes.json()) as Record<string, unknown>;
+  const rawText = await loginRes.text();
+  const payload = extractAirJsonPayload(rawText);
+  if (!payload) {
+    throw new Error(`Login AIR devolvio una respuesta invalida: ${rawText.slice(0, 300)}`);
+  }
+
+  const data = JSON.parse(payload.jsonText) as Record<string, unknown>;
   const token = typeof data.token === "string" ? data.token.trim() : "";
   const expira = typeof data.expira === "number" ? data.expira : 0;
 
   if (!token) {
-    throw new Error(`Login AIR sin token en respuesta: ${JSON.stringify(data)}`);
+    throw new Error(`Login AIR sin token en respuesta: ${payload.jsonText}`);
   }
 
-  // `expira` suele venir como epoch en segundos; si no, asumimos 8 horas.
-  const expiresAt = expira > 1_000_000_000 ? expira * 1000 : Date.now() + 8 * 60 * 60 * 1000;
+  const expiresAt =
+    expira > 1_000_000_000 ? expira * 1000 : Date.now() + 8 * 60 * 60 * 1000;
   console.info("[air-proxy] Token obtenido, expira:", new Date(expiresAt).toISOString());
   return { token, expiresAt };
 }
@@ -64,8 +69,6 @@ async function resolveToken(forceRefresh = false): Promise<string> {
   const pass = process.env.AIR_API_PASS?.trim();
   const staticToken = process.env.AIR_API_TOKEN?.trim() || process.env.AIR_TOKEN?.trim();
 
-  // Preferimos user/pass cuando están disponibles: el token estático se
-  // vence sin aviso y no hay forma de recuperar el servicio sin redeploy.
   if (user && pass) {
     if (!forceRefresh && cachedToken && Date.now() < tokenExpiresAt - 5 * 60 * 1000) {
       return cachedToken;
@@ -79,24 +82,51 @@ async function resolveToken(forceRefresh = false): Promise<string> {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[air-proxy] Auto-login error:", msg);
-      // Si falla el login pero tenemos token estático, usarlo como último recurso.
       if (staticToken) {
         console.warn("[air-proxy] Falling back to static AIR_API_TOKEN after login failure.");
         return staticToken;
       }
-      // Propagar el error real de login para que el cliente lo vea
       throw new Error(`Login AIR fallido: ${msg}`);
     }
   }
 
-  // Sin credenciales → solo nos queda el token estático.
   return staticToken ?? "";
 }
 
-// ── Handler ──────────────────────────────────────────────────────────────────
+function parseAirPayload(rawText: string): Record<string, unknown> | null {
+  const payload = extractAirJsonPayload(rawText);
+  if (!payload) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(payload.jsonText) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function isAirRateLimit(payload: Record<string, unknown> | null): boolean {
+  if (!payload) {
+    return false;
+  }
+
+  if (payload.error_id === 403) {
+    return true;
+  }
+
+  if (typeof payload.error_name === "string" && payload.error_name.toLowerCase().includes("too many")) {
+    return true;
+  }
+
+  if (typeof payload.error === "string" && payload.error.toLowerCase().includes("rate limit")) {
+    return true;
+  }
+
+  return false;
+}
 
 export default async function handler(request: Request): Promise<Response> {
-  // CORS preflight
   if (request.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
@@ -121,13 +151,9 @@ export default async function handler(request: Request): Promise<Response> {
     return json({ ok: false, error: "Missing or disallowed query parameter." }, 400);
   }
 
-  // Siempre enviar JSON válido — AIR devuelve 500 con body vacío y 403 si falta Content-Type.
   const rawBody = await request.text().catch(() => "");
   const body = rawBody.trim() ? rawBody : "{}";
-
-  // Build upstream AIR URL forwarding all query params (q, page, etc.)
   const airUrl = `${AIR_BASE}/?${url.searchParams.toString()}`;
-
   const hasCredentials = Boolean(
     process.env.AIR_API_USER?.trim() && process.env.AIR_API_PASS?.trim()
   );
@@ -148,7 +174,7 @@ export default async function handler(request: Request): Promise<Response> {
         {
           ok: false,
           error:
-            "Credenciales AIR no configuradas. Seteá AIR_API_USER + AIR_API_PASS o AIR_API_TOKEN en las variables de entorno de Vercel.",
+            "Credenciales AIR no configuradas. Settea AIR_API_USER + AIR_API_PASS o AIR_API_TOKEN en las variables de entorno de Vercel.",
         },
         500
       );
@@ -165,24 +191,24 @@ export default async function handler(request: Request): Promise<Response> {
         signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       });
 
+      const rawText = await airRes.text().catch(() => "");
+      const payload = extractAirJsonPayload(rawText);
+
       if (!airRes.ok) {
-        const errBody = await airRes.text().catch(() => "(no body)");
+        const errBody = (payload?.jsonText ?? rawText) || "(no body)";
         console.error(`[air-proxy] AIR returned ${airRes.status} for q=${q}: ${errBody}`);
 
-        // Detectar rate-limit (error_id:403 "Too many queries") vs error de auth.
-        let isRateLimit = false;
-        try {
-          const parsed = JSON.parse(errBody) as Record<string, unknown>;
-          if (parsed.error_id === 403 || (typeof parsed.error_name === "string" && parsed.error_name.toLowerCase().includes("too many"))) {
-            isRateLimit = true;
-          }
-        } catch { /* no-JSON */ }
-
-        if (isRateLimit) {
-          return json({ ok: false, error: "Rate limit AIR — esperá 5 minutos antes de volver a sincronizar.", detail: errBody }, 429);
+        if (isAirRateLimit(parseAirPayload(errBody))) {
+          return json(
+            {
+              ok: false,
+              error: "Rate limit AIR - espera 5 minutos antes de volver a sincronizar.",
+              detail: errBody,
+            },
+            429
+          );
         }
 
-        // Invalidar cache solo en errores de autenticación reales.
         if (airRes.status === 401 || airRes.status === 403) {
           cachedToken = "";
           tokenExpiresAt = 0;
@@ -192,31 +218,42 @@ export default async function handler(request: Request): Promise<Response> {
           JSON.stringify({ ok: false, error: `AIR HTTP ${airRes.status}`, detail: errBody }),
           {
             status: airRes.status,
-            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+            headers: {
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*",
+            },
           }
         );
       }
 
-      // Detectar respuestas HTML de AIR (página de error PHP / redirect de login)
-      const ct = airRes.headers.get("content-type") ?? "";
-      if (!ct.includes("application/json") && !ct.includes("text/plain") && !ct.includes("application/octet-stream")) {
-        const errBody = await airRes.text().catch(() => "(no body)");
-        console.error(`[air-proxy] AIR devolvió contenido no-JSON (${ct}) para q=${q}: ${errBody.slice(0, 300)}`);
-        cachedToken = "";
-        tokenExpiresAt = 0;
-        return json(
-          { ok: false, error: `AIR devolvió respuesta inválida — posible token expirado. Reintentá en unos segundos.`, detail: errBody.slice(0, 500) },
-          502
-        );
+      if (payload) {
+        if (payload.extracted) {
+          console.warn(
+            `[air-proxy] Sanitized AIR payload for q=${q} after removing leading/trailing noise.`
+          );
+        }
+
+        return new Response(payload.jsonText, {
+          status: airRes.status,
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            "Access-Control-Allow-Origin": "*",
+          },
+        });
       }
 
-      return new Response(airRes.body, {
-        status: airRes.status,
-        headers: {
-          "Content-Type": ct || "application/json",
-          "Access-Control-Allow-Origin": "*",
+      const ct = airRes.headers.get("content-type") ?? "";
+      console.error(`[air-proxy] AIR devolvio contenido no-JSON (${ct}) para q=${q}: ${rawText.slice(0, 300)}`);
+      cachedToken = "";
+      tokenExpiresAt = 0;
+      return json(
+        {
+          ok: false,
+          error: "AIR devolvio respuesta invalida - posible token expirado. Reintenta en unos segundos.",
+          detail: rawText.slice(0, 500),
         },
-      });
+        502
+      );
     } catch (err) {
       const isTimeout =
         (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) ||
@@ -226,33 +263,30 @@ export default async function handler(request: Request): Promise<Response> {
       return json(
         {
           ok: false,
-          error: isTimeout ? "AIR API timeout — intenta de nuevo" : `Proxy network error: ${message}`,
+          error: isTimeout ? "AIR API timeout - intenta de nuevo" : `Proxy network error: ${message}`,
         },
         isTimeout ? 504 : 502
       );
     }
   };
 
-  // Primer intento con token cacheado / estático.
   const firstResponse = await executeRequest(false);
 
-  // Solo reintentamos si el error es de autenticación (token vencido), NO si es rate-limit.
-  // AIR usa 403 para ambos casos — distinguimos por error_id en el body.
-  // También reintentamos con 502 porque puede indicar respuesta HTML (token expirado).
   if (firstResponse.status === 401 || firstResponse.status === 403 || firstResponse.status === 502) {
     let isRateLimit = false;
     try {
       const clone = firstResponse.clone();
-      const body = await clone.json() as Record<string, unknown>;
-      // AIR devuelve error_id:403 para rate-limit, distinto de un 403 por token inválido.
-      if (body.error_id === 403 || (typeof body.error_name === "string" && body.error_name.toLowerCase().includes("too many"))) {
-        isRateLimit = true;
+      const body = (await clone.json()) as Record<string, unknown>;
+      isRateLimit = isAirRateLimit(body);
+      if (isRateLimit) {
         console.warn(`[air-proxy] Rate limit hit for q=${q}. Wait 5 minutes before retrying.`);
       }
-    } catch { /* non-JSON — asumir error de auth */ }
+    } catch {
+      // Non-JSON response, treat as auth issue.
+    }
 
     if (!isRateLimit && hasCredentials) {
-      console.warn(`[air-proxy] Upstream ${firstResponse.status} — reintentando con token fresco.`);
+      console.warn(`[air-proxy] Upstream ${firstResponse.status} - retrying with a fresh token.`);
       return executeRequest(true);
     }
   }
@@ -260,12 +294,14 @@ export default async function handler(request: Request): Promise<Response> {
   return firstResponse;
 }
 
-// Run as Edge Function — no hard Lambda timeout; streaming responses can run indefinitely.
 export const config = { runtime: "edge" };
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    },
   });
 }

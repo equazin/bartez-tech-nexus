@@ -8,18 +8,8 @@ import pricingHandler from "./api/pricing";
 import productsHandler from "./api/products";
 import emailHandler from "./api/email";
 import checkoutHandler from "./api/checkout";
-
-const AIR_BASE = "https://api.air-intra.com/v2";
+import airProxyHandler from "./api/air-proxy";
 const ELIT_BASE = "https://clientes.elit.com.ar/v1/api";
-
-const AIR_ALLOWED_QUERIES = new Set([
-  "check_token",
-  "catalogo",
-  "articulos",
-  "syp",
-  "syp_list",
-  "get_meta",
-]);
 
 const ELIT_ALLOWED_PATHS = new Set(["productos"]);
 
@@ -122,6 +112,17 @@ function devApiProxyPlugin(env: Record<string, string>): PluginOption {
           }
         }
 
+        if (requestUrl && pathname === "/api/air-proxy") {
+          try {
+            await invokeFetchHandler(req, res, requestUrl, airProxyHandler);
+            return;
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            sendJson(res, 500, { ok: false, error: message });
+            return;
+          }
+        }
+
         const MAPPING: Record<string, { handler: any; scope?: string; resource?: string }> = {
           "/api/users":       { handler: usersHandler },
           "/api/create-user": { handler: usersHandler },
@@ -164,7 +165,7 @@ function devApiProxyPlugin(env: Record<string, string>): PluginOption {
           }
         }
 
-        if (pathname !== "/api/air-proxy" && pathname !== "/api/elit-proxy") {
+        if (pathname !== "/api/elit-proxy") {
           next();
           return;
         }
@@ -175,39 +176,6 @@ function devApiProxyPlugin(env: Record<string, string>): PluginOption {
         }
 
         try {
-          if (pathname === "/api/air-proxy") {
-            const q = requestUrl?.searchParams.get("q") ?? "";
-            const baseQuery = q.split("&")[0];
-            if (!q || !AIR_ALLOWED_QUERIES.has(baseQuery)) {
-              sendJson(res, 400, { ok: false, error: "Missing or disallowed query parameter." });
-              return;
-            }
-
-            const token =
-              resolveEnvValue(env, "AIR_API_TOKEN") ||
-              resolveEnvValue(env, "AIR_TOKEN") ||
-              resolveEnvValue(env, "VITE_AIR_TOKEN");
-
-            if (!token) {
-              sendJson(res, 500, { ok: false, error: "AIR token not configured." });
-              return;
-            }
-
-            const rawBody = await readRequestBody(req);
-            const airUrl = `${AIR_BASE}/?${requestUrl?.searchParams.toString() ?? ""}`;
-            const upstream = await fetch(airUrl, {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-              body: rawBody || undefined,
-            });
-
-            await sendFetchResponse(res, upstream);
-            return;
-          }
-
           const pathParam = requestUrl?.searchParams.get("path") ?? "";
           if (!pathParam || !ELIT_ALLOWED_PATHS.has(pathParam)) {
             sendJson(res, 400, { ok: false, error: "Missing or disallowed path parameter." });
@@ -276,6 +244,8 @@ export default defineConfig(({ mode }) => {
     "VITE_SUPABASE_ANON_KEY",
     "SUPABASE_SERVICE_ROLE_KEY",
     "AIR_API_TOKEN",
+    "AIR_API_USER",
+    "AIR_API_PASS",
     "AIR_TOKEN",
     "VITE_AIR_TOKEN",
     "ELIT_API_USER_ID",
