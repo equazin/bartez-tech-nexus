@@ -18,6 +18,7 @@ const CorporateSolutions = lazy(() => import("./pages/CorporateSolutions"));
 const ITServices = lazy(() => import("./pages/ITServices"));
 const B2BSolutions = lazy(() => import("./pages/B2BSolutions"));
 const IndustrySolutions = lazy(() => import("./pages/IndustrySolutions"));
+const PointOfSaleSolutions = lazy(() => import("./pages/PointOfSaleSolutions"));
 const About = lazy(() => import("./pages/About"));
 const Contact = lazy(() => import("./pages/Contact"));
 const Login = lazy(() => import("./pages/Login"));
@@ -102,6 +103,7 @@ const App = () => (
                     <Route path="/partnership" element={<B2BSolutions />} />
                     <Route path="/empresas" element={<B2BSolutions />} />
                     <Route path="/soluciones-por-industria" element={<IndustrySolutions />} />
+                    <Route path="/puntos-de-venta" element={<PointOfSaleSolutions />} />
                     <Route path="/nosotros" element={<About />} />
                     <Route path="/contacto" element={<Contact />} />
                     <Route path="/evaluacion-tecnologica" element={<QuoteRequest />} />

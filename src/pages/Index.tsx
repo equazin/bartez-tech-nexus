@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, Shield, Server, Monitor, Headphones, CheckCircle2, Building2, Network, TrendingUp, Globe, Briefcase, Settings, ClipboardCheck, Wrench } from "lucide-react";
+import { ArrowRight, Shield, Server, Monitor, Headphones, CheckCircle2, Building2, Network, TrendingUp, Globe, Briefcase, Settings, ClipboardCheck, Wrench, Store, PackageCheck, ScanBarcode, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Layout from "@/components/Layout";
 import SectionHeading from "@/components/SectionHeading";
@@ -55,6 +55,24 @@ const trustItems = [
   "Cobertura en Todo el País",
   "Facturación A y B",
   "Soporte Post-Implementación",
+];
+
+const POS_WHATSAPP_URL =
+  "https://wa.me/5493415104902?text=Hola%2C%20quiero%20cotizar%20un%20punto%20de%20venta%20completo%20para%20mi%20kiosco%20o%20minisuper.%20Necesito%20equipos%20y%20sistema%20listos%20para%20empezar.";
+
+const posSegments = ["Kioscos", "Minisúper", "Almacenes", "Retail"];
+
+const posHighlights = [
+  { icon: Store, title: "Kit completo", desc: "Terminal, pantalla, impresora, lector y cajón preparados para mostrador." },
+  { icon: PackageCheck, title: "Sistema listo", desc: "POS configurado para ventas, tickets, caja e inventario inicial." },
+  { icon: Headphones, title: "Puesta en marcha", desc: "Acompañamiento para que el comercio empiece a operar sin vueltas." },
+];
+
+const posEquipment = [
+  { icon: Monitor, label: "Terminal o PC" },
+  { icon: Printer, label: "Impresora térmica" },
+  { icon: ScanBarcode, label: "Lector de códigos" },
+  { icon: Shield, label: "Soporte inicial" },
 ];
 
 const Index = () => {
@@ -221,6 +239,107 @@ const Index = () => {
             ))}
           </div>
         </div>
+      </section>
+
+      {/* Point of Sale Solutions */}
+      <section className="relative">
+        <div className="section-divider" />
+        <div className="bg-surface py-20 lg:py-28">
+          <div className="container mx-auto px-4 lg:px-8">
+            <div className="grid gap-12 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
+              <div>
+                <SectionHeading
+                  badge="Puntos de Venta"
+                  title="Puntos de venta completos"
+                  highlight="para comercios"
+                  description="Equipos y sistema listos para operar en kioscos, minisúper, almacenes y locales que necesitan cobrar, imprimir tickets y controlar stock desde el primer día."
+                  center={false}
+                />
+                <div className="mb-8 flex flex-wrap gap-2">
+                  {posSegments.map((segment) => (
+                    <span
+                      key={segment}
+                      className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary"
+                    >
+                      {segment}
+                    </span>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    asChild
+                    className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 h-11 px-6 text-sm"
+                    onClick={() => trackCTAClick("home_pos_whatsapp_quote")}
+                  >
+                    <a href={POS_WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
+                      Cotizar punto de venta <ArrowRight size={14} className="ml-2" />
+                    </a>
+                  </Button>
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="border-border/60 text-foreground hover:bg-secondary h-11 px-6 text-sm"
+                    onClick={() => trackCTAClick("home_pos_view_page")}
+                  >
+                    <Link to="/puntos-de-venta">
+                      Ver solución POS
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ duration: 0.55 }}
+                className="card-enterprise overflow-hidden rounded-2xl p-6 lg:p-8"
+              >
+                <div className="mb-6 flex items-center justify-between gap-4 border-b border-border/40 pb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="icon-container h-12 w-12 text-primary">
+                      <Store size={22} />
+                    </div>
+                    <div>
+                      <h3 className="font-display text-lg font-bold text-foreground">Kit POS llave en mano</h3>
+                      <p className="text-xs text-muted-foreground">Equipos + sistema + puesta en marcha</p>
+                    </div>
+                  </div>
+                  <span className="hidden rounded-full bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary sm:inline-flex">
+                    Listo para usar
+                  </span>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {posEquipment.map((item) => (
+                    <div key={item.label} className="flex items-center gap-3 rounded-xl border border-border/50 bg-background/40 p-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <item.icon size={16} />
+                      </div>
+                      <span className="text-sm font-medium text-secondary-foreground">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-6 grid gap-4 md:grid-cols-3">
+                  {posHighlights.map((highlight, i) => (
+                    <div key={highlight.title} className="rounded-xl border border-border/40 bg-card/80 p-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <highlight.icon size={17} className="text-primary" />
+                        <span className="font-display text-lg font-extrabold text-border/70">
+                          {String(i + 1).padStart(2, "0")}
+                        </span>
+                      </div>
+                      <h4 className="font-display text-sm font-semibold text-foreground">{highlight.title}</h4>
+                      <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{highlight.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            </div>
+          </div>
+        </div>
+        <div className="section-divider" />
       </section>
 
       {/* Corporate Solutions (Secondary Support) */}

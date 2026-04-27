@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Phone, ChevronDown, Server, Network, Monitor, Wrench, Shield, Headphones, Building2, Globe } from "lucide-react";
+import { Menu, X, Phone, ChevronDown, Server, Network, Monitor, Wrench, Shield, Headphones, Building2, Globe, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 
 const solucionesLinks = [
   { label: "Soluciones Corporativas", href: "/soluciones-corporativas", icon: Building2, desc: "Infraestructura, redes y equipamiento" },
+  { label: "Puntos de Venta", href: "/puntos-de-venta", icon: Store, desc: "Kits POS listos para operar" },
   { label: "Tecnología", href: "/tecnologia", icon: Monitor, desc: "Catálogo de productos" },
   { label: "Industrias", href: "/soluciones-por-industria", icon: Globe, desc: "Soluciones por sector" },
   { label: "Partnership B2B", href: "/partnership", icon: Wrench, desc: "Provisión mayorista e integradores" },

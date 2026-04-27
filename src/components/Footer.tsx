@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 const footerLinks = {
   soluciones: [
     { label: "Soluciones Corporativas", href: "/soluciones-corporativas" },
+    { label: "Puntos de Venta", href: "/puntos-de-venta" },
     { label: "Soluciones por Industria", href: "/soluciones-por-industria" },
     { label: "Tecnología Corporativa", href: "/tecnologia" },
     { label: "Servicios IT", href: "/servicios-it" },

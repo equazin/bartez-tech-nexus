@@ -19,6 +19,12 @@
   </url>
 
   <url>
+    <loc>https://www.bartez.com.ar/puntos-de-venta</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
     <loc>https://www.bartez.com.ar/servicios-it</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
