@@ -14,6 +14,7 @@ import { refreshUTMs, track, getOrCreateSession } from "@/lib/marketingTracker";
 
 const Index = lazy(() => import("./pages/Index"));
 const Products = lazy(() => import("./pages/Products"));
+const PointOfSale = lazy(() => import("./pages/PointOfSale"));
 const CorporateSolutions = lazy(() => import("./pages/CorporateSolutions"));
 const ITServices = lazy(() => import("./pages/ITServices"));
 const B2BSolutions = lazy(() => import("./pages/B2BSolutions"));
@@ -98,6 +99,7 @@ const App = () => (
                     <Route path="/" element={<Index />} />
                     <Route path="/tecnologia" element={<Products />} />
                     <Route path="/productos" element={<Products />} />
+                    <Route path="/puntos-de-venta" element={<PointOfSale />} />
                     <Route path="/soluciones-corporativas" element={<CorporateSolutions />} />
                     <Route path="/servicios-it" element={<ITServices />} />
                     <Route path="/partnership" element={<B2BSolutions />} />

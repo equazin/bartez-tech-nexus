@@ -8,6 +8,7 @@ const solucionesLinks = [
   { label: "Soluciones Corporativas", href: "/soluciones-corporativas", icon: Building2, desc: "Infraestructura, redes y equipamiento" },
   { label: "Puntos de Venta", href: "/puntos-de-venta", icon: Store, desc: "Kits POS listos para operar" },
   { label: "Tecnología", href: "/tecnologia", icon: Monitor, desc: "Catálogo de productos" },
+  { label: "Punto de Venta", href: "/puntos-de-venta", icon: Store, desc: "Kits POS para comercios" },
   { label: "Industrias", href: "/soluciones-por-industria", icon: Globe, desc: "Soluciones por sector" },
   { label: "Partnership B2B", href: "/partnership", icon: Wrench, desc: "Provisión mayorista e integradores" },
 ];
@@ -190,6 +191,7 @@ const Navbar = () => {
 
             {/* Links directos */}
             {[
+              { label: "Punto de Venta", href: "/puntos-de-venta" },
               { label: "Nosotros", href: "/nosotros" },
               { label: "Contacto", href: "/contacto" },
             ].map((link) => (
@@ -282,6 +284,7 @@ const Navbar = () => {
 
               <div className="border-t border-border/30 mt-2 pt-2">
                 {[
+                  { label: "Punto de Venta", href: "/puntos-de-venta" },
                   { label: "Nosotros", href: "/nosotros" },
                   { label: "Contacto", href: "/contacto" },
                 ].map((link) => (

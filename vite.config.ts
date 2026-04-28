@@ -6,6 +6,7 @@ import usersHandler from "./api/users";
 import commerceHandler from "./api/commerce";
 import pricingHandler from "./api/pricing";
 import productsHandler from "./api/products";
+import posProductsHandler from "./api/pos-products";
 import emailHandler from "./api/email";
 import checkoutHandler from "./api/checkout";
 import airProxyHandler from "./api/air-proxy";
@@ -134,6 +135,7 @@ function devApiProxyPlugin(env: Record<string, string>): PluginOption {
           "/api/pricing":     { handler: pricingHandler },
           "/api/coupons":     { handler: pricingHandler }, // vercel.json has /api/coupons -> /api/pricing/coupons but local handler checks subpath
           "/api/products":    { handler: productsHandler },
+          "/api/pos-products": { handler: posProductsHandler },
           "/api/stock":       { handler: productsHandler, scope: "stock" },
           "/api/email":       { handler: emailHandler },
           "/api/contact":     { handler: emailHandler,    scope: "contact" },
@@ -250,6 +252,7 @@ export default defineConfig(({ mode }) => {
     "VITE_AIR_TOKEN",
     "ELIT_API_USER_ID",
     "ELIT_API_TOKEN",
+    "PUBLIC_POS_MARGIN_PCT",
   ]) {
     if (env[key]) {
       process.env[key] = env[key];

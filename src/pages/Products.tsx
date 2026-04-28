@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  ArrowRight, Building2, Lock, Package, Search, X,
+  ArrowRight, Building2, Lock, Package, Search, Store, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -133,6 +133,29 @@ const Products = () => {
             <Button asChild size="sm" className="bg-gradient-primary text-primary-foreground hover:opacity-90">
               <Link to="/registrarse">Registrarse</Link>
             </Button>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-border/50 bg-surface py-8">
+        <div className="container mx-auto px-4 lg:px-8">
+          <div className="card-enterprise flex flex-col items-start justify-between gap-4 rounded-2xl p-5 sm:flex-row sm:items-center">
+            <div className="flex items-start gap-4">
+              <div className="icon-container h-11 w-11 shrink-0 text-primary">
+                <Store size={19} />
+              </div>
+              <div>
+                <h2 className="font-display text-lg font-semibold text-foreground">Kits de Punto de Venta con precio publicado</h2>
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                  Terminales POS, impresoras termicas y lectores de codigo para comercios y sucursales.
+                </p>
+              </div>
+            </div>
+            <Link to="/puntos-de-venta" className="shrink-0">
+              <Button variant="outline" className="h-10 border-border/70 px-5 text-sm font-semibold">
+                Ver Punto de Venta <ArrowRight size={13} className="ml-2" />
+              </Button>
+            </Link>
           </div>
         </div>
       </section>

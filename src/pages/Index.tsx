@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, Shield, Server, Monitor, Headphones, CheckCircle2, Building2, Network, TrendingUp, Globe, Briefcase, Settings, ClipboardCheck, Wrench, Store, PackageCheck, ScanBarcode, Printer } from "lucide-react";
+import { ArrowRight, Shield, Server, Monitor, Headphones, CheckCircle2, Building2, Network, TrendingUp, Briefcase, Settings, ClipboardCheck, Store, PackageCheck, ScanBarcode, Printer, ScanLine, BarChart3, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Layout from "@/components/Layout";
 import SectionHeading from "@/components/SectionHeading";
@@ -137,12 +137,21 @@ const Index = () => {
                   Solicitar cuenta B2B
                 </Button>
               </Link>
+              <Link to="/puntos-de-venta">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="btn-interactive border-primary/30 bg-primary/10 text-foreground hover:bg-primary/15 h-14 px-10 text-base"
+                >
+                  Punto de Venta y BARpos <Store className="ml-2" size={18} />
+                </Button>
+              </Link>
             </motion.div>
 
             <motion.div variants={fadeUp} custom={4} className="mt-14 flex flex-wrap justify-center gap-x-10 gap-y-4">
               {[
                 { icon: TrendingUp, label: "Precios Mayoristas Reales" },
-                { icon: Globe, label: "Stock con Entrega inmediata" },
+                { icon: Store, label: "BARpos para Kioscos y Minisuper" },
                 { icon: Shield, label: "Garantía Oficial de Fábrica" }
               ].map((item) => (
                 <span key={item.label} className="flex items-center gap-3 text-sm font-medium text-muted-foreground/80">
@@ -160,6 +169,69 @@ const Index = () => {
               <HeroContactForm />
             </motion.div>
           </motion.div>
+        </div>
+      </section>
+
+      {/* BARpos + Punto de Venta */}
+      <section className="relative py-20 lg:py-28">
+        <div className="container mx-auto px-4 lg:px-8">
+          <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="card-enterprise rounded-2xl p-7 lg:p-9"
+            >
+              <div className="mb-5 flex items-center gap-3">
+                <div className="icon-container h-12 w-12 text-primary">
+                  <Store size={22} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Punto de Venta</p>
+                  <h2 className="font-display text-2xl font-bold text-foreground lg:text-3xl">BARpos para comercios de alta rotacion</h2>
+                </div>
+              </div>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Sistema de venta y kits POS para kioscos, chinos, maxikioscos, almacenes y minisuper. Hardware,
+                caja rapida, stock, codigos de barra y reportes en una misma solucion.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link to="/puntos-de-venta">
+                  <Button className="bg-gradient-primary font-semibold text-primary-foreground hover:opacity-90 h-11 px-6 text-sm">
+                    Ver Punto de Venta <ArrowRight size={14} className="ml-2" />
+                  </Button>
+                </Link>
+                <a href="https://wa.me/5493415104902?text=Hola%2C%20quiero%20conocer%20BARpos%20para%20mi%20comercio." target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" className="border-border/60 text-foreground hover:bg-secondary h-11 px-6 text-sm">
+                    Consultar BARpos
+                  </Button>
+                </a>
+              </div>
+            </motion.div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {[
+                { icon: ShoppingCart, title: "Caja rapida", desc: "Venta por codigo, tickets e interfaz pensada para mostrador." },
+                { icon: ScanLine, title: "Codigos y stock", desc: "Lectores, etiquetas, reposicion y control diario de inventario." },
+                { icon: BarChart3, title: "Reportes BARpos", desc: "Ventas, productos y movimientos para decidir sin planillas." },
+                { icon: Store, title: "Kits listos", desc: "Combos con o sin BARpos incluido, configurables desde el admin." },
+              ].map((item, i) => (
+                <motion.div
+                  key={item.title}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.08, duration: 0.45 }}
+                  className="rounded-2xl border border-border bg-card p-5"
+                >
+                  <item.icon size={20} className="text-primary" />
+                  <h3 className="mt-3 text-sm font-bold text-foreground">{item.title}</h3>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.desc}</p>
+                </motion.div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
