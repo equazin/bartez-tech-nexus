@@ -43,14 +43,15 @@ export const OperativeBar: React.FC<OperativeBarProps> = ({
     <div
       className={cn(
         "operative-bar sticky top-[var(--header-height,72px)] z-30",
-        "border-b border-border/60 bg-muted/40 backdrop-blur-md",
-        "px-4 py-2.5 md:px-6",
+        "border-b border-border/60 bg-card/90 backdrop-blur-md",
+        "px-3 py-2 md:px-5",
         "shadow-[0_2px_8px_0_rgba(0,0,0,0.04)]",
       )}
     >
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
         {/* ── LEFT: Fast order input (takes most space) ─────────────────── */}
         <div className="min-w-0 w-full flex-1">
+          <p className="mb-1 hidden text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground lg:block">Orden rapida</p>
           <FastOrderInput
             quickSku={quickSku}
             setQuickSku={setQuickSku}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { products as mockProducts, Product } from "@/models/products";
+import type { Product } from "@/models/products";
 
 function normalizeCategoryParam(value: string | null | undefined): string {
   return String(value ?? "")
@@ -201,7 +201,7 @@ export function useProducts(options: UseProductsOptions = {}) {
       console.error("Error fetching products:", err);
       const message = err instanceof Error ? err.message : "Error inesperado al cargar productos.";
       setError(message);
-      if (!isNextPage) setProducts(mockProducts);
+      if (!isNextPage) setProducts([]);
     } finally {
       setLoading(false);
     }

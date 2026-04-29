@@ -43,7 +43,6 @@ import type { ViewMode, CatalogContext } from "@/components/b2b/CatalogSection";
 import { OperativeBar } from "@/components/b2b/OperativeBar";
 import { useClientProjects } from "@/hooks/useClientProjects";
 import { useBusinessAlerts } from "@/hooks/useBusinessAlerts";
-import { useCartSync } from "@/hooks/useCartSync";
 import { useImpersonate } from "@/context/ImpersonateContext";
 import { BulkImport } from "@/components/b2b/BulkImport";
 import { DetailedAccountView } from "@/components/b2b/DetailedAccountView";
@@ -76,7 +75,23 @@ type BundleCustomizationFilter = "all" | "configurable" | "fixed";
 type BundleSort = "recommended" | "price_asc" | "savings_desc" | "configurable_desc";
 
 const VIEW_MODE_BY_CONTEXT_KEY = "b2b_view_mode_by_context";
-const DEFAULT_VIEW_MODE_BY_CONTEXT: ViewModeByContext = { default: "list", featured: "grid", pos: "grid" };
+const DEFAULT_VIEW_MODE_BY_CONTEXT: ViewModeByContext = { default: "table", featured: "grid", pos: "table" };
+const PORTAL_TABS: PortalTab[] = [
+  "home",
+  "catalog",
+  "configurator",
+  "bundles",
+  "orders",
+  "quotes",
+  "projects",
+  "express",
+  "invoices",
+  "cuenta",
+  "approvals",
+  "support",
+  "rma",
+  "bulk",
+];
 
 function loadViewModeByContext(): ViewModeByContext {
   try {
@@ -131,7 +146,8 @@ export default function B2BPortal() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<PortalTab>(() => {
     const t = searchParams.get("tab") as PortalTab;
-    if (["home", "catalog", "configurator", "bundles", "orders", "quotes", "cuenta", "approvals", "support", "rma", "bulk"].includes(t)) return t;
+    if (searchParams.get("tab") === "builder") return "configurator";
+    if (PORTAL_TABS.includes(t)) return t;
     if (window.location.pathname === "/catalogo") return "catalog";
     if (searchParams.get("category") || searchParams.get("categoria")) return "catalog";
     return "home";
@@ -236,7 +252,7 @@ export default function B2BPortal() {
   // For now we keep search in portal and use displayProducts which already filters.
 
   // â”€â”€ Cart, orders, quotes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const { orders, loading: ordersLoading, addOrder, updateOrder, fetchOrders, fetchManagedOrders } = useOrders();
+  const { orders, loading: ordersLoading, error: ordersError, addOrder, updateOrder, fetchOrders, fetchManagedOrders } = useOrders();
   const [managedOrders, setManagedOrders] = useState<PortalOrder[]>([]);
   const { quotes, addQuote, updateStatus: updateQuoteStatus, deleteQuote } = useQuotes(profile?.id || "guest");
   const { currency, setCurrency, formatPrice, formatUSD, formatARS, exchangeRate, fetchExchangeRate, isFetchingRate } = useCurrency();
@@ -264,7 +280,7 @@ export default function B2BPortal() {
       ? Math.max(0, profile.credit_limit - creditUsed)
       : undefined,
   });
-  const { setCart } = cart;
+  const { setCart, setBundleCartMeta } = cart;
   const purchaseLists = usePurchaseLists({ userId: profile?.id });
   const formatQuickPrice = useCallback((product: Product) => formatPrice(computePrice(product, 1).unitPrice), [computePrice, formatPrice]);
 
@@ -356,10 +372,7 @@ export default function B2BPortal() {
   }, [activeTab, loadMyInvoices, refreshApprovals]);
 
   // â”€â”€ Cart sync with Supabase â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  useCartSync(cart.cart, cart.setCart);
-
   // â”€â”€ Shared cart token from URL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const cartKey = `b2b_cart_${profile?.id || "guest"}`;
   const cartToken = searchParams.get("cart_token");
   useEffect(() => {
     if (!cartToken || !profile) return;
@@ -370,14 +383,14 @@ export default function B2BPortal() {
           newCart[item.product_id] = item.quantity;
         });
         setCart(newCart);
-        localStorage.setItem(cartKey, JSON.stringify(newCart));
+        setBundleCartMeta({});
         const nextParams = new URLSearchParams(searchParams);
         nextParams.delete("cart_token");
         setSearchParams(nextParams);
         alert("¡Carrito reconstruido desde el enlace compartido!");
       }
     });
-  }, [cartToken, profile, cartKey, searchParams, setCart, setSearchParams]);
+  }, [cartToken, profile, searchParams, setBundleCartMeta, setCart, setSearchParams]);
 
   // â”€â”€ Warehouses â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
@@ -1084,6 +1097,11 @@ export default function B2BPortal() {
           {/* CATALOG */}
           {activeTab === "catalog" && (
             <div className="space-y-4">
+              {catalog.productsError ? (
+                <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+                  No pudimos cargar el catalogo en tiempo real. Reintentá en unos segundos o contactá a tu vendedor.
+                </div>
+              ) : null}
               <SmartSuggestions
                 orders={orders}
                 products={catalog.products}
@@ -1332,19 +1350,26 @@ export default function B2BPortal() {
 
           {/* ORDERS */}
           {activeTab === "orders" && (
-            <OrdersPanel
-              orders={orders}
-              invoices={myInvoices}
-              loading={ordersLoading}
-              formatPrice={formatPrice}
-              formatUSD={formatUSD}
-              formatARS={formatARS}
-              currency={currency}
-              onRepeatOrder={cart.handleRepeatOrder}
-              onGoToCatalog={() => setPortalTab("catalog")}
-              onGoToInvoices={() => setPortalTab("cuenta", { section: "documentos" })}
-              onUpdateOrderProofs={(id, pr) => updateOrder(id, { payment_proofs: pr })}
-            />
+            <div className="space-y-3">
+              {ordersError ? (
+                <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+                  No pudimos actualizar tus pedidos. {ordersError}
+                </div>
+              ) : null}
+              <OrdersPanel
+                orders={orders}
+                invoices={myInvoices}
+                loading={ordersLoading}
+                formatPrice={formatPrice}
+                formatUSD={formatUSD}
+                formatARS={formatARS}
+                currency={currency}
+                onRepeatOrder={cart.handleRepeatOrder}
+                onGoToCatalog={() => setPortalTab("catalog")}
+                onGoToInvoices={() => setPortalTab("cuenta", { section: "documentos" })}
+                onUpdateOrderProofs={(id, pr) => updateOrder(id, { payment_proofs: pr })}
+              />
+            </div>
           )}
 
           {/* QUOTES */}

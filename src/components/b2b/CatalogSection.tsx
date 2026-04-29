@@ -789,7 +789,30 @@ export function CatalogSection({
           </div>
         )}
 
-        <div className="mb-4 rounded-[20px] border border-border/70 bg-card/85 p-3 shadow-sm">
+        <div className="mb-4 rounded-xl border border-border/70 bg-card p-3 shadow-sm">
+          <div className="mb-3 flex flex-col gap-2 border-b border-border/60 pb-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Catálogo mayorista</p>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-bold text-foreground">Stock, precio y compra rápida</h2>
+                {!productsLoading ? <Badge variant="muted" className="rounded-md">{resultsLabel}</Badge> : null}
+              </div>
+            </div>
+            <div className="hidden items-center gap-1 rounded-lg border border-border/70 bg-background p-1 md:flex">
+              {(["table", "list", "grid"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => handleViewModeChange(mode)}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-[11px] font-semibold transition",
+                    viewMode === mode ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  {mode === "table" ? "Tabla" : mode === "list" ? "Lista" : "Grid"}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="flex min-w-max items-center gap-2">
               <CategoryMegaMenu

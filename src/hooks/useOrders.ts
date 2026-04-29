@@ -40,6 +40,8 @@ export interface PortalOrderProduct {
   name: string;
   sku: string;
   quantity: number;
+  bundle_id?: string | null;
+  bundle_name?: string | null;
   cost_price: number;
   unit_price: number;
   total_price: number;
@@ -97,10 +99,12 @@ export function useOrders() {
   const { user, profile } = useAuth();
   const [orders, setOrders] = useState<PortalOrder[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchOrders = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+    setError(null);
     try {
       if (hasBackendUrl) {
         // Migrado: el backend resuelve precios y devuelve los pedidos
@@ -132,8 +136,10 @@ export function useOrders() {
           setOrders(merged as PortalOrder[]);
         }
       }
-    } catch {
-      // Silencioso — tabla puede no existir todavía
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "No se pudieron cargar los pedidos.";
+      console.error("[useOrders] fetchOrders failed:", err);
+      setError(message);
     }
     setLoading(false);
   }, [user]);
@@ -202,6 +208,8 @@ export function useOrders() {
         items: orderData.products.map((product) => ({
           product_id: product.product_id,
           quantity: product.quantity,
+          bundle_id: product.bundle_id ?? null,
+          bundle_name: product.bundle_name ?? null,
         })),
         payment_method: orderData.payment_method ?? null,
         payment_surcharge_pct: orderData.payment_surcharge_pct ?? null,
@@ -291,6 +299,7 @@ export function useOrders() {
   return {
     orders,
     loading,
+    error,
     fetchOrders,
     fetchManagedOrders,
     addOrder,

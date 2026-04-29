@@ -19,7 +19,6 @@ const CorporateSolutions = lazy(() => import("./pages/CorporateSolutions"));
 const ITServices = lazy(() => import("./pages/ITServices"));
 const B2BSolutions = lazy(() => import("./pages/B2BSolutions"));
 const IndustrySolutions = lazy(() => import("./pages/IndustrySolutions"));
-const PointOfSaleSolutions = lazy(() => import("./pages/PointOfSaleSolutions"));
 const About = lazy(() => import("./pages/About"));
 const Contact = lazy(() => import("./pages/Contact"));
 const Login = lazy(() => import("./pages/Login"));
@@ -99,13 +98,12 @@ const App = () => (
                     <Route path="/" element={<Index />} />
                     <Route path="/tecnologia" element={<Products />} />
                     <Route path="/productos" element={<Products />} />
-                    <Route path="/puntos-de-venta" element={<PointOfSale />} />
                     <Route path="/soluciones-corporativas" element={<CorporateSolutions />} />
                     <Route path="/servicios-it" element={<ITServices />} />
                     <Route path="/partnership" element={<B2BSolutions />} />
                     <Route path="/empresas" element={<B2BSolutions />} />
                     <Route path="/soluciones-por-industria" element={<IndustrySolutions />} />
-                    <Route path="/puntos-de-venta" element={<PointOfSaleSolutions />} />
+                    <Route path="/puntos-de-venta" element={<PointOfSale />} />
                     <Route path="/nosotros" element={<About />} />
                     <Route path="/contacto" element={<Contact />} />
                     <Route path="/evaluacion-tecnologica" element={<QuoteRequest />} />
@@ -115,7 +113,7 @@ const App = () => (
                     <Route path="/registrarse" element={<Register />} />
                     <Route path="/b2b-portal" element={<RequireAuth><B2BPortal /></RequireAuth>} />
                     <Route path="/catalogo" element={<RequireAuth><B2BPortal /></RequireAuth>} />
-                    <Route path="/armador-pc" element={<Navigate to="/b2b-portal?tab=builder" replace />} />
+                    <Route path="/armador-pc" element={<Navigate to="/b2b-portal?tab=configurator" replace />} />
                     <Route path="/cotizaciones" element={<Navigate to="/b2b-portal?tab=cuenta&section=quotes" replace />} />
                     <Route path="/cotizador" element={<Navigate to="/b2b-portal?tab=cuenta&section=express" replace />} />
                     <Route path="/pagos" element={<Navigate to="/b2b-portal?tab=cuenta&section=payments" replace />} />

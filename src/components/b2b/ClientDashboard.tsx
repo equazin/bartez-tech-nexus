@@ -59,7 +59,7 @@ interface ClientDashboardProps {
   products: Product[];
   creditLimit: number;
   creditUsed: number;
-  onGoTo: (tab: "catalog" | "orders" | "invoices" | "cuenta" | "projects" | "support" | "rma" | "quotes") => void;
+  onGoTo: (tab: "catalog" | "orders" | "invoices" | "cuenta" | "projects" | "support" | "rma" | "quotes" | "bulk") => void;
   onAddToCart: (product: Product, qty: number) => void;
   alerts?: BusinessAlert[];
   assignedSeller?: AssignedSeller | null;
@@ -457,6 +457,8 @@ export function ClientDashboard({
     { icon: User, label: "Mi cuenta", hint: "Datos y crédito", tab: "cuenta" as const, color: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
   ];
 
+  void quickAccess;
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 animate-in fade-in duration-500">
 
@@ -505,6 +507,33 @@ export function ClientDashboard({
           </Button>
         </div>
       </div>
+
+      <SurfaceCard tone="default" padding="sm" className="rounded-xl border-border/70 bg-card">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          {[
+            { icon: Package, label: "Comprar por SKU", hint: "Catalogo y stock", tab: "catalog" as const },
+            { icon: ShoppingCart, label: "Repetir pedido", hint: "Desde historial", tab: "orders" as const },
+            { icon: FileText, label: "Cotizar", hint: "Propuestas guardadas", tab: "quotes" as const },
+            { icon: Plus, label: "Subir pedido", hint: "Carga masiva", tab: "bulk" as const },
+            { icon: ReceiptText, label: "Ver facturas", hint: "Vencimientos", tab: "invoices" as const },
+          ].map(({ icon: Icon, label, hint, tab }) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => onGoTo(tab)}
+              className="flex min-h-[58px] items-center gap-3 rounded-lg border border-border/70 bg-background px-3 py-2 text-left transition hover:border-primary/30 hover:bg-primary/5"
+            >
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Icon size={15} />
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-xs font-bold text-foreground">{label}</span>
+                <span className="block truncate text-[10px] text-muted-foreground">{hint}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </SurfaceCard>
 
       {/* ── OVERDUE ALERT (conditional) ───────────────────────────────── */}
       {overdueInvoices.length > 0 && (
@@ -641,26 +670,6 @@ export function ClientDashboard({
           </div>
         </SurfaceCard>
       )}
-
-      {/* ── QUICK ACCESS GRID ──────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {quickAccess.map(({ icon: Icon, label, hint, tab, color }) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => onGoTo(tab)}
-            className="group flex items-center gap-3 rounded-2xl border border-border/70 bg-card/80 p-3 text-left transition-all hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-md active:scale-[0.98]"
-          >
-            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${color} transition-transform group-hover:scale-110`}>
-              <Icon size={16} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-foreground">{label}</p>
-              <p className="text-[10px] text-muted-foreground">{hint}</p>
-            </div>
-          </button>
-        ))}
-      </div>
 
       {/* ── SPENDING SUMMARY (only if history) ───────────────────────── */}
       {spendingStats.ytdCount > 0 && (
