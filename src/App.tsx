@@ -51,6 +51,9 @@ const PortalCompareProductsPage = lazy(() => import("./pages/portal/CompareProdu
 const PortalDocumentsPage = lazy(() => import("./pages/portal/account/DocumentsPage"));
 const PortalReportsPage = lazy(() => import("./pages/portal/account/ReportsPage"));
 const PortalCreditPage = lazy(() => import("./pages/portal/account/CreditPage"));
+const PortalUsersPage = lazy(() => import("./pages/portal/account/UsersPage"));
+const PortalBranchesPage = lazy(() => import("./pages/portal/account/BranchesPage"));
+const PortalApprovalsPageV2 = lazy(() => import("./pages/portal/ApprovalsPageV2"));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
@@ -145,7 +148,7 @@ const App = () => (
                       <Route path="catalogo/bundles" element={<PortalBundlesPage />} />
                       <Route path="catalogo/configurador" element={<PortalConfiguratorPage />} />
                       <Route path="pedidos" element={<PortalOrdersPage />} />
-                      <Route path="pedidos/aprobar" element={<PortalApprovalsPage />} />
+                      <Route path="pedidos/aprobar" element={<PortalApprovalsPageV2 />} />
                       <Route path="pedidos/bulk" element={<PortalBulkImportPage />} />
                       <Route path="cotizaciones" element={<PortalQuotesPage />} />
                       <Route path="cotizaciones/express" element={<PortalExpressQuotePage />} />
@@ -159,8 +162,8 @@ const App = () => (
                       <Route path="cuenta/reportes" element={<PortalReportsPage />} />
                       <Route path="cuenta/lealtad" element={<PortalAccountPage />} />
                       <Route path="cuenta/empresa" element={<PortalAccountPage />} />
-                      <Route path="cuenta/usuarios" element={<PortalAccountPage />} />
-                      <Route path="cuenta/sucursales" element={<PortalAccountPage />} />
+                      <Route path="cuenta/usuarios" element={<PortalUsersPage />} />
+                      <Route path="cuenta/sucursales" element={<PortalBranchesPage />} />
                       <Route path="cuenta/notificaciones" element={<PortalAccountPage />} />
                       <Route path="soporte" element={<PortalSupportPage />} />
                       <Route path="p/:slug" element={<PortalProductDetailPage />} />

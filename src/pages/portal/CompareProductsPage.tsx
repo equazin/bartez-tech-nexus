@@ -165,9 +165,9 @@ export default function CompareProductsPage() {
                 {products.length < MAX_COMPARE && (
                   <th style={{ width: colWidth }} className="border-b p-3 text-left align-top">
                     <Button
-                      variant="dashed"
+                      variant="outline"
                       size="sm"
-                      className="gap-1.5"
+                      className="gap-1.5 border-dashed"
                       onClick={() => navigate("/portal/catalogo")}
                     >
                       <Plus className="h-4 w-4" />

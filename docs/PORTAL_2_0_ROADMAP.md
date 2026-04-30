@@ -8,7 +8,7 @@ Estado al cierre de esta sesión:
 - **Sprint 3 — Ficha producto + Comparador**: ✅ completado
 - **Sprint 4 — Home Dashboard + Recompra rápida**: ✅ completado
 - **Sprint 5 — Documentos unificados + Reportes**: ✅ completado
-- **Sprint 6 — Multi-usuario + Multi-sucursal + Aprobaciones**: 🚧 en curso
+- **Sprint 6 — Multi-usuario + Multi-sucursal + Aprobaciones**: ✅ completado
 - **Sprint 7**: pendiente
 
 Plan completo en `~/.claude/plans/bubbly-finding-crescent.md` (fuera del repo).
@@ -172,7 +172,7 @@ Ruta `/portal/__styleguide` (auth).
 
 ---
 
-## 🚧 Sprint 6 — Multi-usuario + Multi-sucursal + Aprobaciones (en curso)
+## ✅ Sprint 6 — Multi-usuario + Multi-sucursal + Aprobaciones (cerrado)
 
 **Objetivo:** una empresa B2B = varios usuarios con roles + varias direcciones de envío + aprobación interna.
 
@@ -190,22 +190,24 @@ Ruta `/portal/__styleguide` (auth).
 - `POST /v1/clients/:id/users/invite` (email).
 - `POST /v1/orders/:id/approve|reject`.
 
-**Completado hasta ahora**
-- `102_b2b_users_branches.sql` — `client_branches`, `b2b_invitations`, `orders.branch_id`, RPCs: `reject_b2b_order`, `get_pending_approvals`, `get_my_b2b_team`, `invite_b2b_user`, `remove_b2b_user`, `update_b2b_user`, `get_my_branches`, `upsert_branch`, `delete_branch`, `get_my_pending_invitations`.
-- `src/hooks/useB2BTeam.ts` — lista/invita/remueve/actualiza miembros del equipo.
-- `src/hooks/useClientBranches.ts` — CRUD sucursales.
+**Componentes y hooks**
+- `102_b2b_users_branches.sql` — `client_branches`, `b2b_invitations`, `orders.branch_id`, 10 RPCs SECURITY DEFINER (`reject_b2b_order`, `get_pending_approvals`, `get_my_b2b_team`, `invite_b2b_user`, `remove_b2b_user`, `update_b2b_user`, `get_my_branches`, `upsert_branch`, `delete_branch`, `get_my_pending_invitations`).
+- `src/hooks/useB2BTeam.ts`, `src/hooks/useClientBranches.ts`, `src/hooks/useOrderApprovals.ts` (los 3 importan de `@/lib/supabase`).
+- `src/pages/portal/account/UsersPage.tsx` — lista de miembros + invitaciones pendientes + diálogos invitar/editar/remover.
+- `src/pages/portal/account/BranchesPage.tsx` — grid de sucursales + diálogo crear/editar con switch "por defecto".
+- `src/pages/portal/ApprovalsPageV2.tsx` — pendientes con buyer/total/items, diálogo de rechazo con motivo.
+- `src/components/portal/PendingApprovalBanner.tsx` — banner global para managers/admin con conteo y CTA, oculto en `/portal/pedidos/aprobar`.
+
+**Modificados**
+- `src/pages/portal/PortalRoot.tsx` — inyecta el banner.
+- `src/App.tsx` — `cuenta/usuarios` → UsersPage, `cuenta/sucursales` → BranchesPage, `pedidos/aprobar` → ApprovalsPageV2.
+- `src/components/portal/home/HomeHero.tsx` — fix `profile.name` (no existe) → `contact_name ?? company_name`.
+- `src/pages/portal/CompareProductsPage.tsx` — fix variant `dashed` (no existe) → `outline border-dashed`.
 - Correcciones a 095/096/099: `WITH RECURSIVE` faltante, `is_b2b` → `role IN ('client','cliente')`.
 
-**Pendiente**
-- `src/hooks/useOrderApprovals.ts` — hook para `get_pending_approvals`, `approve_b2b_order`, `reject_b2b_order`.
-- `/portal/cuenta/usuarios` — UsersPage (lista equipo + invitar + editar).
-- `/portal/cuenta/sucursales` — BranchesPage (lista sucursales + CRUD).
-- `/portal/pedidos/aprobar` — ApprovalsPage real (reemplaza wrapper legacy).
-- Banner "pendiente de aprobación" en OrdersPage para buyers.
-- Wiring en App.tsx.
-
 **Done**
-- Manager invita buyer por email → buyer arma pedido > límite → manager recibe email + ApprovalsPanel → aprueba/rechaza → buyer ve estado.
+- Manager invita buyer por email → buyer arma pedido > límite → manager ve banner + ApprovalsPageV2 → aprueba/rechaza → buyer ve estado actualizado.
+- Sucursales se gestionan en `/portal/cuenta/sucursales` con flag de "por defecto".
 
 ---
 

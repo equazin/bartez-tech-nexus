@@ -13,7 +13,7 @@ interface Props {
 }
 
 export function HomeHero({ profile }: Props) {
-  const name = profile.name?.split(" ")[0] ?? "Cliente";
+  const name = (profile.contact_name ?? profile.company_name ?? "Cliente").split(" ")[0];
 
   return (
     <div className="flex items-center gap-3 py-2">
