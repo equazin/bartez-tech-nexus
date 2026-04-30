@@ -4,7 +4,12 @@ Estado al cierre de esta sesión:
 
 - **PRE-SPRINT 0 — Foundations**: ✅ completado
 - **Sprint 1 — AppShell + Sidebar + Sub-rutas**: ✅ completado
-- **Sprint 2 → 7**: pendientes (detalle abajo)
+- **Sprint 2 — Catálogo profesional**: ✅ completado
+- **Sprint 3 — Ficha producto + Comparador**: ✅ completado
+- **Sprint 4 — Home Dashboard + Recompra rápida**: ✅ completado
+- **Sprint 5 — Documentos unificados + Reportes**: ✅ completado
+- **Sprint 6 — Multi-usuario + Multi-sucursal + Aprobaciones**: 🚧 en curso
+- **Sprint 7**: pendiente
 
 Plan completo en `~/.claude/plans/bubbly-finding-crescent.md` (fuera del repo).
 
@@ -55,7 +60,7 @@ Ruta `/portal/__styleguide` (auth).
 
 ---
 
-## 🔜 Sprint 2 — Catálogo profesional (2 sem)
+## ✅ Sprint 2 — Catálogo profesional (cerrado)
 
 **Objetivo:** convertir `/portal/catalogo` en tabla densa con sidebar de categorías real, toolbar sticky, autocompletado, descarga de lista.
 
@@ -89,7 +94,7 @@ Ruta `/portal/__styleguide` (auth).
 
 ---
 
-## 🔜 Sprint 3 — Ficha producto + Comparador (2-3 sem)
+## ✅ Sprint 3 — Ficha producto + Comparador (cerrado)
 
 **Objetivo:** ficha real `/portal/p/:slug` con tabs y comparador de matriz.
 
@@ -116,7 +121,7 @@ Ruta `/portal/__styleguide` (auth).
 
 ---
 
-## 🔜 Sprint 4 — Home Dashboard + Recompra rápida (2 sem)
+## ✅ Sprint 4 — Home Dashboard + Recompra rápida (cerrado)
 
 **Objetivo:** reemplazar `ClientDashboard` por `HomePage` con KPIs reales y recompra 1-click.
 
@@ -143,7 +148,7 @@ Ruta `/portal/__styleguide` (auth).
 
 ---
 
-## 🔜 Sprint 5 — Documentos unificados + Reportes (2-3 sem)
+## ✅ Sprint 5 — Documentos unificados + Reportes (cerrado)
 
 **Objetivo:** una sección Documentos (factura/remito/NC/comprobante) y reportes con gráficos.
 
@@ -167,7 +172,7 @@ Ruta `/portal/__styleguide` (auth).
 
 ---
 
-## 🔜 Sprint 6 — Multi-usuario + Multi-sucursal + Aprobaciones (3 sem)
+## 🚧 Sprint 6 — Multi-usuario + Multi-sucursal + Aprobaciones (en curso)
 
 **Objetivo:** una empresa B2B = varios usuarios con roles + varias direcciones de envío + aprobación interna.
 
@@ -184,6 +189,20 @@ Ruta `/portal/__styleguide` (auth).
 **Backend**
 - `POST /v1/clients/:id/users/invite` (email).
 - `POST /v1/orders/:id/approve|reject`.
+
+**Completado hasta ahora**
+- `102_b2b_users_branches.sql` — `client_branches`, `b2b_invitations`, `orders.branch_id`, RPCs: `reject_b2b_order`, `get_pending_approvals`, `get_my_b2b_team`, `invite_b2b_user`, `remove_b2b_user`, `update_b2b_user`, `get_my_branches`, `upsert_branch`, `delete_branch`, `get_my_pending_invitations`.
+- `src/hooks/useB2BTeam.ts` — lista/invita/remueve/actualiza miembros del equipo.
+- `src/hooks/useClientBranches.ts` — CRUD sucursales.
+- Correcciones a 095/096/099: `WITH RECURSIVE` faltante, `is_b2b` → `role IN ('client','cliente')`.
+
+**Pendiente**
+- `src/hooks/useOrderApprovals.ts` — hook para `get_pending_approvals`, `approve_b2b_order`, `reject_b2b_order`.
+- `/portal/cuenta/usuarios` — UsersPage (lista equipo + invitar + editar).
+- `/portal/cuenta/sucursales` — BranchesPage (lista sucursales + CRUD).
+- `/portal/pedidos/aprobar` — ApprovalsPage real (reemplaza wrapper legacy).
+- Banner "pendiente de aprobación" en OrdersPage para buyers.
+- Wiring en App.tsx.
 
 **Done**
 - Manager invita buyer por email → buyer arma pedido > límite → manager recibe email + ApprovalsPanel → aprueba/rechaza → buyer ve estado.

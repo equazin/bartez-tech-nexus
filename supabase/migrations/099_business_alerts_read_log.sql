@@ -68,7 +68,8 @@ LEFT JOIN quotes q
   ON q.client_id = p.id
 LEFT JOIN invoices inv
   ON inv.client_id = p.id
-WHERE p.is_b2b = true
+WHERE p.role IN ('client', 'cliente')
+  AND p.active = true
 GROUP BY p.id, p.credit_limit, p.credit_used;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_client_kpis_client

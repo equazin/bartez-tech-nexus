@@ -27,9 +27,10 @@ SELECT
   GREATEST(p.stock - COALESCE(p.stock_reserved, 0), 0) AS stock,
   COALESCE(p.min_order_qty, 1)                   AS min_order_qty
 FROM products p
--- Only active B2B clients
+-- Cartesian join across all active B2B client profiles
 JOIN profiles cli
-  ON cli.is_b2b = true
+  ON cli.role IN ('client', 'cliente')
+ AND cli.active = true
 -- Resolve brand name
 LEFT JOIN brands b ON b.id = p.brand_id
 -- Resolve category name (prefer FK, fallback to text column)
