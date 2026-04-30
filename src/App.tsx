@@ -46,6 +46,8 @@ const PortalInvoicesPage = lazy(() => import("./pages/portal/InvoicesPage"));
 const PortalBulkImportPage = lazy(() => import("./pages/portal/BulkImportPage"));
 const PortalExpressQuotePage = lazy(() => import("./pages/portal/ExpressQuotePage"));
 const PortalSupportPage = lazy(() => import("./pages/portal/SupportPage"));
+const PortalProductDetailPage = lazy(() => import("./pages/portal/ProductDetailPage"));
+const PortalCompareProductsPage = lazy(() => import("./pages/portal/CompareProductsPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
@@ -158,6 +160,8 @@ const App = () => (
                       <Route path="cuenta/sucursales" element={<PortalAccountPage />} />
                       <Route path="cuenta/notificaciones" element={<PortalAccountPage />} />
                       <Route path="soporte" element={<PortalSupportPage />} />
+                      <Route path="p/:slug" element={<PortalProductDetailPage />} />
+                      <Route path="comparar" element={<PortalCompareProductsPage />} />
                     </Route>
                     <Route path="/cart" element={<RequireAuth><CartPage /></RequireAuth>} />
                     <Route path="/admin" element={<RequireAdmin><Admin /></RequireAdmin>} />
