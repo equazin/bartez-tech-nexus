@@ -30,6 +30,22 @@ const Admin = lazy(() => import("./pages/Admin"));
 const CustomerView = lazy(() => import("./pages/CustomerView"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const StyleguidePage = lazy(() => import("./pages/portal/StyleguidePage"));
+const PortalRoot = lazy(() => import("./pages/portal/PortalRoot"));
+const PortalHomePage = lazy(() => import("./pages/portal/HomePage"));
+const PortalCatalogPage = lazy(() => import("./pages/portal/CatalogPage"));
+const PortalBundlesPage = lazy(() => import("./pages/portal/BundlesPage"));
+const PortalConfiguratorPage = lazy(() => import("./pages/portal/ConfiguratorPage"));
+const PortalOrdersPage = lazy(() => import("./pages/portal/OrdersPage"));
+const PortalQuotesPage = lazy(() => import("./pages/portal/QuotesPage"));
+const PortalAccountPage = lazy(() => import("./pages/portal/AccountPage"));
+const PortalProjectsPage = lazy(() => import("./pages/portal/ProjectsPage"));
+const PortalRmaPage = lazy(() => import("./pages/portal/RmaPage"));
+const PortalApprovalsPage = lazy(() => import("./pages/portal/ApprovalsPage"));
+const PortalInvoicesPage = lazy(() => import("./pages/portal/InvoicesPage"));
+const PortalBulkImportPage = lazy(() => import("./pages/portal/BulkImportPage"));
+const PortalExpressQuotePage = lazy(() => import("./pages/portal/ExpressQuotePage"));
+const PortalSupportPage = lazy(() => import("./pages/portal/SupportPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
@@ -117,6 +133,32 @@ const App = () => (
                     <Route path="/cotizaciones" element={<Navigate to="/b2b-portal?tab=cuenta&section=quotes" replace />} />
                     <Route path="/cotizador" element={<Navigate to="/b2b-portal?tab=cuenta&section=express" replace />} />
                     <Route path="/pagos" element={<Navigate to="/b2b-portal?tab=cuenta&section=payments" replace />} />
+                    <Route path="/portal/__styleguide" element={<RequireAuth><StyleguidePage /></RequireAuth>} />
+                    <Route path="/portal" element={<RequireAuth><PortalRoot /></RequireAuth>}>
+                      <Route index element={<PortalHomePage />} />
+                      <Route path="catalogo" element={<PortalCatalogPage />} />
+                      <Route path="catalogo/bundles" element={<PortalBundlesPage />} />
+                      <Route path="catalogo/configurador" element={<PortalConfiguratorPage />} />
+                      <Route path="pedidos" element={<PortalOrdersPage />} />
+                      <Route path="pedidos/aprobar" element={<PortalApprovalsPage />} />
+                      <Route path="pedidos/bulk" element={<PortalBulkImportPage />} />
+                      <Route path="cotizaciones" element={<PortalQuotesPage />} />
+                      <Route path="cotizaciones/express" element={<PortalExpressQuotePage />} />
+                      <Route path="cuenta" element={<PortalAccountPage />} />
+                      <Route path="cuenta/documentos" element={<PortalInvoicesPage />} />
+                      <Route path="cuenta/listas" element={<PortalAccountPage />} />
+                      <Route path="cuenta/reposicion" element={<PortalAccountPage />} />
+                      <Route path="cuenta/proyectos" element={<PortalProjectsPage />} />
+                      <Route path="cuenta/rma" element={<PortalRmaPage />} />
+                      <Route path="cuenta/credito" element={<PortalAccountPage />} />
+                      <Route path="cuenta/reportes" element={<PortalAccountPage />} />
+                      <Route path="cuenta/lealtad" element={<PortalAccountPage />} />
+                      <Route path="cuenta/empresa" element={<PortalAccountPage />} />
+                      <Route path="cuenta/usuarios" element={<PortalAccountPage />} />
+                      <Route path="cuenta/sucursales" element={<PortalAccountPage />} />
+                      <Route path="cuenta/notificaciones" element={<PortalAccountPage />} />
+                      <Route path="soporte" element={<PortalSupportPage />} />
+                    </Route>
                     <Route path="/cart" element={<RequireAuth><CartPage /></RequireAuth>} />
                     <Route path="/admin" element={<RequireAdmin><Admin /></RequireAdmin>} />
                     <Route path="/clientes/:id" element={<RequireAdmin><CustomerView /></RequireAdmin>} />

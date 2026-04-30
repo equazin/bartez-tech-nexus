@@ -134,7 +134,17 @@ function parseBundleSort(value: string | null): BundleSort {
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-export default function B2BPortal() {
+interface B2BPortalProps {
+  /**
+   * "legacy" (default) renders the original chrome (PortalHeader + tabs bar + dashboard canvas).
+   * "shell" omits chrome so the parent (AppShell) provides sidebar + topbar.
+   */
+  chrome?: "legacy" | "shell";
+  /** Force the active tab. When set, ignores `searchParams.tab` for initial state. */
+  forcedTab?: PortalTab;
+}
+
+export default function B2BPortal({ chrome = "legacy", forcedTab }: B2BPortalProps = {}) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { profile: authProfile, user, isAdmin, signOut } = useAuth();
@@ -145,6 +155,7 @@ export default function B2BPortal() {
   const [catalogContext, setCatalogContext] = useState<CatalogContext>("default");
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<PortalTab>(() => {
+    if (forcedTab) return forcedTab;
     const t = searchParams.get("tab") as PortalTab;
     if (searchParams.get("tab") === "builder") return "configurator";
     if (PORTAL_TABS.includes(t)) return t;
@@ -152,6 +163,12 @@ export default function B2BPortal() {
     if (searchParams.get("category") || searchParams.get("categoria")) return "catalog";
     return "home";
   });
+
+  // When parent (PortalRoot) forces a tab via routing, follow it on subsequent mounts/navigations.
+  useEffect(() => {
+    if (forcedTab && forcedTab !== activeTab) setActiveTab(forcedTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forcedTab]);
   const dk = (dark: string, light: string) => (isDark ? dark : light);
   const [viewModeByContext, setViewModeByContext] = useState<ViewModeByContext>(() => loadViewModeByContext());
   const [viewMode, setViewMode] = useState<ViewMode>(() => loadViewModeByContext().default);
@@ -723,11 +740,13 @@ export default function B2BPortal() {
   const handleLogout = async () => { await signOut(); navigate("/login"); };
 
   // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const shellMode = chrome === "shell";
   return (
-    <div className="dashboard-stage min-h-screen bg-background px-2 py-2 md:px-4 md:py-4">
-      <div className="dashboard-canvas flex min-h-[calc(100vh-1rem)] flex-col overflow-hidden">
+    <div className={shellMode ? "flex flex-col" : "dashboard-stage min-h-screen bg-background px-2 py-2 md:px-4 md:py-4"}>
+      <div className={shellMode ? "flex flex-col" : "dashboard-canvas flex min-h-[calc(100vh-1rem)] flex-col overflow-hidden"}>
 
-      {/* TOPBAR */}
+      {/* TOPBAR (legacy chrome only) */}
+      {!shellMode && (
       <PortalHeader
         clientName={clientName}
         search={search}
@@ -757,9 +776,11 @@ export default function B2BPortal() {
           }
         }}
       />
+      )}
 
 
-      {/* TABS */}
+      {/* TABS (legacy chrome only) */}
+      {!shellMode && (
       <div className="relative z-50 border-b border-border/70 bg-card/75 px-4 py-1.5 md:px-6">
         <div className="flex items-center gap-1 overflow-x-auto overflow-y-visible pb-1 lg:overflow-visible [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* Primary tabs: Inicio + Catálogo */}
@@ -901,6 +922,7 @@ export default function B2BPortal() {
           </div>
         </div>
       </div>
+      )}
 
       {/* BANNER SOPORTE (Impersonate) */}
       {isImpersonating && (
