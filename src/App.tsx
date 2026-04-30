@@ -48,6 +48,9 @@ const PortalExpressQuotePage = lazy(() => import("./pages/portal/ExpressQuotePag
 const PortalSupportPage = lazy(() => import("./pages/portal/SupportPage"));
 const PortalProductDetailPage = lazy(() => import("./pages/portal/ProductDetailPage"));
 const PortalCompareProductsPage = lazy(() => import("./pages/portal/CompareProductsPage"));
+const PortalDocumentsPage = lazy(() => import("./pages/portal/account/DocumentsPage"));
+const PortalReportsPage = lazy(() => import("./pages/portal/account/ReportsPage"));
+const PortalCreditPage = lazy(() => import("./pages/portal/account/CreditPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
@@ -147,13 +150,13 @@ const App = () => (
                       <Route path="cotizaciones" element={<PortalQuotesPage />} />
                       <Route path="cotizaciones/express" element={<PortalExpressQuotePage />} />
                       <Route path="cuenta" element={<PortalAccountPage />} />
-                      <Route path="cuenta/documentos" element={<PortalInvoicesPage />} />
+                      <Route path="cuenta/documentos" element={<PortalDocumentsPage />} />
                       <Route path="cuenta/listas" element={<PortalAccountPage />} />
                       <Route path="cuenta/reposicion" element={<PortalAccountPage />} />
                       <Route path="cuenta/proyectos" element={<PortalProjectsPage />} />
                       <Route path="cuenta/rma" element={<PortalRmaPage />} />
-                      <Route path="cuenta/credito" element={<PortalAccountPage />} />
-                      <Route path="cuenta/reportes" element={<PortalAccountPage />} />
+                      <Route path="cuenta/credito" element={<PortalCreditPage />} />
+                      <Route path="cuenta/reportes" element={<PortalReportsPage />} />
                       <Route path="cuenta/lealtad" element={<PortalAccountPage />} />
                       <Route path="cuenta/empresa" element={<PortalAccountPage />} />
                       <Route path="cuenta/usuarios" element={<PortalAccountPage />} />
