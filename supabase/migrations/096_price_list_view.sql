@@ -23,7 +23,7 @@ SELECT
   p.name,
   COALESCE(b.name, '')                            AS brand_name,
   COALESCE(c.name, p.category, '')               AS category,
-  get_portal_price(p.id, cli.id)                 AS unit_price,
+  get_portal_price(p.id::INTEGER, cli.id::UUID)  AS unit_price,
   GREATEST(p.stock - COALESCE(p.stock_reserved, 0), 0) AS stock,
   COALESCE(p.min_order_qty, 1)                   AS min_order_qty
 FROM products p
