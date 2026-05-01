@@ -675,7 +675,7 @@ export default function CartPage() {
       setOrderSuccess(true);
       setCart({});
       setBundleCartMeta({});
-      setTimeout(() => navigate("/b2b-portal"), 2200);
+      setTimeout(() => navigate("/portal/pedidos"), 2200);
     } else {
       setValidationErrors([`Error al confirmar pedido: ${error}`]);
     }
@@ -713,7 +713,7 @@ export default function CartPage() {
       created_at:  now.toISOString(),
       updated_at:  now.toISOString(),
     });
-    navigate("/b2b-portal?tab=quotes");
+    navigate("/portal/cotizaciones");
   }
 
   // -- Export PDF ----------------------------------------------------------------
@@ -802,7 +802,7 @@ export default function CartPage() {
     if (quote) {
       setReviewRequested(true);
       setValidationErrors([]);
-      navigate("/b2b-portal?tab=quotes");
+      navigate("/portal/cotizaciones");
     }
   }
 
@@ -887,7 +887,7 @@ export default function CartPage() {
       {/* -- Header ----------------------------------------------------------- */}
       <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-border/70 bg-card/90 px-4 py-3 backdrop-blur md:px-6">
         <button
-          onClick={() => navigate("/b2b-portal")}
+          onClick={() => navigate("/portal")}
           className={`flex items-center gap-1.5 text-sm transition ${dk("text-gray-500 hover:text-white", "text-gray-500 hover:text-[#171717]")}`}
         >
           <ArrowLeft size={15} />
@@ -1010,7 +1010,7 @@ export default function CartPage() {
             <p className={`text-sm font-medium ${dk("text-gray-300", "text-[#525252]")}`}>Algunos productos del carrito ya no están disponibles.</p>
             <button
               type="button"
-              onClick={() => navigate("/b2b-portal")}
+              onClick={() => navigate("/portal")}
               className="rounded-xl bg-[#2D9F6A] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
             >
               Volver al catálogo

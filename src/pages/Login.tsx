@@ -25,7 +25,7 @@ const Login = () => {
 
   useEffect(() => {
     if (!loading && session) {
-      navigate("/b2b-portal");
+      navigate("/portal");
     }
   }, [session, loading, navigate]);
 

@@ -105,6 +105,44 @@ const RequireAdmin = ({ children }: { children: JSX.Element }) => {
   return children;
 };
 
+// Maps legacy /b2b-portal?tab=... URLs to the new /portal/* routes.
+// Anything we don't explicitly map falls through to /portal (Home).
+const LEGACY_TAB_TO_PATH: Record<string, string> = {
+  home: "/portal",
+  catalog: "/portal/catalogo",
+  bundles: "/portal/catalogo/bundles",
+  configurator: "/portal/catalogo/configurador",
+  builder: "/portal/catalogo/configurador",
+  orders: "/portal/pedidos",
+  approvals: "/portal/pedidos/aprobar",
+  bulk: "/portal/pedidos/bulk",
+  quotes: "/portal/cotizaciones",
+  express: "/portal/cotizaciones/express",
+  invoices: "/portal/cuenta/documentos",
+  rma: "/portal/cuenta/rma",
+  projects: "/portal/cuenta/proyectos",
+  cuenta: "/portal/cuenta",
+  support: "/portal/soporte",
+};
+
+function LegacyPortalRedirect() {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const tab = params.get("tab");
+
+  // /catalogo (no query) → /portal/catalogo
+  if (location.pathname === "/catalogo") {
+    return <Navigate to={`/portal/catalogo${location.search}`} replace />;
+  }
+
+  // /b2b-portal?tab=… → mapped path; preserve other query params (category, product, etc.)
+  const target = (tab && LEGACY_TAB_TO_PATH[tab]) ?? "/portal";
+  // Keep search params except `tab` so deep-links like ?category=cpu still work in the new pages.
+  params.delete("tab");
+  const search = params.toString();
+  return <Navigate to={search ? `${target}?${search}` : target} replace />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
@@ -135,12 +173,12 @@ const App = () => (
                     <Route path="/login" element={<Login />} />
                     <Route path="/reset-password" element={<ResetPassword />} />
                     <Route path="/registrarse" element={<Register />} />
-                    <Route path="/b2b-portal" element={<RequireAuth><B2BPortal /></RequireAuth>} />
-                    <Route path="/catalogo" element={<RequireAuth><B2BPortal /></RequireAuth>} />
-                    <Route path="/armador-pc" element={<Navigate to="/b2b-portal?tab=configurator" replace />} />
-                    <Route path="/cotizaciones" element={<Navigate to="/b2b-portal?tab=cuenta&section=quotes" replace />} />
-                    <Route path="/cotizador" element={<Navigate to="/b2b-portal?tab=cuenta&section=express" replace />} />
-                    <Route path="/pagos" element={<Navigate to="/b2b-portal?tab=cuenta&section=payments" replace />} />
+                    <Route path="/b2b-portal" element={<RequireAuth><LegacyPortalRedirect /></RequireAuth>} />
+                    <Route path="/catalogo" element={<RequireAuth><LegacyPortalRedirect /></RequireAuth>} />
+                    <Route path="/armador-pc" element={<Navigate to="/portal/catalogo/configurador" replace />} />
+                    <Route path="/cotizaciones" element={<Navigate to="/portal/cotizaciones" replace />} />
+                    <Route path="/cotizador" element={<Navigate to="/portal/cotizaciones/express" replace />} />
+                    <Route path="/pagos" element={<Navigate to="/portal/cuenta/documentos" replace />} />
                     <Route path="/portal/__styleguide" element={<RequireAuth><StyleguidePage /></RequireAuth>} />
                     <Route path="/portal" element={<RequireAuth><PortalRoot /></RequireAuth>}>
                       <Route index element={<PortalHomePage />} />
