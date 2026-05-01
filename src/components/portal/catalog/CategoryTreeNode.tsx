@@ -11,6 +11,8 @@ interface Props {
   depth?: number;
 }
 
+const INDENT_PER_DEPTH = 14; // px
+
 export function CategoryTreeNode({ node, selectedId, onSelect, depth = 0 }: Props) {
   const hasChildren = node.children.length > 0;
   const isSelected = selectedId === node.id;
@@ -21,6 +23,7 @@ export function CategoryTreeNode({ node, selectedId, onSelect, depth = 0 }: Prop
   };
 
   const [expanded, setExpanded] = useState(() => isAncestorOfSelected(node));
+  const showCount = typeof node.count === "number";
 
   return (
     <div>
@@ -31,28 +34,37 @@ export function CategoryTreeNode({ node, selectedId, onSelect, depth = 0 }: Prop
           if (hasChildren && !expanded) setExpanded(true);
         }}
         className={cn(
-          "flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors",
+          "group flex w-full items-center gap-1.5 rounded-md py-1.5 pr-2 text-sm transition-colors",
           "hover:bg-surface-2 text-left",
           isSelected && "bg-brand-100 text-brand-700 font-medium dark:bg-brand-900/40 dark:text-brand-300",
           !isSelected && "text-foreground/80",
-          depth > 0 && "ml-3"
         )}
+        style={{ paddingLeft: 8 + depth * INDENT_PER_DEPTH }}
       >
         {hasChildren ? (
           <span
+            role="button"
+            tabIndex={-1}
             onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
             className="shrink-0 rounded p-0.5 hover:bg-muted"
+            aria-label={expanded ? "Contraer" : "Expandir"}
           >
             <ChevronRight
               className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-90")}
             />
           </span>
         ) : (
-          <span className="w-5 shrink-0" />
+          <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
         )}
-        <span className="flex-1 truncate">{node.name}</span>
-        {node.count > 0 && (
-          <Badge variant="secondary" className="ml-auto text-xs tabular-nums">
+        <span className="min-w-0 flex-1 truncate">{node.name}</span>
+        {showCount && (
+          <Badge
+            variant="secondary"
+            className={cn(
+              "ml-2 shrink-0 tabular-nums",
+              node.count === 0 && "opacity-50",
+            )}
+          >
             {node.count}
           </Badge>
         )}
