@@ -9,7 +9,8 @@ Estado al cierre de esta sesión:
 - **Sprint 4 — Home Dashboard + Recompra rápida**: ✅ completado
 - **Sprint 5 — Documentos unificados + Reportes**: ✅ completado
 - **Sprint 6 — Multi-usuario + Multi-sucursal + Aprobaciones**: ✅ completado
-- **Sprint 7**: pendiente
+- **Sprint 7**: pendiente (multi-depósito + tracking carrier)
+- **Sprint 8 — Rediseño Mi Cuenta**: ✅ completado
 
 Plan completo en `~/.claude/plans/bubbly-finding-crescent.md` (fuera del repo).
 
@@ -237,3 +238,64 @@ Estas decisiones del plan original requieren más esfuerzo y se pueden encarar e
 5. Dark mode toggle revisar cada página nueva.
 6. Mobile: drawer + search + carrito accesibles.
 7. Lighthouse performance > 80 en home y catálogo.
+
+---
+
+## ✅ Sprint 8 — Rediseño integral de "Mi cuenta" (cerrado)
+
+**Objetivo:** eliminar la duplicación entre el sidebar y el panel interior de `AccountCenter`. Una sola fuente de navegación.
+
+**Resultado**
+- Sidebar de "Mi cuenta" pasa de 13 a **8** entradas claras: Resumen, Documentos, Crédito, Mis listas, Reposición auto., Reportes, Empresa, Soporte.
+- "Pedidos" del sidebar suma sub-items lógicos: Activos, Aprobaciones, Devoluciones, Proyectos, Carga masiva.
+- "Soporte" sale del sidebar top-level y entra dentro de Mi cuenta.
+
+**Páginas nuevas**
+- `src/pages/portal/account/AccountSummaryPage.tsx` — KPIs + facturas pendientes + actividad reciente + atajos + widget de lealtad embebido (en lugar de página propia).
+- `src/pages/portal/account/CompanyPage.tsx` — única página con tabs internas (Perfil / Usuarios / Sucursales). Reusa `UsersPage` y `BranchesPage` como contenido. Tab "Perfil" incluye datos fiscales, vendedor asignado, preferencias de notificación (en localStorage, manteniendo la key legacy `b2b_notification_preferences_${userId}`), y reset de password.
+- `src/pages/portal/account/ListsPage.tsx` — grid de listas guardadas con CRUD (crear/renombrar/eliminar/cargar al carrito).
+- `src/pages/portal/account/RecurringOrdersPage.tsx` — tabla con plantillas, toggle activa, ejecutar ahora, eliminar.
+- `src/pages/portal/account/SupportPage.tsx` (nuevo) — vendedor asignado + ticket con `client_notes` (prefix `[PORTAL:SUPPORT_TICKET]`) + tickets recientes + FAQ.
+
+**Páginas modificadas**
+- `src/pages/portal/account/CreditPage.tsx` — agregada tabla de movimientos de cuenta corriente con filtros por tipo y export CSV.
+
+**Hooks nuevos**
+- `src/hooks/useAccountMovements.ts` (extraído de `fetchAccountMovements`).
+- `src/hooks/useClientNotes.ts` (extraído de `fetchClientNotes` + `addClientNote`).
+
+**Eliminados**
+- `src/components/b2b/AccountCenter.tsx` (~1600 líneas).
+- `src/pages/portal/AccountPage.tsx` (wrapper legacy).
+- `src/pages/portal/SupportPage.tsx` top-level (wrapper legacy).
+- En `src/pages/B2BPortal.tsx`: bloque `activeTab === "cuenta"` y el import de AccountCenter.
+
+**Rutas**
+```
++ /portal/cuenta                      → AccountSummaryPage (nueva)
++ /portal/cuenta/credito              → CreditPage (ampliada)
++ /portal/cuenta/listas               → ListsPage (nueva)
++ /portal/cuenta/reposicion           → RecurringOrdersPage (nueva)
++ /portal/cuenta/empresa              → CompanyPage (nueva, con ?tab=perfil|usuarios|sucursales)
++ /portal/cuenta/soporte              → SupportPage (nueva)
+~ /portal/cuenta/documentos           → DocumentsPage (mantenida)
+~ /portal/cuenta/reportes             → ReportsPage (mantenida)
+~ /portal/pedidos/rma                 → RmaPage (movida desde Cuenta)
+~ /portal/pedidos/proyectos           → ProjectsPage (movida desde Cuenta)
+↻ /portal/cuenta/usuarios             → redirect 301 → /portal/cuenta/empresa?tab=usuarios
+↻ /portal/cuenta/sucursales           → redirect 301 → /portal/cuenta/empresa?tab=sucursales
+↻ /portal/cuenta/rma                  → redirect 301 → /portal/pedidos/rma
+↻ /portal/cuenta/proyectos            → redirect 301 → /portal/pedidos/proyectos
+↻ /portal/cuenta/lealtad              → redirect 301 → /portal/cuenta (widget embebido)
+↻ /portal/cuenta/notificaciones       → redirect 301 → /portal/cuenta/empresa?tab=perfil
+↻ /portal/soporte                     → redirect 301 → /portal/cuenta/soporte
+```
+
+**Impacto en bundle**
+- `B2BPortal-*.js`: 468 KB → 357 KB (-111 KB).
+
+**Done**
+- Typecheck verde, build verde.
+- Una sola navegación (sidebar). Sin panel interior duplicado.
+- Todas las URLs viejas redirigen sin 404.
+- `grep -r "AccountCenter" src/` devuelve cero matches.

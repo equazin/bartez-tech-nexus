@@ -31,7 +31,6 @@ import { RmaPanel } from "@/components/b2b/RmaPanel";
 import { PortalHeader, type SearchResult } from "@/components/b2b/PortalHeader";
 import WhatsAppFloat from "@/components/WhatsAppFloat";
 import { PortalSidebar } from "@/components/b2b/PortalSidebar";
-import { AccountCenter } from "@/components/b2b/AccountCenter";
 import { SupportCenter } from "@/components/b2b/SupportCenter";
 import { ProjectsPanel } from "@/components/b2b/ProjectsPanel";
 import { ProductDetailModal } from "@/components/b2b/ProductDetailModal";
@@ -1443,40 +1442,6 @@ export default function B2BPortal({ chrome = "legacy", forcedTab }: B2BPortalPro
               />
             </div>
             )
-          )}
-
-          {/* ACCOUNT */}
-          {activeTab === "cuenta" && profile && (
-            <AccountCenter
-              profile={profile}
-              sessionEmail={authProfile?.email}
-              orders={orders}
-              quotes={quotes}
-              invoices={myInvoices}
-              favoriteProducts={favoriteProducts}
-              savedCarts={cart.savedCarts}
-              purchaseLists={purchaseLists.lists}
-              purchaseListsLoading={purchaseLists.loading}
-              onNavigateToTab={(tab) => tab === "invoices" ? setPortalTab("cuenta", { section: "documentos" }) : setPortalTab(tab as PortalTab)}
-              onLoadSavedCart={cart.handleLoadSavedCart}
-              onDeleteSavedCart={cart.handleDeleteSavedCart}
-              onCreatePurchaseList={purchaseLists.createList}
-              onUpdatePurchaseList={purchaseLists.updateList}
-              onDeletePurchaseList={purchaseLists.deleteList}
-              onLoadListToCart={handleLoadListToCart}
-              onCreateOrderFromList={handleCreateOrderFromList}
-              isDark={isDark}
-              onLoadQuote={cart.handleLoadQuote}
-              onUpdateQuoteStatus={updateQuoteStatus}
-              onDeleteQuote={deleteQuote}
-              onDuplicateQuote={(id) => cart.handleDuplicateQuote(id, quotes)}
-              onConvertQuoteToOrder={cart.handleConvertQuoteToOrder}
-              products={catalog.products}
-              computePrice={computePrice}
-              formatPrice={formatPrice}
-              onAddToCart={cart.handleSmartAddToCart}
-              onRequestQuote={handleExpressRequestQuote}
-            />
           )}
 
           {/* INVOICES */}

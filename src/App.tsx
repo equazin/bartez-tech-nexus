@@ -38,21 +38,20 @@ const PortalBundlesPage = lazy(() => import("./pages/portal/BundlesPage"));
 const PortalConfiguratorPage = lazy(() => import("./pages/portal/ConfiguratorPage"));
 const PortalOrdersPage = lazy(() => import("./pages/portal/OrdersPage"));
 const PortalQuotesPage = lazy(() => import("./pages/portal/QuotesPage"));
-const PortalAccountPage = lazy(() => import("./pages/portal/AccountPage"));
 const PortalProjectsPage = lazy(() => import("./pages/portal/ProjectsPage"));
 const PortalRmaPage = lazy(() => import("./pages/portal/RmaPage"));
-const PortalApprovalsPage = lazy(() => import("./pages/portal/ApprovalsPage"));
-const PortalInvoicesPage = lazy(() => import("./pages/portal/InvoicesPage"));
 const PortalBulkImportPage = lazy(() => import("./pages/portal/BulkImportPage"));
 const PortalExpressQuotePage = lazy(() => import("./pages/portal/ExpressQuotePage"));
-const PortalSupportPage = lazy(() => import("./pages/portal/SupportPage"));
 const PortalProductDetailPage = lazy(() => import("./pages/portal/ProductDetailPage"));
 const PortalCompareProductsPage = lazy(() => import("./pages/portal/CompareProductsPage"));
+const PortalAccountSummaryPage = lazy(() => import("./pages/portal/account/AccountSummaryPage"));
 const PortalDocumentsPage = lazy(() => import("./pages/portal/account/DocumentsPage"));
 const PortalReportsPage = lazy(() => import("./pages/portal/account/ReportsPage"));
 const PortalCreditPage = lazy(() => import("./pages/portal/account/CreditPage"));
-const PortalUsersPage = lazy(() => import("./pages/portal/account/UsersPage"));
-const PortalBranchesPage = lazy(() => import("./pages/portal/account/BranchesPage"));
+const PortalListsPage = lazy(() => import("./pages/portal/account/ListsPage"));
+const PortalRecurringPage = lazy(() => import("./pages/portal/account/RecurringOrdersPage"));
+const PortalCompanyPage = lazy(() => import("./pages/portal/account/CompanyPage"));
+const PortalAccountSupportPage = lazy(() => import("./pages/portal/account/SupportPage"));
 const PortalApprovalsPageV2 = lazy(() => import("./pages/portal/ApprovalsPageV2"));
 
 const queryClient = new QueryClient({
@@ -119,10 +118,10 @@ const LEGACY_TAB_TO_PATH: Record<string, string> = {
   quotes: "/portal/cotizaciones",
   express: "/portal/cotizaciones/express",
   invoices: "/portal/cuenta/documentos",
-  rma: "/portal/cuenta/rma",
-  projects: "/portal/cuenta/proyectos",
+  rma: "/portal/pedidos/rma",
+  projects: "/portal/pedidos/proyectos",
   cuenta: "/portal/cuenta",
-  support: "/portal/soporte",
+  support: "/portal/cuenta/soporte",
 };
 
 function LegacyPortalRedirect() {
@@ -188,22 +187,26 @@ const App = () => (
                       <Route path="pedidos" element={<PortalOrdersPage />} />
                       <Route path="pedidos/aprobar" element={<PortalApprovalsPageV2 />} />
                       <Route path="pedidos/bulk" element={<PortalBulkImportPage />} />
+                      <Route path="pedidos/rma" element={<PortalRmaPage />} />
+                      <Route path="pedidos/proyectos" element={<PortalProjectsPage />} />
                       <Route path="cotizaciones" element={<PortalQuotesPage />} />
                       <Route path="cotizaciones/express" element={<PortalExpressQuotePage />} />
-                      <Route path="cuenta" element={<PortalAccountPage />} />
+                      <Route path="cuenta" element={<PortalAccountSummaryPage />} />
                       <Route path="cuenta/documentos" element={<PortalDocumentsPage />} />
-                      <Route path="cuenta/listas" element={<PortalAccountPage />} />
-                      <Route path="cuenta/reposicion" element={<PortalAccountPage />} />
-                      <Route path="cuenta/proyectos" element={<PortalProjectsPage />} />
-                      <Route path="cuenta/rma" element={<PortalRmaPage />} />
                       <Route path="cuenta/credito" element={<PortalCreditPage />} />
+                      <Route path="cuenta/listas" element={<PortalListsPage />} />
+                      <Route path="cuenta/reposicion" element={<PortalRecurringPage />} />
                       <Route path="cuenta/reportes" element={<PortalReportsPage />} />
-                      <Route path="cuenta/lealtad" element={<PortalAccountPage />} />
-                      <Route path="cuenta/empresa" element={<PortalAccountPage />} />
-                      <Route path="cuenta/usuarios" element={<PortalUsersPage />} />
-                      <Route path="cuenta/sucursales" element={<PortalBranchesPage />} />
-                      <Route path="cuenta/notificaciones" element={<PortalAccountPage />} />
-                      <Route path="soporte" element={<PortalSupportPage />} />
+                      <Route path="cuenta/empresa" element={<PortalCompanyPage />} />
+                      <Route path="cuenta/soporte" element={<PortalAccountSupportPage />} />
+                      {/* Legacy redirects to new structure */}
+                      <Route path="cuenta/usuarios" element={<Navigate to="/portal/cuenta/empresa?tab=usuarios" replace />} />
+                      <Route path="cuenta/sucursales" element={<Navigate to="/portal/cuenta/empresa?tab=sucursales" replace />} />
+                      <Route path="cuenta/rma" element={<Navigate to="/portal/pedidos/rma" replace />} />
+                      <Route path="cuenta/proyectos" element={<Navigate to="/portal/pedidos/proyectos" replace />} />
+                      <Route path="cuenta/lealtad" element={<Navigate to="/portal/cuenta" replace />} />
+                      <Route path="cuenta/notificaciones" element={<Navigate to="/portal/cuenta/empresa?tab=perfil" replace />} />
+                      <Route path="soporte" element={<Navigate to="/portal/cuenta/soporte" replace />} />
                       <Route path="p/:slug" element={<PortalProductDetailPage />} />
                       <Route path="comparar" element={<PortalCompareProductsPage />} />
                     </Route>

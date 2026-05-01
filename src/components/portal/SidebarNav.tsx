@@ -6,7 +6,6 @@ import {
   ShoppingCart,
   FileText,
   User,
-  LifeBuoy,
   ChevronDown,
   type LucideIcon,
 } from "lucide-react";
@@ -40,6 +39,13 @@ export const portalNavItems: SidebarNavItem[] = [
     label: "Pedidos",
     to: "/portal/pedidos",
     icon: ShoppingCart,
+    children: [
+      { label: "Activos", to: "/portal/pedidos" },
+      { label: "Aprobaciones", to: "/portal/pedidos/aprobar" },
+      { label: "Devoluciones", to: "/portal/pedidos/rma" },
+      { label: "Proyectos", to: "/portal/pedidos/proyectos" },
+      { label: "Carga masiva", to: "/portal/pedidos/bulk" },
+    ],
   },
   {
     label: "Cotizaciones",
@@ -53,20 +59,14 @@ export const portalNavItems: SidebarNavItem[] = [
     children: [
       { label: "Resumen", to: "/portal/cuenta" },
       { label: "Documentos", to: "/portal/cuenta/documentos" },
-      { label: "Listas guardadas", to: "/portal/cuenta/listas" },
-      { label: "Reposición auto.", to: "/portal/cuenta/reposicion" },
-      { label: "Proyectos", to: "/portal/cuenta/proyectos" },
-      { label: "Devoluciones", to: "/portal/cuenta/rma" },
       { label: "Crédito", to: "/portal/cuenta/credito" },
+      { label: "Mis listas", to: "/portal/cuenta/listas" },
+      { label: "Reposición auto.", to: "/portal/cuenta/reposicion" },
       { label: "Reportes", to: "/portal/cuenta/reportes" },
-      { label: "Lealtad", to: "/portal/cuenta/lealtad" },
       { label: "Empresa", to: "/portal/cuenta/empresa" },
-      { label: "Usuarios", to: "/portal/cuenta/usuarios" },
-      { label: "Sucursales", to: "/portal/cuenta/sucursales" },
-      { label: "Notificaciones", to: "/portal/cuenta/notificaciones" },
+      { label: "Soporte", to: "/portal/cuenta/soporte" },
     ],
   },
-  { label: "Soporte", to: "/portal/soporte", icon: LifeBuoy },
 ];
 
 interface SidebarNavProps {
