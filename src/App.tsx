@@ -99,8 +99,10 @@ const RequireAuth = ({ children }: { children: JSX.Element }) => {
 
 const RequireAdmin = ({ children }: { children: JSX.Element }) => {
   const { session, isAdmin, loading } = useAuth();
-  if (loading && !session) return <RouteLoading />;
-  if (!isAdmin) return <Navigate to="/login" replace />;
+  const location = useLocation();
+
+  if (loading) return <RouteLoading />;
+  if (!session || !isAdmin) return <Navigate to="/login" replace state={{ from: location }} />;
   return children;
 };
 

@@ -13,21 +13,26 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { session, loading, signIn } = useAuth();
+  const { session, loading, isAdmin, signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const isInactive = (location.state as { inactive?: boolean } | null)?.inactive === true;
-  const didResetPassword = (location.state as { passwordReset?: boolean } | null)?.passwordReset === true;
+  const locationState = location.state as { from?: { pathname?: string; search?: string }; inactive?: boolean; passwordReset?: boolean } | null;
+  const isInactive = locationState?.inactive === true;
+  const didResetPassword = locationState?.passwordReset === true;
 
   useEffect(() => {
     if (!loading && session) {
-      navigate("/portal");
+      const fromPath = locationState?.from?.pathname;
+      const fromSearch = locationState?.from?.search ?? "";
+      const adminOnlyTarget = fromPath === "/admin" || fromPath?.startsWith("/clientes/");
+      const target = fromPath && (!adminOnlyTarget || isAdmin) ? `${fromPath}${fromSearch}` : isAdmin ? "/admin" : "/portal";
+      navigate(target, { replace: true });
     }
-  }, [session, loading, navigate]);
+  }, [session, loading, isAdmin, locationState?.from?.pathname, locationState?.from?.search, navigate]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
