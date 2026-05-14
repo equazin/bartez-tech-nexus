@@ -7,13 +7,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getAvailableStock } from "@/lib/pricing";
 import { displayName } from "@/models/products";
 import type { Product } from "@/models/products";
+import type { PriceResult } from "@/hooks/usePricing";
 
 interface Props {
   products: Product[];
   loading: boolean;
+  getPrice: (product: Product, quantity: number) => PriceResult;
 }
 
-export function ForYouSection({ products, loading }: Props) {
+export function ForYouSection({ products, loading, getPrice }: Props) {
   const navigate = useNavigate();
   const shown = products.slice(0, 6);
 
@@ -41,7 +43,11 @@ export function ForYouSection({ products, loading }: Props) {
         </div>
       ) : shown.length === 0 ? null : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {shown.map((p) => (
+          {shown.map((p) => {
+            const quantity = Math.max(p.min_order_qty ?? 1, 1);
+            const price = getPrice(p, quantity);
+
+            return (
             <button
               key={p.id}
               type="button"
@@ -62,11 +68,12 @@ export function ForYouSection({ products, loading }: Props) {
               </div>
               <p className="line-clamp-2 text-xs font-medium leading-snug">{displayName(p)}</p>
               <div className="flex items-center justify-between gap-1">
-                <MoneyCell value={p.unit_price ?? 0} emphasis="strong" className="text-xs" />
+                <MoneyCell value={price.unitPrice} emphasis="strong" className="text-xs" />
                 <StockCell available={getAvailableStock(p)} density="compact" className="text-xs" />
               </div>
             </button>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

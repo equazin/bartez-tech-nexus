@@ -5,6 +5,7 @@ import { useOrders } from "@/hooks/useOrders";
 import { useBusinessAlerts } from "@/hooks/useBusinessAlerts";
 import { useClientKpis } from "@/hooks/useClientKpis";
 import { useProducts } from "@/hooks/useProducts";
+import { usePricing } from "@/hooks/usePricing";
 import { HomeHero } from "@/components/portal/home/HomeHero";
 import { MetricsRow } from "@/components/portal/home/MetricsRow";
 import { QuickActions } from "@/components/portal/home/QuickActions";
@@ -20,6 +21,7 @@ export default function HomePage() {
   const { activeProfile } = useImpersonate();
   const profile = activeProfile ?? authProfile;
   const clientId = profile?.id ?? "";
+  const { computePrice } = usePricing(profile);
 
   const { orders, loading: ordersLoading } = useOrders();
   const { alerts, loading: alertsLoading, dismiss } = useBusinessAlerts(clientId);
@@ -77,7 +79,7 @@ export default function HomePage() {
       <Separator />
 
       {/* Featured products */}
-      <ForYouSection products={featuredProducts} loading={featuredLoading} />
+      <ForYouSection products={featuredProducts} loading={featuredLoading} getPrice={computePrice} />
 
       <Separator />
 
