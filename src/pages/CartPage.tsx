@@ -7,7 +7,7 @@ import { useOrders } from "@/hooks/useOrders";
 import { useQuotes } from "@/hooks/useQuotes";
 import { usePricingRules } from "@/hooks/usePricingRules";
 import { useCurrency } from "@/context/CurrencyContext";
-import { useCartSync } from "@/hooks/useCartSync";
+import { useSharedCartState } from "@/hooks/useSharedCartState";
 import { generateQuotePdfOnDemand } from "@/lib/quotePdfClient";
 import { getAvailableStock } from "@/lib/pricing";
 import { resolveMarginWithContext } from "@/lib/pricingEngine";
@@ -98,9 +98,8 @@ export default function CartPage() {
   const { profile, isAdmin, user } = useAuth();
   const { products, loading: productsLoading } = useProducts({ isAdmin });
 
-  // Cart state needs to be declared early so we can use the IDs for targeted fetch
-  const userId0 = profile?.id || "guest";
-  const cartKey0 = `b2b_cart_${userId0}`;
+  const userId = profile?.id || "guest";
+  const { cart, setCart, bundleCartMeta, setBundleCartMeta } = useSharedCartState(userId);
   const [cartProductsById, setCartProductsById] = useState<Record<number, import("@/models/products").Product>>({});
   const [cartProductsLoading, setCartProductsLoading] = useState(true);
 
@@ -109,8 +108,7 @@ export default function CartPage() {
     async function fetchCartProducts() {
       setCartProductsLoading(true);
       try {
-        const storedCart: Record<number, number> = JSON.parse(localStorage.getItem(cartKey0) || "{}");
-        const ids = Object.keys(storedCart).map(Number).filter(Boolean);
+        const ids = Object.keys(cart).map(Number).filter(Boolean);
         if (ids.length === 0) { setCartProductsById({}); setCartProductsLoading(false); return; }
         const tableName = isAdmin ? "products" : "portal_products";
         const { data } = await supabase.from(tableName).select("*").in("id", ids);
@@ -125,7 +123,7 @@ export default function CartPage() {
     }
     void fetchCartProducts();
     return () => { cancelled = true; };
-  }, [cartKey0, isAdmin]);
+  }, [cart, isAdmin]);
 
   const { computePrice } = usePricing(profile);
   const { addOrder, orders } = useOrders();
@@ -135,26 +133,8 @@ export default function CartPage() {
     currency, formatPrice, formatUSD, formatARS, exchangeRate, convertPrice,
   } = useCurrency();
 
-  const userId = profile?.id || "guest";
-  const cartKey     = `b2b_cart_${userId}`;
-  const metaKey     = `b2b_cart_meta_${userId}`;
   const globalMargin = profile?.default_margin ?? 20;
   const clientName  = profile?.company_name ?? profile?.contact_name ?? "Cliente";
-
-  // -- Cart state (synced to localStorage) -------------------------------------
-  const [cart, setCart] = useState<Record<number, number>>(() => {
-    try { return JSON.parse(localStorage.getItem(cartKey) || "{}"); }
-    catch { return {}; }
-  });
-  const bundleCartMeta = useMemo<Record<number, { bundleId: string; bundleName: string }>>(() => {
-    try { return JSON.parse(localStorage.getItem(metaKey) || "{}"); }
-    catch { return {}; }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metaKey, cart]);
-  useEffect(() => {
-    localStorage.setItem(cartKey, JSON.stringify(cart));
-  }, [cart, cartKey]);
-  useCartSync(cart, setCart);
 
   useEffect(() => {
     setFavoriteProductIds(getFavoriteProducts(userId));
@@ -259,7 +239,7 @@ export default function CartPage() {
 
   // -- Qty helpers --------------------------------------------------------------
   function addQty(productId: number) {
-    const product = products.find((item) => item.id === productId);
+    const product = cartProductsById[productId] ?? products.find((item) => item.id === productId);
     if (!product) return;
     const available = getAvailableStock(product);
     setCart((prev) => {
@@ -268,6 +248,12 @@ export default function CartPage() {
     });
   }
   function removeQty(productId: number) {
+    if ((cart[productId] || 0) <= 1) {
+      setBundleCartMeta((meta) => {
+        const { [productId]: _, ...rest } = meta;
+        return rest;
+      });
+    }
     setCart((prev) => {
       const qty = prev[productId] || 0;
       if (qty <= 1) {
@@ -283,6 +269,10 @@ export default function CartPage() {
       const next = { ...cart };
       delete next[productId];
       setCart(next);
+      setBundleCartMeta((prev) => {
+        const { [productId]: _, ...rest } = prev;
+        return rest;
+      });
     } else {
       setCart((prev) => ({ ...prev, [productId]: qty }));
     }
@@ -291,6 +281,10 @@ export default function CartPage() {
     const next = { ...cart };
     delete next[productId];
     setCart(next);
+    setBundleCartMeta((prev) => {
+      const { [productId]: _, ...rest } = prev;
+      return rest;
+    });
   }
 
   async function handleClearCart() {
@@ -299,6 +293,7 @@ export default function CartPage() {
     if (!confirmed) return;
 
     setCart({});
+    setBundleCartMeta({});
     setValidationErrors([]);
     setOrderSuccess(false);
     setListSaved(false);
@@ -571,6 +566,7 @@ export default function CartPage() {
     const draft = readCheckoutDraft(userId);
     if (!draft) return;
     setCart(draft.cart);
+    setBundleCartMeta({});
     setResellerMode(draft.resellerMode);
     setResellerMargin(draft.resellerMargin);
     setPaymentMethod(draft.paymentMethod as PaymentMethod);
@@ -647,6 +643,8 @@ export default function CartPage() {
       name:        item.product.name,
       sku:         item.product.sku || "",
       quantity:    item.quantity,
+      bundle_id:   bundleCartMeta[item.product.id]?.bundleId ?? null,
+      bundle_name: bundleCartMeta[item.product.id]?.bundleName ?? null,
       cost_price:  item.cost,
       unit_price:  Number(item.unitPrice.toFixed(2)),
       total_price: Number(item.totalPrice.toFixed(2)),
@@ -676,7 +674,8 @@ export default function CartPage() {
       setSavedDraftAt(null);
       setOrderSuccess(true);
       setCart({});
-      setTimeout(() => navigate("/b2b-portal"), 2200);
+      setBundleCartMeta({});
+      setTimeout(() => navigate("/portal/pedidos"), 2200);
     } else {
       setValidationErrors([`Error al confirmar pedido: ${error}`]);
     }
@@ -714,7 +713,7 @@ export default function CartPage() {
       created_at:  now.toISOString(),
       updated_at:  now.toISOString(),
     });
-    navigate("/b2b-portal?tab=quotes");
+    navigate("/portal/cotizaciones");
   }
 
   // -- Export PDF ----------------------------------------------------------------
@@ -803,7 +802,7 @@ export default function CartPage() {
     if (quote) {
       setReviewRequested(true);
       setValidationErrors([]);
-      navigate("/b2b-portal?tab=quotes");
+      navigate("/portal/cotizaciones");
     }
   }
 
@@ -842,6 +841,7 @@ export default function CartPage() {
 
   function handleApplyTemplate(template: CheckoutTemplate) {
     setCart(template.cart);
+    setBundleCartMeta({});
     setPaymentMethod(template.paymentMethod as PaymentMethod);
     setShippingType(template.shippingType as ShippingType);
     setShippingTransport(template.shippingTransport as Transport);
@@ -887,7 +887,7 @@ export default function CartPage() {
       {/* -- Header ----------------------------------------------------------- */}
       <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-border/70 bg-card/90 px-4 py-3 backdrop-blur md:px-6">
         <button
-          onClick={() => navigate("/b2b-portal")}
+          onClick={() => navigate("/portal")}
           className={`flex items-center gap-1.5 text-sm transition ${dk("text-gray-500 hover:text-white", "text-gray-500 hover:text-[#171717]")}`}
         >
           <ArrowLeft size={15} />
@@ -1010,7 +1010,7 @@ export default function CartPage() {
             <p className={`text-sm font-medium ${dk("text-gray-300", "text-[#525252]")}`}>Algunos productos del carrito ya no están disponibles.</p>
             <button
               type="button"
-              onClick={() => navigate("/b2b-portal")}
+              onClick={() => navigate("/portal")}
               className="rounded-xl bg-[#2D9F6A] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
             >
               Volver al catálogo

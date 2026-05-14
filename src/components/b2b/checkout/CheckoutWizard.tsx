@@ -43,9 +43,6 @@ export function CheckoutWizard({
         case 1:
           return !hasBlockingErrors;
         case 2:
-          // Shipping is always valid (retiro requires nothing, envio just warns)
-          return true;
-        case 3:
           return true;
         default:
           return false;
@@ -57,7 +54,7 @@ export function CheckoutWizard({
   const handleNext = useCallback(() => {
     if (!canAdvanceFromStep(currentStep)) return;
     markCompleted(currentStep);
-    setCurrentStep((prev) => Math.min(prev + 1, 4) as CheckoutStep);
+    setCurrentStep((prev) => Math.min(prev + 1, 3) as CheckoutStep);
   }, [canAdvanceFromStep, currentStep, markCompleted]);
 
   const handlePrev = useCallback(() => {
@@ -89,15 +86,19 @@ export function CheckoutWizard({
         {/* Step content */}
         <div className="flex-1 min-w-0">
           {currentStep === 1 && <CartStep {...cartStepProps} />}
-          {currentStep === 2 && <ShippingStep {...shippingStepProps} />}
-          {currentStep === 3 && <PaymentStep {...paymentStepProps} />}
-          {currentStep === 4 && <ConfirmStep {...confirmStepProps} />}
+          {currentStep === 2 && (
+            <div className="flex flex-col gap-4">
+              <ShippingStep {...shippingStepProps} />
+              <PaymentStep {...paymentStepProps} />
+            </div>
+          )}
+          {currentStep === 3 && <ConfirmStep {...confirmStepProps} />}
 
           {/* Step navigation */}
           <StepNavigation
             currentStep={currentStep}
             canAdvance={canAdvanceFromStep(currentStep)}
-            isLastStep={currentStep === 4}
+            isLastStep={currentStep === 3}
             onPrev={handlePrev}
             onNext={handleNext}
           />

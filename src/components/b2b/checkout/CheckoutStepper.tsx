@@ -1,16 +1,15 @@
 import {
-  ShoppingCart, Truck, CreditCard, CheckCircle2,
+  ShoppingCart, Truck, CheckCircle2,
   ChevronRight, ChevronLeft, Package2, MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type CheckoutStep = 1 | 2 | 3 | 4;
+export type CheckoutStep = 1 | 2 | 3;
 
 const STEPS = [
-  { step: 1 as const, label: "Carrito",   icon: ShoppingCart },
-  { step: 2 as const, label: "Entrega",   icon: Truck },
-  { step: 3 as const, label: "Pago",      icon: CreditCard },
-  { step: 4 as const, label: "Confirmar", icon: CheckCircle2 },
+  { step: 1 as const, label: "Revisión",     icon: ShoppingCart },
+  { step: 2 as const, label: "Entrega/pago", icon: Truck },
+  { step: 3 as const, label: "Confirmar",    icon: CheckCircle2 },
 ];
 
 interface CheckoutStepperProps {

@@ -1,4 +1,10 @@
 User-agent: *
 Allow: /
+Disallow: /portal
+Disallow: /admin
+Disallow: /clientes
+Disallow: /login
+Disallow: /reset-password
+Disallow: /cart
 
 Sitemap: https://www.bartez.com.ar/sitemap.xml

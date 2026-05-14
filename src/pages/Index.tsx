@@ -80,7 +80,7 @@ const Index = () => {
     <>
     <Layout>
       {/* Hero: Portal B2B Focused */}
-      <section className="relative overflow-hidden min-h-[90vh] flex items-center">
+      <section className="relative flex min-h-[calc(100svh-96px)] items-center overflow-hidden">
         <div className="absolute inset-0">
           <video
             autoPlay muted loop playsInline
@@ -94,61 +94,62 @@ const Index = () => {
         </div>
         <div className="absolute inset-0 hero-grid opacity-15" />
 
-        <div className="relative container mx-auto px-4 py-28 md:py-36 lg:py-44 lg:px-8">
-          <motion.div initial="hidden" animate="visible" className="max-w-4xl mx-auto text-center">
+        <div className="relative container mx-auto px-4 py-16 md:py-36 lg:py-44 lg:px-8">
+          <motion.div initial="hidden" animate="visible" className="mx-auto w-full max-w-[22rem] text-center sm:max-w-4xl">
             <motion.div variants={fadeUp} custom={0} className="flex justify-center">
-              <span className="enterprise-badge mb-8 inline-flex items-center gap-2">
+              <span className="enterprise-badge mb-6 inline-flex max-w-[19rem] items-center justify-center gap-2 whitespace-normal px-3 text-center tracking-[0.1em] sm:mb-8 sm:max-w-full sm:px-4 sm:tracking-[0.15em]">
                 <Shield size={12} className="text-primary" />
-                Portal Exclusivo para Empresas · Argentina
+                <span className="sm:hidden">Portal para empresas</span>
+                <span className="hidden sm:inline">Portal Exclusivo para Empresas · Argentina</span>
               </span>
             </motion.div>
 
             <motion.h1
               variants={fadeUp}
               custom={1}
-              className="font-display text-4xl font-extrabold leading-[1.05] tracking-tight text-foreground sm:text-5xl md:text-6xl lg:text-7xl"
+              className="mx-auto max-w-[19rem] text-balance font-display text-[2.1rem] font-extrabold leading-[1.08] tracking-tight text-foreground sm:max-w-4xl sm:text-5xl md:text-6xl lg:text-7xl"
             >
-              Potencie su compras IT con nuestro{" "}
+              Potencie sus compras IT con nuestro{" "}
               <span className="text-gradient">Portal B2B Inteligente</span>
             </motion.h1>
 
             <motion.p
               variants={fadeUp}
               custom={2}
-              className="mt-8 max-w-2xl mx-auto text-lg text-muted-foreground leading-relaxed md:text-xl"
+              className="mx-auto mt-6 max-w-[19rem] text-base leading-relaxed text-muted-foreground sm:max-w-2xl md:mt-8 md:text-xl"
             >
               Precios mayoristas, stock en tiempo real y gestión integral de suministros tecnológicos. 
               La herramienta definitiva para el departamento de compras y tecnología.
             </motion.p>
 
-            <motion.div variants={fadeUp} custom={3} className="mt-12 flex flex-wrap justify-center gap-4">
-              <Link to="/login">
-                <Button size="lg" className="bg-gradient-primary btn-interactive font-bold text-primary-foreground hover:opacity-90 glow-md h-14 px-10 text-base">
+            <motion.div variants={fadeUp} custom={3} className="mx-auto mt-9 flex max-w-[18rem] flex-col justify-center gap-3 sm:mt-12 sm:max-w-none sm:flex-row sm:flex-wrap sm:gap-4">
+              <Link to="/login" className="w-full sm:w-auto">
+                <Button size="lg" className="bg-gradient-primary btn-interactive h-14 w-full px-6 text-base font-bold text-primary-foreground glow-md hover:opacity-90 sm:w-auto sm:px-10">
                   Acceder al Portal B2B <ArrowRight className="ml-2" size={18} />
                 </Button>
               </Link>
-              <Link to="/registrarse">
+              <Link to="/registrarse" className="w-full sm:w-auto">
                 <Button
                   size="lg"
                   variant="outline"
-                  className="btn-interactive border-primary/20 bg-primary/5 text-foreground hover:bg-primary/10 h-14 px-10 text-base"
+                  className="btn-interactive h-14 w-full border-primary/20 bg-primary/5 px-6 text-base text-foreground hover:bg-primary/10 sm:w-auto sm:px-10"
                   onClick={() => trackCTAClick("home_hero_solicitar_cuenta_b2b")}
                 >
                   Solicitar cuenta B2B
                 </Button>
               </Link>
-              <Link to="/puntos-de-venta">
+              <Link to="/puntos-de-venta" className="w-full sm:w-auto">
                 <Button
                   size="lg"
                   variant="outline"
-                  className="btn-interactive border-primary/30 bg-primary/10 text-foreground hover:bg-primary/15 h-14 px-10 text-base"
+                  className="btn-interactive h-14 w-full border-primary/30 bg-primary/10 px-6 text-base text-foreground hover:bg-primary/15 sm:w-auto sm:px-10"
                 >
                   Punto de Venta y BARpos <Store className="ml-2" size={18} />
                 </Button>
               </Link>
             </motion.div>
 
-            <motion.div variants={fadeUp} custom={4} className="mt-14 flex flex-wrap justify-center gap-x-10 gap-y-4">
+            <motion.div variants={fadeUp} custom={4} className="mx-auto mt-10 grid max-w-[18rem] gap-3 text-left sm:mt-14 sm:flex sm:max-w-none sm:flex-wrap sm:justify-center sm:gap-x-10 sm:gap-y-4 sm:text-center">
               {[
                 { icon: TrendingUp, label: "Precios Mayoristas Reales" },
                 { icon: Store, label: "BARpos para Kioscos y Minisuper" },
@@ -164,7 +165,7 @@ const Index = () => {
             </motion.div>
 
             {/* Quick Portal Inquiry */}
-            <motion.div variants={fadeUp} custom={5} className="mt-16 max-w-md mx-auto relative px-4">
+            <motion.div variants={fadeUp} custom={5} className="relative mx-auto mt-12 max-w-md px-0 sm:mt-16 sm:px-4">
               <p className="text-xs text-muted-foreground/60 mb-4 uppercase tracking-widest font-semibold">¿Interesado en ser cliente? Déjenos su email:</p>
               <HeroContactForm />
             </motion.div>

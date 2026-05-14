@@ -1,12 +1,19 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, type Dispatch, type SetStateAction } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
+
+function hasCartItems(items: Record<number, number>) {
+  return Object.values(items).some((qty) => Number(qty) > 0);
+}
 
 /**
  * Hook to synchronize the local cart state with Supabase for authenticated users.
  * Uses debouncing to prevent excessive database writes.
  */
-export function useCartSync(cart: Record<number, number>, setCart: (cart: Record<number, number>) => void) {
+export function useCartSync(
+  cart: Record<number, number>,
+  setCart: Dispatch<SetStateAction<Record<number, number>>>,
+) {
   const { user } = useAuth();
   const hasHydrated = useRef(false);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
@@ -54,8 +61,14 @@ export function useCartSync(cart: Record<number, number>, setCart: (cart: Record
         if (error && error.code !== "PGRST116") throw error; // PGRST116 is "no rows found"
 
         if (data?.items) {
-          setCart(data.items as Record<number, number>);
-        } else if (Object.keys(latestCart.current).length > 0) {
+          const remoteItems = data.items as Record<number, number>;
+          if (hasCartItems(remoteItems) || !hasCartItems(latestCart.current)) {
+            setCart(remoteItems);
+          } else {
+            hasPendingSync.current = true;
+            await syncRemoteCart(user.id, latestCart.current);
+          }
+        } else if (hasCartItems(latestCart.current)) {
           hasPendingSync.current = true;
           await syncRemoteCart(user.id, latestCart.current);
         }

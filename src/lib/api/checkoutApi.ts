@@ -7,6 +7,8 @@ import type { Order } from "./ordersApi";
 export interface CartItem {
   product_id: number;
   quantity: number;
+  bundle_id?: string | null;
+  bundle_name?: string | null;
 }
 
 export interface CheckoutPayload {
@@ -49,6 +51,8 @@ export async function createOrderFromCart(payload: CheckoutPayload): Promise<Ord
       products: payload.items.map((item) => ({
         id: item.product_id,
         quantity: item.quantity,
+        bundle_id: item.bundle_id ?? null,
+        bundle_name: item.bundle_name ?? null,
       })),
       payment_method: payload.payment_method ?? null,
       payment_surcharge_pct: payload.payment_surcharge_pct ?? null,

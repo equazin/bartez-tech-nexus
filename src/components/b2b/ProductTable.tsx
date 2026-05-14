@@ -44,7 +44,7 @@ export function ProductTable({
   getPriceInfo,
   onAddToList,
 }: ProductTableProps) {
-  const [density, setDensity] = useState<"normal" | "compact">("normal");
+  const [density, setDensity] = useState<"normal" | "compact">("compact");
   const isCompact = density === "compact";
 
   return (

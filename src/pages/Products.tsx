@@ -24,6 +24,24 @@ interface PublicProduct {
 
 const PAGE_SIZE = 48;
 
+const publicCatalogPrompts = [
+  {
+    icon: Package,
+    title: "Hardware corporativo",
+    description: "Notebooks, PCs, monitores y periféricos para compras recurrentes.",
+  },
+  {
+    icon: Building2,
+    title: "Infraestructura IT",
+    description: "Servidores, networking, almacenamiento y seguridad para empresas.",
+  },
+  {
+    icon: Store,
+    title: "Punto de venta",
+    description: "Kits POS, impresoras, lectores y terminales listos para operar.",
+  },
+];
+
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState<T>(value);
   useEffect(() => {
@@ -39,6 +57,7 @@ const Products = () => {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -49,6 +68,7 @@ const Products = () => {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setLoadError("");
 
     void fetchPublicProducts({
       active: true,
@@ -62,7 +82,13 @@ const Products = () => {
           setTotal(data.total);
         }
       })
-      .catch(() => {/* non-blocking */})
+      .catch(() => {
+        if (!cancelled) {
+          setProducts([]);
+          setTotal(0);
+          setLoadError("No pudimos cargar el catálogo público en este momento.");
+        }
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
@@ -109,9 +135,13 @@ const Products = () => {
           </div>
           {!loading && (
             <p className="mt-2 text-center text-xs text-muted-foreground">
-              {total > 0
-                ? `${total.toLocaleString()} producto${total !== 1 ? "s" : ""} encontrado${total !== 1 ? "s" : ""}`
-                : "Sin resultados para esa búsqueda"}
+              {loadError
+                ? loadError
+                : total > 0
+                  ? `${total.toLocaleString()} producto${total !== 1 ? "s" : ""} encontrado${total !== 1 ? "s" : ""}`
+                  : search
+                    ? "Sin resultados para esa búsqueda"
+                    : "Catálogo público en preparación"}
             </p>
           )}
         </div>
@@ -120,7 +150,7 @@ const Products = () => {
       {/* Login wall banner */}
       <section className="py-5 bg-primary/5 border-b border-primary/10">
         <div className="container mx-auto px-4 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 pr-16 sm:pr-0">
             <Lock size={16} className="text-primary shrink-0" />
             <p className="text-sm text-foreground">
               <span className="font-semibold">Ver precios y disponibilidad</span> requiere acceso al portal B2B.
@@ -170,11 +200,50 @@ const Products = () => {
               ))}
             </div>
           ) : products.length === 0 ? (
-            <div className="flex flex-col items-center gap-4 py-24 text-center">
-              <Package size={40} className="text-muted-foreground/40" />
-              <p className="text-muted-foreground">No se encontraron productos.</p>
-              {search && (
-                <Button variant="outline" onClick={() => setSearch("")}>Limpiar búsqueda</Button>
+            <div className="mx-auto max-w-5xl py-12">
+              <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 text-center">
+                <Package size={40} className="text-muted-foreground/40" />
+                <div>
+                  <h2 className="font-display text-2xl font-semibold text-foreground">
+                    {loadError
+                      ? "El catálogo público no está disponible"
+                      : search
+                        ? "No encontramos productos para esa búsqueda"
+                        : "El catálogo público se está preparando"}
+                  </h2>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {loadError
+                      ? "Mientras tanto, podés ingresar al portal o pedir asistencia para una cotización puntual."
+                      : search
+                        ? "Probá buscar por otra marca, SKU o familia de producto."
+                        : "Los precios y la disponibilidad completa viven dentro del portal B2B. Estas categorías te orientan para solicitar acceso o cotizar rápido."}
+                  </p>
+                </div>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  {search ? (
+                    <Button variant="outline" onClick={() => setSearch("")}>Limpiar búsqueda</Button>
+                  ) : null}
+                  <Button asChild className="bg-gradient-primary text-primary-foreground hover:opacity-90">
+                    <Link to="/registrarse">Solicitar acceso B2B</Link>
+                  </Button>
+                  <Button asChild variant="outline">
+                    <Link to="/contacto">Hablar con un especialista</Link>
+                  </Button>
+                </div>
+              </div>
+
+              {!search && (
+                <div className="mt-10 grid gap-4 md:grid-cols-3">
+                  {publicCatalogPrompts.map((item) => (
+                    <div key={item.title} className="rounded-xl border border-border bg-card p-5">
+                      <div className="icon-container h-11 w-11 text-primary">
+                        <item.icon size={18} />
+                      </div>
+                      <h3 className="mt-4 font-display text-base font-semibold text-foreground">{item.title}</h3>
+                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.description}</p>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           ) : (

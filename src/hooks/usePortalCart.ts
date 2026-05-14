@@ -11,6 +11,7 @@ import { puedeComprar } from "@/lib/api/clientDetail";
 import { backend, BackendError } from "@/lib/api/backend";
 import { logActivity } from "@/lib/api/activityLog";
 import { trackFirstOrder, trackOrderPlaced } from "@/lib/marketingTracker";
+import { useSharedCartState } from "@/hooks/useSharedCartState";
 import type { Product } from "@/models/products";
 import type { PriceResult } from "@/hooks/usePricing";
 import type { Quote } from "@/models/quote";
@@ -66,32 +67,14 @@ export function usePortalCart({
   setActiveTab,
   creditAvailable,
 }: UsePortalCartOptions) {
-  const cartKey = `b2b_cart_${profile?.id || "guest"}`;
-  const metaKey = `b2b_cart_meta_${profile?.id || "guest"}`;
-
   // ── Cart state ────────────────────────────────────────────────────────────
-  const [cart, setCart] = useState<Record<number, number>>(() => {
-    try { return JSON.parse(localStorage.getItem(cartKey) || "{}"); }
-    catch { return {}; }
-  });
-  const [bundleCartMeta, setBundleCartMeta] = useState<Record<number, BundleMeta>>(() => {
-    try { return JSON.parse(localStorage.getItem(metaKey) || "{}"); }
-    catch { return {}; }
-  });
+  const { cart, setCart, bundleCartMeta, setBundleCartMeta } = useSharedCartState(profile?.id || "guest");
   const [productMargins, setProductMargins] = useState<Record<number, number>>({});
   const [globalMargin, setGlobalMargin] = useState(profile?.default_margin ?? 20);
 
   useEffect(() => {
     if (profile?.default_margin) setGlobalMargin(profile.default_margin);
   }, [profile?.default_margin]);
-
-  useEffect(() => {
-    localStorage.setItem(cartKey, JSON.stringify(cart));
-  }, [cart, cartKey]);
-
-  useEffect(() => {
-    localStorage.setItem(metaKey, JSON.stringify(bundleCartMeta));
-  }, [bundleCartMeta, metaKey]);
 
   // ── Saved carts & favorites ───────────────────────────────────────────────
   const [savedCarts, setSavedCarts] = useState<SavedCart[]>(() =>
@@ -288,12 +271,22 @@ export function usePortalCart({
     }, 900);
   }
 
-  const onRemoveFromCart = (product: Product) =>
+  const onRemoveFromCart = (product: Product) => {
+    if ((cart[product.id] || 0) <= 1) {
+      setBundleCartMeta((meta) => {
+        const { [product.id]: _, ...rest } = meta;
+        return rest;
+      });
+    }
     setCart((prev) => {
       const qty = prev[product.id] || 0;
-      if (qty <= 1) { const { [product.id]: _, ...rest } = prev; return rest; }
+      if (qty <= 1) {
+        const { [product.id]: _, ...rest } = prev;
+        return rest;
+      }
       return { ...prev, [product.id]: qty - 1 };
     });
+  };
 
   const onMarginChange = (productId: number, margin: number) =>
     setProductMargins((prev) => ({ ...prev, [productId]: margin }));
@@ -321,6 +314,7 @@ export function usePortalCart({
 
   function handleLoadSavedCart(sc: SavedCart) {
     setCart(sc.items);
+    setBundleCartMeta({});
     setProductMargins(sc.margins);
     navigate("/cart");
   }
@@ -566,6 +560,7 @@ export function usePortalCart({
       newMargins[item.product_id] = item.margin;
     });
     setCart(newCart);
+    setBundleCartMeta({});
     setProductMargins(newMargins);
     navigate("/cart");
     setActiveTab("catalog");
@@ -611,6 +606,7 @@ export function usePortalCart({
       if (qty > 0) newCart[p.product_id] = qty;
     }
     setCart(newCart);
+    setBundleCartMeta({});
     navigate("/cart");
     setActiveTab("catalog");
   }
@@ -621,7 +617,7 @@ export function usePortalCart({
     cartItems,
     cartSubtotal, cartIVATotal, cartTotal, cartCount,
     productMargins, globalMargin,
-    bundleCartMeta,
+    bundleCartMeta, setBundleCartMeta,
     // Coupon
     couponCode, setCouponCode,
     appliedCoupon, couponError, validatingCoupon,

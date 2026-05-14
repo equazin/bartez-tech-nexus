@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { products as mockProducts, Product } from "@/models/products";
+import type { Product } from "@/models/products";
 
 function normalizeCategoryParam(value: string | null | undefined): string {
   return String(value ?? "")
@@ -20,7 +20,7 @@ export interface UseProductsOptions {
   page?: number;
   isAdmin?: boolean;
   isFeatured?: boolean;
-  sortBy?: "name" | "featured"; // Nueva opción (Phase 5.4)
+  sortBy?: "name" | "name_asc" | "name_desc" | "featured" | "price_asc" | "price_desc" | "stock_desc";
 }
 
 type QueryBuilderLike = {
@@ -28,6 +28,7 @@ type QueryBuilderLike = {
   in: (column: string, values: readonly unknown[]) => QueryBuilderLike;
   gte: (column: string, value: number) => QueryBuilderLike;
   lte: (column: string, value: number) => QueryBuilderLike;
+  or: (filters: string) => QueryBuilderLike;
   order: (column: string, options?: { ascending?: boolean }) => QueryBuilderLike;
   range: (
     from: number,
@@ -46,7 +47,7 @@ export function useProducts(options: UseProductsOptions = {}) {
     page,
     isAdmin = false,
     isFeatured = false,
-    sortBy = "name",
+    sortBy = "name_asc",
   } = options;
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -75,7 +76,15 @@ export function useProducts(options: UseProductsOptions = {}) {
       }
       
       const tableName = isAdmin ? "products" : "portal_products";
+      const priceColumn = "cost_price";
       const normalizedSearch = search?.trim() ?? "";
+      const searchColumns = isAdmin
+        ? ["name", "name_original", "name_custom", "sku", "external_id", "brand_name", "category"]
+        : ["display_name", "name", "name_original", "name_custom", "sku", "brand_name", "category"];
+      const searchTokens = sanitizeSearchTerm(normalizedSearch)
+        .split(" ")
+        .filter((token) => token.length >= 2)
+        .slice(0, 5);
 
       const applyCommonFilters = (sourceQuery: QueryBuilderLike): QueryBuilderLike => {
         let query = sourceQuery.eq("active", true);
@@ -96,19 +105,46 @@ export function useProducts(options: UseProductsOptions = {}) {
           query = query.eq("featured", true);
         }
 
-        if (minPrice != null && minPrice > 0) query = query.gte("cost_price", minPrice);
-        if (maxPrice != null && maxPrice > 0) query = query.lte("cost_price", maxPrice);
+        if (minPrice != null && minPrice > 0) query = query.gte(priceColumn, minPrice);
+        if (maxPrice != null && maxPrice > 0) query = query.lte(priceColumn, maxPrice);
 
         return query;
       };
 
       const applySort = (sourceQuery: QueryBuilderLike): QueryBuilderLike => {
-        if (sortBy === "featured") {
-          return sourceQuery
-            .order("featured", { ascending: false })
-            .order("name", { ascending: true });
+        switch (sortBy) {
+          case "featured":
+            return sourceQuery
+              .order("featured", { ascending: false })
+              .order("name", { ascending: true });
+          case "name_desc":
+            return sourceQuery.order("name", { ascending: false });
+          case "price_asc":
+            return sourceQuery
+              .order(priceColumn, { ascending: true })
+              .order("name", { ascending: true });
+          case "price_desc":
+            return sourceQuery
+              .order(priceColumn, { ascending: false })
+              .order("name", { ascending: true });
+          case "stock_desc":
+            return sourceQuery
+              .order("stock", { ascending: false })
+              .order("name", { ascending: true });
+          case "name":
+          case "name_asc":
+          default:
+            return sourceQuery.order("name", { ascending: true });
         }
-        return sourceQuery.order("name", { ascending: true });
+      };
+
+      const applyDirectSearch = (sourceQuery: QueryBuilderLike): QueryBuilderLike => {
+        return searchTokens.reduce((query, token) => {
+          const filters = searchColumns
+            .map((column) => `${column}.ilike.%${token}%`)
+            .join(",");
+          return query.or(filters);
+        }, sourceQuery);
       };
 
       // 5. Pagination
@@ -121,50 +157,70 @@ export function useProducts(options: UseProductsOptions = {}) {
       let fetchError: { message: string } | null = null;
 
       if (normalizedSearch.length > 0) {
-        const ftsQuery = applySort(
-          applyCommonFilters(
-            supabase
-              .from(tableName)
-              .select("*", { count: "exact" })
-              .textSearch("fts", normalizedSearch, {
-                config: "spanish",
-                type: "websearch",
-              }) as unknown as QueryBuilderLike,
-          ),
-        );
+        const safeTerm = sanitizeSearchTerm(normalizedSearch);
 
-        const ftsResult = await ftsQuery.range(from, to);
-        data = (ftsResult.data as Product[] | null) ?? [];
-        count = ftsResult.count;
-        fetchError = ftsResult.error;
-
-        // Fallback search: SKU / external_id / description / name
-        const shouldFallback = !!fetchError || (data?.length ?? 0) === 0;
-        if (shouldFallback) {
-          const safeTerm = sanitizeSearchTerm(normalizedSearch);
-          if (safeTerm.length > 0) {
-            const fallbackQuery = applySort(
+        if (searchTokens.length > 0) {
+          const directQuery = applySort(
+            applyDirectSearch(
               applyCommonFilters(
-                supabase
-                  .from(tableName)
-                  .select("*", { count: "exact" })
-                  .or(
-                    [
-                      `name.ilike.%${safeTerm}%`,
-                      `sku.ilike.%${safeTerm}%`,
-                      `external_id.ilike.%${safeTerm}%`,
-                      `description.ilike.%${safeTerm}%`,
-                    ].join(","),
-                  ) as unknown as QueryBuilderLike,
+                supabase.from(tableName).select("*", { count: "exact" }) as unknown as QueryBuilderLike,
               ),
-            );
+            ),
+          );
 
-            const fallbackResult = await fallbackQuery.range(from, to);
-            if (!fallbackResult.error) {
-              data = (fallbackResult.data as Product[] | null) ?? [];
-              count = fallbackResult.count;
-              fetchError = null;
-            }
+          const directResult = await directQuery.range(from, to);
+          if (!directResult.error) {
+            data = (directResult.data as Product[] | null) ?? [];
+            count = directResult.count;
+            fetchError = null;
+          } else {
+            fetchError = directResult.error;
+          }
+        }
+
+        const shouldTryFts = !!fetchError || (data?.length ?? 0) === 0;
+        if (shouldTryFts) {
+          const ftsQuery = applySort(
+            applyCommonFilters(
+              supabase
+                .from(tableName)
+                .select("*", { count: "exact" })
+                .textSearch("fts", normalizedSearch, {
+                  config: "spanish",
+                  type: "websearch",
+                }) as unknown as QueryBuilderLike,
+            ),
+          );
+
+          const ftsResult = await ftsQuery.range(from, to);
+          data = (ftsResult.data as Product[] | null) ?? [];
+          count = ftsResult.count;
+          fetchError = ftsResult.error;
+        }
+
+        const shouldFallback = !!fetchError || (data?.length ?? 0) === 0;
+        if (shouldFallback && safeTerm.length > 0) {
+          const fallbackQuery = applySort(
+            applyCommonFilters(
+              supabase
+                .from(tableName)
+                .select("*", { count: "exact" })
+                .or(
+                  [
+                    `name.ilike.%${safeTerm}%`,
+                    `sku.ilike.%${safeTerm}%`,
+                    `brand_name.ilike.%${safeTerm}%`,
+                    `category.ilike.%${safeTerm}%`,
+                  ].join(","),
+                ) as unknown as QueryBuilderLike,
+            ),
+          );
+
+          const fallbackResult = await fallbackQuery.range(from, to);
+          if (!fallbackResult.error) {
+            data = (fallbackResult.data as Product[] | null) ?? [];
+            count = fallbackResult.count;
+            fetchError = null;
           }
         }
       } else {
@@ -201,7 +257,7 @@ export function useProducts(options: UseProductsOptions = {}) {
       console.error("Error fetching products:", err);
       const message = err instanceof Error ? err.message : "Error inesperado al cargar productos.";
       setError(message);
-      if (!isNextPage) setProducts(mockProducts);
+      if (!isNextPage) setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -211,7 +267,7 @@ export function useProducts(options: UseProductsOptions = {}) {
   useEffect(() => {
     fetchProducts(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category, brand, search, minPrice, maxPrice, page, isAdmin]);
+  }, [category, brand, search, minPrice, maxPrice, page, isAdmin, isFeatured, sortBy]);
 
   const loadMore = useCallback(() => {
     if (!loading && hasMore) {

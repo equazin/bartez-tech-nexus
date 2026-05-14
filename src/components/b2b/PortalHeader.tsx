@@ -121,14 +121,14 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
   }, []);
 
   return (
-    <header ref={headerRef} className="sticky top-0 z-40 border-b border-border/70 bg-card/95 px-4 py-3 backdrop-blur-xl md:px-6">
-      <div className="grid gap-3 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
+    <header ref={headerRef} className="sticky top-0 z-40 border-b border-border/70 bg-background/95 px-3 py-2.5 backdrop-blur-xl md:px-5">
+      <div className="grid gap-2.5 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
         {/* ── Logo / Identity ────────────────────────────────────────── */}
         <div className="flex shrink-0 items-center gap-3">
           <img
             src="/android-chrome-512x512.png"
             alt="Bartez"
-            className="h-12 w-12 shrink-0 rounded-2xl object-contain md:h-14 md:w-14"
+            className="h-10 w-10 shrink-0 rounded-xl object-contain md:h-11 md:w-11"
           />
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
@@ -154,7 +154,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
                 </TooltipProvider>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">{clientName}</p>
+            <p className="max-w-[220px] truncate text-xs text-muted-foreground">{clientName}</p>
           </div>
         </div>
 
@@ -171,7 +171,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
             onChange={(e) => setSearch(e.target.value)}
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
-            className="h-11 rounded-2xl border-border/80 bg-surface pl-10 pr-10 text-sm shadow-sm"
+            className="h-10 rounded-xl border-border/80 bg-card pl-10 pr-10 text-sm shadow-sm"
           />
           {search ? (
             <button

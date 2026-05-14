@@ -25,7 +25,7 @@ const Login = () => {
 
   useEffect(() => {
     if (!loading && session) {
-      navigate("/b2b-portal");
+      navigate("/portal");
     }
   }, [session, loading, navigate]);
 
@@ -57,7 +57,7 @@ const Login = () => {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-12">
+    <div className="relative flex min-h-screen items-center justify-center overflow-x-hidden bg-background px-5 py-10 sm:py-12">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-1/2 top-0 h-[24rem] w-[24rem] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
         <div className="absolute bottom-0 right-0 h-[18rem] w-[18rem] rounded-full bg-[hsl(var(--gradient-end)/0.14)] blur-3xl" />
@@ -67,14 +67,14 @@ const Login = () => {
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45 }}
-        className="relative w-full max-w-md"
+        className="relative mx-auto w-full max-w-sm min-w-0 sm:max-w-md"
       >
-        <div className="mb-8 flex flex-col items-center">
+        <div className="mb-8 flex w-full flex-col items-center">
           <Link to="/" className="mb-6 flex items-center gap-3">
             <img
               src="/android-chrome-512x512.png"
               alt="Bartez"
-              className="h-16 w-16 rounded-2xl object-contain"
+              className="h-14 w-14 rounded-2xl object-contain sm:h-16 sm:w-16"
             />
             <div className="flex flex-col">
               <span className="font-display text-lg font-bold leading-none tracking-tight text-foreground">BARTEZ</span>
@@ -84,13 +84,14 @@ const Login = () => {
 
           <PageHeader
             align="center"
+            className="w-full max-w-full"
             eyebrow="Portal B2B"
             title="Ingresa a tu cuenta"
-            description="Accede a catalogo, precios y seguimiento de pedidos desde un unico acceso."
+            description="Accede a catálogo, precios y seguimiento de pedidos desde un único acceso."
           />
         </div>
 
-        <SurfaceCard tone="glass" padding="lg" className="space-y-5">
+        <SurfaceCard tone="glass" padding="md" className="w-full max-w-full space-y-5 sm:p-8">
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-foreground" htmlFor="email">
@@ -113,9 +114,9 @@ const Login = () => {
             </div>
 
             <div>
-              <div className="mb-1.5 flex items-center justify-between">
+              <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <label className="text-sm font-medium text-foreground" htmlFor="password">
-                  Contrasena
+                  Contraseña
                 </label>
                 <Link to="/reset-password" className="text-xs text-muted-foreground transition-colors hover:text-foreground">
                   ¿Olvidaste tu contraseña?
@@ -136,7 +137,7 @@ const Login = () => {
                 />
                 <button
                   type="button"
-                  aria-label={showPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
+                  aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                   onClick={() => setShowPassword((current) => !current)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
                 >
@@ -151,7 +152,7 @@ const Login = () => {
                 animate={{ opacity: 1, y: 0 }}
                 className="rounded-xl border border-[hsl(var(--warning)/0.22)] bg-[hsl(var(--warning)/0.12)] px-3 py-2 text-sm text-[hsl(var(--warning))]"
               >
-                Tu cuenta esta pendiente de aprobacion. Contactanos para activar el acceso.
+                Tu cuenta está pendiente de aprobación. Contactanos para activar el acceso.
               </motion.p>
             ) : null}
 
@@ -181,7 +182,7 @@ const Login = () => {
                 animate={{ opacity: 1, y: 0 }}
                 className="rounded-xl border border-[hsl(var(--warning)/0.22)] bg-[hsl(var(--warning)/0.12)] px-3 py-2 text-sm text-[hsl(var(--warning))]"
               >
-                Configuracion local incompleta. Crea un archivo <code>.env</code> con tus credenciales de Supabase antes de usar el portal.
+                Configuración local incompleta. Crea un archivo <code>.env</code> con tus credenciales de Supabase antes de usar el portal.
               </motion.p>
             ) : null}
 
@@ -206,12 +207,12 @@ const Login = () => {
 
         <div className="mt-6 space-y-3 text-center">
           <p className="text-sm text-muted-foreground">
-            No tenes acceso al portal? {" "}
+            ¿No tenés acceso al portal?{" "}
             <Link to="/registrarse" className="font-semibold text-primary hover:underline">
-              Registrate aca
+              Registrate acá
             </Link>
           </p>
-          <p className="text-[10px] text-muted-foreground/70">O solicita asistencia:</p>
+          <p className="text-[10px] text-muted-foreground/70">O solicitá asistencia:</p>
           <Button asChild variant="outline" className="w-full gap-2 text-sm">
             <a
               href="https://wa.me/5493415104902?text=Hola%2C%20quiero%20solicitar%20acceso%20al%20portal%20de%20clientes%20Bartez."
