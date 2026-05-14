@@ -29,7 +29,7 @@ const Login = () => {
       const fromPath = locationState?.from?.pathname;
       const fromSearch = locationState?.from?.search ?? "";
       const adminOnlyTarget = fromPath === "/admin" || fromPath?.startsWith("/clientes/");
-      const target = fromPath && (!adminOnlyTarget || isAdmin) ? `${fromPath}${fromSearch}` : isAdmin ? "/admin" : "/portal";
+      const target = fromPath && (!adminOnlyTarget || isAdmin) ? `${fromPath}${fromSearch}` : "/portal";
       navigate(target, { replace: true });
     }
   }, [session, loading, isAdmin, locationState?.from?.pathname, locationState?.from?.search, navigate]);
