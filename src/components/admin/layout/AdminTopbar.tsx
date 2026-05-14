@@ -1,4 +1,5 @@
-import { Sun, Moon, LogOut, RefreshCw, LayoutDashboard, Bell, Search, UserCircle2, TrendingUp, Pencil, Plus, ClipboardList, MessageSquare, Users, Package } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Sun, Moon, LogOut, RefreshCw, LayoutDashboard, Bell, Search, UserCircle2, TrendingUp, Pencil, Plus, ClipboardList, MessageSquare, Users, Package, Home } from "lucide-react";
 import { AdminSearch } from "@/components/admin/AdminSearch";
 import { NotificationBell } from "@/components/admin/NotificationBell";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -144,6 +145,10 @@ export function AdminTopbar({
           <button onClick={onRefresh} className="dashboard-pill hidden sm:inline-flex" title="Refrescar datos del módulo actual">
             <RefreshCw size={12} /> <span className="hidden xl:inline">Refrescar</span>
           </button>
+
+          <Link to="/portal" className="dashboard-pill" title="Ir al portal de clientes">
+            <Home size={12} /> <span className="hidden sm:inline">Portal</span>
+          </Link>
 
           <button className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/70 bg-surface text-muted-foreground transition hover:bg-secondary hover:text-foreground sm:hidden">
             <Search size={15} />
