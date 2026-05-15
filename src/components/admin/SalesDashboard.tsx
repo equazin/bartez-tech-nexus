@@ -2079,8 +2079,8 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders, onOpe
       {/* -- Charts -- */}
       <AnalyticsCharts isDark={isDark} stats={analyticsData} />
 
-      {/* -- Activity & Secondary -- */}
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      {/* -- Operational metrics (consolidated row) -- */}
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-7">
         <div className={DASHBOARD_TILE}>
           <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Ticket promedio</p>
           <div className="flex items-end gap-2">
@@ -2112,13 +2112,10 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders, onOpe
             <p className="text-xl font-extrabold tabular-nums text-foreground">{clients.length}</p>
           </div>
         </div>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <div className={DASHBOARD_TILE}>
           <div className="mb-1 flex items-center gap-2">
             <Receipt size={12} className="text-blue-500" />
-            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Facturas pendientes</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Fact. pendientes</p>
           </div>
           <p className={`text-xl font-extrabold tabular-nums ${invoiceKpis ? "text-blue-500" : "text-muted-foreground"}`}>
             {invoiceKpis != null ? formatMoneyInPreferredCurrency(invoiceKpis.pendingAmount, currency, currency, exchangeRate.rate, 0) : "..."}
@@ -2127,7 +2124,7 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders, onOpe
         <div className={DASHBOARD_TILE}>
           <div className="mb-1 flex items-center gap-2">
             <AlertTriangle size={12} className="text-red-500" />
-            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Facturas vencidas</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Fact. vencidas</p>
           </div>
           <div className="flex items-end gap-2">
             <p className={`text-xl font-extrabold tabular-nums ${invoiceKpis && invoiceKpis.overdueCount > 0 ? "text-red-500" : "text-muted-foreground"}`}>
@@ -2143,7 +2140,7 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders, onOpe
         <div className={DASHBOARD_TILE}>
           <div className="mb-1 flex items-center gap-2">
             <CreditCard size={12} className="text-amber-500" />
-            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Exposicion credito</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Exp. crédito</p>
           </div>
           <p className={`text-xl font-extrabold tabular-nums ${creditExposure != null && creditExposure > 0 ? "text-amber-500" : "text-muted-foreground"}`}>
             {creditExposure != null ? formatMoneyInPreferredCurrency(creditExposure, "ARS", currency, exchangeRate.rate, 0) : "..."}

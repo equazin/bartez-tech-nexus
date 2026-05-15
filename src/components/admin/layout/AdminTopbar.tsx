@@ -60,24 +60,24 @@ export function AdminTopbar({
     ageMin < 2 ? "Ahora" : ageMin < 60 ? `hace ${ageMin}m` : `hace ${Math.floor(ageMin / 60)}h`;
 
   return (
-    <header className="border-b border-border/70 bg-card/88 px-3 py-3 backdrop-blur md:px-5">
-      <div className="flex items-center gap-3">
+    <header className="border-b border-border/70 bg-card/88 px-3 py-2 backdrop-blur md:px-5 md:py-2.5">
+      <div className="flex items-center gap-2.5 md:gap-3">
         <button
           onClick={onToggleMobileSidebar}
-          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/70 bg-surface text-muted-foreground transition hover:bg-secondary hover:text-foreground md:hidden"
+          className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-surface text-muted-foreground transition hover:bg-secondary hover:text-foreground md:hidden"
         >
           <LayoutDashboard size={16} />
         </button>
 
-        <div className="flex min-w-0 items-center gap-3">
-          <img src="/android-chrome-512x512.png" alt="Bartez" className="h-14 w-14 shrink-0 rounded-2xl object-contain" />
+        <div className="flex min-w-0 items-center gap-2.5">
+          <img src="/android-chrome-512x512.png" alt="Bartez" className="h-10 w-10 shrink-0 rounded-xl object-contain" />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="truncate text-sm font-bold text-foreground md:text-[15px]">Centro operativo</span>
               <span className="hidden text-xs text-muted-foreground md:inline">/ {getModuleLabel(activeModule)}</span>
               <span className="hidden text-xs text-muted-foreground lg:inline">/ {getTabLabel(activeTab)}</span>
             </div>
-            <p className="text-[11px] text-primary">Bartez Tecnologia</p>
+            <p className="text-[10.5px] leading-tight text-primary">Bartez Tecnologia</p>
           </div>
         </div>
 
@@ -148,7 +148,7 @@ export function AdminTopbar({
 
           <ModeSwitcher currentMode="admin" />
 
-          <button className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/70 bg-surface text-muted-foreground transition hover:bg-secondary hover:text-foreground sm:hidden">
+          <button className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-surface text-muted-foreground transition hover:bg-secondary hover:text-foreground sm:hidden">
             <Search size={15} />
           </button>
 
@@ -156,7 +156,7 @@ export function AdminTopbar({
           <Popover>
             <PopoverTrigger asChild>
               <button
-                className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10 text-primary transition hover:bg-primary/20"
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/30 bg-primary/10 text-primary transition hover:bg-primary/20"
                 title="Acción rápida"
               >
                 <Plus size={16} />
@@ -186,25 +186,25 @@ export function AdminTopbar({
           <div className="hidden md:block">
             <NotificationBell isDark={isDark} />
           </div>
-          <button className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/70 bg-surface text-muted-foreground transition hover:bg-secondary hover:text-foreground md:hidden">
+          <button className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-surface text-muted-foreground transition hover:bg-secondary hover:text-foreground md:hidden">
             <Bell size={15} />
           </button>
 
           <button
             onClick={onToggleTheme}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/70 bg-surface text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-surface text-muted-foreground transition hover:bg-secondary hover:text-foreground"
             title={isDark ? "Tema claro" : "Tema oscuro"}
           >
             {isDark ? <Sun size={15} /> : <Moon size={15} />}
           </button>
 
-          <div className="hidden items-center gap-3 rounded-[22px] border border-border/70 bg-surface px-3 py-2 md:flex">
-            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-accent text-accent-foreground">
-              <UserCircle2 size={18} />
+          <div className="hidden items-center gap-2.5 rounded-xl border border-border/70 bg-surface px-2.5 py-1.5 md:flex">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+              <UserCircle2 size={16} />
             </div>
             <div className="min-w-0">
-              <p className="max-w-[160px] truncate text-xs font-semibold text-foreground">{currentUserLabel || "Administrador"}</p>
-              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Admin</p>
+              <p className="max-w-[140px] truncate text-xs font-semibold leading-tight text-foreground">{currentUserLabel || "Administrador"}</p>
+              <p className="text-[9.5px] uppercase leading-tight tracking-[0.18em] text-muted-foreground">Admin</p>
             </div>
           </div>
 
