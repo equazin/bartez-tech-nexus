@@ -48,30 +48,32 @@ export function ForYouSection({ products, loading, getPrice }: Props) {
             const price = getPrice(p, quantity);
 
             return (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => navigate(`/portal/p/${p.sku ?? p.id}`)}
-              className="flex flex-col gap-1.5 rounded-xl border bg-card p-2 text-left transition-shadow hover:shadow-md"
-            >
-              <div className="aspect-square w-full overflow-hidden rounded-lg bg-muted">
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => navigate(`/portal/p/${p.sku ?? p.id}`)}
+                className="group flex min-h-[220px] flex-col rounded-xl border bg-card p-2 text-left transition-all hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-lg hover:shadow-primary/10"
+              >
+                <div className="aspect-square w-full overflow-hidden rounded-lg border border-border/60 bg-muted/40">
                 {p.image ? (
                   <img
                     src={p.image}
                     alt={displayName(p)}
-                    className="h-full w-full object-contain p-1"
+                    className="h-full w-full object-contain p-2 transition-transform duration-200 group-hover:scale-[1.03]"
                     loading="lazy"
                   />
                 ) : (
                   <div className="flex h-full items-center justify-center text-muted-foreground/20 text-2xl">□</div>
                 )}
-              </div>
-              <p className="line-clamp-2 text-xs font-medium leading-snug">{displayName(p)}</p>
-              <div className="flex items-center justify-between gap-1">
-                <MoneyCell value={price.unitPrice} emphasis="strong" className="text-xs" />
-                <StockCell available={getAvailableStock(p)} density="compact" className="text-xs" />
-              </div>
-            </button>
+                </div>
+                <div className="flex flex-1 flex-col gap-2 pt-2">
+                  <p className="line-clamp-2 min-h-[32px] text-xs font-semibold leading-snug text-foreground">{displayName(p)}</p>
+                  <div className="mt-auto space-y-1.5 rounded-lg bg-muted/35 px-2 py-1.5">
+                    <MoneyCell value={price.unitPrice} emphasis="strong" className="[&_span:last-child]:text-[15px]" />
+                    <StockCell available={getAvailableStock(p)} density="compact" className="text-xs" />
+                  </div>
+                </div>
+              </button>
             );
           })}
         </div>

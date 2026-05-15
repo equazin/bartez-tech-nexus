@@ -1,4 +1,5 @@
 import { memo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Plus, Minus, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StockCell } from "@/components/ui/stock-cell";
@@ -21,6 +22,7 @@ export const CatalogGridCard = memo(function CatalogGridCard({ product, onAdd, g
   const available = getAvailableStock(product);
   const price = getPrice(product, localQty);
   const canAdd = available > 0;
+  const productPath = `/portal/p/${product.sku ?? product.id}`;
 
   function changeQty(delta: number) {
     const min = product.min_order_qty ?? 1;
@@ -28,14 +30,14 @@ export const CatalogGridCard = memo(function CatalogGridCard({ product, onAdd, g
   }
 
   return (
-    <div className="flex flex-col rounded-lg border bg-card transition-shadow hover:shadow-md">
+    <div className="group flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm shadow-border/20 transition-all hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-lg hover:shadow-primary/10">
       {/* Image */}
-      <div className="relative aspect-square overflow-hidden rounded-t-lg bg-muted">
+      <Link to={productPath} className="relative block aspect-square overflow-hidden border-b border-border/60 bg-muted/40">
         {product.image ? (
           <img
             src={product.image}
             alt={displayName(product)}
-            className="h-full w-full object-contain p-2"
+            className="h-full w-full object-contain p-4 transition-transform duration-200 group-hover:scale-[1.03]"
             loading="lazy"
           />
         ) : (
@@ -44,32 +46,35 @@ export const CatalogGridCard = memo(function CatalogGridCard({ product, onAdd, g
           </div>
         )}
         {product.offer_percent && (
-          <span className="absolute right-1.5 top-1.5 rounded bg-danger px-1.5 py-0.5 text-xs font-semibold text-danger-foreground">
+          <span className="absolute right-2 top-2 rounded-full bg-danger px-2 py-1 text-xs font-semibold text-danger-foreground shadow-sm">
             -{product.offer_percent}%
           </span>
         )}
-      </div>
+      </Link>
 
       {/* Content */}
-      <div className="flex flex-1 flex-col gap-2 p-3">
-        <div className="flex-1">
-          <p className="line-clamp-2 text-sm font-medium leading-snug">{displayName(product)}</p>
-          {product.brand_name && (
-            <p className="mt-0.5 text-xs text-muted-foreground">{product.brand_name}</p>
-          )}
-          {product.sku && (
-            <p className="mt-0.5 font-mono text-xs text-muted-foreground">{product.sku}</p>
-          )}
+      <div className="flex flex-1 flex-col gap-3 p-3">
+        <div className="flex-1 space-y-2">
+          <div className="flex min-h-[18px] items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span className="min-w-0 truncate">{product.brand_name ?? "Bartez"}</span>
+            {product.sku ? <span className="shrink-0 font-mono text-[11px]">{product.sku}</span> : null}
+          </div>
+          <Link
+            to={productPath}
+            className="line-clamp-2 min-h-[40px] text-sm font-semibold leading-snug text-foreground transition-colors hover:text-primary"
+          >
+            {displayName(product)}
+          </Link>
         </div>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-end justify-between gap-3 rounded-xl border border-border/60 bg-muted/30 px-2.5 py-2">
           <MoneyCell
             value={price.unitPrice}
             emphasis="strong"
             hint="+ IVA"
             original={price.isOffer && price.originalUnitPrice > price.unitPrice ? price.originalUnitPrice : undefined}
           />
-          <StockCell available={available} density="compact" />
+          <StockCell available={available} density="compact" align="right" />
         </div>
 
         {/* Qty + Add */}
@@ -78,15 +83,17 @@ export const CatalogGridCard = memo(function CatalogGridCard({ product, onAdd, g
             <button
               type="button"
               onClick={() => changeQty(-1)}
-              className="flex h-7 w-7 items-center justify-center rounded-l-md hover:bg-muted"
+              aria-label="Restar cantidad"
+              className="flex h-8 w-8 items-center justify-center rounded-l-md hover:bg-muted"
             >
               <Minus className="h-3 w-3" />
             </button>
-            <span className="w-8 text-center text-sm tabular-nums">{localQty}</span>
+            <span className="w-9 text-center text-sm font-semibold tabular-nums">{localQty}</span>
             <button
               type="button"
               onClick={() => changeQty(1)}
-              className="flex h-7 w-7 items-center justify-center rounded-r-md hover:bg-muted"
+              aria-label="Sumar cantidad"
+              className="flex h-8 w-8 items-center justify-center rounded-r-md hover:bg-muted"
             >
               <Plus className="h-3 w-3" />
             </button>
