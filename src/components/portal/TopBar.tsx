@@ -1,8 +1,9 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
-import { Menu, Search, ShoppingCart, Sun, Moon, Bell, ShieldCheck } from "lucide-react";
+import { Menu, Search, ShoppingCart, Sun, Moon, Bell } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ModeSwitcher } from "@/components/navigation/ModeSwitcher";
 import { useCurrency } from "@/context/CurrencyContext";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { cn } from "@/lib/utils";
@@ -131,14 +132,7 @@ function TopBar({
           </div>
         ) : null}
 
-        {canAccessAdmin ? (
-          <Button asChild variant="toolbar" size="sm" className="gap-1.5 px-2.5">
-            <Link to="/admin" title="Ir al panel de administrador">
-              <ShieldCheck className="h-4 w-4" />
-              <span className="hidden sm:inline">Admin</span>
-            </Link>
-          </Button>
-        ) : null}
+        {canAccessAdmin ? <ModeSwitcher currentMode="portal" /> : null}
 
         {/* Notifications */}
         <Button type="button" variant="ghost" size="icon" aria-label="Notificaciones" className="relative">
