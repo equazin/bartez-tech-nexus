@@ -12,21 +12,24 @@ interface Props {
 export function CatalogLayout({ sidebar, toolbar, content }: Props) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Toolbar row — always visible */}
-      <div className="flex shrink-0 items-center gap-2 border-b bg-background px-3 py-2 md:hidden">
-        {/* Mobile: sidebar in a Drawer */}
+      {/* Mobile category trigger row */}
+      <div className="sticky top-0 z-20 flex shrink-0 items-center gap-2 border-b border-border/60 bg-background/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
         <Drawer>
           <DrawerTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <Menu className="h-4 w-4" />
-              Categorías
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 w-full justify-start gap-2 rounded-xl border-border/60 px-3 text-[13px] font-medium"
+            >
+              <Menu className="h-4 w-4 text-muted-foreground" />
+              <span>Explorar categorías</span>
             </Button>
           </DrawerTrigger>
           <DrawerContent>
             <DrawerHeader>
               <DrawerTitle>Categorías</DrawerTitle>
             </DrawerHeader>
-            <div className="h-[60vh] overflow-y-auto px-2 pb-6">{sidebar}</div>
+            <div className="h-[65vh] overflow-y-auto px-2 pb-6">{sidebar}</div>
           </DrawerContent>
         </Drawer>
       </div>

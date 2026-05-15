@@ -44,18 +44,18 @@ export const CatalogTableRow = memo(function CatalogTableRow({ product, qty, onA
 
   return (
     <>
-      <tr className="group border-b transition-colors hover:bg-muted/40">
+      <tr className="group border-b border-border/50 transition-colors last:border-b-0 hover:bg-muted/40">
         {/* Image */}
         <td className="w-12 py-2 pl-3 pr-1">
           {product.image ? (
             <img
               src={product.image}
               alt=""
-              className="h-10 w-10 rounded object-contain"
+              className="h-10 w-10 rounded-lg border border-border/40 bg-muted/40 object-contain"
               loading="lazy"
             />
           ) : (
-            <div className="h-10 w-10 rounded bg-muted" />
+            <div className="h-10 w-10 rounded-lg border border-border/40 bg-muted" />
           )}
         </td>
 
@@ -103,19 +103,21 @@ export const CatalogTableRow = memo(function CatalogTableRow({ product, qty, onA
         {/* Qty stepper + Add */}
         <td className="px-2 py-2 pr-3">
           <div className="flex items-center justify-end gap-1">
-            <div className="flex items-center rounded-md border">
+            <div className="flex items-center rounded-lg border border-border/60">
               <button
                 type="button"
                 onClick={() => changeQty(-1)}
-                className="flex h-7 w-7 items-center justify-center rounded-l-md text-muted-foreground hover:bg-muted"
+                aria-label="Restar cantidad"
+                className="flex h-7 w-7 items-center justify-center rounded-l-lg text-muted-foreground hover:bg-muted"
               >
                 <Minus className="h-3 w-3" />
               </button>
-              <span className="w-8 text-center text-sm tabular-nums">{localQty}</span>
+              <span className="w-8 text-center text-sm font-semibold tabular-nums">{localQty}</span>
               <button
                 type="button"
                 onClick={() => changeQty(1)}
-                className="flex h-7 w-7 items-center justify-center rounded-r-md text-muted-foreground hover:bg-muted"
+                aria-label="Sumar cantidad"
+                className="flex h-7 w-7 items-center justify-center rounded-r-lg text-muted-foreground hover:bg-muted"
               >
                 <Plus className="h-3 w-3" />
               </button>

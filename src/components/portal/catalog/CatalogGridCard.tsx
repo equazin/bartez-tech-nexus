@@ -79,12 +79,12 @@ export const CatalogGridCard = memo(function CatalogGridCard({ product, onAdd, g
 
         {/* Qty + Add */}
         <div className="flex items-center gap-1.5">
-          <div className="flex items-center rounded-md border">
+          <div className="flex items-center rounded-lg border border-border/60">
             <button
               type="button"
               onClick={() => changeQty(-1)}
               aria-label="Restar cantidad"
-              className="flex h-8 w-8 items-center justify-center rounded-l-md hover:bg-muted"
+              className="flex h-8 w-8 items-center justify-center rounded-l-lg text-muted-foreground hover:bg-muted"
             >
               <Minus className="h-3 w-3" />
             </button>
@@ -93,7 +93,7 @@ export const CatalogGridCard = memo(function CatalogGridCard({ product, onAdd, g
               type="button"
               onClick={() => changeQty(1)}
               aria-label="Sumar cantidad"
-              className="flex h-8 w-8 items-center justify-center rounded-r-md hover:bg-muted"
+              className="flex h-8 w-8 items-center justify-center rounded-r-lg text-muted-foreground hover:bg-muted"
             >
               <Plus className="h-3 w-3" />
             </button>

@@ -36,18 +36,23 @@ export function FilterChips({ filters, categoryTree, onRemove, onClearAll }: Pro
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {chips.map((chip) => (
-        <Badge key={chip.key} variant="secondary" className="gap-1 pl-2 pr-1 text-xs">
+        <Badge
+          key={chip.key}
+          variant="secondary"
+          className="gap-1 rounded-full border border-border/60 bg-secondary/80 pl-2.5 pr-1 text-[11px] font-medium"
+        >
           {chip.label}
           <button
             type="button"
             onClick={() => onRemove(chip.key)}
-            className="rounded-full p-0.5 hover:bg-muted-foreground/20"
+            aria-label={`Quitar filtro ${chip.label}`}
+            className="rounded-full p-0.5 transition-colors hover:bg-muted-foreground/20"
           >
             <X className="h-3 w-3" />
           </button>
         </Badge>
       ))}
-      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={onClearAll}>
+      <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] font-medium" onClick={onClearAll}>
         Limpiar todo
       </Button>
     </div>

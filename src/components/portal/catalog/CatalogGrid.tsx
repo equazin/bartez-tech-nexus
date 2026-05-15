@@ -16,8 +16,8 @@ export function CatalogGrid({ products, loading, cart, onAdd, getPrice }: Props)
     <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {loading && products.length === 0
         ? Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="flex flex-col rounded-lg border">
-              <Skeleton className="aspect-square rounded-t-lg" />
+            <div key={i} className="flex flex-col rounded-xl border border-border/60 bg-card shadow-sm shadow-border/20">
+              <Skeleton className="aspect-square rounded-t-xl" />
               <div className="flex flex-col gap-2 p-3">
                 <Skeleton className="h-4 w-full" />
                 <Skeleton className="h-3 w-24" />
