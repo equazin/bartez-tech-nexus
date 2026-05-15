@@ -36,6 +36,7 @@ import type { KanbanStatus, KanbanOrder } from "../components/admin/OrderKanban"
 import { MarketingTab } from "@/components/admin/MarketingTab";
 import { B2BInsights } from "@/components/admin/B2BInsights";
 import { AdminLayout } from "@/components/admin/layout/AdminLayout";
+import { KeepAliveTab } from "@/components/admin/layout/KeepAliveTab";
 import { TAB_TO_MODULE, type Tab, type ModuleId, type NavItem } from "@/components/admin/layout/adminNavConfig";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { EmailNotificationService } from "@/lib/api/emailNotifications";
@@ -1698,24 +1699,24 @@ async function handleCreateSeller() {
         )}
 
         {/* -- DASHBOARD -- */}
-        {activeTab === "dashboard" && (
+        <KeepAliveTab active={activeTab === "dashboard"} id="dashboard">
           <div className="space-y-6">
-            <B2BInsights 
+            <B2BInsights
               clients={clients.map(c => ({
                 ...c,
                 total_orders: orders.filter(o => o.client_id === c.id).length,
                 last_order_date: orders.filter(o => o.client_id === c.id).sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]?.created_at
-              }))} 
-              orders={orders} 
-              isDark={isDark} 
-              onNavigate={(tab) => navigateTab(tab as Tab)} 
+              }))}
+              orders={orders}
+              isDark={isDark}
+              onNavigate={(tab) => navigateTab(tab as Tab)}
             />
             <SalesDashboard orders={orders} clients={clients} isDark={isDark} onRefreshOrders={fetchOrders} />
           </div>
-        )}
+        </KeepAliveTab>
 
         {/* -- PRODUCTOS -- */}
-        {activeTab === "products" && (
+        <KeepAliveTab active={activeTab === "products"} id="products">
           <div className="space-y-4 w-full max-w-none">
             {/* Header: stats + actions */}
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1776,24 +1777,24 @@ async function handleCreateSeller() {
               />
             )}
           </div>
-        )}
+        </KeepAliveTab>
 
         {/* -- IMÁGENES -- */}
-        {activeTab === "images" && (
+        <KeepAliveTab active={activeTab === "images"} id="images">
           <ImageManagerTab
             isDark={isDark}
             products={products}
             onRefreshProducts={fetchProducts}
           />
-        )}
+        </KeepAliveTab>
 
         {/* -- MARKETING -- */}
-        {activeTab === "marketing" && (
+        <KeepAliveTab active={activeTab === "marketing"} id="marketing">
           <MarketingTab isDark={isDark} />
-        )}
+        </KeepAliveTab>
 
         {/* -- IMPORTACIONES -- */}
-        {activeTab === "imports" && (
+        <KeepAliveTab active={activeTab === "imports"} id="imports">
           <div className="space-y-6 w-full max-w-none">
 
             {/* Cotización del dólar */}
@@ -2099,12 +2100,12 @@ async function handleCreateSeller() {
               })()}
             </div>
           </div>
-        )}
+        </KeepAliveTab>
 
 
 
         {/* -- CATEGORÍAS -- */}
-        {activeTab === "categories" && (
+        <KeepAliveTab active={activeTab === "categories"} id="categories">
           <div className="space-y-6 w-full max-w-none">
             <div className={`${dk("bg-[#111] border-[#1f1f1f]", "bg-white border-[#e5e5e5]")} border rounded-xl p-5`}>
               <h2 className={`text-sm font-bold mb-4 ${dk("text-white", "text-[#171717]")}`}>Categorías y Subcategorías</h2>
@@ -2211,9 +2212,9 @@ async function handleCreateSeller() {
               </div>
             </div>
           </div>
-        )}
+        </KeepAliveTab>
 
-        {activeTab === "opportunities" && (
+        <KeepAliveTab active={activeTab === "opportunities"} id="opportunities">
           <OpportunitiesTab
             products={products}
             categories={categories}
@@ -2222,9 +2223,9 @@ async function handleCreateSeller() {
             isDark={isDark}
             canEdit={canManageProducts}
           />
-        )}
+        </KeepAliveTab>
 
-        {activeTab === "pos" && (
+        <KeepAliveTab active={activeTab === "pos"} id="pos">
           <PosManagementTab
             products={products}
             categories={categories}
@@ -2233,10 +2234,10 @@ async function handleCreateSeller() {
             isDark={isDark}
             canEdit={canManageProducts}
           />
-        )}
+        </KeepAliveTab>
 
         {/* -- GESTION VENDEDORES -- */}
-        {activeTab === "seller_management" && (
+        <KeepAliveTab active={activeTab === "seller_management"} id="seller_management">
           <SellerManagementTab
             sellers={sellerProfiles}
             clients={customerProfiles}
@@ -2244,19 +2245,22 @@ async function handleCreateSeller() {
             isDark={isDark}
             onRefreshClients={fetchClients}
           />
-        )}
+        </KeepAliveTab>
 
         {/* -- GESTION ADMINISTRADORES -- */}
-        {activeTab === "admin_management" && (
+        <KeepAliveTab active={activeTab === "admin_management"} id="admin_management">
           <AdminManagementTab
             admins={adminProfiles}
             isDark={isDark}
             onRefresh={fetchClients}
           />
-        )}
+        </KeepAliveTab>
 
         {/* -- VENDEDORES -- */}
-        {(activeTab === "seller_mode" || activeTab === "seller_portfolio" || activeTab === "seller_targets" || activeTab === "seller_activity") && (
+        <KeepAliveTab
+          active={activeTab === "seller_mode" || activeTab === "seller_portfolio" || activeTab === "seller_targets" || activeTab === "seller_activity"}
+          id="seller_crm"
+        >
           <SellerCRM
             sellers={sellerProfiles}
             clients={customerProfiles}
@@ -2280,10 +2284,10 @@ async function handleCreateSeller() {
               navigateTab("clients");
             }}
           />
-        )}
+        </KeepAliveTab>
 
         {/* -- PEDIDOS -- */}
-        {activeTab === "orders" && (
+        <KeepAliveTab active={activeTab === "orders"} id="orders">
           <div className="grid lg:grid-cols-2 gap-5 max-w-5xl">
             <div className="space-y-3">
               {/* Export + Currency notice */}
@@ -2661,39 +2665,40 @@ async function handleCreateSeller() {
               </div>
             )}
           </div>
-        )}
+        </KeepAliveTab>
 
         {/* -- KANBAN -- */}
-        {activeTab === "kanban" && (() => {
-          const clientMap: Record<string, string> = {};
-          clients.forEach((c) => { clientMap[c.id] = c.company_name || c.contact_name; });
-          const kanbanOrders: KanbanOrder[] = rtOrders.map((o) => ({
-            ...o,
-            client_name: clientMap[o.client_name ?? ""] ?? o.client_name?.slice(0, 8),
-          }));
-          return (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>
-                  Kanban de pedidos
-                </h2>
-                <span className={`text-xs ${dk("text-gray-500", "text-[#737373]")}`}>
-                  {rtOrders.length} pedidos · arrastrá para cambiar estado
-                </span>
+        <KeepAliveTab active={activeTab === "kanban"} id="kanban">
+          {(() => {
+            const clientMap: Record<string, string> = {};
+            clients.forEach((c) => { clientMap[c.id] = c.company_name || c.contact_name; });
+            const kanbanOrders: KanbanOrder[] = rtOrders.map((o) => ({
+              ...o,
+              client_name: clientMap[o.client_name ?? ""] ?? o.client_name?.slice(0, 8),
+            }));
+            return (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className={`text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>
+                    Kanban de pedidos
+                  </h2>
+                  <span className={`text-xs ${dk("text-gray-500", "text-[#737373]")}`}>
+                    {rtOrders.length} pedidos · arrastrá para cambiar estado
+                  </span>
+                </div>
+                <OrderKanban
+                  orders={kanbanOrders}
+                  onStatusChange={handleKanbanStatus}
+                  formatPrice={formatPrice}
+                  isDark={isDark}
+                />
               </div>
-              <OrderKanban
-                orders={kanbanOrders}
-                onStatusChange={handleKanbanStatus}
-                formatPrice={formatPrice}
-                isDark={isDark}
-              />
-            </div>
-          );
-        })()}
+            );
+          })()}
+        </KeepAliveTab>
 
         {/* -- CLIENTES -- */}
-        {activeTab === "clients" && (
-          <>
+        <KeepAliveTab active={activeTab === "clients"} id="clients">
           <ClientCRM
             clients={customerProfiles}
             orders={orders}
@@ -2883,32 +2888,31 @@ async function handleCreateSeller() {
             )}
 
 
-          </>
-        )}
+        </KeepAliveTab>
 
         {/* -- PROVEEDORES -- */}
-        {activeTab === "exception_inbox" && (
+        <KeepAliveTab active={activeTab === "exception_inbox"} id="exception_inbox">
           <ExceptionInboxTab
             isDark={isDark}
             orders={orders}
             clients={clients}
             onOpenTab={(tab) => navigateTab(tab as Tab)}
           />
-        )}
+        </KeepAliveTab>
 
-        {activeTab === "registration_requests" && (
+        <KeepAliveTab active={activeTab === "registration_requests"} id="registration_requests">
           <RegistrationRequestsTab />
-        )}
+        </KeepAliveTab>
 
-        {activeTab === "users_permissions" && (
+        <KeepAliveTab active={activeTab === "users_permissions"} id="users_permissions">
           <UsersPermissionsTab
             isDark={isDark}
             clients={clients}
             onRefresh={fetchClients}
           />
-        )}
+        </KeepAliveTab>
 
-        {activeTab === "approvals" && (
+        <KeepAliveTab active={activeTab === "approvals"} id="approvals">
           <ApprovalsTab
             isDark={isDark}
             orders={orders}
@@ -2918,76 +2922,76 @@ async function handleCreateSeller() {
             onRejectOrder={(orderId, payload) => updateOrderStatus(orderId, "rejected", payload)}
             onOpenTab={(tab) => navigateTab(tab as Tab)}
           />
-        )}
+        </KeepAliveTab>
 
-        {activeTab === "suppliers" && (
+        <KeepAliveTab active={activeTab === "suppliers"} id="suppliers">
           <SuppliersTab isDark={isDark} />
-        )}
+        </KeepAliveTab>
 
         {/* -- MARCAS -- */}
-        {activeTab === "brands" && (
+        <KeepAliveTab active={activeTab === "brands"} id="brands">
           <BrandsTab isDark={isDark} />
-        )}
+        </KeepAliveTab>
 
         {/* -- STOCK -- */}
-        {activeTab === "stock" && (
+        <KeepAliveTab active={activeTab === "stock"} id="stock">
           <StockTab isDark={isDark} />
-        )}
+        </KeepAliveTab>
 
         {/* -- MOVIMIENTOS -- */}
-        {activeTab === "movements" && (
+        <KeepAliveTab active={activeTab === "movements"} id="movements">
           <StockMovementsTab isDark={isDark} />
-        )}
+        </KeepAliveTab>
 
         {/* -- FACTURAS -- */}
-        {activeTab === "invoices" && (
+        <KeepAliveTab active={activeTab === "invoices"} id="invoices">
           <InvoicesTab isDark={isDark} />
-        )}
+        </KeepAliveTab>
 
-        {activeTab === "documents" && (
+        <KeepAliveTab active={activeTab === "documents"} id="documents">
           <DocumentsTab
             isDark={isDark}
             orders={orders}
             clients={clients}
             onOpenTab={(tab) => navigateTab(tab as Tab)}
           />
-        )}
+        </KeepAliveTab>
 
         {/* -- CRÉDITO -- */}
-        {activeTab === "credit" && (
+        <KeepAliveTab active={activeTab === "credit"} id="credit">
           <CreditTab isDark={isDark} />
-        )}
+        </KeepAliveTab>
 
         {/* -- ALERTAS B2B -- */}
-        {activeTab === "business_alerts" && (
+        <KeepAliveTab active={activeTab === "business_alerts"} id="business_alerts">
           <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Cargando...</div>}>
             <BusinessAlertsTab isDark={isDark} />
           </Suspense>
-        )}
+        </KeepAliveTab>
 
         {/* -- COTIZACIONES ADMIN -- */}
-        {activeTab === "quotes_admin" && (
+        <KeepAliveTab active={activeTab === "quotes_admin"} id="quotes_admin">
           <QuotesAdminTab isDark={isDark} />
-        )}
+        </KeepAliveTab>
 
         {/* -- ÓRDENES DE COMPRA -- */}
-        {activeTab === "purchase_orders" && (
+        <KeepAliveTab active={activeTab === "purchase_orders"} id="purchase_orders">
           <PurchaseOrdersTab isDark={isDark} />
-        )}
+        </KeepAliveTab>
 
         {/* -- MOTOR DE PRECIOS -- */}
-        {activeTab === "pricing" && (
+        <KeepAliveTab active={activeTab === "pricing"} id="pricing">
           <PricingRulesTab isDark={isDark} categories={categoryNames} />
-        )}
+        </KeepAliveTab>
 
         {/* -- BUNDLES / KITS -- */}
-        {activeTab === "bundles" && (
+        <KeepAliveTab active={activeTab === "bundles"} id="bundles">
           <BundlesAdminTab products={products} isDark={isDark} />
-        )}
+        </KeepAliveTab>
 
 
         {/* -- REPORTES -- */}
-        {activeTab === "reports" && (
+        <KeepAliveTab active={activeTab === "reports"} id="reports">
           <div className="space-y-4 max-w-5xl">
             {/* Export ventas CSV */}
             <div className="flex justify-end">
@@ -3007,38 +3011,37 @@ async function handleCreateSeller() {
               isDark={isDark}
             />
           </div>
-        )}
+        </KeepAliveTab>
 
         {/* -- ACTIVIDAD -- */}
-        {activeTab === "activity" && (
+        <KeepAliveTab active={activeTab === "activity"} id="activity">
           <ActivityLogTab isDark={isDark} />
-        )}
+        </KeepAliveTab>
 
-        {activeTab === "support" && (
-          <SupportTab
-            isDark={isDark}
-            clients={clients}
-          />
-        )}
+        <KeepAliveTab active={activeTab === "support"} id="support">
+          <SupportTab isDark={isDark} clients={clients} />
+        </KeepAliveTab>
 
-        {activeTab === "webhooks" && (
+        <KeepAliveTab active={activeTab === "webhooks"} id="webhooks">
           <WebhooksTab isDark={isDark} />
-        )}
+        </KeepAliveTab>
 
-        {activeTab === "rma" && (
+        <KeepAliveTab active={activeTab === "rma"} id="rma">
           <RmaAdminTab isDark={isDark} />
-        )}
+        </KeepAliveTab>
 
-        {activeTab === "serials" && <SerialsTab isDark={isDark} />}
+        <KeepAliveTab active={activeTab === "serials"} id="serials">
+          <SerialsTab isDark={isDark} />
+        </KeepAliveTab>
 
-        {activeTab === "price_agreements" && (
+        <KeepAliveTab active={activeTab === "price_agreements"} id="price_agreements">
           <PriceAgreementsTab isDark={isDark} clients={clients} />
-        )}
+        </KeepAliveTab>
 
         {/* -- SYNC PROVEEDORES -- */}
-        {activeTab === "supplier_sync" && (
+        <KeepAliveTab active={activeTab === "supplier_sync"} id="supplier_sync">
           <SupplierApisSyncTab isDark={isDark} userId={userId} onSyncDone={fetchProducts} />
-        )}
+        </KeepAliveTab>
         </Suspense>
       </ErrorBoundary>
 
