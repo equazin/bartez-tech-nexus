@@ -39,7 +39,7 @@ export default function HomePage() {
   if (!profile) return null;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
+    <div className="mx-auto max-w-5xl space-y-5 p-3 sm:space-y-6 sm:p-4 md:p-6">
       {/* Greeting */}
       <HomeHero profile={profile} />
 
@@ -61,9 +61,9 @@ export default function HomePage() {
 
       {/* Last order repeat CTA */}
       {lastOrder && (
-        <div className="flex items-center justify-between rounded-xl border bg-muted/40 px-4 py-3">
-          <div>
-            <p className="text-sm font-medium">
+        <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-muted/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">
               Último pedido: {lastOrder.order_number ?? `#${lastOrder.id}`}
             </p>
             <p className="text-xs text-muted-foreground">

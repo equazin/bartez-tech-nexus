@@ -55,12 +55,12 @@ function TopBar({
       : null;
 
   return (
-    <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border/70 bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:px-5">
+    <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-border/70 bg-background/95 px-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:gap-3 sm:px-3 md:px-5">
       <Button
         type="button"
         variant="ghost"
         size="icon"
-        className="md:hidden"
+        className="h-9 w-9 shrink-0 md:hidden"
         onClick={onToggleSidebar}
         aria-label="Abrir menú"
       >
@@ -80,20 +80,23 @@ function TopBar({
         type="button"
         onClick={onOpenCommand}
         className={cn(
-          "flex h-9 max-w-2xl flex-1 items-center gap-2 rounded-xl border border-border/70 bg-card px-3 text-left text-[13px] text-muted-foreground transition-colors",
+          "flex h-9 max-w-2xl min-w-0 flex-1 items-center gap-2 rounded-xl border border-border/70 bg-card px-2.5 text-left text-[13px] text-muted-foreground transition-colors sm:px-3",
           "hover:border-brand/40 hover:bg-card/90",
         )}
         aria-label="Buscar (Ctrl/Cmd+K)"
       >
-        <Search className="h-4 w-4 text-muted-foreground" />
-        <span className="flex-1 truncate">Buscar SKU, pedido, factura...</span>
+        <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <span className="flex-1 truncate">
+          <span className="sm:hidden">Buscar...</span>
+          <span className="hidden sm:inline">Buscar SKU, pedido, factura...</span>
+        </span>
         <kbd className="hidden items-center gap-1 rounded-md border border-border/60 bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline-flex">
           <span>⌘</span>
           <span>K</span>
         </kbd>
       </button>
 
-      <div className="ml-auto flex items-center gap-1.5 md:gap-2">
+      <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1.5 md:gap-2">
         {/* Currency toggle */}
         <div
           role="group"
@@ -134,8 +137,14 @@ function TopBar({
 
         {canAccessAdmin ? <ModeSwitcher currentMode="portal" /> : null}
 
-        {/* Notifications */}
-        <Button type="button" variant="ghost" size="icon" aria-label="Notificaciones" className="relative">
+        {/* Notifications — hidden on smallest mobile to save space */}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="Notificaciones"
+          className="relative hidden h-9 w-9 sm:inline-flex"
+        >
           <Bell className="h-[18px] w-[18px]" />
           {alertCount > 0 ? (
             <span className="absolute right-1 top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-danger-foreground portal-tabular">
@@ -144,19 +153,27 @@ function TopBar({
           ) : null}
         </Button>
 
-        {/* Theme toggle */}
+        {/* Theme toggle — hidden on mobile */}
         <Button
           type="button"
           variant="ghost"
           size="icon"
           onClick={toggleTheme}
           aria-label={isDark ? "Cambiar a claro" : "Cambiar a oscuro"}
+          className="hidden h-9 w-9 sm:inline-flex"
         >
           {isDark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
         </Button>
 
-        {/* Cart */}
-        <Button type="button" variant="ghost" size="icon" onClick={onOpenCart} className="relative" aria-label="Carrito">
+        {/* Cart — always visible */}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onOpenCart}
+          className="relative h-9 w-9"
+          aria-label="Carrito"
+        >
           <ShoppingCart className="h-[18px] w-[18px]" />
           {cartCount > 0 ? (
             <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-brand-foreground portal-tabular">
@@ -165,7 +182,7 @@ function TopBar({
           ) : null}
         </Button>
 
-        {rightSlot ? <div className="ml-1 flex items-center">{rightSlot}</div> : null}
+        {rightSlot ? <div className="ml-0.5 flex items-center sm:ml-1">{rightSlot}</div> : null}
       </div>
     </header>
   );

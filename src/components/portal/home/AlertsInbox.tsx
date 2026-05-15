@@ -31,7 +31,7 @@ export function AlertsInbox({ alerts, loading, onDismiss }: Props) {
           return (
             <div
               key={alert.id}
-              className={cn("flex items-start gap-3 rounded-lg px-4 py-3", meta.bg)}
+              className={cn("flex items-start gap-3 rounded-xl border border-border/40 px-4 py-3", meta.bg)}
             >
               <span className={cn("mt-0.5 shrink-0", meta.tone)}>{meta.icon}</span>
               <div className="flex-1 min-w-0">

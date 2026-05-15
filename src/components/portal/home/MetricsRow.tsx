@@ -19,7 +19,7 @@ export function MetricsRow({ kpis, loading, creditLimit, onNavigate }: Props) {
   if (loading) {
     return (
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24 rounded-[22px]" />)}
+        {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
       </div>
     );
   }

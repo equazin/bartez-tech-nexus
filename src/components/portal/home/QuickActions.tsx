@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ShoppingBag, FileText, Package, MessageSquare, Upload, Zap } from "lucide-react";
+import { ShoppingBag, FileText, Package, MessageSquare, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface Action {
@@ -8,17 +8,18 @@ interface Action {
   path: string;
 }
 
-const ACTIONS: Action[] = [
-  { label: "Nuevo pedido", icon: <ShoppingBag className="h-4 w-4" />, path: "/portal/catalogo" },
-  { label: "Nueva cotización", icon: <FileText className="h-4 w-4" />, path: "/portal/cotizaciones/express" },
-  { label: "Mis pedidos", icon: <Package className="h-4 w-4" />, path: "/portal/pedidos" },
-  { label: "Importar pedido", icon: <Upload className="h-4 w-4" />, path: "/portal/pedidos/bulk" },
-  { label: "Soporte", icon: <MessageSquare className="h-4 w-4" />, path: "/portal/soporte" },
-  { label: "Cotizador rápido", icon: <Zap className="h-4 w-4" />, path: "/portal/cotizaciones/express" },
-];
+const PRIMARY_ACTION: Action = {
+  label: "Nuevo pedido",
+  icon: <ShoppingBag className="h-4 w-4" />,
+  path: "/portal/catalogo",
+};
 
-const PRIMARY_ACTION = ACTIONS[0];
-const SECONDARY_ACTIONS = ACTIONS.slice(1);
+const SECONDARY_ACTIONS: Action[] = [
+  { label: "Cotización", icon: <FileText className="h-4 w-4" />, path: "/portal/cotizaciones/express" },
+  { label: "Mis pedidos", icon: <Package className="h-4 w-4" />, path: "/portal/pedidos" },
+  { label: "Importar", icon: <Upload className="h-4 w-4" />, path: "/portal/pedidos/bulk" },
+  { label: "Soporte", icon: <MessageSquare className="h-4 w-4" />, path: "/portal/cuenta/soporte" },
+];
 
 interface Props {
   onNavigate: (path: string) => void;
@@ -32,24 +33,24 @@ export function QuickActions({ onNavigate }: Props) {
         <Button
           variant="default"
           size="default"
-          className="h-11 justify-start gap-2 px-4"
+          className="h-11 w-full justify-start gap-2 px-4"
           onClick={() => onNavigate(PRIMARY_ACTION.path)}
         >
           {PRIMARY_ACTION.icon}
           {PRIMARY_ACTION.label}
         </Button>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           {SECONDARY_ACTIONS.map((action) => (
             <Button
               key={action.label}
               variant="toolbar"
               size="sm"
-              className="h-11 gap-1.5 px-3"
+              className="h-11 justify-start gap-1.5 px-3 sm:justify-center"
               onClick={() => onNavigate(action.path)}
             >
               {action.icon}
-              {action.label}
+              <span className="truncate">{action.label}</span>
             </Button>
           ))}
         </div>

@@ -106,8 +106,8 @@ function AppShell({ topBar, banner, children, aside, role }: AppShellProps) {
 
         {/* Mobile sidebar drawer */}
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetContent side="left" className="w-72 border-r border-border/70 bg-surface-1 p-0">
-            <div className="flex h-14 items-center gap-2 border-b border-border/70 px-3">
+          <SheetContent side="left" className="flex w-[88vw] max-w-[320px] flex-col border-r border-border/70 bg-surface-1 p-0">
+            <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border/70 px-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-brand-foreground font-display text-[14px] font-bold">
                 B
               </div>
@@ -116,7 +116,9 @@ function AppShell({ topBar, banner, children, aside, role }: AppShellProps) {
                 <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">B2B Portal</span>
               </div>
             </div>
-            <SidebarNav role={role} onNavigate={() => setMobileOpen(false)} />
+            <div className="flex-1 overflow-y-auto">
+              <SidebarNav role={role} onNavigate={() => setMobileOpen(false)} />
+            </div>
           </SheetContent>
         </Sheet>
 
@@ -125,7 +127,7 @@ function AppShell({ topBar, banner, children, aside, role }: AppShellProps) {
           {topBar}
           {banner}
           <main className="flex-1 overflow-y-auto bg-background">
-            <div className="mx-auto w-full max-w-[1440px] px-4 py-5 md:px-6 md:py-6">{children}</div>
+            <div className="mx-auto w-full max-w-[1440px] px-3 py-4 sm:px-4 sm:py-5 md:px-6 md:py-6">{children}</div>
           </main>
         </div>
 
