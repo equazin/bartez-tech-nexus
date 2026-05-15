@@ -50,7 +50,7 @@ export function ProductTabs({ product, currentQty = 1 }: Props) {
 
       {visibleSpecs.length > 0 && (
         <TabsContent value="specs" className="pt-4">
-          <div className="rounded-lg border">
+          <div className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm shadow-border/20">
             {visibleSpecs.map(([key, val], i) => (
               <div
                 key={key}
@@ -75,7 +75,7 @@ export function ProductTabs({ product, currentQty = 1 }: Props) {
       </TabsContent>
 
       <TabsContent value="historial" className="pt-4">
-        <div className="rounded-lg border p-4">
+        <div className="rounded-xl border border-border/60 bg-card p-4 shadow-sm shadow-border/20">
           <p className="mb-3 text-sm font-semibold">Historial de precio</p>
           <PriceSparkline productId={product.id} currentPrice={product.unit_price ?? 0} isDark={false} />
         </div>

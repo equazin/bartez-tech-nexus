@@ -55,7 +55,7 @@ export function StockByWarehouse({ productId }: Props) {
   if (rows.length === 0) return null;
 
   return (
-    <div className="rounded-lg border p-4">
+    <div className="rounded-xl border border-border/60 bg-card p-4 shadow-sm shadow-border/20">
       <p className="mb-3 text-sm font-semibold">Stock por depósito</p>
       <div className="flex flex-col gap-2">
         {rows.map((r) => (

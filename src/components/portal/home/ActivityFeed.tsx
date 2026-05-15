@@ -33,12 +33,12 @@ export function ActivityFeed({ orders, loading, onNavigate }: Props) {
 
       {loading ? (
         <div className="flex flex-col gap-2">
-          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 rounded-lg" />)}
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 rounded-xl" />)}
         </div>
       ) : recent.length === 0 ? (
         <p className="text-sm text-muted-foreground py-4 text-center">Sin actividad reciente.</p>
       ) : (
-        <div className="flex flex-col divide-y rounded-lg border">
+        <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border/60 bg-card shadow-sm shadow-border/20">
           {recent.map((order) => {
             const meta = STATUS_META[order.status] ?? STATUS_META.pending;
             const date = new Date(order.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short" });
@@ -47,7 +47,7 @@ export function ActivityFeed({ orders, loading, onNavigate }: Props) {
                 key={order.id}
                 type="button"
                 onClick={() => onNavigate("/portal/pedidos")}
-                className="flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors first:rounded-t-lg last:rounded-b-lg"
+                className="flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors first:rounded-t-xl last:rounded-b-xl"
               >
                 <span className={cn("shrink-0", meta.tone)}>{meta.icon}</span>
                 <div className="flex-1 min-w-0">
