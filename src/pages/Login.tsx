@@ -79,7 +79,7 @@ const Login = () => {
             <img
               src="/android-chrome-512x512.png"
               alt="Bartez"
-              className="h-14 w-14 rounded-2xl object-contain sm:h-16 sm:w-16"
+              className="h-12 w-12 rounded-xl object-contain sm:h-14 sm:w-14"
             />
             <div className="flex flex-col">
               <span className="font-display text-lg font-bold leading-none tracking-tight text-foreground">BARTEZ</span>

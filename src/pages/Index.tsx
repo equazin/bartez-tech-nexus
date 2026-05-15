@@ -132,20 +132,23 @@ const Index = () => {
                 <Button
                   size="lg"
                   variant="outline"
-                  className="btn-interactive h-14 w-full border-primary/20 bg-primary/5 px-6 text-base text-foreground hover:bg-primary/10 sm:w-auto sm:px-10"
+                  className="btn-interactive h-14 w-full border-primary/30 bg-primary/5 px-6 text-base font-semibold text-foreground hover:bg-primary/10 sm:w-auto sm:px-10"
                   onClick={() => trackCTAClick("home_hero_solicitar_cuenta_b2b")}
                 >
                   Solicitar cuenta B2B
                 </Button>
               </Link>
-              <Link to="/puntos-de-venta" className="w-full sm:w-auto">
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="btn-interactive h-14 w-full border-primary/30 bg-primary/10 px-6 text-base text-foreground hover:bg-primary/15 sm:w-auto sm:px-10"
-                >
-                  Punto de Venta y BARpos <Store className="ml-2" size={18} />
-                </Button>
+            </motion.div>
+
+            <motion.div variants={fadeUp} custom={3.5} className="mx-auto mt-4 flex max-w-[18rem] items-center justify-center gap-2 text-xs text-muted-foreground/80 sm:max-w-none sm:text-sm">
+              <span>¿Buscás equipamiento para tu comercio?</span>
+              <Link
+                to="/puntos-de-venta"
+                className="inline-flex items-center gap-1 font-semibold text-primary underline-offset-4 hover:underline"
+              >
+                <Store size={14} />
+                Punto de Venta y BARpos
+                <ArrowRight size={12} />
               </Link>
             </motion.div>
 

@@ -885,7 +885,7 @@ export default function CartPage() {
       <div className="dashboard-canvas min-h-[calc(100vh-1rem)] overflow-hidden">
 
       {/* -- Header ----------------------------------------------------------- */}
-      <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-border/70 bg-card/90 px-4 py-3 backdrop-blur md:px-6">
+      <header className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border/70 bg-card/90 px-3 py-2.5 backdrop-blur sm:gap-3 md:px-6 md:py-3">
         <button
           onClick={() => navigate("/portal")}
           className={`flex items-center gap-1.5 text-sm transition ${dk("text-gray-500 hover:text-white", "text-gray-500 hover:text-[#171717]")}`}
@@ -893,34 +893,35 @@ export default function CartPage() {
           <ArrowLeft size={15} />
           <span>Catálogo</span>
         </button>
-        <div className={`w-px h-4 ${dk("bg-[#262626]", "bg-[#e5e5e5]")}`} />
-        <div className="flex items-center gap-2">
+        <div className={`hidden h-4 w-px sm:block ${dk("bg-[#262626]", "bg-[#e5e5e5]")}`} />
+        <div className="flex flex-wrap items-center gap-2">
           <ShoppingCart size={15} className="text-[#2D9F6A]" />
           <span className="text-sm font-bold">Pedido</span>
           {cartItems.length > 0 && (
             <button
               type="button"
               onClick={() => { void handleClearCart(); }}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${dk("border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/15", "border-red-200 bg-red-50 text-red-700 hover:bg-red-100")}`}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition sm:px-3 sm:py-1.5 sm:text-xs ${dk("border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/15", "border-red-200 bg-red-50 text-red-700 hover:bg-red-100")}`}
             >
               <Trash2 size={12} />
-              Vaciar carrito
+              <span className="hidden sm:inline">Vaciar carrito</span>
+              <span className="sm:hidden">Vaciar</span>
             </button>
           )}
           {cartItems.length > 0 && (
-              <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${dk("bg-[#171717] text-[#737373] border-[#222]", "bg-[#f0f0f0] text-[#737373] border-[#e5e5e5]")}`}>
+              <span className={`text-[11px] px-2 py-0.5 rounded-full border font-medium sm:text-xs ${dk("bg-[#171717] text-[#737373] border-[#222]", "bg-[#f0f0f0] text-[#737373] border-[#e5e5e5]")}`}>
                 {cartItems.reduce((s, i) => s + i.quantity, 0)} {cartItems.reduce((s, i) => s + i.quantity, 0) === 1 ? "ítem" : "ítems"} · {cartItems.length} {cartItems.length === 1 ? "ref" : "refs"}
               </span>
           )}
         </div>
         {hasBlockingErrors && (
           <span className="ml-auto flex items-center gap-1 text-xs text-red-400">
-            <AlertCircle size={12} /> Stock insuficiente
+            <AlertCircle size={12} /> <span className="hidden sm:inline">Stock insuficiente</span>
           </span>
         )}
         {!hasBlockingErrors && hasWarnings && (
           <span className="ml-auto flex items-center gap-1 text-xs text-amber-400">
-            <AlertTriangle size={12} /> Revisar stock / mínimos
+            <AlertTriangle size={12} /> <span className="hidden sm:inline">Revisar stock / mínimos</span>
           </span>
         )}
       </header>

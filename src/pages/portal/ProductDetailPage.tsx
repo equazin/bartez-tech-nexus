@@ -108,19 +108,19 @@ export default function ProductDetailPage() {
   const price = computePrice(product, qty);
 
   return (
-    <div className="mx-auto max-w-5xl p-4 md:p-6">
+    <div className="mx-auto max-w-5xl p-3 sm:p-4 md:p-6">
       {/* Back */}
       <Button
         variant="ghost"
         size="sm"
-        className="mb-4 gap-1.5"
+        className="mb-3 gap-1.5 sm:mb-4"
         onClick={() => navigate(-1)}
       >
         <ArrowLeft className="h-4 w-4" />
         Volver
       </Button>
 
-      <div className="grid gap-8 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
         {/* Gallery */}
         <ProductGallery product={product} />
 
@@ -164,19 +164,21 @@ export default function ProductDetailPage() {
 
           {/* Add to cart */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-md border">
+            <div className="flex items-center rounded-lg border border-border/60">
               <button
                 type="button"
                 onClick={() => changeQty(-1)}
-                className="flex h-9 w-9 items-center justify-center rounded-l-md hover:bg-muted"
+                aria-label="Restar cantidad"
+                className="flex h-9 w-9 items-center justify-center rounded-l-lg text-muted-foreground hover:bg-muted"
               >
                 <Minus className="h-4 w-4" />
               </button>
-              <span className="w-10 text-center tabular-nums">{qty}</span>
+              <span className="w-10 text-center text-sm font-semibold tabular-nums">{qty}</span>
               <button
                 type="button"
                 onClick={() => changeQty(1)}
-                className="flex h-9 w-9 items-center justify-center rounded-r-md hover:bg-muted"
+                aria-label="Sumar cantidad"
+                className="flex h-9 w-9 items-center justify-center rounded-r-lg text-muted-foreground hover:bg-muted"
               >
                 <Plus className="h-4 w-4" />
               </button>
