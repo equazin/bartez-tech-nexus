@@ -2044,9 +2044,6 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders, onOpe
       {/* ── Atención inmediata ── */}
       <FocusBar items={focusItems} onOpenTab={onOpenTab} />
 
-      {/* ── Delete history ── */}
-      <DeleteHistoryPanel isDark={isDark} onRefreshOrders={onRefreshOrders} />
-
       {/* ── KPI Row ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard label="Ventas este mes" value={formatPrice(currentMonthRevenue)}
@@ -2198,6 +2195,11 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders, onOpe
         </div>
         <TopProducts orders={orders} isDark={isDark} />
         <TopClients orders={orders} clients={clients} isDark={isDark} />
+      </div>
+
+      {/* ── Maintenance ── */}
+      <div className="pt-2">
+        <DeleteHistoryPanel isDark={isDark} onRefreshOrders={onRefreshOrders} />
       </div>
 
     </div>
