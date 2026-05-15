@@ -1648,48 +1648,51 @@ async function handleCreateSeller() {
         }>
 
         {showCommercialJourney && (
-          <div className={`mb-6 rounded-2xl border p-4 ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")}`}>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className={`text-[10px] font-bold uppercase tracking-[0.22em] ${dk("text-gray-500", "text-[#737373]")}`}>Flujo comercial</p>
-                <h2 className={`mt-2 text-lg font-bold ${dk("text-white", "text-[#171717]")}`}>Cotizacion, pedido, cliente, documentos y cobro en una sola lectura</h2>
-                <p className={`mt-1 text-sm ${dk("text-gray-400", "text-[#525252]")}`}>Usa estos accesos para seguir la operacion completa sin saltar entre modulos desconectados.</p>
+          <div className={`mb-5 rounded-2xl border px-3 py-3 ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")}`}>
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#2D9F6A]/12 text-[#2D9F6A]">
+                  <Handshake size={16} />
+                </div>
+                <div className="min-w-0">
+                  <p className={`text-[10px] font-bold uppercase tracking-[0.22em] ${dk("text-gray-500", "text-[#737373]")}`}>
+                    Flujo comercial
+                  </p>
+                  <h2 className={`truncate text-sm font-bold ${dk("text-white", "text-[#171717]")}`}>
+                    Cotizacion, pedido, cliente, documentos y cobro
+                  </h2>
+                </div>
               </div>
+
+              <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto xl:justify-center">
+                {adminJourneySteps.map(({ id, label, helper, icon: Icon }) => {
+                  const isActive = activeTab === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => navigateTab(id)}
+                      title={helper}
+                      className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border px-3 text-left text-xs font-semibold transition ${
+                        isActive
+                          ? dk("border-[#2D9F6A]/50 bg-[#0d1f17] text-white", "border-[#bde5d0] bg-green-50 text-[#145235]")
+                          : dk("border-[#1f1f1f] bg-[#111] text-gray-300 hover:border-[#2D9F6A]/30 hover:text-white", "border-[#e5e5e5] bg-[#fafafa] text-[#525252] hover:border-[#bde5d0] hover:text-[#171717]")
+                      }`}
+                    >
+                      <Icon size={14} />
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
               <button
                 type="button"
                 onClick={() => navigateTab("quotes_admin")}
-                className="rounded-xl bg-[#2D9F6A] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#25835A]"
+                className="h-10 shrink-0 rounded-xl bg-[#2D9F6A] px-3 text-xs font-semibold text-white transition hover:bg-[#25835A]"
               >
                 Ir a cotizaciones
               </button>
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              {adminJourneySteps.map(({ id, label, helper, icon: Icon }) => {
-                const isActive = activeTab === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => navigateTab(id)}
-                    className={`rounded-2xl border px-4 py-3 text-left transition ${
-                      isActive
-                        ? dk("border-[#2D9F6A]/50 bg-[#0d1f17]", "border-[#bde5d0] bg-green-50")
-                        : dk("border-[#1f1f1f] bg-[#111] hover:border-[#2D9F6A]/30", "border-[#e5e5e5] bg-[#fafafa] hover:border-[#bde5d0]")
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${isActive ? "bg-[#2D9F6A] text-white" : dk("bg-[#171717] text-gray-300", "bg-white text-[#525252]")}`}>
-                        <Icon size={16} />
-                      </div>
-                      <div>
-                        <p className={`text-sm font-semibold ${dk("text-white", "text-[#171717]")}`}>{label}</p>
-                        <p className={`text-xs ${dk("text-gray-500", "text-[#737373]")}`}>{helper}</p>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
             </div>
           </div>
         )}
