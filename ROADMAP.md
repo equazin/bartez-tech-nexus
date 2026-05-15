@@ -1,7 +1,7 @@
 # Roadmap Bartez B2B
 
 Hoja de trabajo viva con mejoras priorizadas para portal, admin y web pública.
-Última actualización: 2026-05-15.
+Última actualización: 2026-05-15 (plan de sprints completo con los 30 items).
 
 Cada item indica **impacto** (lo que cambia para el usuario o el equipo) y
 **esfuerzo** estimado. Los items van marcándose con `[x]` al completarse.
@@ -182,23 +182,43 @@ Cosas que ya rompen experiencia o nos van a frenar cuando el proyecto crezca.
 ## Plan sugerido de ejecución
 
 **Sprint 1 — wins rápidos (1 semana):**
-17 (repetir pedido) → 19 (badges en sidebar) → 22 (audit log al cliente) →
-10 (total flotante mobile) → 14 (toasts con acción).
-Resultado: portal se siente más "vivo" y útil sin gran obra.
+Items de muy bajo/bajo esfuerzo que mejoran la experiencia visible de inmediato.
 
-**Sprint 2 — UX que falta (1-2 semanas):**
-5 (auto-save) → 15 (virtual scroll) → 11 (idle preload tabs) →
-2 (carrito sin catálogo completo) → 27 (error boundary portal).
-Resultado: la app deja de "perder cosas" y deja de lagear con catálogos grandes.
+17 (repetir pedido) → 19 (badges en sidebar) → 22 (audit log al cliente) →
+10 (total flotante mobile) → 14 (toasts con acción) → 9 (atajos CommandPalette) →
+13 (empty states con CTA) → 23 (sugerencias de precio por volumen en cart) →
+26 (quitar console.log en prod).
+
+Resultado: portal se siente más "vivo" y útil sin gran obra. 9 items.
+
+**Sprint 2 — estabilización UX y performance (1-2 semanas):**
+Items de esfuerzo bajo/medio que eliminan fricciones concretas y lagueos visibles.
+
+5 (auto-save formularios) → 2 (carrito sin catálogo completo) →
+3 (SalesDashboard memos → Supabase views) → 15 (virtual scroll tablas) →
+11 (idle preload tabs admin) → 12 (skeletons unificados) →
+27 (error boundary portal) → 28 (eliminar `any`) → 30 (migraciones idempotentes).
+
+Resultado: la app deja de perder datos, de lagear y de explotar en silencio. 9 items.
 
 **Sprint 3 — refactor estructural (2-3 semanas):**
-1 (romper Admin.tsx) → 4 (portal pages standalone) → 25 (tests pricing) →
-28 (sacar `any`).
-Resultado: base sana para todo lo demás.
+Items de esfuerzo alto que sanan la arquitectura y habilitan todo lo demás.
 
-**Sprint 4+ — features de valor:**
-6 (push realtime) → 7 (admin mobile) → 18 (cotización por WhatsApp) →
-20 (modo foco admin) → 24 (offline).
+1 (romper Admin.tsx por tab) → 4 (portal pages standalone) →
+8 (búsqueda global pg_trgm) → 25 (tests en código de precios) →
+29 (reducir bundle size) → 16 (comparador de productos — botón faltante).
+
+Resultado: base sana para escalar, código mantenible, búsqueda real. 6 items.
+
+**Sprint 4+ — features de valor (ongoing):**
+Items de esfuerzo medio/alto con alto retorno comercial u operativo, que requieren
+la arquitectura del Sprint 3 como base.
+
+6 (push realtime admin) → 18 (compartir cotización por WhatsApp) →
+20 (modo foco admin keyboard-only) → 7 (vista admin mobile) →
+21 (templates de export por cliente) → 24 (modo offline vendedores en ruta).
+
+Resultado: diferenciadores reales para ventas y operaciones. 6 items.
 
 ---
 
