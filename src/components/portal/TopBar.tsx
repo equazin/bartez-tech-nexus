@@ -118,20 +118,20 @@ function TopBar({
           ))}
         </div>
 
-        {/* Credit chip */}
+        {/* Credit chip — credit values are stored in ARS */}
         {typeof creditAvailable === "number" && typeof creditTotal === "number" && creditTotal > 0 ? (
           <div
             className={cn(
-              "hidden items-center gap-2 rounded-lg border px-2.5 py-1 lg:flex",
+              "hidden items-center gap-2 rounded-lg border px-2.5 py-1 md:flex",
               creditTone === "danger" && "border-danger/40 bg-danger-soft text-danger",
               creditTone === "warning" && "border-warning/40 bg-warning-soft text-warning",
               creditTone === "success" && "border-border/70 bg-card text-foreground",
               !creditTone && "border-border/70 bg-card text-foreground",
             )}
-            title={`Crédito disponible: ${formatPrice(creditAvailable, "USD")} de ${formatPrice(creditTotal, "USD")}`}
+            title={`Crédito disponible: ${formatPrice(creditAvailable, "ARS")} de ${formatPrice(creditTotal, "ARS")}`}
           >
             <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">Crédito</span>
-            <span className="text-[12px] font-semibold portal-tabular">{formatPrice(creditAvailable, "USD")}</span>
+            <span className="text-[12px] font-semibold portal-tabular">{formatPrice(creditAvailable, "ARS")}</span>
           </div>
         ) : null}
 
