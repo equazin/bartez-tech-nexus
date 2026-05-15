@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
-import { Menu, Search, ShoppingCart, Sun, Moon, ChevronDown, Bell } from "lucide-react";
+import { Menu, Search, ShoppingCart, Sun, Moon, Bell, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/context/CurrencyContext";
@@ -22,6 +22,8 @@ interface TopBarProps {
   onOpenCart?: () => void;
   /** Callback to toggle sidebar (mobile) */
   onToggleSidebar?: () => void;
+  /** Show admin-only shortcut to the operations panel */
+  canAccessAdmin?: boolean;
   /** Optional rightmost slot (profile dropdown) */
   rightSlot?: React.ReactNode;
 }
@@ -35,6 +37,7 @@ function TopBar({
   onOpenCommand,
   onOpenCart,
   onToggleSidebar,
+  canAccessAdmin = false,
   rightSlot,
 }: TopBarProps) {
   const { currency, setCurrency, formatPrice } = useCurrency();
@@ -126,6 +129,15 @@ function TopBar({
             <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">Crédito</span>
             <span className="text-[12px] font-semibold portal-tabular">{formatPrice(creditAvailable, "USD")}</span>
           </div>
+        ) : null}
+
+        {canAccessAdmin ? (
+          <Button asChild variant="toolbar" size="sm" className="gap-1.5 px-2.5">
+            <Link to="/admin" title="Ir al panel de administrador">
+              <ShieldCheck className="h-4 w-4" />
+              <span className="hidden sm:inline">Admin</span>
+            </Link>
+          </Button>
         ) : null}
 
         {/* Notifications */}

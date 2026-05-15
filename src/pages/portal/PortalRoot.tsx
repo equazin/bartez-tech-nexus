@@ -51,6 +51,7 @@ function PortalRoot() {
           alertCount={alertCount}
           creditAvailable={creditAvailable}
           creditTotal={creditTotal}
+          canAccessAdmin={authProfile?.role === "admin"}
           onOpenCart={() => navigate("/cart")}
           onOpenCommand={() => setCmdOpen(true)}
         />
