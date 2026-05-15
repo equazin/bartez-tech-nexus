@@ -9,9 +9,10 @@ interface Props {
   cart: Record<number, number>;
   onAdd: (product: Product, qty: number) => void;
   getPrice: (product: Product, quantity: number) => PriceResult;
+  onQuickView?: (product: Product) => void;
 }
 
-export function CatalogGrid({ products, loading, cart, onAdd, getPrice }: Props) {
+export function CatalogGrid({ products, loading, cart, onAdd, getPrice, onQuickView }: Props) {
   return (
     <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {loading && products.length === 0
@@ -33,6 +34,7 @@ export function CatalogGrid({ products, loading, cart, onAdd, getPrice }: Props)
               qty={cart[p.id] ?? 0}
               onAdd={onAdd}
               getPrice={getPrice}
+              onQuickView={onQuickView}
             />
           ))}
     </div>

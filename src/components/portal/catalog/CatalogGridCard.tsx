@@ -1,5 +1,4 @@
 import { memo, useState } from "react";
-import { Link } from "react-router-dom";
 import { Plus, Minus, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StockCell } from "@/components/ui/stock-cell";
@@ -15,24 +14,33 @@ interface Props {
   qty: number;
   onAdd: (product: Product, qty: number) => void;
   getPrice: (product: Product, quantity: number) => PriceResult;
+  onQuickView?: (product: Product) => void;
 }
 
-export const CatalogGridCard = memo(function CatalogGridCard({ product, onAdd, getPrice }: Props) {
+export const CatalogGridCard = memo(function CatalogGridCard({ product, onAdd, getPrice, onQuickView }: Props) {
   const [localQty, setLocalQty] = useState(Math.max(product.min_order_qty ?? 1, 1));
   const available = getAvailableStock(product);
   const price = getPrice(product, localQty);
   const canAdd = available > 0;
-  const productPath = `/portal/p/${product.sku ?? product.id}`;
 
   function changeQty(delta: number) {
     const min = product.min_order_qty ?? 1;
     setLocalQty((prev) => Math.max(min, prev + delta));
   }
 
+  function openQuickView() {
+    onQuickView?.(product);
+  }
+
   return (
     <div className="group flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm shadow-border/20 transition-all hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-lg hover:shadow-primary/10">
       {/* Image */}
-      <Link to={productPath} className="relative block aspect-square overflow-hidden border-b border-border/60 bg-muted/40">
+      <button
+        type="button"
+        onClick={openQuickView}
+        aria-label={`Ver detalle de ${displayName(product)}`}
+        className="relative block aspect-square w-full overflow-hidden border-b border-border/60 bg-muted/40 text-left"
+      >
         {product.image ? (
           <img
             src={product.image}
@@ -50,7 +58,7 @@ export const CatalogGridCard = memo(function CatalogGridCard({ product, onAdd, g
             -{product.offer_percent}%
           </span>
         )}
-      </Link>
+      </button>
 
       {/* Content */}
       <div className="flex flex-1 flex-col gap-3 p-3">
@@ -59,12 +67,13 @@ export const CatalogGridCard = memo(function CatalogGridCard({ product, onAdd, g
             <span className="min-w-0 truncate">{product.brand_name ?? "Bartez"}</span>
             {product.sku ? <span className="shrink-0 font-mono text-[11px]">{product.sku}</span> : null}
           </div>
-          <Link
-            to={productPath}
-            className="line-clamp-2 min-h-[40px] text-sm font-semibold leading-snug text-foreground transition-colors hover:text-primary"
+          <button
+            type="button"
+            onClick={openQuickView}
+            className="line-clamp-2 min-h-[40px] text-left text-sm font-semibold leading-snug text-foreground transition-colors hover:text-primary"
           >
             {displayName(product)}
-          </Link>
+          </button>
         </div>
 
         <div className="flex items-end justify-between gap-3 rounded-xl border border-border/60 bg-muted/30 px-2.5 py-2">

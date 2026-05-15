@@ -16,6 +16,7 @@ interface Props {
   qty: number;
   onAdd: (product: Product, qty: number) => void;
   getPrice: (product: Product, quantity: number) => PriceResult;
+  onQuickView?: (product: Product) => void;
 }
 
 function buildTiers(product: Product): PriceTier[] {
@@ -27,7 +28,7 @@ function buildTiers(product: Product): PriceTier[] {
   }));
 }
 
-export const CatalogTableRow = memo(function CatalogTableRow({ product, qty, onAdd, getPrice }: Props) {
+export const CatalogTableRow = memo(function CatalogTableRow({ product, qty, onAdd, getPrice, onQuickView }: Props) {
   const [localQty, setLocalQty] = useState(Math.max(product.min_order_qty ?? 1, 1));
   const [expanded, setExpanded] = useState(false);
 
@@ -45,23 +46,34 @@ export const CatalogTableRow = memo(function CatalogTableRow({ product, qty, onA
   return (
     <>
       <tr className="group border-b border-border/50 transition-colors last:border-b-0 hover:bg-muted/40">
-        {/* Image */}
+        {/* Image — clickable for quick view */}
         <td className="w-12 py-2 pl-3 pr-1">
-          {product.image ? (
-            <img
-              src={product.image}
-              alt=""
-              className="h-10 w-10 rounded-lg border border-border/40 bg-muted/40 object-contain"
-              loading="lazy"
-            />
-          ) : (
-            <div className="h-10 w-10 rounded-lg border border-border/40 bg-muted" />
-          )}
+          <button
+            type="button"
+            onClick={() => onQuickView?.(product)}
+            aria-label={`Ver detalle de ${displayName(product)}`}
+            className="block h-10 w-10 overflow-hidden rounded-lg border border-border/40 bg-muted/40 transition-transform hover:scale-[1.05] hover:border-primary/40"
+          >
+            {product.image ? (
+              <img
+                src={product.image}
+                alt=""
+                className="h-full w-full object-contain"
+                loading="lazy"
+              />
+            ) : null}
+          </button>
         </td>
 
-        {/* Name + SKU */}
+        {/* Name + SKU — clickable for quick view */}
         <td className="max-w-[240px] px-2 py-2">
-          <p className="line-clamp-2 text-sm font-medium leading-snug">{displayName(product)}</p>
+          <button
+            type="button"
+            onClick={() => onQuickView?.(product)}
+            className="block w-full text-left line-clamp-2 text-sm font-medium leading-snug transition-colors hover:text-primary"
+          >
+            {displayName(product)}
+          </button>
           {product.sku && (
             <p className="mt-0.5 font-mono text-xs text-muted-foreground">{product.sku}</p>
           )}

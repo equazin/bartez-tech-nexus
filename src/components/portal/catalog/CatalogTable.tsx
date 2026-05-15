@@ -9,9 +9,10 @@ interface Props {
   cart: Record<number, number>;
   onAdd: (product: Product, qty: number) => void;
   getPrice: (product: Product, quantity: number) => PriceResult;
+  onQuickView?: (product: Product) => void;
 }
 
-export function CatalogTable({ products, loading, cart, onAdd, getPrice }: Props) {
+export function CatalogTable({ products, loading, cart, onAdd, getPrice, onQuickView }: Props) {
   return (
     <div className="p-3 md:p-4">
       <div className="w-full overflow-x-auto overflow-y-visible rounded-xl border border-border/60 bg-card shadow-sm shadow-border/20">
@@ -54,6 +55,7 @@ export function CatalogTable({ products, loading, cart, onAdd, getPrice }: Props
                     qty={cart[p.id] ?? 0}
                     onAdd={onAdd}
                     getPrice={getPrice}
+                    onQuickView={onQuickView}
                   />
                 ))}
           </tbody>

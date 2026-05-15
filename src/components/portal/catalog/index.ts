@@ -13,4 +13,5 @@ export { SortMenu } from "./SortMenu";
 export { PriceListDownload } from "./PriceListDownload";
 export { EmptyCatalog } from "./EmptyCatalog";
 export { ToolbarBottomSheet } from "./ToolbarBottomSheet";
+export { ProductQuickView } from "./ProductQuickView";
 export type * from "./types";
