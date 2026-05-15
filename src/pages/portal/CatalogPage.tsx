@@ -26,6 +26,8 @@ export default function CatalogPage() {
 
   const { cart, setCart } = useSharedCartState(clientId ?? "");
 
+  // Modal only used for grid view (where inline expansion would break the column layout).
+  // Table view uses inline expandable rows.
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
 
   const {
@@ -66,7 +68,7 @@ export default function CatalogPage() {
   const contentBody = products.length === 0 && !loading
     ? <EmptyCatalog hasActiveFilters={hasActiveFilters} onClearFilters={clearFilters} />
     : viewMode === "table"
-      ? <CatalogTable products={products} loading={loading} cart={cart} onAdd={handleAdd} getPrice={computePrice} onQuickView={handleQuickView} />
+      ? <CatalogTable products={products} loading={loading} cart={cart} onAdd={handleAdd} getPrice={computePrice} profileId={clientId} />
       : <CatalogGrid products={products} loading={loading} cart={cart} onAdd={handleAdd} getPrice={computePrice} onQuickView={handleQuickView} />;
 
   const content = (

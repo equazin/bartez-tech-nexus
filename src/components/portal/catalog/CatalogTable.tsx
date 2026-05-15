@@ -1,4 +1,7 @@
+import { useCallback, useEffect, useState } from "react";
+
 import { Skeleton } from "@/components/ui/skeleton";
+import { getFavoriteProducts, toggleFavoriteProduct } from "@/lib/favoriteProducts";
 import { CatalogTableRow } from "./CatalogTableRow";
 import type { Product } from "@/models/products";
 import type { PriceResult } from "@/hooks/usePricing";
@@ -9,10 +12,35 @@ interface Props {
   cart: Record<number, number>;
   onAdd: (product: Product, qty: number) => void;
   getPrice: (product: Product, quantity: number) => PriceResult;
-  onQuickView?: (product: Product) => void;
+  /** Client/profile id used to scope favorites */
+  profileId?: string;
 }
 
-export function CatalogTable({ products, loading, cart, onAdd, getPrice, onQuickView }: Props) {
+export function CatalogTable({ products, loading, cart, onAdd, getPrice, profileId }: Props) {
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [favorites, setFavorites] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (!profileId) {
+      setFavorites(new Set());
+      return;
+    }
+    setFavorites(new Set(getFavoriteProducts(profileId)));
+  }, [profileId]);
+
+  const handleToggleExpand = useCallback((product: Product) => {
+    setExpandedId((current) => (current === product.id ? null : product.id));
+  }, []);
+
+  const handleFavorite = useCallback(
+    (product: Product) => {
+      if (!profileId) return;
+      const next = toggleFavoriteProduct(profileId, product.id);
+      setFavorites(new Set(next));
+    },
+    [profileId],
+  );
+
   return (
     <div className="p-3 md:p-4">
       <div className="w-full overflow-x-auto overflow-y-visible rounded-xl border border-border/60 bg-card shadow-sm shadow-border/20">
@@ -55,7 +83,10 @@ export function CatalogTable({ products, loading, cart, onAdd, getPrice, onQuick
                     qty={cart[p.id] ?? 0}
                     onAdd={onAdd}
                     getPrice={getPrice}
-                    onQuickView={onQuickView}
+                    expanded={expandedId === p.id}
+                    onToggleExpand={handleToggleExpand}
+                    onFavorite={profileId ? handleFavorite : undefined}
+                    isFavorite={favorites.has(p.id)}
                   />
                 ))}
           </tbody>
