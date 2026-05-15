@@ -124,6 +124,7 @@ export default function CatalogPage() {
         }}
         onAdd={handleAdd}
         getPrice={computePrice}
+        profileId={clientId}
       />
     </>
   );
