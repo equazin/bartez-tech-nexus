@@ -1,4 +1,5 @@
 import { memo, Suspense, useRef, type ReactNode } from "react";
+import { ErrorBoundary } from "@/components/admin/ErrorBoundary";
 
 interface KeepAliveTabProps {
   /** Whether this tab is currently the active one */
@@ -44,7 +45,9 @@ export const KeepAliveTab = memo(function KeepAliveTab({
 
   return (
     <div data-keepalive-tab={id} hidden={!active} style={active ? undefined : { display: "none" }}>
-      <Suspense fallback={fallback}>{children}</Suspense>
+      <ErrorBoundary section={id}>
+        <Suspense fallback={fallback}>{children}</Suspense>
+      </ErrorBoundary>
     </div>
   );
 });

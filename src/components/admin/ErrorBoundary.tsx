@@ -10,6 +10,17 @@ interface Props {
 interface State {
   hasError: boolean;
   message: string;
+  isChunkError: boolean;
+}
+
+function isDynamicImportError(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return (
+    message.includes("failed to fetch dynamically imported module") ||
+    message.includes("error loading dynamically imported module") ||
+    message.includes("importing a module script failed") ||
+    message.includes("chunkloaderror")
+  );
 }
 
 /**
@@ -19,13 +30,13 @@ interface State {
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, message: "" };
+    this.state = { hasError: false, message: "", isChunkError: false };
   }
 
   static getDerivedStateFromError(error: unknown): State {
     const message =
       error instanceof Error ? error.message : "Error desconocido";
-    return { hasError: true, message };
+    return { hasError: true, message, isChunkError: isDynamicImportError(error) };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
@@ -33,7 +44,12 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   handleReset = () => {
-    this.setState({ hasError: false, message: "" });
+    if (this.state.isChunkError) {
+      window.location.reload();
+      return;
+    }
+
+    this.setState({ hasError: false, message: "", isChunkError: false });
   };
 
   render() {
@@ -48,13 +64,17 @@ export class ErrorBoundary extends Component<Props, State> {
               ? `Error en "${this.props.section}"`
               : "Algo salió mal"}
           </p>
-          <p className="text-xs text-gray-500 max-w-xs">{this.state.message}</p>
+          <p className="text-xs text-gray-500 max-w-xs">
+            {this.state.isChunkError
+              ? "Hay una version nueva del panel y el navegador intento usar archivos viejos. Actualiza una vez para cargar el bundle vigente."
+              : this.state.message}
+          </p>
         </div>
         <button
           onClick={this.handleReset}
           className="mt-2 text-xs px-4 py-2 rounded-lg bg-[#1e1e1e] border border-[#2a2a2a] text-gray-400 hover:text-white transition"
         >
-          Reintentar
+          {this.state.isChunkError ? "Actualizar admin" : "Reintentar"}
         </button>
       </div>
     );
