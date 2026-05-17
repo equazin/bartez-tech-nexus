@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -105,6 +105,36 @@ const RequireAdmin = ({ children }: { children: JSX.Element }) => {
   if (!session || !isAdmin) return <Navigate to="/login" replace state={{ from: location }} />;
   return children;
 };
+
+function AdminRoutePlaceholder() {
+  return null;
+}
+
+function PersistentAdminShell() {
+  const location = useLocation();
+  const { session, isAdmin, loading } = useAuth();
+  const isAdminRoute = location.pathname === "/admin";
+  const [hasVisitedAdmin, setHasVisitedAdmin] = useState(false);
+
+  useEffect(() => {
+    if (isAdminRoute && session && isAdmin) setHasVisitedAdmin(true);
+  }, [isAdmin, isAdminRoute, session]);
+
+  if (loading || !session || !isAdmin || (!isAdminRoute && !hasVisitedAdmin)) {
+    return null;
+  }
+
+  return (
+    <div
+      aria-hidden={!isAdminRoute}
+      className={isAdminRoute ? "block" : "hidden"}
+    >
+      <Suspense fallback={isAdminRoute ? <RouteLoading /> : null}>
+        <Admin />
+      </Suspense>
+    </div>
+  );
+}
 
 // Maps legacy /b2b-portal?tab=... URLs to the new /portal/* routes.
 // Anything we don't explicitly map falls through to /portal (Home).
@@ -214,10 +244,11 @@ const App = () => (
                       <Route path="comparar" element={<PortalCompareProductsPage />} />
                     </Route>
                     <Route path="/cart" element={<RequireAuth><CartPage /></RequireAuth>} />
-                    <Route path="/admin" element={<RequireAdmin><Admin /></RequireAdmin>} />
+                    <Route path="/admin" element={<RequireAdmin><AdminRoutePlaceholder /></RequireAdmin>} />
                     <Route path="/clientes/:id" element={<RequireAdmin><CustomerView /></RequireAdmin>} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
+                  <PersistentAdminShell />
                 </Suspense>
                 </ErrorBoundary>
               </CurrencyProvider>
