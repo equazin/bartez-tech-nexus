@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { useState, useEffect } from "react";
 import {
   Upload,
@@ -84,7 +85,7 @@ export function PaymentsPanel({ profile, orders, invoices, isDark }: PaymentsPan
       const data = await fetchMyPayments();
       setPayments(data);
     } catch (err) {
-      console.error("Error loading payments:", err);
+      logger.error("Error loading payments:", err);
     } finally {
       setIsLoading(false);
     }
@@ -168,7 +169,7 @@ export function PaymentsPanel({ profile, orders, invoices, isDark }: PaymentsPan
       setActiveTab("historial");
 
     } catch (err) {
-      console.error("Submit error:", err);
+      logger.error("Submit error:", err);
       toast({
         title: "Error al cargar pago",
         description: err instanceof Error ? err.message : "Intentalo de nuevo",

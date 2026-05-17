@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, Plus, Minus, ShoppingCart, Heart, Bell, ExternalLink } from "lucide-react";
+import { ChevronDown, Plus, Minus, ShoppingCart, Heart, Bell, ExternalLink, GitCompareArrows } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StockCell } from "@/components/ui/stock-cell";
 import { MoneyCell } from "@/components/ui/money-cell";
@@ -21,6 +21,9 @@ interface Props {
   onToggleExpand: (product: Product) => void;
   onFavorite?: (product: Product) => void;
   isFavorite?: boolean;
+  onCompare?: (product: Product) => void;
+  isInCompare?: boolean;
+  compareDisabled?: boolean;
 }
 
 function buildTiers(product: Product): PriceTier[] {
@@ -45,6 +48,9 @@ export const CatalogTableRow = memo(function CatalogTableRow({
   onToggleExpand,
   onFavorite,
   isFavorite,
+  onCompare,
+  isInCompare,
+  compareDisabled,
 }: Props) {
   const [localQty, setLocalQty] = useState(Math.max(product.min_order_qty ?? 1, 1));
 
@@ -273,6 +279,21 @@ export const CatalogTableRow = memo(function CatalogTableRow({
                     >
                       <Heart className={cn("h-4 w-4", isFavorite && "fill-current text-danger")} />
                       {isFavorite ? "Quitar favorito" : "Marcar favorito"}
+                    </Button>
+                  ) : null}
+
+                  {onCompare ? (
+                    <Button
+                      type="button"
+                      variant={isInCompare ? "secondary" : "outline"}
+                      size="sm"
+                      onClick={() => onCompare(product)}
+                      disabled={compareDisabled && !isInCompare}
+                      className="gap-2"
+                      title={isInCompare ? "Quitar de la comparación" : compareDisabled ? "Ya tenés 4 productos para comparar" : "Agregar a comparar"}
+                    >
+                      <GitCompareArrows className="h-3.5 w-3.5" />
+                      {isInCompare ? "Quitar de comparar" : "Comparar"}
                     </Button>
                   ) : null}
 

@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 /**
  * AFIP Integration Module (Mocked/Structure)
  * Handles WSFE (Web Services de Facturacion Electronica) logic.
@@ -123,7 +124,7 @@ export async function validateCuit(cuit: string): Promise<ValidateCuitResult> {
  * Returns CAE and QR data.
  */
 export async function generateElectronicInvoice(data: AfipInvoiceData): Promise<AfipResponse> {
-  console.log(`[AFIP] Generating Invoice Type ${data.type} for CUIT ${data.cuit} Total: $${data.total}`);
+  logger.debug(`[AFIP] Generating Invoice Type ${data.type} for CUIT ${data.cuit} Total: $${data.total}`);
 
   // Mock delay
   await new Promise(resolve => setTimeout(resolve, 1500));

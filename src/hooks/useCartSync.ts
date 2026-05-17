@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { useEffect, useRef, useCallback, type Dispatch, type SetStateAction } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
@@ -73,7 +74,7 @@ export function useCartSync(
           await syncRemoteCart(user.id, latestCart.current);
         }
       } catch (err) {
-        console.error("Error loading remote cart:", err);
+        logger.error("Error loading remote cart:", err);
       } finally {
         hasHydrated.current = true;
       }
@@ -97,7 +98,7 @@ export function useCartSync(
       try {
         await syncRemoteCart(user.id, cart);
       } catch (err) {
-        console.error("Error syncing cart to Supabase:", err);
+        logger.error("Error syncing cart to Supabase:", err);
       }
     }, 2000); // 2 second debounce
 
@@ -118,7 +119,7 @@ export function useCartSync(
       }
 
       void syncRemoteCart(userId, latestCart.current).catch((err) => {
-        console.error("Error flushing cart sync on unmount:", err);
+        logger.error("Error flushing cart sync on unmount:", err);
       });
     };
   }, [syncRemoteCart]);

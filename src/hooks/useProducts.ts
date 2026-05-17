@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Product } from "@/models/products";
@@ -21,6 +22,8 @@ export interface UseProductsOptions {
   isAdmin?: boolean;
   isFeatured?: boolean;
   sortBy?: "name" | "name_asc" | "name_desc" | "featured" | "price_asc" | "price_desc" | "stock_desc";
+  /** When false, the hook skips the initial fetch entirely. Default true. */
+  enabled?: boolean;
 }
 
 type QueryBuilderLike = {
@@ -48,6 +51,7 @@ export function useProducts(options: UseProductsOptions = {}) {
     isAdmin = false,
     isFeatured = false,
     sortBy = "name_asc",
+    enabled = true,
   } = options;
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -254,7 +258,7 @@ export function useProducts(options: UseProductsOptions = {}) {
       setHasMore(newProducts.length === pageSize);
       setError(null);
     } catch (err: unknown) {
-      console.error("Error fetching products:", err);
+      logger.error("Error fetching products:", err);
       const message = err instanceof Error ? err.message : "Error inesperado al cargar productos.";
       setError(message);
       if (!isNextPage) setProducts([]);
@@ -265,9 +269,13 @@ export function useProducts(options: UseProductsOptions = {}) {
 
   // Initial load or filter change
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     fetchProducts(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category, brand, search, minPrice, maxPrice, page, isAdmin, isFeatured, sortBy]);
+  }, [category, brand, search, minPrice, maxPrice, page, isAdmin, isFeatured, sortBy, enabled]);
 
   const loadMore = useCallback(() => {
     if (!loading && hasMore) {

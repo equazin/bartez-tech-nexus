@@ -30,6 +30,7 @@ export function calculateResellerPrice(bartezPrice: number, markupPct: number): 
  * See migration 057 (reseller_markup_config).
  */
 import { supabase } from "@/lib/supabase";
+import { logger } from "@/lib/logger";
 
 export async function saveResellerConfig(clientId: string, config: ResellerQuoteConfig): Promise<void> {
   const { error } = await supabase
@@ -48,7 +49,7 @@ export async function generateResellerQuotePdf(
   items: QuoteItem[],
   total: number
 ): Promise<Blob> {
-  console.log(`[Reseller] Generating PDF for ${config.companyName} with markup: ${config.markupPct}%`);
+  logger.debug(`[Reseller] Generating PDF for ${config.companyName} with markup: ${config.markupPct}%`);
   // Mock PDF Blob
   return new Blob(["Reseller Quote Content - Placeholder PDF"], { type: 'application/pdf' });
 }

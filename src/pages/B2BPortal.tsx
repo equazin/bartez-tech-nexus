@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -226,7 +227,7 @@ export default function B2BPortal({ chrome = "legacy", forcedTab }: B2BPortalPro
     fetchActiveBundles()
       .then(setBundles)
       .catch((err) => {
-        console.error("[B2BPortal] fetchActiveBundles failed:", err);
+        logger.error("[B2BPortal] fetchActiveBundles failed:", err);
         setBundles([]);
         setBundlesError(true);
       })

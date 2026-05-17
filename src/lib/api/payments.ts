@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { supabase } from "@/lib/supabase";
 import { EmailNotificationService } from "./emailNotifications";
 
@@ -115,7 +116,7 @@ export async function submitPayment(
         notes: payload.notes
       });
     } catch (err) {
-      console.error("Failed to send payment notification email:", err);
+      logger.error("Failed to send payment notification email:", err);
     }
   })();
 

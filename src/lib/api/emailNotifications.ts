@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { supabase } from "@/lib/supabase";
 
 export interface EmailTemplate {
@@ -22,7 +23,7 @@ export const EmailNotificationService = {
     topProject: string;
     criticalStockSkus: number;
   }) {
-    console.log(`[EmailService] Generando Weekly Pulse para ${adminEmail}...`);
+    logger.debug(`[EmailService] Generando Weekly Pulse para ${adminEmail}...`);
     
     const subject = `📊 Bartez B2B: Resumen Semanal de Operaciones`;
     const body = `
@@ -47,7 +48,7 @@ export const EmailNotificationService = {
    * Notifica al cliente cuando se actualiza su línea de crédito.
    */
   async notifyCreditUpdate(clientEmail: string, newLimit: number, companyName: string) {
-    console.log(`[EmailService] Notificando crédito a ${clientEmail}...`);
+    logger.debug(`[EmailService] Notificando crédito a ${clientEmail}...`);
     const subject = `✅ Su línea de crédito en Bartez ha sido actualizada`;
     const body = `
       <h2>¡Buenas noticias, ${companyName}!</h2>
@@ -122,10 +123,10 @@ export const EmailNotificationService = {
         status: "sent",
       });
 
-      console.log(`[EmailService] Email '${emailType}' enviado para orden ${orderId}`);
+      logger.debug(`[EmailService] Email '${emailType}' enviado para orden ${orderId}`);
       return { success: true };
     } catch (err) {
-      console.error("[EmailService] Error enviando email de estado:", err);
+      logger.error("[EmailService] Error enviando email de estado:", err);
       
       // Registrar log manual si hubiese fallado globalmente e interesa
       try {
@@ -136,7 +137,7 @@ export const EmailNotificationService = {
           status: "failed",
         });
       } catch (logError) {
-        console.warn("[EmailService] No se pudo registrar el fallo del email:", logError);
+        logger.warn("[EmailService] No se pudo registrar el fallo del email:", logError);
       }
 
       return { success: false, error: err instanceof Error ? err.message : String(err) };
@@ -157,7 +158,7 @@ export const EmailNotificationService = {
     fileUrl?: string;
     notes?: string;
   }) {
-    console.log(`[EmailService] Notificando nuevo pago de ${data.clientName}...`);
+    logger.debug(`[EmailService] Notificando nuevo pago de ${data.clientName}...`);
     
     const payload = {
       type: "new_payment",
@@ -183,7 +184,7 @@ export const EmailNotificationService = {
       if (!res.ok) throw new Error(`Email API failed: ${await res.text()}`);
       return { success: true };
     } catch (err) {
-      console.error("[EmailService] Error enviando notificación de pago:", err);
+      logger.error("[EmailService] Error enviando notificación de pago:", err);
       return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
   }

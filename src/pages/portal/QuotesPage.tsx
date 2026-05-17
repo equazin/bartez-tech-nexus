@@ -1,7 +1,7 @@
-import B2BPortal from "@/pages/B2BPortal";
+import { PortalQuotesSection } from "@/components/portal/quotes/PortalQuotesSection";
 
 function QuotesPage() {
-  return <B2BPortal chrome="shell" forcedTab="quotes" />;
+  return <PortalQuotesSection />;
 }
 
 export default QuotesPage;

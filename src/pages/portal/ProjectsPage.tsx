@@ -1,7 +1,7 @@
-import B2BPortal from "@/pages/B2BPortal";
+import { PortalProjectsSection } from "@/components/portal/PortalProjectsSection";
 
 function ProjectsPage() {
-  return <B2BPortal chrome="shell" forcedTab="projects" />;
+  return <PortalProjectsSection />;
 }
 
 export default ProjectsPage;

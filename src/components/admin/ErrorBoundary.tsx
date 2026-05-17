@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
 interface Props {
@@ -28,7 +29,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("[ErrorBoundary]", this.props.section ?? "Admin", error, info);
+    logger.error("[ErrorBoundary]", this.props.section ?? "Admin", error, info);
   }
 
   handleReset = () => {

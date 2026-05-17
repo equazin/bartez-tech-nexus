@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 /**
  * IIBB (Ingresos Brutos) Perceptions Module
  * Handles calculation and lookup for per-province taxes in Argentina.
@@ -61,7 +62,7 @@ export function calculatePerception(netAmount: number, province: ProvinceCode, c
  * Fetches the specific aliquot for a client from the ARBA/AGIP Padron APIs.
  */
 export async function lookupClientAliquot(cuit: string, province: ProvinceCode): Promise<number> {
-  console.log(`[IIBB] Looking up aliquot for ${cuit} in ${province}`);
+  logger.debug(`[IIBB] Looking up aliquot for ${cuit} in ${province}`);
 
   // Mocked API call for now (Calls ARBA/AGIP endpoints)
   // fetch(`/api/iibb/lookup?cuit=${cuit}&province=${province}`)

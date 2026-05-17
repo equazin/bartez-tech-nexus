@@ -159,7 +159,14 @@ export function InvoicesPanel({ invoices, orders = [], loading, onGoToOrders }: 
           ))}
         </div>
       ) : filteredInvoices.length === 0 ? (
-        <EmptyState title="No encontramos facturas con esos filtros" icon={<Search size={18} />} className="rounded-[24px] border border-border/70 bg-card py-16" />
+        <EmptyState
+          title="No encontramos facturas con esos filtros"
+          description="Probá quitar el filtro de estado o vencimiento, o limpiar la búsqueda."
+          icon={<Search size={18} />}
+          actionLabel="Limpiar filtros"
+          onAction={() => { setStatusFilter("all"); setDueFilter("all"); setQuery(""); }}
+          className="rounded-[24px] border border-border/70 bg-card py-16"
+        />
       ) : (
         <div className="space-y-3">
           {filteredInvoices.map((invoice) => {

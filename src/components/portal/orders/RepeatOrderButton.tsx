@@ -1,9 +1,10 @@
 import { RotateCcw } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { toast as sonnerToast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useSharedCartState } from "@/hooks/useSharedCartState";
 import { useProducts } from "@/hooks/useProducts";
 import { getAvailableStock } from "@/lib/pricing";
-import { useToast } from "@/hooks/use-toast";
 import type { PortalOrder } from "@/hooks/useOrders";
 
 interface Props {
@@ -15,7 +16,7 @@ interface Props {
 export function RepeatOrderButton({ order, clientId, onDone }: Props) {
   const { setCart } = useSharedCartState(clientId);
   const { products } = useProducts({ pageSize: 200 });
-  const { toast } = useToast();
+  const navigate = useNavigate();
 
   function handleRepeat() {
     const newCart: Record<number, number> = {};
@@ -41,14 +42,15 @@ export function RepeatOrderButton({ order, clientId, onDone }: Props) {
       return merged;
     });
 
+    const goToCart = { label: "Ver carrito", onClick: () => navigate("/portal/carrito") };
+
     if (outOfStock.length > 0) {
-      toast({
-        title: "Algunos productos sin stock",
+      sonnerToast.warning("Algunos productos sin stock", {
         description: `No se agregaron: ${outOfStock.slice(0, 3).join(", ")}${outOfStock.length > 3 ? "…" : ""}`,
-        variant: "default",
+        action: goToCart,
       });
     } else {
-      toast({ title: "Pedido reagregado al carrito" });
+      sonnerToast.success("Pedido reagregado al carrito", { action: goToCart });
     }
 
     onDone?.();

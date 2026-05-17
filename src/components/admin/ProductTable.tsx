@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useCurrency } from "@/context/CurrencyContext";
 import { toast } from "sonner";
@@ -532,7 +533,7 @@ export default function ProductTable({
       .in("id", Array.from(selected));
 
     if (error) {
-      console.error("Error updating brands:", error);
+      logger.error("Error updating brands:", error);
       toast.error("Error al actualizar las marcas: " + error.message);
       return;
     }

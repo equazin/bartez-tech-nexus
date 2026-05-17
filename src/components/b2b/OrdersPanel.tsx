@@ -6,6 +6,7 @@ import { EmptyOrdersState } from "@/components/b2b/empty-states/EmptyOrdersState
 import { OrderStatusBadge } from "@/components/OrderStatusBadge";
 import { OrderPaymentProof } from "@/components/OrderPaymentProof";
 import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
+import { OrderActivityTimeline } from "@/components/portal/orders/OrderActivityTimeline";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -197,7 +198,14 @@ export function OrdersPanel({
           ))}
         </div>
       ) : filteredOrders.length === 0 ? (
-        <EmptyState title="No encontramos pedidos con esos filtros" icon={<Search size={18} />} className="rounded-[24px] border border-border/70 bg-card py-16" />
+        <EmptyState
+          title="No encontramos pedidos con esos filtros"
+          description="Probá ampliar el rango de fechas, cambiar el estado o limpiar la búsqueda."
+          icon={<Search size={18} />}
+          actionLabel="Limpiar filtros"
+          onAction={() => { setQuery(""); setStatusFilter("all"); setDateRange("all"); }}
+          className="rounded-[24px] border border-border/70 bg-card py-16"
+        />
       ) : (
         <div className="space-y-3">
           {filteredOrders.map((order) => {
@@ -339,6 +347,11 @@ export function OrdersPanel({
                         <p className="text-sm text-foreground">{order.notes}</p>
                       </SurfaceCard>
                     ) : null}
+
+                    <SurfaceCard tone="subtle" padding="md" className="rounded-[20px] border border-border/70 bg-background/70">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Historial del pedido</p>
+                      <OrderActivityTimeline orderId={order.id} />
+                    </SurfaceCard>
 
                     <div className="overflow-hidden rounded-[20px] border border-border/70 bg-background/70">
                       <div className="grid grid-cols-[1fr_80px_110px] gap-2 border-b border-border/70 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">

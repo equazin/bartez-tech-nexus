@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
+import { toast as sonnerToast } from "sonner";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" });
@@ -46,8 +47,13 @@ export default function RecurringOrdersPage() {
       toast({ title: "No se pudo crear el pedido", variant: "destructive" });
       return;
     }
-    toast({ title: "Pedido creado", description: result.order_number ?? `#${result.id}` });
-    navigate("/portal/pedidos");
+    sonnerToast.success("Pedido creado", {
+      description: result.order_number ?? `#${result.id}`,
+      action: {
+        label: "Ver pedido",
+        onClick: () => navigate("/portal/pedidos"),
+      },
+    });
   }
 
   async function handleDelete(template: RecurringOrderTemplate) {

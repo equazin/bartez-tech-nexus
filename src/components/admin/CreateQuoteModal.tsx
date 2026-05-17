@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
-import { Save, Search, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Save, Search, Trash2, X, RotateCcw } from "lucide-react";
 
 import { logActivity } from "@/lib/api/activityLog";
 import { supabase } from "@/lib/supabase";
+import { useFormDraft } from "@/hooks/useFormDraft";
 import type { Product } from "@/models/products";
 import type { QuoteStatus } from "@/models/quote";
 
@@ -46,6 +47,31 @@ export function CreateQuoteModal({ clients, products, isDark = true, onClose, on
   const [error, setError] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const lockClient = Boolean(initialClientId);
+
+  const draftState = useMemo(
+    () => ({ clientId, lines, notes, status, currency, validDays }),
+    [clientId, lines, notes, status, currency, validDays],
+  );
+  const draftKey = `create-quote:${initialClientId ?? "any"}`;
+  const { savedAt, restore, clear: clearDraft } = useFormDraft({
+    key: draftKey,
+    state: draftState,
+    manualRestore: true,
+  });
+  const [draftAvailable, setDraftAvailable] = useState<boolean>(Boolean(savedAt));
+  useEffect(() => { setDraftAvailable(Boolean(savedAt)); }, [savedAt]);
+
+  function handleRestoreDraft() {
+    const draft = restore();
+    if (!draft) return;
+    if (!lockClient) setClientId(draft.clientId);
+    setLines(draft.lines);
+    setNotes(draft.notes);
+    setStatus(draft.status);
+    setCurrency(draft.currency);
+    setValidDays(draft.validDays);
+    setDraftAvailable(false);
+  }
 
   const filteredProducts = useMemo(() => {
     const term = productSearch.toLowerCase();
@@ -175,6 +201,7 @@ export function CreateQuoteModal({ clients, products, isDark = true, onClose, on
       metadata: { total, currency, created_by: "admin" },
     });
 
+    clearDraft();
     await onCreated();
     onClose();
   }
@@ -196,6 +223,15 @@ export function CreateQuoteModal({ clients, products, isDark = true, onClose, on
         </div>
 
         <div className="space-y-5 p-6">
+          {draftAvailable ? (
+            <div className={`flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-medium ${dk("bg-amber-500/10 border-amber-500/20 text-amber-300", "bg-amber-50 border-amber-200 text-amber-800")}`}>
+              <RotateCcw size={13} className="text-amber-500" />
+              Hay un borrador guardado {savedAt ? `(${new Date(savedAt).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })})` : ""}.
+              <button type="button" onClick={handleRestoreDraft} className="ml-1 rounded bg-amber-500 px-2 py-0.5 font-bold text-white transition hover:bg-amber-600">Restaurar</button>
+              <button type="button" onClick={() => { clearDraft(); setDraftAvailable(false); }} className="ml-1 opacity-70 transition hover:opacity-100">Descartar</button>
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <p className={labelCls}>Cliente *</p>

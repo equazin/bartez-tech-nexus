@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 /**
  * API de Bundles/Kits — acceso a Supabase.
  * Seguir siempre category_mapping para categorías internas; nunca usar categorías externas.
@@ -76,7 +77,7 @@ export async function fetchActiveBundles(): Promise<BundleWithSlots[]> {
 
     if (primary.error) {
       if (!isMissingColumnError(primary.error)) {
-        console.error("[fetchActiveBundles] product_bundles query failed:", primary.error);
+        logger.error("[fetchActiveBundles] product_bundles query failed:", primary.error);
         throw primary.error;
       }
       const fallback = await supabase
@@ -85,7 +86,7 @@ export async function fetchActiveBundles(): Promise<BundleWithSlots[]> {
         .eq("active", true)
         .order("created_at", { ascending: false });
       if (fallback.error) {
-        console.error("[fetchActiveBundles] product_bundles fallback failed:", fallback.error);
+        logger.error("[fetchActiveBundles] product_bundles fallback failed:", fallback.error);
         throw fallback.error;
       }
       bundles = fallback.data;
@@ -105,7 +106,7 @@ export async function fetchActiveBundles(): Promise<BundleWithSlots[]> {
     .order("sort_order", { ascending: true });
 
   if (slotsErr) {
-    console.error("[fetchActiveBundles] bundle_slots query failed:", slotsErr);
+    logger.error("[fetchActiveBundles] bundle_slots query failed:", slotsErr);
     throw slotsErr;
   }
   if (!slots || slots.length === 0) {
@@ -130,17 +131,17 @@ export async function fetchActiveBundles(): Promise<BundleWithSlots[]> {
 
     if (full.error) {
       if (!isMissingColumnError(full.error)) {
-        console.error("[fetchActiveBundles] bundle_slot_options query failed:", full.error);
+        logger.error("[fetchActiveBundles] bundle_slot_options query failed:", full.error);
         throw full.error;
       }
-      console.warn("[fetchActiveBundles] fallback to minimal option select (migration 090 not fully applied?)");
+      logger.warn("[fetchActiveBundles] fallback to minimal option select (migration 090 not fully applied?)");
       const minimal = await supabase
         .from("bundle_slot_options")
         .select(OPTION_SELECT_MIN)
         .in("slot_id", slotIds)
         .order("sort_order", { ascending: true });
       if (minimal.error) {
-        console.error("[fetchActiveBundles] bundle_slot_options minimal query failed:", minimal.error);
+        logger.error("[fetchActiveBundles] bundle_slot_options minimal query failed:", minimal.error);
         throw minimal.error;
       }
       options = minimal.data;
@@ -207,7 +208,7 @@ export async function fetchBundle(id: string): Promise<BundleWithSlots | null> {
 
     if (full.error) {
       if (!isMissingColumnError(full.error)) {
-        console.error("[fetchBundle] bundle_slot_options query failed:", full.error);
+        logger.error("[fetchBundle] bundle_slot_options query failed:", full.error);
         return null;
       }
       const minimal = await supabase
@@ -216,7 +217,7 @@ export async function fetchBundle(id: string): Promise<BundleWithSlots | null> {
         .in("slot_id", slotIds)
         .order("sort_order", { ascending: true });
       if (minimal.error) {
-        console.error("[fetchBundle] bundle_slot_options minimal query failed:", minimal.error);
+        logger.error("[fetchBundle] bundle_slot_options minimal query failed:", minimal.error);
         return null;
       }
       options = minimal.data;

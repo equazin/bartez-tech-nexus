@@ -1,6 +1,12 @@
+import { logger } from "@/lib/logger";
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import { CLIENT_TYPE_MARGINS, ClientType } from "@/lib/supabase";
+import { preloadCommonAdminTabs } from "@/lib/preloadAdminTabs";
+import { AdminCommercialTabs } from "@/components/admin/layout/AdminCommercialTabs";
+import { useAdminRealtimeAlerts } from "@/hooks/useAdminRealtimeAlerts";
+import { AdminMobileQuickPanel } from "@/components/admin/AdminMobileQuickPanel";
+import { TabSkeleton } from "@/components/ui/tab-skeleton";
 import { Product } from "@/models/products";
 import { OrderProduct } from "@/models/order";
 import ProductForm from "@/components/admin/ProductForm";
@@ -48,33 +54,14 @@ const SellerCRM = lazy(() => import("@/components/admin/SellerCRM").then(m => ({
 const SellerManagementTab = lazy(() => import("@/components/admin/SellerManagementTab").then(m => ({ default: m.SellerManagementTab })));
 const AdminManagementTab = lazy(() => import("@/components/admin/AdminManagementTab").then(m => ({ default: m.AdminManagementTab })));
 const OrderKanban = lazy(() => import("@/components/admin/OrderKanban"));
-const SuppliersTab = lazy(() => import("@/components/admin/SuppliersTab").then(m => ({ default: m.SuppliersTab })));
-const BrandsTab = lazy(() => import("@/components/admin/BrandsTab").then(m => ({ default: m.BrandsTab })));
-const PricingRulesTab = lazy(() => import("@/components/admin/PricingRulesTab").then(m => ({ default: m.PricingRulesTab })));
-const ReportsTab = lazy(() => import("@/components/admin/ReportsTab").then(m => ({ default: m.ReportsTab })));
-const ActivityLogTab = lazy(() => import("@/components/admin/ActivityLogTab").then(m => ({ default: m.ActivityLogTab })));
-const SupplierApisSyncTab = lazy(() => import("@/components/admin/SupplierApisSyncTab").then(m => ({ default: m.SupplierApisSyncTab })));
-const StockTab = lazy(() => import("@/components/admin/StockTab").then(m => ({ default: m.StockTab })));
-const InvoicesTab = lazy(() => import("@/components/admin/InvoicesTab").then(m => ({ default: m.InvoicesTab })));
-const StockMovementsTab = lazy(() => import("@/components/admin/StockMovementsTab").then(m => ({ default: m.StockMovementsTab })));
-const CreditTab = lazy(() => import("@/components/admin/CreditTab").then(m => ({ default: m.CreditTab })));
-const QuotesAdminTab = lazy(() => import("@/components/admin/QuotesAdminTab").then(m => ({ default: m.QuotesAdminTab })));
-const PurchaseOrdersTab = lazy(() => import("@/components/admin/PurchaseOrdersTab").then(m => ({ default: m.PurchaseOrdersTab })));
+// Commercial / stock / catalog-management tabs moved to AdminCommercialTabs.tsx
 const UsersPermissionsTab = lazy(() => import("@/components/admin/UsersPermissionsTab").then(m => ({ default: m.UsersPermissionsTab })));
 const RegistrationRequestsTab = lazy(() => import("@/components/admin/RegistrationRequestsTab").then(m => ({ default: m.RegistrationRequestsTab })));
 const ExceptionInboxTab = lazy(() => import("@/components/admin/ExceptionInboxTab").then(m => ({ default: m.ExceptionInboxTab })));
 const ApprovalsTab = lazy(() => import("@/components/admin/ApprovalsTab").then(m => ({ default: m.ApprovalsTab })));
-const DocumentsTab = lazy(() => import("@/components/admin/DocumentsTab").then(m => ({ default: m.DocumentsTab })));
-const SupportTab = lazy(() => import("@/components/admin/SupportTab").then(m => ({ default: m.SupportTab })));
 const OpportunitiesTab = lazy(() => import("@/components/admin/OpportunitiesTab").then(m => ({ default: m.OpportunitiesTab })));
 const PosManagementTab = lazy(() => import("@/components/admin/PosManagementTab").then(m => ({ default: m.PosManagementTab })));
 const ImageManagerTab = lazy(() => import("@/components/admin/ImageManagerTab").then(m => ({ default: m.ImageManagerTab })));
-const WebhooksTab = lazy(() => import("@/components/admin/WebhooksTab").then(m => ({ default: m.WebhooksTab })));
-const BusinessAlertsTab = lazy(() => import("@/components/admin/BusinessAlertsTab").then(m => ({ default: m.BusinessAlertsTab })));
-const RmaAdminTab = lazy(() => import("@/components/admin/RmaAdminTab").then(m => ({ default: m.RmaAdminTab })));
-const PriceAgreementsTab = lazy(() => import("@/components/admin/PriceAgreementsTab").then(m => ({ default: m.PriceAgreementsTab })));
-const SerialsTab = lazy(() => import("@/components/admin/SerialsTab").then(m => ({ default: m.SerialsTab })));
-const BundlesAdminTab = lazy(() => import("@/components/admin/BundlesAdminTab").then(m => ({ default: m.BundlesAdminTab })));
 import {
   fetchProductsForContent,
   processProductContent,
@@ -752,7 +739,7 @@ const Admin = () => {
       }
 
       if (error) {
-        console.error("No se pudieron cargar los perfiles:", error.message);
+        logger.error("No se pudieron cargar los perfiles:", error.message);
         return;
       }
 
@@ -847,7 +834,16 @@ const Admin = () => {
     fetchInvoiceSearchItems();
     fetchQuoteSearchItems();
     fetchPaymentSearchItems();
+    preloadCommonAdminTabs();
   }, []);
+
+  useAdminRealtimeAlerts({
+    enabled: !!isAdmin,
+    onNewOrder: () => { void fetchOrders(); },
+    onNewQuote: () => { void fetchQuoteSearchItems(); },
+    onOpenOrder: () => navigateTab("orders"),
+    onOpenQuote: () => navigateTab("quotes_admin"),
+  });
 
   useEffect(() => {
     if (selectedOrder) {
@@ -887,7 +883,7 @@ const Admin = () => {
       // Update local state if needed (realtime might handle it, but for safety:)
       setSelectedOrder(prev => prev ? { ...prev, shipping_provider: shippingProvider, tracking_number: trackingNumber } : null);
     } catch (err) {
-       console.error("Error saving logistics:", err);
+       logger.error("Error saving logistics:", err);
     } finally {
       setSavingLogistics(false);
     }
@@ -1642,11 +1638,7 @@ async function handleCreateSeller() {
       onSetCurrency={setCurrency}
     >
       <ErrorBoundary section={activeTab}>
-        <Suspense fallback={
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#2D9F6A] border-t-transparent" />
-          </div>
-        }>
+        <Suspense fallback={<TabSkeleton variant="table" rows={6} className="p-4" spinner />}>
 
         {showCommercialJourney && (
           <div className={`mb-5 rounded-2xl border px-3 py-3 ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")}`}>
@@ -1701,6 +1693,14 @@ async function handleCreateSeller() {
         {/* -- DASHBOARD -- */}
         <KeepAliveTab active={activeTab === "dashboard"} id="dashboard">
           <div className="space-y-6">
+            <AdminMobileQuickPanel
+              orders={orders}
+              clients={clients}
+              pendingApprovals={orders.filter((o) => o.status === "pending").length}
+              pendingQuotes={quoteSearchItems.filter((q) => q.status === "draft" || q.status === "sent").length}
+              onNavigateTab={navigateTab}
+              formatPrice={formatPrice}
+            />
             <B2BInsights
               clients={clients.map(c => ({
                 ...c,
@@ -2924,124 +2924,19 @@ async function handleCreateSeller() {
           />
         </KeepAliveTab>
 
-        <KeepAliveTab active={activeTab === "suppliers"} id="suppliers">
-          <SuppliersTab isDark={isDark} />
-        </KeepAliveTab>
-
-        {/* -- MARCAS -- */}
-        <KeepAliveTab active={activeTab === "brands"} id="brands">
-          <BrandsTab isDark={isDark} />
-        </KeepAliveTab>
-
-        {/* -- STOCK -- */}
-        <KeepAliveTab active={activeTab === "stock"} id="stock">
-          <StockTab isDark={isDark} />
-        </KeepAliveTab>
-
-        {/* -- MOVIMIENTOS -- */}
-        <KeepAliveTab active={activeTab === "movements"} id="movements">
-          <StockMovementsTab isDark={isDark} />
-        </KeepAliveTab>
-
-        {/* -- FACTURAS -- */}
-        <KeepAliveTab active={activeTab === "invoices"} id="invoices">
-          <InvoicesTab isDark={isDark} />
-        </KeepAliveTab>
-
-        <KeepAliveTab active={activeTab === "documents"} id="documents">
-          <DocumentsTab
-            isDark={isDark}
-            orders={orders}
-            clients={clients}
-            onOpenTab={(tab) => navigateTab(tab as Tab)}
-          />
-        </KeepAliveTab>
-
-        {/* -- CRÉDITO -- */}
-        <KeepAliveTab active={activeTab === "credit"} id="credit">
-          <CreditTab isDark={isDark} />
-        </KeepAliveTab>
-
-        {/* -- ALERTAS B2B -- */}
-        <KeepAliveTab active={activeTab === "business_alerts"} id="business_alerts">
-          <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Cargando...</div>}>
-            <BusinessAlertsTab isDark={isDark} />
-          </Suspense>
-        </KeepAliveTab>
-
-        {/* -- COTIZACIONES ADMIN -- */}
-        <KeepAliveTab active={activeTab === "quotes_admin"} id="quotes_admin">
-          <QuotesAdminTab isDark={isDark} />
-        </KeepAliveTab>
-
-        {/* -- ÓRDENES DE COMPRA -- */}
-        <KeepAliveTab active={activeTab === "purchase_orders"} id="purchase_orders">
-          <PurchaseOrdersTab isDark={isDark} />
-        </KeepAliveTab>
-
-        {/* -- MOTOR DE PRECIOS -- */}
-        <KeepAliveTab active={activeTab === "pricing"} id="pricing">
-          <PricingRulesTab isDark={isDark} categories={categoryNames} />
-        </KeepAliveTab>
-
-        {/* -- BUNDLES / KITS -- */}
-        <KeepAliveTab active={activeTab === "bundles"} id="bundles">
-          <BundlesAdminTab products={products} isDark={isDark} />
-        </KeepAliveTab>
-
-
-        {/* -- REPORTES -- */}
-        <KeepAliveTab active={activeTab === "reports"} id="reports">
-          <div className="space-y-4 max-w-5xl">
-            {/* Export ventas CSV */}
-            <div className="flex justify-end">
-              <button
-                onClick={() => exportReportsCSV(orders, clients)}
-                className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border transition ${dk("border-[#2a2a2a] text-gray-400 hover:text-white hover:bg-[#1c1c1c]","border-[#e5e5e5] text-[#737373] hover:bg-[#f5f5f5]")}`}
-              >
-                <Download size={12} /> Exportar ventas CSV
-              </button>
-            </div>
-            <ReportsTab
-              products={products}
-              orders={orders}
-              clients={clients}
-              invoices={invoiceSearchItems}
-              formatPrice={formatPrice}
-              isDark={isDark}
-            />
-          </div>
-        </KeepAliveTab>
-
-        {/* -- ACTIVIDAD -- */}
-        <KeepAliveTab active={activeTab === "activity"} id="activity">
-          <ActivityLogTab isDark={isDark} />
-        </KeepAliveTab>
-
-        <KeepAliveTab active={activeTab === "support"} id="support">
-          <SupportTab isDark={isDark} clients={clients} />
-        </KeepAliveTab>
-
-        <KeepAliveTab active={activeTab === "webhooks"} id="webhooks">
-          <WebhooksTab isDark={isDark} />
-        </KeepAliveTab>
-
-        <KeepAliveTab active={activeTab === "rma"} id="rma">
-          <RmaAdminTab isDark={isDark} />
-        </KeepAliveTab>
-
-        <KeepAliveTab active={activeTab === "serials"} id="serials">
-          <SerialsTab isDark={isDark} />
-        </KeepAliveTab>
-
-        <KeepAliveTab active={activeTab === "price_agreements"} id="price_agreements">
-          <PriceAgreementsTab isDark={isDark} clients={clients} />
-        </KeepAliveTab>
-
-        {/* -- SYNC PROVEEDORES -- */}
-        <KeepAliveTab active={activeTab === "supplier_sync"} id="supplier_sync">
-          <SupplierApisSyncTab isDark={isDark} userId={userId} onSyncDone={fetchProducts} />
-        </KeepAliveTab>
+        <AdminCommercialTabs
+          activeTab={activeTab}
+          isDark={isDark}
+          userId={userId}
+          products={products}
+          orders={orders}
+          clients={clients}
+          categoryNames={categoryNames}
+          invoiceSearchItems={invoiceSearchItems}
+          formatPrice={formatPrice}
+          onNavigateTab={navigateTab}
+          onProductsRefresh={fetchProducts}
+        />
         </Suspense>
       </ErrorBoundary>
 

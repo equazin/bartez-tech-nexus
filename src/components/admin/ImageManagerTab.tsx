@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { logger } from "@/lib/logger";
 import {
   Camera,
   Check,
@@ -154,7 +155,7 @@ export function ImageManagerTab({ isDark = true, products: externalProducts, onR
       const data = await fetchSuggestionsForProduct(productId);
       setSuggestions(data);
     } catch (err) {
-      console.error("[ImageManager] loadSuggestions error:", err);
+      logger.error("[ImageManager] loadSuggestions error:", err);
       setSuggestions([]);
     }
     setLoadingSuggestions(false);

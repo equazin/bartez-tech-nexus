@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Sparkles, Loader2, Wand2, Check, RefreshCcw } from "lucide-react";
+import { logger } from "@/lib/logger";
 
 interface Props {
   productName: string;
@@ -32,7 +33,7 @@ export function AIContentGenerator({ productName, sku, category, onGenerate, isD
       const { text } = await response.json();
       if (text) onGenerate(text);
     } catch (err) {
-      console.error("AI Generation Error:", err);
+      logger.error("AI Generation Error:", err);
     } finally {
       setGenerating(false);
     }

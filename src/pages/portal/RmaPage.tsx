@@ -1,7 +1,7 @@
-import B2BPortal from "@/pages/B2BPortal";
+import { PortalRmaSection } from "@/components/portal/PortalRmaSection";
 
 function RmaPage() {
-  return <B2BPortal chrome="shell" forcedTab="rma" />;
+  return <PortalRmaSection />;
 }
 
 export default RmaPage;

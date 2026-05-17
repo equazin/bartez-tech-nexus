@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
@@ -8,7 +9,7 @@ const isPlaceholderKey = !supabaseAnonKey || supabaseAnonKey === "tu-anon-key-aq
 export const isSupabaseConfigured = !isPlaceholderUrl && !isPlaceholderKey;
 
 if (!isSupabaseConfigured) {
-  console.warn(
+  logger.warn(
     "[Bartez] Supabase no configurado. Defini VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en .env"
   );
 }

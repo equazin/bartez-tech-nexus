@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 /**
  * Logistics & Carrier Integration Module (Mocked/Structure)
  * Handles rate calculation for Andreani, OCA, and Correo Argentino.
@@ -28,7 +29,7 @@ export interface RateResponse {
  * In production: fetch(`/api/shipping/rates?zip=${zip}&weight=${weight}`)
  */
 export async function fetchShippingRates(req: RateRequest): Promise<RateResponse[]> {
-  console.log(`[Carriers] Fetching rates for ZIP ${req.zipCode}, Weight ${req.weightKg}kg`);
+  logger.debug(`[Carriers] Fetching rates for ZIP ${req.zipCode}, Weight ${req.weightKg}kg`);
 
   // Basic mock logic: cost increases with weight and distance
   // (Assuming distant ZIP codes start with numbers other than 1)
@@ -68,7 +69,7 @@ export async function fetchShippingRates(req: RateRequest): Promise<RateResponse
  * Creates a shipping label / tracking number (Mock).
  */
 export async function createShippingLabel(carrierId: CarrierId, orderId: string): Promise<string> {
-  console.log(`[Carriers] Creating ${carrierId} label for Order ${orderId}`);
+  logger.debug(`[Carriers] Creating ${carrierId} label for Order ${orderId}`);
   // In reality: call carrier API
   const prefix = carrierId === "andreani" ? "AM" : (carrierId === "oca" ? "OC" : "CA");
   return `${prefix}${Math.floor(Math.random() * 1000000000).toString()}`;

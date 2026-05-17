@@ -63,6 +63,7 @@ function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     [],
   );
 
+  // ⌘K toggle
   React.useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -73,6 +74,45 @@ function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onOpenChange]);
+
+  // "g <key>" two-step shortcuts — vim-style. Ignored when typing in a field or
+  // when the palette itself is open.
+  const lastGRef = React.useRef<number>(0);
+  React.useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (open) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      const key = event.key.toLowerCase();
+      const now = Date.now();
+      const withinChord = now - lastGRef.current < 1200;
+
+      if (key === "g") {
+        lastGRef.current = now;
+        return;
+      }
+
+      if (!withinChord) return;
+      lastGRef.current = 0;
+
+      const targetPath: Record<string, string> = {
+        h: "/portal",
+        c: "/portal/catalogo",
+        o: "/portal/pedidos",
+        q: "/portal/cotizaciones",
+        a: "/portal/cuenta",
+      };
+      const path = targetPath[key];
+      if (path) {
+        event.preventDefault();
+        navigate(path);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [navigate, open]);
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>

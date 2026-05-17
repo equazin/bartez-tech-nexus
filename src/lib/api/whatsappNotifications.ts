@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { logger } from "@/lib/logger";
 
 /**
  * Encapsulates WhatsApp notification logic for B2B Argentina flows.
@@ -41,7 +42,7 @@ El producto *${product.name}* ya ingresó a stock y está disponible para la com
    * Internal proxy send logic.
    */
   async _send(phone: string, text: string) {
-    console.log(`[WA Notification] Sending to ${phone}: ${text}`);
+    logger.debug(`[WA Notification] Sending to ${phone}: ${text}`);
     try {
       // In production, this calls a Vercel/Supabase Edge Function
       const res = await fetch("/api/whatsapp-send", {
@@ -51,7 +52,7 @@ El producto *${product.name}* ya ingresó a stock y está disponible para la com
       });
       return res.ok;
     } catch (err) {
-      console.error("WhatsApp API Proxy error:", err);
+      logger.error("WhatsApp API Proxy error:", err);
       return false;
     }
   }

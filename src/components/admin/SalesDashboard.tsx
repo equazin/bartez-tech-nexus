@@ -1680,58 +1680,83 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders, onOpe
     });
   }, [currency, exchangeRate.rate]);
 
-  const approvedOrders  = useMemo(() => orders.filter(isRevenueOrder), [orders]);
-  const pendingOrders   = useMemo(() => orders.filter((o) => o.status === "pending"),  [orders]);
-  const totalRevenue    = useMemo(() => approvedOrders.reduce((s, o) => s + o.total, 0), [approvedOrders]);
-  const avgOrder        = approvedOrders.length > 0 ? totalRevenue / approvedOrders.length : 0;
+  // Single pass over orders — feeds approvedOrders, pendingOrders, totalRevenue,
+  // MoM comparison, and weighted-margin average. Replaces ~7 separate iterations.
+  const orderAggregates = useMemo(() => {
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
+
+    const approved: SupabaseOrder[] = [];
+    const pending: SupabaseOrder[] = [];
+    let totalRevenue = 0;
+    let curRevenue = 0;
+    let prevRevenue = 0;
+    let curCount = 0;
+    let prevCount = 0;
+    let marginWeighted = 0;
+    let marginBase = 0;
+
+    for (const order of orders) {
+      if (order.status === "pending") pending.push(order);
+
+      if (!isRevenueOrder(order)) continue;
+      approved.push(order);
+      totalRevenue += order.total;
+
+      const created = order.created_at;
+      if (created.startsWith(thisMonth)) {
+        curRevenue += order.total;
+        curCount += 1;
+      } else if (created.startsWith(prevMonth)) {
+        prevRevenue += order.total;
+        prevCount += 1;
+      }
+
+      if (order.products) {
+        for (const p of order.products) {
+          if (p.margin != null && p.total_price != null) {
+            marginWeighted += p.margin * p.total_price;
+            marginBase += p.total_price;
+          }
+        }
+      }
+    }
+
+    const momPct = prevRevenue > 0 ? ((curRevenue - prevRevenue) / prevRevenue) * 100 : null;
+    const curAvg = curCount > 0 ? curRevenue / curCount : 0;
+    const prevAvg = prevCount > 0 ? prevRevenue / prevCount : 0;
+    const avgTicketPct = prevAvg > 0 ? ((curAvg - prevAvg) / prevAvg) * 100 : null;
+    const ordersPct = prevCount > 0 ? ((curCount - prevCount) / prevCount) * 100 : null;
+
+    return {
+      approved,
+      pending,
+      totalRevenue,
+      avgMargin: marginBase > 0 ? marginWeighted / marginBase : 0,
+      mom: {
+        currentMonthRevenue: curRevenue,
+        prevMonthRevenue: prevRevenue,
+        momPct,
+        curOrders: curCount,
+        prevOrders: prevCount,
+        ordersPct,
+        avgTicketPct,
+      },
+    };
+  }, [orders]);
+
+  const approvedOrders = orderAggregates.approved;
+  const pendingOrders = orderAggregates.pending;
+  const totalRevenue = orderAggregates.totalRevenue;
+  const avgOrder = approvedOrders.length > 0 ? totalRevenue / approvedOrders.length : 0;
+  const avgMargin = orderAggregates.avgMargin;
+  const { currentMonthRevenue, prevMonthRevenue, momPct, curOrders, prevOrders, ordersPct, avgTicketPct } = orderAggregates.mom;
 
   const approvedQuotes  = useMemo(() => quotes.filter((q) => q.status === "approved"), [quotes]);
   const draftQuotes     = useMemo(() => quotes.filter((q) => q.status === "draft"),    [quotes]);
   const conversionRate  = quotes.length > 0 ? (approvedQuotes.length / quotes.length) * 100 : 0;
-
-  // ── MoM comparison ─────────────────────────────────────────────────────
-  const momStats = useMemo(() => {
-    const now = new Date();
-    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    const prevDate  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
-
-    const cur  = approvedOrders.filter((o) => o.created_at.startsWith(thisMonth));
-    const prev = approvedOrders.filter((o) => o.created_at.startsWith(prevMonth));
-
-    const currentMonthRevenue = cur.reduce((s, o) => s + o.total, 0);
-    const prevMonthRevenue    = prev.reduce((s, o) => s + o.total, 0);
-    const momPct = prevMonthRevenue > 0
-      ? ((currentMonthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100
-      : null;
-
-    const curAvg  = cur.length  > 0 ? currentMonthRevenue / cur.length  : 0;
-    const prevAvg = prev.length > 0 ? prevMonthRevenue    / prev.length : 0;
-    const avgTicketPct = prevAvg > 0 ? ((curAvg - prevAvg) / prevAvg) * 100 : null;
-
-    const ordersPct = prev.length > 0
-      ? ((cur.length - prev.length) / prev.length) * 100
-      : null;
-
-    return { currentMonthRevenue, prevMonthRevenue, momPct, curOrders: cur.length, prevOrders: prev.length, ordersPct, avgTicketPct };
-  }, [approvedOrders]);
-
-  const { currentMonthRevenue, prevMonthRevenue, momPct, curOrders, prevOrders, ordersPct, avgTicketPct } = momStats;
-
-  // ── Avg margin ─────────────────────────────────────────────────────────
-  const avgMargin = useMemo(() => {
-    let totalWeighted = 0;
-    let totalValue = 0;
-    approvedOrders.forEach((o) => {
-      o.products?.forEach((p) => {
-        if (p.margin != null && p.total_price != null) {
-          totalWeighted += p.margin * p.total_price;
-          totalValue += p.total_price;
-        }
-      });
-    });
-    return totalValue > 0 ? totalWeighted / totalValue : 0;
-  }, [approvedOrders]);
 
   const momTrend: "up" | "down" | "flat" = momPct == null ? "flat" : momPct > 0 ? "up" : momPct < 0 ? "down" : "flat";
   const ordersTrend: "up" | "down" | "flat" = ordersPct == null ? "flat" : ordersPct > 0 ? "up" : ordersPct < 0 ? "down" : "flat";

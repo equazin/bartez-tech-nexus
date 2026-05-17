@@ -3,7 +3,9 @@ import { Outlet, useNavigate } from "react-router-dom";
 
 import { AppShell } from "@/components/portal/AppShell";
 import { CommandPalette } from "@/components/portal/CommandPalette";
+import { OfflineBanner } from "@/components/portal/OfflineBanner";
 import { PendingApprovalBanner } from "@/components/portal/PendingApprovalBanner";
+import { PortalErrorBoundary } from "@/components/portal/PortalErrorBoundary";
 import { TopBar } from "@/components/portal/TopBar";
 import { useAuth } from "@/context/AuthContext";
 import { useImpersonate } from "@/context/ImpersonateContext";
@@ -56,9 +58,16 @@ function PortalRoot() {
           onOpenCommand={() => setCmdOpen(true)}
         />
       }
-      banner={<PendingApprovalBanner role={profile?.b2b_role ?? profile?.role} />}
+      banner={
+        <>
+          <OfflineBanner />
+          <PendingApprovalBanner role={profile?.b2b_role ?? profile?.role} />
+        </>
+      }
     >
-      <Outlet />
+      <PortalErrorBoundary>
+        <Outlet />
+      </PortalErrorBoundary>
       <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} />
     </AppShell>
   );

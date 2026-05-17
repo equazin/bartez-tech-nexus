@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 /**
  * Sync script: AIR API → Supabase products
  *
@@ -34,10 +35,10 @@ const supabase = () => {
 
 // ─── Logger ──────────────────────────────────────────────────
 const log = {
-  info:  (msg: string) => console.log(`[INFO]  ${msg}`),
-  warn:  (msg: string) => console.warn(`[WARN]  ${msg}`),
+  info:  (msg: string) => logger.debug(`[INFO]  ${msg}`),
+  warn:  (msg: string) => logger.warn(`[WARN]  ${msg}`),
   error: (msg: string, err?: unknown) =>
-    console.error(`[ERROR] ${msg}`, err instanceof Error ? err.message : err ?? ""),
+    logger.error(`[ERROR] ${msg}`, err instanceof Error ? err.message : err ?? ""),
 };
 
 // ─── Helpers ─────────────────────────────────────────────────

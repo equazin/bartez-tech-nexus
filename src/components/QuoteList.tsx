@@ -5,8 +5,10 @@ import { toggleSetValue } from "@/lib/toggleSet";
 import {
   FileText, ChevronDown, ChevronRight, RotateCcw, Trash2, ClipboardList,
   Clock, CheckCircle2, XCircle, Eye, Send, AlertTriangle, Copy, ShoppingBag,
+  MessageCircle,
   type LucideIcon,
 } from "lucide-react";
+import { buildQuoteWhatsappUrl } from "@/lib/shareQuoteWhatsapp";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -260,6 +262,19 @@ export function QuoteList({ quotes, isDark: _isDark, onLoad, onUpdateStatus, onD
                     <Copy size={10} /> Duplicar
                   </Button>
                 ) : null}
+                <Button
+                  type="button"
+                  variant="toolbar"
+                  size="sm"
+                  className="h-8 rounded-xl text-[11px] text-emerald-600 hover:text-emerald-700"
+                  title="Compartir por WhatsApp"
+                  onClick={() => {
+                    const url = buildQuoteWhatsappUrl(quote, { formatPrice });
+                    window.open(url, "_blank", "noopener,noreferrer");
+                  }}
+                >
+                  <MessageCircle size={10} /> WhatsApp
+                </Button>
                 {onConvertToOrder && !quote.order_id ? (
                   <Button type="button" variant="secondary" size="sm" className="h-8 rounded-xl text-[11px]" onClick={() => onConvertToOrder(quote)}>
                     <ShoppingBag size={10} /> Pedido

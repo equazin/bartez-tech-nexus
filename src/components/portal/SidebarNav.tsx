@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { usePortalSidebarBadges, type PortalSidebarBadges } from "@/hooks/usePortalSidebarBadges";
 
 export interface SidebarNavItem {
   label: string;
@@ -81,9 +82,39 @@ function isParentActive(pathname: string, item: SidebarNavItem): boolean {
   return pathname === item.to || pathname.startsWith(`${item.to}/`);
 }
 
+function applyBadges(items: SidebarNavItem[], badges: PortalSidebarBadges): SidebarNavItem[] {
+  const ordersTotal = badges.ordersPending + badges.ordersInTransit;
+  return items.map((item) => {
+    if (item.to === "/portal/pedidos") {
+      return {
+        ...item,
+        badge: ordersTotal > 0 ? ordersTotal : undefined,
+        children: item.children?.map((child) => {
+          if (child.to === "/portal/pedidos") {
+            return { ...child, badge: badges.ordersPending || undefined };
+          }
+          if (child.to === "/portal/pedidos/aprobar") {
+            return { ...child, badge: badges.approvalsPending || undefined };
+          }
+          if (child.to === "/portal/pedidos/rma") {
+            return { ...child, badge: badges.rmaPending || undefined };
+          }
+          return child;
+        }),
+      };
+    }
+    if (item.to === "/portal/cotizaciones") {
+      return { ...item, badge: badges.quotesPending || undefined };
+    }
+    return item;
+  });
+}
+
 function SidebarNav({ collapsed = false, role, className, onNavigate }: SidebarNavProps) {
   const location = useLocation();
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
+  const badges = usePortalSidebarBadges();
+  const navItems = React.useMemo(() => applyBadges(portalNavItems, badges), [badges]);
 
   const toggleExpand = (label: string) => {
     setExpanded((prev) => ({ ...prev, [label]: !prev[label] }));
@@ -91,7 +122,7 @@ function SidebarNav({ collapsed = false, role, className, onNavigate }: SidebarN
 
   return (
     <nav className={cn("flex flex-col gap-0.5 px-2 py-3", className)} aria-label="Portal navigation">
-      {portalNavItems
+      {navItems
         .filter((item) => !item.roles || (role && item.roles.includes(role)))
         .map((item) => {
           const Icon = item.icon;

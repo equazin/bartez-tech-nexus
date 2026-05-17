@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -96,7 +97,31 @@ const ECHEQ_SURCHARGE_BY_TERM: Record<EcheqTermDays, number> = {
 export default function CartPage() {
   const navigate = useNavigate();
   const { profile, isAdmin, user } = useAuth();
-  const { products, loading: productsLoading } = useProducts({ isAdmin });
+
+  // The cart itself only needs the products that are *in* the cart — those are
+  // fetched by ID below. The full catalog is only used for suggestions
+  // ("lo que comprás siempre", "lo que suele ir junto", "faltantes típicos") and
+  // for stock fallback. We defer that fetch to idle time so the cart paints fast.
+  const [enableCatalog, setEnableCatalog] = useState(false);
+  useEffect(() => {
+    const win = window as Window & { requestIdleCallback?: (cb: IdleRequestCallback) => number };
+    let handle: number | ReturnType<typeof setTimeout>;
+    if (typeof win.requestIdleCallback === "function") {
+      handle = win.requestIdleCallback(() => setEnableCatalog(true), { timeout: 2500 });
+    } else {
+      handle = setTimeout(() => setEnableCatalog(true), 1200);
+    }
+    return () => {
+      if (typeof handle === "number" && typeof win.requestIdleCallback === "function") {
+        const cancel = (window as unknown as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback;
+        cancel?.(handle);
+      } else {
+        clearTimeout(handle as ReturnType<typeof setTimeout>);
+      }
+    };
+  }, []);
+
+  const { products, loading: productsLoading } = useProducts({ isAdmin, enabled: enableCatalog });
 
   const userId = profile?.id || "guest";
   const { cart, setCart, bundleCartMeta, setBundleCartMeta } = useSharedCartState(userId);
@@ -314,7 +339,7 @@ export default function CartPage() {
 
       if (error) throw error;
     } catch (error) {
-      console.error("No se pudo vaciar el carrito remoto:", error);
+      logger.error("No se pudo vaciar el carrito remoto:", error);
     }
   }
 

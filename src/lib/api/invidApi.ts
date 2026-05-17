@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 
 
 export interface InvidAuthResponse {
@@ -56,7 +57,7 @@ export async function getInvidToken(): Promise<string | null> {
     });
 
     if (!res.ok) {
-      console.error("INVID auth error:", res.status, await res.text());
+      logger.error("INVID auth error:", res.status, await res.text());
       return null;
     }
 
@@ -68,7 +69,7 @@ export async function getInvidToken(): Promise<string | null> {
     }
     return null;
   } catch (err) {
-    console.error("Failed to fetch INVID token", err);
+    logger.error("Failed to fetch INVID token", err);
     return null;
   }
 }
@@ -84,13 +85,13 @@ export async function fetchInvidArticlesPage(offset = 0): Promise<InvidArticleRe
     });
 
     if (!res.ok) {
-      console.error("INVID articles error:", res.status, await res.text());
+      logger.error("INVID articles error:", res.status, await res.text());
       return null;
     }
 
     return await res.json() as InvidArticleResponse;
   } catch (err) {
-    console.error("Failed to fetch INVID articles", err);
+    logger.error("Failed to fetch INVID articles", err);
     return null;
   }
 }

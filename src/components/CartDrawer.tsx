@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { useState } from "react";
 import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter, DrawerClose,
@@ -97,7 +98,7 @@ export function CartDrawer({
   const handleExportQuote = async () => {
     setGeneratingQuote(true);
     try {
-      console.log("Generating Reseller Quote PDF with markup:", resellerMarkup, "Logo:", resellerLogo);
+      logger.debug("Generating Reseller Quote PDF with markup:", resellerMarkup, "Logo:", resellerLogo);
       setTimeout(() => {
         setGeneratingQuote(false);
         setResellerMode(false);
@@ -128,7 +129,7 @@ export function CartDrawer({
       const message = `¡Hola! Te comparto mi pedido sugerido en Bartez Tech Nexus: \n\n${shareUrl}`;
       window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
     } catch (err) {
-      console.error("WhatsApp Share Error:", err);
+      logger.error("WhatsApp Share Error:", err);
     }
   }
 

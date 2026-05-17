@@ -16,7 +16,9 @@ import {
   Check,
   X,
   BellRing,
+  Focus,
 } from "lucide-react";
+import { FocusModeQueue, type FocusQueueItem } from "@/components/admin/FocusModeQueue";
 import { supabase } from "@/lib/supabase";
 import { fetchInvoices, type Invoice } from "@/lib/api/invoices";
 import { parseInternalReferenceFromNotes } from "@/lib/cartCheckout";
@@ -142,6 +144,7 @@ export function ApprovalsTab({
   const [rules, setRules] = useState<ApprovalRuleConfig>(() => readRules());
   const [orderNotes, setOrderNotes] = useState<Record<string, string>>({});
   const [quoteNotes, setQuoteNotes] = useState<Record<string, string>>({});
+  const [focusMode, setFocusMode] = useState(false);
 
   const clientMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -343,6 +346,28 @@ export function ApprovalsTab({
       internal_reference: o.internal_reference || parseInternalReferenceFromNotes(o.notes ?? "")
     }))
   , [orders]);
+
+  const focusItems = useMemo<FocusQueueItem[]>(() => {
+    return pendingOrders.map((order) => ({
+      id: order.id,
+      title: order.order_number ?? `#${String(order.id).slice(-6).toUpperCase()}`,
+      subtitle: clientMap[order.client_id] || order.client_id,
+      amountLabel: fmtMoney(order.total),
+      details: [
+        { label: "Cliente", value: clientMap[order.client_id] || order.client_id },
+        { label: "Fecha", value: new Date(order.created_at).toLocaleString("es-AR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) },
+        { label: "Referencia", value: order.internal_reference || "—" },
+        { label: "Alertas", value: orderReasons(order).join(" · ") || "Sin observaciones" },
+      ],
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingOrders, clientMap]);
+
+  const focusOrderById = useMemo(() => {
+    const map = new Map<string, OrderRow>();
+    pendingOrders.forEach((o) => map.set(String(o.id), o));
+    return map;
+  }, [pendingOrders]);
   const orderExceptions = pendingOrders.filter((order) => orderReasons(order).length > 0);
   const quoteExceptions = quotes.filter((quote) => quoteReasons(quote).length > 0);
 
@@ -513,14 +538,44 @@ export function ApprovalsTab({
           <h2 className={`text-base font-bold ${dk("text-white", "text-[#171717]")}`}>Centro de Aprobaciones</h2>
           <p className="text-xs text-gray-500 mt-0.5">Reglas por monto, excepción comercial, aprobación por usuario y trazabilidad.</p>
         </div>
-        <button
-          onClick={() => void load()}
-          className={`inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border transition ${dk("border-[#262626] text-gray-400 hover:text-white hover:bg-[#1a1a1a]", "border-[#e5e5e5] text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")}`}
-        >
-          <RefreshCw size={12} />
-          Actualizar
-        </button>
+        <div className="flex items-center gap-2">
+          {pendingOrders.length > 0 ? (
+            <button
+              onClick={() => setFocusMode(true)}
+              className={`inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border transition ${dk("border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20", "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100")}`}
+              title="Procesar pedidos pendientes con atajos de teclado"
+            >
+              <Focus size={12} />
+              Modo foco ({pendingOrders.length})
+            </button>
+          ) : null}
+          <button
+            onClick={() => void load()}
+            className={`inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border transition ${dk("border-[#262626] text-gray-400 hover:text-white hover:bg-[#1a1a1a]", "border-[#e5e5e5] text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5]")}`}
+          >
+            <RefreshCw size={12} />
+            Actualizar
+          </button>
+        </div>
       </div>
+
+      {focusMode ? (
+        <FocusModeQueue
+          title={`Aprobaciones · ${focusItems.length} pendientes`}
+          items={focusItems}
+          onApprove={async (item) => {
+            const order = focusOrderById.get(String(item.id));
+            if (!order) return;
+            await handleOrderDecision(order, "approved");
+          }}
+          onReject={async (item) => {
+            const order = focusOrderById.get(String(item.id));
+            if (!order) return;
+            await handleOrderDecision(order, "rejected");
+          }}
+          onClose={() => setFocusMode(false)}
+        />
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {[

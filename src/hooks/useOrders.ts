@@ -6,6 +6,7 @@ import { logActivity } from "@/lib/api/activityLog";
 import { createOrderFromCart } from "@/lib/api/checkoutApi";
 import { trackFirstOrder, trackOrderPlaced } from "@/lib/marketingTracker";
 import { backend, hasBackendUrl } from "@/lib/api/backend";
+import { logger } from "@/lib/logger";
 import type { BackendOrder, BackendOrderStatus } from "@/lib/api/backendTypes";
 
 export interface PortalOrder {
@@ -138,7 +139,7 @@ export function useOrders() {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "No se pudieron cargar los pedidos.";
-      console.error("[useOrders] fetchOrders failed:", err);
+      logger.error("[useOrders] fetchOrders failed:", err);
       setError(message);
     }
     setLoading(false);
@@ -182,7 +183,7 @@ export function useOrders() {
       });
       return merged as PortalOrder[];
     } catch (err) {
-      console.error("Error fetching managed orders:", err);
+      logger.error("Error fetching managed orders:", err);
       return [];
     } finally {
       setLoading(false);
@@ -276,7 +277,7 @@ export function useOrders() {
 
       return { error: null, orderId, orderNumber };
     } catch (err) {
-      console.error("AddOrder error:", err);
+      logger.error("AddOrder error:", err);
       return { error: err instanceof Error ? err.message : "Error al procesar el pedido" };
     }
   };
@@ -292,7 +293,7 @@ export function useOrders() {
         setOrders(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o));
       }
     } catch (err) {
-      console.error("UpdateOrder error:", err);
+      logger.error("UpdateOrder error:", err);
     }
   };
 

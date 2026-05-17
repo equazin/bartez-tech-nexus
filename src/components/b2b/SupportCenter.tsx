@@ -206,7 +206,14 @@ export function SupportCenter({ orders }: SupportCenterProps) {
         {loading ? (
           <div className="p-12 text-center text-muted-foreground">Cargando tickets...</div>
         ) : tickets.length === 0 ? (
-          <EmptyState icon={<LifeBuoy size={20} />} title="No tenes tickets abiertos" className="py-16" />
+          <EmptyState
+            icon={<LifeBuoy size={20} />}
+            title="No tenés tickets abiertos"
+            description="¿Necesitás ayuda con un pedido, una factura o un producto? Abrí un ticket y el equipo te responde."
+            actionLabel="Nuevo ticket"
+            onAction={() => setShowNewForm(true)}
+            className="py-16"
+          />
         ) : (
           <div className="divide-y divide-border/70">
             {tickets.map((ticket) => (

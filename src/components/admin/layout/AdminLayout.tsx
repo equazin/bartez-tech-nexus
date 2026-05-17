@@ -2,6 +2,7 @@ import { type ReactNode } from "react";
 import { AdminTopbar } from "./AdminTopbar";
 import { AdminSidebar } from "./AdminSidebar";
 import { type Tab, type ModuleId, type NavItem } from "./adminNavConfig";
+import type { ExchangeRate } from "@/context/CurrencyContext";
 
 interface SearchData {
   products: Array<{ id: number; name: string; sku?: string; category?: string }>;
@@ -23,7 +24,7 @@ interface AdminLayoutProps {
   currency: "USD" | "ARS";
   currentUserLabel?: string;
   searchData: SearchData;
-  exchangeRate: any;
+  exchangeRate: ExchangeRate;
   isFetchingRate: boolean;
   onRefreshRate: () => void;
   onManualRateUpdate: () => void;

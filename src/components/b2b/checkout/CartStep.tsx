@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
 import {
   Minus, Plus, Trash2, AlertCircle, AlertTriangle, ShieldAlert,
-  Package2, Building2, UserRound, CalendarDays, Layers,
+  Package2, Building2, UserRound, CalendarDays, Layers, TrendingDown,
 } from "lucide-react";
 import type { Product } from "@/models/products";
+import { getNextTier } from "@/lib/pricing";
 
 interface CartItem {
   product: Product;
@@ -66,6 +67,20 @@ export function CartStep({
     const { product, quantity, unitPrice, totalWithIVA, availableStock, hasStockError, hasStockWarning, hasMOQError } = item;
     const outOfStock = product.stock === 0;
     const minQty = product.min_order_qty ?? (product as unknown as { stock_min?: number }).stock_min ?? 0;
+    const nextTier = getNextTier(product, quantity);
+    const tierHint = nextTier
+      ? (() => {
+          const unitsToNext = Math.max(0, nextTier.min - quantity);
+          if (unitsToNext <= 0) return null;
+          const saving = (unitPrice - nextTier.price) * nextTier.min;
+          if (saving <= 0) return null;
+          return {
+            unitsToNext,
+            saving,
+            nextUnitPrice: nextTier.price,
+          };
+        })()
+      : null;
 
     return (
       <div
@@ -93,6 +108,17 @@ export function CartStep({
             {!outOfStock && hasStockError && <span className="inline-flex items-center gap-1 text-[10px] text-red-400 mt-0.5"><AlertCircle size={9} /> Solo {availableStock} disponibles</span>}
             {!hasStockError && hasStockWarning && <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 mt-0.5"><AlertTriangle size={9} /> Últimas {availableStock}u</span>}
             {hasMOQError && <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 mt-0.5"><AlertTriangle size={9} /> Mín. {minQty}u por pedido</span>}
+            {tierHint ? (
+              <button
+                type="button"
+                onClick={() => onSetQty(product.id, Math.min(availableStock || Infinity, quantity + tierHint.unitsToNext))}
+                className="mt-1 inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 transition hover:bg-emerald-500/20 dark:text-emerald-300"
+                title={`Llevar a ${quantity + tierHint.unitsToNext}u y pagar ${formatPrice(tierHint.nextUnitPrice)}/u`}
+              >
+                <TrendingDown size={9} />
+                Con {tierHint.unitsToNext}u más ahorrás {formatPrice(tierHint.saving)}
+              </button>
+            ) : null}
             <div className="flex items-center justify-between mt-1 md:hidden">
               <span className="text-xs text-[#2D9F6A] font-bold tabular-nums">{formatPrice(unitPrice)} c/u s/IVA</span>
               <span className={`text-sm font-extrabold tabular-nums ${dk("text-white", "text-[#171717]")}`}>{formatPrice(totalWithIVA)}</span>

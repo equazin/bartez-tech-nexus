@@ -1,7 +1,7 @@
-import B2BPortal from "@/pages/B2BPortal";
+import { PortalInvoicesSection } from "@/components/portal/PortalInvoicesSection";
 
 function InvoicesPage() {
-  return <B2BPortal chrome="shell" forcedTab="invoices" />;
+  return <PortalInvoicesSection />;
 }
 
 export default InvoicesPage;
