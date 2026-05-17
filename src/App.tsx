@@ -112,7 +112,7 @@ function AdminRoutePlaceholder() {
 
 function PersistentAdminShell() {
   const location = useLocation();
-  const { session, isAdmin, loading } = useAuth();
+  const { session, isAdmin } = useAuth();
   const isAdminRoute = location.pathname === "/admin";
   const [hasVisitedAdmin, setHasVisitedAdmin] = useState(false);
 
@@ -120,7 +120,7 @@ function PersistentAdminShell() {
     if (isAdminRoute && session && isAdmin) setHasVisitedAdmin(true);
   }, [isAdmin, isAdminRoute, session]);
 
-  if (loading || !session || !isAdmin || (!isAdminRoute && !hasVisitedAdmin)) {
+  if (!session || !isAdmin || (!isAdminRoute && !hasVisitedAdmin)) {
     return null;
   }
 

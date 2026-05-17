@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase, UserProfile } from "@/lib/supabase";
 
@@ -34,6 +34,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const profileRef = useRef<UserProfile | null>(null);
+
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
 
   async function fetchProfile(userId: string) {
     if (!isSupabaseConfigured) {
@@ -67,9 +72,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      // TOKEN_REFRESHED fires on every tab focus - ignore it to avoid
-      // resetting loading state and re-fetching the profile unnecessarily.
-      if (event === "TOKEN_REFRESHED") return;
+      // Supabase can emit auth confirmations while a browser tab regains focus.
+      // Do not bounce the app through loading for the same user, because that
+      // unmounts long-lived admin workspaces and loses in-progress UI state.
+      const sameUser = session?.user?.id && session.user.id === profileRef.current?.id;
+      if (event === "TOKEN_REFRESHED" || (event === "SIGNED_IN" && sameUser)) {
+        setSession(session);
+        return;
+      }
 
       setSession(session);
       if (session?.user) {
