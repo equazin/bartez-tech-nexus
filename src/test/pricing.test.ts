@@ -25,6 +25,10 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
   };
 }
 
+function rawSpecs(specs: Record<string, unknown>): Product["specs"] {
+  return specs as Product["specs"];
+}
+
 describe("getUnitPrice", () => {
   it("returns the base cost when no tiers are defined", () => {
     const product = makeProduct({ cost_price: 100 });
@@ -144,12 +148,12 @@ describe("INVID fixed cost", () => {
   });
 
   it("recognises when the fixed cost has already been applied", () => {
-    expect(hasInvidFixedCostApplied({ specs: { invid_extra_cost_applied: true } })).toBe(true);
+    expect(hasInvidFixedCostApplied({ specs: rawSpecs({ invid_extra_cost_applied: true }) })).toBe(true);
     expect(hasInvidFixedCostApplied({ specs: { invid_extra_cost_applied: "true" } })).toBe(true);
-    expect(hasInvidFixedCostApplied({ specs: { invid_extra_cost_applied: 1 } })).toBe(true);
+    expect(hasInvidFixedCostApplied({ specs: rawSpecs({ invid_extra_cost_applied: 1 }) })).toBe(true);
     expect(hasInvidFixedCostApplied({ specs: { invid_extra_cost_applied: "1" } })).toBe(true);
     expect(hasInvidFixedCostApplied({ specs: {} })).toBe(false);
-    expect(hasInvidFixedCostApplied({ specs: { invid_extra_cost_applied: false } })).toBe(false);
+    expect(hasInvidFixedCostApplied({ specs: rawSpecs({ invid_extra_cost_applied: false }) })).toBe(false);
   });
 
   it("adds INVID_FIXED_COST_USD via helper", () => {
@@ -163,7 +167,7 @@ describe("INVID fixed cost", () => {
     const invidAlreadyApplied = makeProduct({
       supplier_name: "INVID",
       cost_price: 100,
-      specs: { invid_extra_cost_applied: true },
+      specs: rawSpecs({ invid_extra_cost_applied: true }),
     });
     expect(getUnitPrice(invidAlreadyApplied, 1)).toBe(100);
 

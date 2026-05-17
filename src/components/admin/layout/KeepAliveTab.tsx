@@ -1,4 +1,4 @@
-import { memo, useRef, type ReactNode } from "react";
+import { memo, Suspense, useRef, type ReactNode } from "react";
 
 interface KeepAliveTabProps {
   /** Whether this tab is currently the active one */
@@ -11,6 +11,7 @@ interface KeepAliveTabProps {
    * in-flight work like supplier API syncs).
    */
   disabled?: boolean;
+  fallback?: ReactNode;
   children: ReactNode;
 }
 
@@ -29,6 +30,7 @@ export const KeepAliveTab = memo(function KeepAliveTab({
   active,
   id,
   disabled = false,
+  fallback = <div className="p-8 text-center text-sm text-muted-foreground">Cargando...</div>,
   children,
 }: KeepAliveTabProps) {
   const hasBeenActiveRef = useRef(false);
@@ -42,7 +44,7 @@ export const KeepAliveTab = memo(function KeepAliveTab({
 
   return (
     <div data-keepalive-tab={id} hidden={!active} style={active ? undefined : { display: "none" }}>
-      {children}
+      <Suspense fallback={fallback}>{children}</Suspense>
     </div>
   );
 });

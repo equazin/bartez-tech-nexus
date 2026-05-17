@@ -1,12 +1,11 @@
 import { logger } from "@/lib/logger";
-import { useState, useEffect, useRef, useMemo, lazy, Suspense } from "react";
+import { startTransition, useState, useEffect, useRef, useMemo, lazy } from "react";
 import { supabase } from "@/lib/supabase";
 import { CLIENT_TYPE_MARGINS, ClientType } from "@/lib/supabase";
 import { preloadCommonAdminTabs } from "@/lib/preloadAdminTabs";
 import { AdminCommercialTabs } from "@/components/admin/layout/AdminCommercialTabs";
 import { useAdminRealtimeAlerts } from "@/hooks/useAdminRealtimeAlerts";
 import { AdminMobileQuickPanel } from "@/components/admin/AdminMobileQuickPanel";
-import { TabSkeleton } from "@/components/ui/tab-skeleton";
 import { Product } from "@/models/products";
 import { OrderProduct } from "@/models/order";
 import ProductForm from "@/components/admin/ProductForm";
@@ -119,6 +118,18 @@ const COMPONENTS_TEMPLATE: Array<{ name: string; children: string[] }> = [
   { name: "Memoria Ram", children: ["DDR4", "DDR5"] },
   { name: "Motherboard", children: ["AMD (AM4 / AM5)", "Intel (LGA 1700 / LGA1851)"] },
 ];
+
+const ADMIN_ACTIVE_TAB_KEY = "bartez_admin_active_tab";
+
+function getInitialAdminTab(): Tab {
+  try {
+    const saved = localStorage.getItem(ADMIN_ACTIVE_TAB_KEY);
+    if (saved && saved in TAB_TO_MODULE) return saved as Tab;
+  } catch {
+    // localStorage can be unavailable in private or restricted browser contexts.
+  }
+  return "dashboard";
+}
 
 function normalizeCategoryKey(value: string) {
   return value
@@ -337,13 +348,21 @@ const Admin = () => {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [loadingClients, setLoadingClients] = useState(true);
-  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
-  const [activeModule, setActiveModule] = useState<ModuleId>("top");
+  const [activeTab, setActiveTab] = useState<Tab>(getInitialAdminTab);
+  const [activeModule, setActiveModule] = useState<ModuleId>(() => TAB_TO_MODULE[getInitialAdminTab()] ?? "top");
   const [crmSelectedClientId, setCrmSelectedClientId] = useState<string | null>(null);
 
   function navigateTab(tab: Tab) {
-    setActiveTab(tab);
-    setActiveModule(TAB_TO_MODULE[tab as Tab] ?? "top");
+    try {
+      localStorage.setItem(ADMIN_ACTIVE_TAB_KEY, tab);
+    } catch {
+      // Non-critical: tab persistence is a convenience, not a blocker.
+    }
+
+    startTransition(() => {
+      setActiveTab(tab);
+      setActiveModule(TAB_TO_MODULE[tab] ?? "top");
+    });
   }
 
   const adminJourneySteps: Array<{ id: Tab; label: string; helper: string; icon: LucideIcon }> = [
@@ -1638,8 +1657,6 @@ async function handleCreateSeller() {
       onSetCurrency={setCurrency}
     >
       <ErrorBoundary section={activeTab}>
-        <Suspense fallback={<TabSkeleton variant="table" rows={6} className="p-4" spinner />}>
-
         {showCommercialJourney && (
           <div className={`mb-5 rounded-2xl border px-3 py-3 ${dk("border-[#1f1f1f] bg-[#0d0d0d]", "border-[#e5e5e5] bg-white")}`}>
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -2937,7 +2954,6 @@ async function handleCreateSeller() {
           onNavigateTab={navigateTab}
           onProductsRefresh={fetchProducts}
         />
-        </Suspense>
       </ErrorBoundary>
 
       {/* -- Create order modal -- */}

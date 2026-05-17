@@ -40,6 +40,15 @@ interface AdminOrder {
   status: string;
   total: number;
   created_at: string;
+  products?: Array<{
+    product_id?: number | string;
+    sku?: string;
+    name?: string;
+    quantity?: number;
+    total_price?: number;
+    cost_price?: number;
+    category?: string;
+  }>;
 }
 
 interface InvoiceSearchItem {
@@ -48,6 +57,12 @@ interface InvoiceSearchItem {
   client_id: string;
   status: string;
   total: number;
+  subtotal: number;
+  iva_total: number;
+  currency: "USD" | "ARS";
+  exchange_rate?: number | null;
+  created_at: string;
+  due_date?: string;
 }
 
 export interface AdminCommercialTabsProps {
@@ -85,6 +100,16 @@ export function AdminCommercialTabs({
   onProductsRefresh,
 }: AdminCommercialTabsProps) {
   const dk = (d: string, l: string) => (isDark ? d : l);
+  const clientRows = clients.map((client) => ({
+    id: client.id,
+    company_name: client.company_name ?? client.contact_name ?? client.email ?? client.id,
+    contact_name: client.contact_name ?? client.company_name ?? client.email ?? client.id,
+  }));
+  const reportOrders = orders.map((order) => ({
+    ...order,
+    id: String(order.id),
+    products: order.products ?? [],
+  }));
 
   return (
     <>
@@ -112,7 +137,7 @@ export function AdminCommercialTabs({
         <DocumentsTab
           isDark={isDark}
           orders={orders}
-          clients={clients}
+          clients={clientRows}
           onOpenTab={(tab) => onNavigateTab(tab as Tab)}
         />
       </KeepAliveTab>
@@ -147,7 +172,7 @@ export function AdminCommercialTabs({
         <div className="space-y-4 max-w-5xl">
           <div className="flex justify-end">
             <button
-              onClick={() => exportReportsCSV(orders, clients)}
+              onClick={() => exportReportsCSV(reportOrders, clientRows)}
               className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border transition ${dk("border-[#2a2a2a] text-gray-400 hover:text-white hover:bg-[#1c1c1c]", "border-[#e5e5e5] text-[#737373] hover:bg-[#f5f5f5]")}`}
             >
               <Download size={12} /> Exportar ventas CSV
@@ -155,8 +180,8 @@ export function AdminCommercialTabs({
           </div>
           <ReportsTab
             products={products}
-            orders={orders}
-            clients={clients}
+            orders={reportOrders}
+            clients={clientRows}
             invoices={invoiceSearchItems}
             formatPrice={formatPrice}
             isDark={isDark}
@@ -169,7 +194,7 @@ export function AdminCommercialTabs({
       </KeepAliveTab>
 
       <KeepAliveTab active={activeTab === "support"} id="support">
-        <SupportTab isDark={isDark} clients={clients} />
+        <SupportTab isDark={isDark} clients={clientRows} />
       </KeepAliveTab>
 
       <KeepAliveTab active={activeTab === "webhooks"} id="webhooks">
@@ -185,7 +210,7 @@ export function AdminCommercialTabs({
       </KeepAliveTab>
 
       <KeepAliveTab active={activeTab === "price_agreements"} id="price_agreements">
-        <PriceAgreementsTab isDark={isDark} clients={clients} />
+        <PriceAgreementsTab isDark={isDark} clients={clientRows} />
       </KeepAliveTab>
 
       <KeepAliveTab active={activeTab === "supplier_sync"} id="supplier_sync">
