@@ -24,24 +24,24 @@ CREATE INDEX IF NOT EXISTS idx_products_brand_id ON products(brand_id);
 -- 3. RLS
 ALTER TABLE brands ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "brands_select"
-  ON brands FOR SELECT TO authenticated
+DROP POLICY IF EXISTS "brands_select" ON brands;
+CREATE POLICY "brands_select" ON brands FOR SELECT TO authenticated
   USING (true);
 
-CREATE POLICY "brands_insert"
-  ON brands FOR INSERT TO authenticated
+DROP POLICY IF EXISTS "brands_insert" ON brands;
+CREATE POLICY "brands_insert" ON brands FOR INSERT TO authenticated
   WITH CHECK (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'vendedor'))
   );
 
-CREATE POLICY "brands_update"
-  ON brands FOR UPDATE TO authenticated
+DROP POLICY IF EXISTS "brands_update" ON brands;
+CREATE POLICY "brands_update" ON brands FOR UPDATE TO authenticated
   USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'vendedor'))
   );
 
-CREATE POLICY "brands_delete"
-  ON brands FOR DELETE TO authenticated
+DROP POLICY IF EXISTS "brands_delete" ON brands;
+CREATE POLICY "brands_delete" ON brands FOR DELETE TO authenticated
   USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
   );

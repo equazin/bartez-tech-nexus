@@ -24,13 +24,13 @@ CREATE INDEX IF NOT EXISTS b2b_reg_requests_cuit_idx   ON b2b_registration_reque
 ALTER TABLE b2b_registration_requests ENABLE ROW LEVEL SECURITY;
 
 -- Public can insert (the registration form)
-CREATE POLICY "public_can_insert_registration"
-  ON b2b_registration_requests FOR INSERT
+DROP POLICY IF EXISTS "public_can_insert_registration" ON b2b_registration_requests;
+CREATE POLICY "public_can_insert_registration" ON b2b_registration_requests FOR INSERT
   WITH CHECK (true);
 
 -- Only service role can select/update (admin panel)
-CREATE POLICY "service_role_full_access"
-  ON b2b_registration_requests FOR ALL
+DROP POLICY IF EXISTS "service_role_full_access" ON b2b_registration_requests;
+CREATE POLICY "service_role_full_access" ON b2b_registration_requests FOR ALL
   USING (auth.role() = 'service_role');
 
 -- Auto-update updated_at
@@ -42,6 +42,6 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER b2b_registration_updated_at
-  BEFORE UPDATE ON b2b_registration_requests
+DROP TRIGGER IF EXISTS b2b_registration_updated_at ON b2b_registration_requests;
+CREATE TRIGGER b2b_registration_updated_at BEFORE UPDATE ON b2b_registration_requests
   FOR EACH ROW EXECUTE FUNCTION update_b2b_registration_updated_at();

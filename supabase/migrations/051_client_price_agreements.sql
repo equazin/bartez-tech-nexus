@@ -82,18 +82,18 @@ DROP POLICY IF EXISTS "client_agreement_items_select" ON price_agreement_items;
 DROP POLICY IF EXISTS "admin_agreement_items_all"     ON price_agreement_items;
 
 -- Client: can view their own active agreements
-CREATE POLICY "client_price_agreement_select"
-  ON client_price_agreements FOR SELECT TO authenticated
+DROP POLICY IF EXISTS "client_price_agreement_select" ON client_price_agreements;
+CREATE POLICY "client_price_agreement_select" ON client_price_agreements FOR SELECT TO authenticated
   USING (client_id = auth.uid() AND active = true);
 
 -- Admin: full access to agreements
-CREATE POLICY "admin_price_agreement_all"
-  ON client_price_agreements FOR ALL TO authenticated
+DROP POLICY IF EXISTS "admin_price_agreement_all" ON client_price_agreements;
+CREATE POLICY "admin_price_agreement_all" ON client_price_agreements FOR ALL TO authenticated
   USING (get_my_role() = 'admin');
 
 -- Client: can view items for their own agreements
-CREATE POLICY "client_agreement_items_select"
-  ON price_agreement_items FOR SELECT TO authenticated
+DROP POLICY IF EXISTS "client_agreement_items_select" ON price_agreement_items;
+CREATE POLICY "client_agreement_items_select" ON price_agreement_items FOR SELECT TO authenticated
   USING (
     EXISTS (
       SELECT 1 FROM client_price_agreements a
@@ -102,8 +102,8 @@ CREATE POLICY "client_agreement_items_select"
   );
 
 -- Admin: full access to items
-CREATE POLICY "admin_agreement_items_all"
-  ON price_agreement_items FOR ALL TO authenticated
+DROP POLICY IF EXISTS "admin_agreement_items_all" ON price_agreement_items;
+CREATE POLICY "admin_agreement_items_all" ON price_agreement_items FOR ALL TO authenticated
   USING (get_my_role() = 'admin');
 
 -- 6. RPC: get active agreement for a client (most recent valid one)

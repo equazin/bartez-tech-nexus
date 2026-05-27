@@ -6,7 +6,7 @@
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'rma_requests') THEN
-    CREATE TABLE rma_requests (
+    CREATE TABLE IF NOT EXISTS rma_requests (
       id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
       rma_number      TEXT UNIQUE,
       client_id       UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,

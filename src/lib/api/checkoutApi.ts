@@ -1,5 +1,6 @@
 import { backend, hasBackendUrl } from "./backend";
 import { supabase } from "@/lib/supabase";
+import { enqueueAction } from "@/lib/syncQueue";
 import type { Order } from "./ordersApi";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -90,4 +91,40 @@ export async function createOrderFromCart(payload: CheckoutPayload): Promise<Ord
       : parsed;
 
   return result as Order;
+}
+
+export interface QueuedCheckoutResult {
+  /** True if the request was queued in IndexedDB instead of sent. */
+  queued: boolean;
+  /** Present when the request actually went through. */
+  order?: Order;
+}
+
+/**
+ * Submits the checkout; if the browser is offline, persists the payload in the
+ * sync queue so it can be drained when connectivity returns.
+ */
+export async function submitCheckoutWithQueueFallback(
+  payload: CheckoutPayload,
+): Promise<QueuedCheckoutResult> {
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  if (offline) {
+    await enqueueAction("place_order", payload);
+    return { queued: true };
+  }
+
+  try {
+    const order = await createOrderFromCart(payload);
+    return { queued: false, order };
+  } catch (err: unknown) {
+    // Network-level failure: enqueue so we don't lose the order.
+    const isNetworkError =
+      err instanceof TypeError ||
+      (err instanceof Error && /Failed to fetch|NetworkError|Network request failed/i.test(err.message));
+    if (isNetworkError) {
+      await enqueueAction("place_order", payload);
+      return { queued: true };
+    }
+    throw err;
+  }
 }

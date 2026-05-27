@@ -33,6 +33,7 @@ ALTER TABLE coupons ENABLE ROW LEVEL SECURITY;
 ALTER TABLE coupon_usage ENABLE ROW LEVEL SECURITY;
 
 -- Política Admins: Pueden hacer de todo
+DROP POLICY IF EXISTS "Admins full access coupons" ON coupons;
 CREATE POLICY "Admins full access coupons" ON coupons
     FOR ALL USING (
         EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
@@ -40,6 +41,7 @@ CREATE POLICY "Admins full access coupons" ON coupons
         EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
     );
 
+DROP POLICY IF EXISTS "Admins full access usage" ON coupon_usage;
 CREATE POLICY "Admins full access usage" ON coupon_usage
     FOR ALL USING (
         EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
@@ -47,6 +49,7 @@ CREATE POLICY "Admins full access usage" ON coupon_usage
 
 -- Política Clientes: Pueden LEER solo si el cupón está activo y no expiró
 -- Nota: En la práctica, el cliente "validador" hará un match por código.
+DROP POLICY IF EXISTS "Clients read active coupons" ON coupons;
 CREATE POLICY "Clients read active coupons" ON coupons
     FOR SELECT USING (
         is_active = true 

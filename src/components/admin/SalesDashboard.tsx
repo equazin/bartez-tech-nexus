@@ -5,7 +5,7 @@ import {
   TrendingUp, FileText, Clock, Target, ShoppingBag,
   CheckCircle2, XCircle, AlertTriangle, Send, Eye, Ban,
   ArrowUpRight, ArrowDownRight, Minus as MinusIcon,
-  Package, Users, Trash2, Receipt, CreditCard, Zap,
+  Package, Users, Trash2, Receipt, CreditCard, Zap, RefreshCw,
   type LucideIcon,
 } from "lucide-react";
 import { 
@@ -13,6 +13,7 @@ import {
   BarChart, Bar, Cell, PieChart, Pie, Legend
 } from "recharts";
 import { supabase } from "@/lib/supabase";
+import { useSalesDashboardSummary } from "@/hooks/useSalesDashboardSummary";
 import { formatMoneyInPreferredCurrency, getEffectiveInvoiceAmounts } from "@/lib/money";
 import {
   buildCommercialAlerts,
@@ -1538,6 +1539,7 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders, onOpe
   const dk = (d: string, l: string) => isDark ? d : l;
   const { currency, exchangeRate, formatPrice } = useCurrency();
   const quotes = useMemo(() => getAllQuotes(), []);
+  const { summary: serverSummary, refresh: refreshSummary, refreshing: summaryRefreshing } = useSalesDashboardSummary();
 
   // Async: invoices + credit exposure
   const [invoiceKpis, setInvoiceKpis] = useState<InvoiceKpis | null>(null);
@@ -1749,10 +1751,17 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders, onOpe
 
   const approvedOrders = orderAggregates.approved;
   const pendingOrders = orderAggregates.pending;
-  const totalRevenue = orderAggregates.totalRevenue;
-  const avgOrder = approvedOrders.length > 0 ? totalRevenue / approvedOrders.length : 0;
-  const avgMargin = orderAggregates.avgMargin;
-  const { currentMonthRevenue, prevMonthRevenue, momPct, curOrders, prevOrders, ordersPct, avgTicketPct } = orderAggregates.mom;
+  const totalRevenue = serverSummary?.totalRevenue ?? orderAggregates.totalRevenue;
+  const approvedCount = serverSummary?.approvedCount ?? approvedOrders.length;
+  const avgOrder = approvedCount > 0 ? totalRevenue / approvedCount : 0;
+  const avgMargin = serverSummary?.avgMargin ?? orderAggregates.avgMargin;
+  const currentMonthRevenue = serverSummary?.currentMonthRevenue ?? orderAggregates.mom.currentMonthRevenue;
+  const prevMonthRevenue = serverSummary?.prevMonthRevenue ?? orderAggregates.mom.prevMonthRevenue;
+  const momPct = serverSummary?.momPct ?? orderAggregates.mom.momPct;
+  const curOrders = serverSummary?.currentMonthOrders ?? orderAggregates.mom.curOrders;
+  const prevOrders = serverSummary?.prevMonthOrders ?? orderAggregates.mom.prevOrders;
+  const ordersPct = serverSummary?.ordersPct ?? orderAggregates.mom.ordersPct;
+  const avgTicketPct = serverSummary?.avgTicketPct ?? orderAggregates.mom.avgTicketPct;
 
   const approvedQuotes  = useMemo(() => quotes.filter((q) => q.status === "approved"), [quotes]);
   const draftQuotes     = useMemo(() => quotes.filter((q) => q.status === "draft"),    [quotes]);
@@ -2070,6 +2079,23 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders, onOpe
       <FocusBar items={focusItems} onOpenTab={onOpenTab} />
 
       {/* ── KPI Row ── */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] uppercase tracking-widest text-[#525252]">
+          {serverSummary?.refreshedAt
+            ? `Métricas actualizadas: ${new Date(serverSummary.refreshedAt).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })}`
+            : "Métricas calculadas localmente"}
+        </p>
+        <button
+          type="button"
+          onClick={() => void refreshSummary()}
+          disabled={summaryRefreshing}
+          title="Recalcular métricas en el servidor"
+          className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] transition ${dk("border-[#262626] text-[#a3a3a3] hover:bg-[#161616]", "border-[#e5e5e5] text-[#525252] hover:bg-[#f5f5f5]")} disabled:cursor-not-allowed disabled:opacity-60`}
+        >
+          <RefreshCw size={11} className={summaryRefreshing ? "animate-spin" : ""} />
+          {summaryRefreshing ? "Refrescando…" : "Refrescar"}
+        </button>
+      </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard label="Ventas este mes" value={formatPrice(currentMonthRevenue)}
           sub={prevMonthRevenue > 0

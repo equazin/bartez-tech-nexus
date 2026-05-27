@@ -26,6 +26,7 @@ const RmaAdminTab = lazy(() => import("@/components/admin/RmaAdminTab").then((m)
 const SerialsTab = lazy(() => import("@/components/admin/SerialsTab").then((m) => ({ default: m.SerialsTab })));
 const PriceAgreementsTab = lazy(() => import("@/components/admin/PriceAgreementsTab").then((m) => ({ default: m.PriceAgreementsTab })));
 const SupplierApisSyncTab = lazy(() => import("@/components/admin/SupplierApisSyncTab").then((m) => ({ default: m.SupplierApisSyncTab })));
+const ExportTemplatesTab = lazy(() => import("@/components/admin/ExportTemplatesTab").then((m) => ({ default: m.ExportTemplatesTab })));
 
 interface AdminClient {
   id: string;
@@ -162,6 +163,10 @@ export function AdminCommercialTabs({
 
       <KeepAliveTab active={activeTab === "pricing"} id="pricing">
         <PricingRulesTab isDark={isDark} categories={categoryNames} />
+      </KeepAliveTab>
+
+      <KeepAliveTab active={activeTab === "export_templates"} id="export_templates">
+        <ExportTemplatesTab />
       </KeepAliveTab>
 
       <KeepAliveTab active={activeTab === "bundles"} id="bundles">

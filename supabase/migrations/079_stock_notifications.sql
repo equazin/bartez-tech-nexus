@@ -10,8 +10,8 @@ create table if not exists stock_notifications (
 
 alter table stock_notifications enable row level security;
 
-create policy "Users manage own stock notifications"
-  on stock_notifications for all
+DROP POLICY IF EXISTS "Users manage own stock notifications" ON stock_notifications;
+CREATE POLICY "Users manage own stock notifications" ON stock_notifications for all
   using  (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 

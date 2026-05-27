@@ -44,21 +44,21 @@ CREATE INDEX IF NOT EXISTS idx_am_ref    ON account_movements(reference_id);
 
 ALTER TABLE account_movements ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "am_select"
-  ON account_movements FOR SELECT TO authenticated
+DROP POLICY IF EXISTS "am_select" ON account_movements;
+CREATE POLICY "am_select" ON account_movements FOR SELECT TO authenticated
   USING (
     client_id = auth.uid()
     OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','vendedor'))
   );
 
-CREATE POLICY "am_admin_write"
-  ON account_movements FOR INSERT TO authenticated
+DROP POLICY IF EXISTS "am_admin_write" ON account_movements;
+CREATE POLICY "am_admin_write" ON account_movements FOR INSERT TO authenticated
   WITH CHECK (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','vendedor'))
   );
 
-CREATE POLICY "am_admin_update"
-  ON account_movements FOR UPDATE TO authenticated
+DROP POLICY IF EXISTS "am_admin_update" ON account_movements;
+CREATE POLICY "am_admin_update" ON account_movements FOR UPDATE TO authenticated
   USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','vendedor'))
   );
@@ -79,8 +79,8 @@ CREATE INDEX IF NOT EXISTS idx_notes_client ON client_notes(client_id, created_a
 
 ALTER TABLE client_notes ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "notes_admin_all"
-  ON client_notes FOR ALL TO authenticated
+DROP POLICY IF EXISTS "notes_admin_all" ON client_notes;
+CREATE POLICY "notes_admin_all" ON client_notes FOR ALL TO authenticated
   USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','vendedor'))
   );

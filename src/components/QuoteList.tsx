@@ -9,6 +9,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { buildQuoteWhatsappUrl } from "@/lib/shareQuoteWhatsapp";
+import { issuePublicQuoteToken, buildPublicQuoteUrl } from "@/lib/api/publicQuote";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -268,8 +270,15 @@ export function QuoteList({ quotes, isDark: _isDark, onLoad, onUpdateStatus, onD
                   size="sm"
                   className="h-8 rounded-xl text-[11px] text-emerald-600 hover:text-emerald-700"
                   title="Compartir por WhatsApp"
-                  onClick={() => {
-                    const url = buildQuoteWhatsappUrl(quote, { formatPrice });
+                  onClick={async () => {
+                    let publicUrl: string | undefined;
+                    try {
+                      const token = await issuePublicQuoteToken(quote.id);
+                      publicUrl = buildPublicQuoteUrl(token);
+                    } catch {
+                      toast.warning("No se pudo generar el link público, se comparte solo el resumen");
+                    }
+                    const url = buildQuoteWhatsappUrl(quote, { formatPrice, publicUrl });
                     window.open(url, "_blank", "noopener,noreferrer");
                   }}
                 >

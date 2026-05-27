@@ -30,6 +30,7 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'categories_slug_key'
   ) THEN
+    ALTER TABLE categories DROP CONSTRAINT IF EXISTS categories_slug_key;
     ALTER TABLE categories ADD CONSTRAINT categories_slug_key UNIQUE (slug);
   END IF;
 END$$;
@@ -109,18 +110,22 @@ ALTER TABLE category_mapping ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='categories' AND policyname='categories_read_all') THEN
+    DROP POLICY IF EXISTS "categories_read_all" ON categories;
     CREATE POLICY "categories_read_all" ON categories FOR SELECT USING (true);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='categories' AND policyname='categories_write_admin') THEN
+    DROP POLICY IF EXISTS "categories_write_admin" ON categories;
     CREATE POLICY "categories_write_admin" ON categories FOR ALL
       USING (auth.jwt() ->> 'role' = 'admin')
       WITH CHECK (auth.jwt() ->> 'role' = 'admin');
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='category_mapping' AND policyname='category_mapping_read_admin') THEN
+    DROP POLICY IF EXISTS "category_mapping_read_admin" ON category_mapping;
     CREATE POLICY "category_mapping_read_admin" ON category_mapping FOR SELECT
       USING (auth.jwt() ->> 'role' = 'admin');
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='category_mapping' AND policyname='category_mapping_write_admin') THEN
+    DROP POLICY IF EXISTS "category_mapping_write_admin" ON category_mapping;
     CREATE POLICY "category_mapping_write_admin" ON category_mapping FOR ALL
       USING (auth.jwt() ->> 'role' = 'admin')
       WITH CHECK (auth.jwt() ->> 'role' = 'admin');

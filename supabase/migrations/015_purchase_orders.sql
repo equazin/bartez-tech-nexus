@@ -29,14 +29,14 @@ CREATE INDEX IF NOT EXISTS idx_po_created   ON purchase_orders(created_at DESC);
 
 ALTER TABLE purchase_orders ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "po_admin_all"
-  ON purchase_orders FOR ALL TO authenticated
+DROP POLICY IF EXISTS "po_admin_all" ON purchase_orders;
+CREATE POLICY "po_admin_all" ON purchase_orders FOR ALL TO authenticated
   USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','vendedor'))
   );
 
-CREATE TRIGGER purchase_orders_updated_at
-  BEFORE UPDATE ON purchase_orders
+DROP TRIGGER IF EXISTS purchase_orders_updated_at ON purchase_orders;
+CREATE TRIGGER purchase_orders_updated_at BEFORE UPDATE ON purchase_orders
   FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
 
 -- ── Receive PO: update product_suppliers stock + log movement ─────────────────

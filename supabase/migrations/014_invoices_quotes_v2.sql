@@ -37,21 +37,21 @@ CREATE INDEX IF NOT EXISTS idx_inv_due_date   ON invoices(due_date);
 
 ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "inv_select_own"
-  ON invoices FOR SELECT TO authenticated
+DROP POLICY IF EXISTS "inv_select_own" ON invoices;
+CREATE POLICY "inv_select_own" ON invoices FOR SELECT TO authenticated
   USING (
     client_id = auth.uid()
     OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','vendedor'))
   );
 
-CREATE POLICY "inv_admin_write"
-  ON invoices FOR ALL TO authenticated
+DROP POLICY IF EXISTS "inv_admin_write" ON invoices;
+CREATE POLICY "inv_admin_write" ON invoices FOR ALL TO authenticated
   USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','vendedor'))
   );
 
-CREATE TRIGGER invoices_updated_at
-  BEFORE UPDATE ON invoices
+DROP TRIGGER IF EXISTS invoices_updated_at ON invoices;
+CREATE TRIGGER invoices_updated_at BEFORE UPDATE ON invoices
   FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
 
 -- Helper: create invoice from order

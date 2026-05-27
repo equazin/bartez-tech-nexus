@@ -13,7 +13,7 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS weight_kg NUMERIC DEFAULT 0;
 -- Primero borramos para recrear con la nueva estructura
 DROP VIEW IF EXISTS portal_products;
 
-CREATE VIEW portal_products AS
+CREATE OR REPLACE VIEW portal_products AS
 SELECT 
     p.id,
     p.name,

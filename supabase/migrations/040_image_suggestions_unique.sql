@@ -10,4 +10,5 @@ WHERE id IN (
 );
 
 -- Add unique constraint to image_suggestions to support upsert and avoid duplicates
+ALTER TABLE image_suggestions DROP CONSTRAINT IF EXISTS image_suggestions_product_id_image_url_key;
 ALTER TABLE image_suggestions ADD CONSTRAINT image_suggestions_product_id_image_url_key UNIQUE (product_id, image_url);

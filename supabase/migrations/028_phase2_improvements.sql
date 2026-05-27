@@ -9,16 +9,16 @@ CREATE TABLE IF NOT EXISTS public.carts (
 -- Enable RLS on carts
 ALTER TABLE public.carts ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can only see their own cart"
-    ON public.carts FOR SELECT
+DROP POLICY IF EXISTS "Users can only see their own cart" ON public.carts;
+CREATE POLICY "Users can only see their own cart" ON public.carts FOR SELECT
     USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can only update their own cart"
-    ON public.carts FOR INSERT
+DROP POLICY IF EXISTS "Users can only update their own cart" ON public.carts;
+CREATE POLICY "Users can only update their own cart" ON public.carts FOR INSERT
     WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can only update their own cart (update)"
-    ON public.carts FOR UPDATE
+DROP POLICY IF EXISTS "Users can only update their own cart (update)" ON public.carts;
+CREATE POLICY "Users can only update their own cart (update)" ON public.carts FOR UPDATE
     USING (auth.uid() = user_id);
 
 -- 2. Add Full-Text Search to products

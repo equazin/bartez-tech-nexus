@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Search,
   Package,
@@ -13,8 +13,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAdminSearch, type AdminSearchResultType } from "@/hooks/useAdminSearch";
 
-type ResultType = "product" | "client" | "order" | "invoice" | "quote" | "payment" | "shipment";
+type ResultType = AdminSearchResultType;
 
 interface SearchResult {
   id: string;
@@ -45,27 +46,22 @@ const TYPE_LABEL: Record<ResultType, string> = {
   shipment: "Remito",
 };
 
+const TYPE_TAB: Record<ResultType, string | undefined> = {
+  product: "products",
+  client: undefined,
+  order: "orders",
+  invoice: "invoices",
+  quote: "quotes_admin",
+  payment: "credit",
+  shipment: "orders",
+};
+
 interface Props {
   isDark?: boolean;
-  products: Array<{ id: number; name: string; sku?: string; category?: string }>;
-  clients: Array<{ id: string; company_name?: string; contact_name?: string; email?: string }>;
-  orders: Array<{ id: string | number; client_id: string; order_number?: string; numero_remito?: string; total: number; status: string }>;
-  invoices: Array<{ id: string; invoice_number: string; client_id: string; status: string; total: number }>;
-  quotes: Array<{ id: number; client_id: string; status: string; total: number }>;
-  payments: Array<{ id: string; client_id: string; descripcion?: string; reference_id?: string; monto: number; tipo: string }>;
   onNavigate: (tab: string) => void;
 }
 
-export function AdminSearch({
-  isDark = true,
-  products,
-  clients,
-  orders,
-  invoices,
-  quotes,
-  payments,
-  onNavigate,
-}: Props) {
+export function AdminSearch({ isDark = true, onNavigate }: Props) {
   const dk = (d: string, l: string) => (isDark ? d : l);
   const navigate = useNavigate();
 
@@ -74,13 +70,7 @@ export function AdminSearch({
   const [sel, setSel] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const clientMap = useCallback(() => {
-    const map: Record<string, string> = {};
-    clients.forEach((client) => {
-      map[client.id] = client.company_name || client.contact_name || client.email || client.id;
-    });
-    return map;
-  }, [clients])();
+  const { results: rawResults, loading, error } = useAdminSearch(query);
 
   useEffect(() => {
     function handleKey(event: KeyboardEvent) {
@@ -102,137 +92,14 @@ export function AdminSearch({
     }
   }, [open]);
 
-  const results: SearchResult[] = useCallback(() => {
-    if (query.trim().length < 2) return [];
-    const q = query.toLowerCase();
-    const output: SearchResult[] = [];
-
-    products
-      .filter((product) =>
-        [product.name, product.sku, product.category].filter(Boolean).join(" ").toLowerCase().includes(q)
-      )
-      .slice(0, 5)
-      .forEach((product) => {
-        output.push({
-          id: String(product.id),
-          type: "product",
-          label: product.name,
-          sub: [product.sku, product.category].filter(Boolean).join(" · "),
-          tab: "products",
-        });
-      });
-
-    clients
-      .filter((client) =>
-        [client.company_name, client.contact_name, client.email, client.id].filter(Boolean).join(" ").toLowerCase().includes(q)
-      )
-      .slice(0, 5)
-      .forEach((client) => {
-        output.push({
-          id: client.id,
-          type: "client",
-          label: client.company_name || client.contact_name || client.id,
-          sub: [client.contact_name, client.email].filter(Boolean).join(" · "),
-          href: `/clientes/${client.id}`,
-        });
-      });
-
-    orders
-      .filter((order) =>
-        [
-          order.order_number,
-          String(order.id),
-          order.status,
-          order.numero_remito,
-          clientMap[order.client_id],
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-          .includes(q)
-      )
-      .slice(0, 4)
-      .forEach((order) => {
-        output.push({
-          id: String(order.id),
-          type: "order",
-          label: order.order_number ?? `#${String(order.id).slice(0, 8)}`,
-          sub: `${clientMap[order.client_id] || order.client_id} · ${order.status}`,
-          tab: "orders",
-        });
-      });
-
-    orders
-      .filter((order) => order.numero_remito?.toLowerCase().includes(q))
-      .slice(0, 4)
-      .forEach((order) => {
-        output.push({
-          id: `shipment-${order.id}`,
-          type: "shipment",
-          label: order.numero_remito ?? `REM-${String(order.id).slice(0, 8)}`,
-          sub: clientMap[order.client_id] || order.client_id,
-          tab: "orders",
-        });
-      });
-
-    invoices
-      .filter((invoice) =>
-        [invoice.invoice_number, invoice.id, invoice.status, clientMap[invoice.client_id]]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-          .includes(q)
-      )
-      .slice(0, 4)
-      .forEach((invoice) => {
-        output.push({
-          id: invoice.id,
-          type: "invoice",
-          label: invoice.invoice_number,
-          sub: `${clientMap[invoice.client_id] || invoice.client_id} · ${invoice.status}`,
-          tab: "invoices",
-        });
-      });
-
-    quotes
-      .filter((quote) =>
-        [`COT-${String(quote.id).padStart(5, "0")}`, String(quote.id), quote.status, clientMap[quote.client_id]]
-          .join(" ")
-          .toLowerCase()
-          .includes(q)
-      )
-      .slice(0, 4)
-      .forEach((quote) => {
-        output.push({
-          id: String(quote.id),
-          type: "quote",
-          label: `COT-${String(quote.id).padStart(5, "0")}`,
-          sub: `${clientMap[quote.client_id] || quote.client_id} · ${quote.status}`,
-          tab: "quotes_admin",
-        });
-      });
-
-    payments
-      .filter((payment) =>
-        [payment.descripcion, payment.reference_id, clientMap[payment.client_id], payment.tipo]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-          .includes(q)
-      )
-      .slice(0, 4)
-      .forEach((payment) => {
-        output.push({
-          id: payment.id,
-          type: "payment",
-          label: payment.descripcion || `Pago ${payment.id.slice(0, 8)}`,
-          sub: `${clientMap[payment.client_id] || payment.client_id} · $${Math.round(Math.abs(payment.monto)).toLocaleString("es-AR")}`,
-          tab: "credit",
-        });
-      });
-
-    return output.slice(0, 18);
-  }, [clientMap, clients, invoices, orders, payments, products, query, quotes])();
+  const results: SearchResult[] = rawResults.slice(0, 18).map((row) => ({
+    id: row.id,
+    type: row.type,
+    label: row.label,
+    sub: row.sub ?? undefined,
+    tab: row.type === "client" ? undefined : TYPE_TAB[row.type],
+    href: row.type === "client" && row.clientId ? `/clientes/${row.clientId}` : undefined,
+  }));
 
   useEffect(() => {
     setSel(0);
@@ -288,7 +155,8 @@ export function AdminSearch({
                 placeholder="Buscar productos, clientes, pedidos, remitos, facturas, pagos…"
                 className={`flex-1 text-sm outline-none bg-transparent ${dk("text-white placeholder:text-[#404040]", "text-[#171717] placeholder:text-[#a3a3a3]")}`}
               />
-              {query && (
+              {loading && <span className="text-[10px] text-[#737373]">…</span>}
+              {query && !loading && (
                 <button onClick={() => setQuery("")} className="text-[#525252] hover:text-[#a3a3a3]">
                   <X size={13} />
                 </button>
@@ -298,7 +166,11 @@ export function AdminSearch({
               </kbd>
             </div>
 
-            {results.length > 0 ? (
+            {error ? (
+              <div className="py-8 text-center text-xs text-red-400">
+                Error en la búsqueda: {error}
+              </div>
+            ) : results.length > 0 ? (
               <div className="py-1 max-h-80 overflow-y-auto">
                 {results.map((result, index) => {
                   const Icon = TYPE_ICON[result.type];
@@ -330,8 +202,10 @@ export function AdminSearch({
                   );
                 })}
               </div>
-            ) : query.trim().length >= 2 ? (
+            ) : query.trim().length >= 2 && !loading ? (
               <div className="py-8 text-center text-xs text-[#525252]">Sin resultados para "{query}"</div>
+            ) : query.trim().length >= 2 && loading ? (
+              <div className="py-8 text-center text-xs text-[#525252]">Buscando…</div>
             ) : (
               <div className="px-4 py-4 space-y-1">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-[#444] mb-2">Sugerencias</p>

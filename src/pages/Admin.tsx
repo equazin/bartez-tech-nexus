@@ -1631,14 +1631,6 @@ async function handleCreateSeller() {
       isFetchingRate={isFetchingRate}
       onRefreshRate={handleRefreshRate}
       onManualRateUpdate={handleManualRateUpdate}
-      searchData={{
-        products,
-        clients: customerProfiles,
-        orders,
-        invoices: invoiceSearchItems,
-        quotes:   quoteSearchItems,
-        payments: paymentSearchItems,
-      }}
       canSeeItem={canSeeItem}
       onNavigateTab={navigateTab}
       onNavigateModule={navigateModule}

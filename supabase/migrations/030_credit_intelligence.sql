@@ -107,7 +107,9 @@ CREATE TABLE IF NOT EXISTS credit_logs (
 );
 
 ALTER TABLE credit_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "credit_logs_admin" ON credit_logs;
 CREATE POLICY "credit_logs_admin" ON credit_logs FOR ALL USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'vendedor'))
 );
+DROP POLICY IF EXISTS "credit_logs_client" ON credit_logs;
 CREATE POLICY "credit_logs_client" ON credit_logs FOR SELECT USING (client_id = auth.uid());

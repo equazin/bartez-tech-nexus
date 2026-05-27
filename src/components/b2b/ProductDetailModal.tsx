@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, BellOff, Minus, Plus, Star, X, Flame, FileText, Maximize2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,11 @@ import { StockBadge } from "@/components/b2b/StockBadge";
 import { DeliveryEstimate } from "@/components/b2b/DeliveryEstimate";
 import { WarrantyBadge } from "@/components/b2b/WarrantyBadge";
 import { RelatedProducts } from "@/components/b2b/RelatedProducts";
-import { PriceHistoryChart } from "@/components/b2b/PriceHistoryChart";
 import { PriceSparkline } from "@/components/PriceSparkline";
+
+const PriceHistoryChart = lazy(() =>
+  import("@/components/b2b/PriceHistoryChart").then((m) => ({ default: m.PriceHistoryChart })),
+);
 import type { PriceResult } from "@/hooks/usePricing";
 import { getAvailableStock } from "@/lib/pricing";
 import { resolveProductImageUrl } from "@/lib/productImage";
@@ -688,12 +691,14 @@ export function ProductDetailModal({
               </div>
 
               {profileId && purchaseHistoryCount > 0 ? (
-                <PriceHistoryChart
-                  productId={product.id}
-                  profileId={profileId}
-                  currentPrice={unitPrice}
-                  formatPrice={formatPrice}
-                />
+                <Suspense fallback={<div className="h-32 w-full animate-pulse rounded-2xl border border-border/50 bg-surface/50" />}>
+                  <PriceHistoryChart
+                    productId={product.id}
+                    profileId={profileId}
+                    currentPrice={unitPrice}
+                    formatPrice={formatPrice}
+                  />
+                </Suspense>
               ) : null}
             </div>
 

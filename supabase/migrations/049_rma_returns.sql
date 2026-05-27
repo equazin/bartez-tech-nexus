@@ -73,6 +73,6 @@ CREATE POLICY "client_rma_insert"
   WITH CHECK (client_id = auth.uid());
 
 -- Admin: full access
-CREATE POLICY "admin_rma_all"
-  ON rma_requests FOR ALL TO authenticated
+DROP POLICY IF EXISTS "admin_rma_all" ON rma_requests;
+CREATE POLICY "admin_rma_all" ON rma_requests FOR ALL TO authenticated
   USING (get_my_role() = 'admin');

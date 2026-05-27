@@ -137,25 +137,34 @@ DROP POLICY IF EXISTS "activity_logs_own"   ON activity_logs;
 DROP POLICY IF EXISTS "activity_logs_admin" ON activity_logs;
 DROP POLICY IF EXISTS "activity_logs_insert" ON activity_logs;
 
-CREATE POLICY "suppliers_read"   ON suppliers FOR SELECT TO authenticated USING (true);
-CREATE POLICY "suppliers_admin"  ON suppliers FOR ALL USING (
+DROP POLICY IF EXISTS "suppliers_read" ON suppliers;
+CREATE POLICY "suppliers_read" ON suppliers FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "suppliers_admin" ON suppliers;
+CREATE POLICY "suppliers_admin" ON suppliers FOR ALL USING (
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','vendedor'))
 );
 
-CREATE POLICY "pricing_rules_read"  ON pricing_rules FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "pricing_rules_read" ON pricing_rules;
+CREATE POLICY "pricing_rules_read" ON pricing_rules FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "pricing_rules_admin" ON pricing_rules;
 CREATE POLICY "pricing_rules_admin" ON pricing_rules FOR ALL USING (
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
-CREATE POLICY "price_history_read"  ON price_history FOR SELECT TO authenticated USING (
+DROP POLICY IF EXISTS "price_history_read" ON price_history;
+CREATE POLICY "price_history_read" ON price_history FOR SELECT TO authenticated USING (
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','vendedor'))
 );
+DROP POLICY IF EXISTS "price_history_insert" ON price_history;
 CREATE POLICY "price_history_insert" ON price_history FOR INSERT WITH CHECK (
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
-CREATE POLICY "activity_logs_own"    ON activity_logs FOR SELECT USING (user_id = auth.uid());
-CREATE POLICY "activity_logs_admin"  ON activity_logs FOR SELECT USING (
+DROP POLICY IF EXISTS "activity_logs_own" ON activity_logs;
+CREATE POLICY "activity_logs_own" ON activity_logs FOR SELECT USING (user_id = auth.uid());
+DROP POLICY IF EXISTS "activity_logs_admin" ON activity_logs;
+CREATE POLICY "activity_logs_admin" ON activity_logs FOR SELECT USING (
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','vendedor'))
 );
+DROP POLICY IF EXISTS "activity_logs_insert" ON activity_logs;
 CREATE POLICY "activity_logs_insert" ON activity_logs FOR INSERT WITH CHECK (true);

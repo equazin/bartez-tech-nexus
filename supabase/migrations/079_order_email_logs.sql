@@ -12,11 +12,11 @@ CREATE TABLE IF NOT EXISTS public.order_email_logs (
 ALTER TABLE public.order_email_logs ENABLE ROW LEVEL SECURITY;
 
 -- Allow authenticated users to view logs
-CREATE POLICY "Admins and users can view order email logs" 
-    ON public.order_email_logs FOR SELECT 
+DROP POLICY IF EXISTS "Admins and users can view order email logs" ON public.order_email_logs;
+CREATE POLICY "Admins and users can view order email logs" ON public.order_email_logs FOR SELECT 
     USING (auth.role() = 'authenticated');
 
 -- Allow authenticated users to insert logs
-CREATE POLICY "Authenticated users can insert order email logs" 
-    ON public.order_email_logs FOR INSERT 
+DROP POLICY IF EXISTS "Authenticated users can insert order email logs" ON public.order_email_logs;
+CREATE POLICY "Authenticated users can insert order email logs" ON public.order_email_logs FOR INSERT 
     WITH CHECK (auth.role() = 'authenticated');

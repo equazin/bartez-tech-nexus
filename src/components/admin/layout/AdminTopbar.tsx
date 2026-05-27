@@ -6,22 +6,12 @@ import { ModeSwitcher } from "@/components/navigation/ModeSwitcher";
 import { getModuleLabel, getTabLabel, type Tab, type ModuleId, type NavItem } from "./adminNavConfig";
 import type { ExchangeRate } from "@/context/CurrencyContext";
 
-interface SearchData {
-  products: Array<{ id: number; name: string; sku?: string; category?: string }>;
-  clients: Array<{ id: string; company_name?: string; contact_name?: string; email?: string }>;
-  orders: Array<{ id: string | number; client_id: string; order_number?: string; numero_remito?: string; total: number; status: string }>;
-  invoices: Array<{ id: string; invoice_number: string; client_id: string; status: string; total: number }>;
-  quotes: Array<{ id: number; client_id: string; status: string; total: number }>;
-  payments: Array<{ id: string; client_id: string; descripcion?: string; reference_id?: string; monto: number; tipo: string }>;
-}
-
 interface AdminTopbarProps {
   activeTab: Tab;
   activeModule: ModuleId;
   currentUserLabel?: string;
   isDark: boolean;
   currency: "USD" | "ARS";
-  searchData: SearchData;
   exchangeRate: ExchangeRate;
   isFetchingRate: boolean;
   onRefreshRate: () => void;
@@ -42,7 +32,6 @@ export function AdminTopbar({
   currentUserLabel,
   isDark,
   currency,
-  searchData,
   exchangeRate,
   isFetchingRate,
   onRefreshRate,
@@ -132,12 +121,6 @@ export function AdminTopbar({
           <div className="hidden xl:block">
             <AdminSearch
               isDark={isDark}
-              products={searchData.products}
-              clients={searchData.clients}
-              orders={searchData.orders}
-              invoices={searchData.invoices}
-              quotes={searchData.quotes}
-              payments={searchData.payments}
               onNavigate={(tab) => onNavigateTab(tab as Tab)}
             />
           </div>

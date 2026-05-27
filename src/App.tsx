@@ -53,6 +53,7 @@ const PortalRecurringPage = lazy(() => import("./pages/portal/account/RecurringO
 const PortalCompanyPage = lazy(() => import("./pages/portal/account/CompanyPage"));
 const PortalAccountSupportPage = lazy(() => import("./pages/portal/account/SupportPage"));
 const PortalApprovalsPageV2 = lazy(() => import("./pages/portal/ApprovalsPageV2"));
+const PublicQuotePage = lazy(() => import("./pages/PublicQuote"));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
@@ -244,6 +245,7 @@ const App = () => (
                       <Route path="comparar" element={<PortalCompareProductsPage />} />
                     </Route>
                     <Route path="/cart" element={<RequireAuth><CartPage /></RequireAuth>} />
+                    <Route path="/q/:token" element={<PublicQuotePage />} />
                     <Route path="/admin" element={<RequireAdmin><AdminRoutePlaceholder /></RequireAdmin>} />
                     <Route path="/clientes/:id" element={<RequireAdmin><CustomerView /></RequireAdmin>} />
                     <Route path="*" element={<NotFound />} />

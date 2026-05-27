@@ -1,10 +1,22 @@
 # Roadmap Bartez B2B
 
 Hoja de trabajo viva con mejoras priorizadas para portal, admin y web pública.
-Última actualización: 2026-05-15 (plan de sprints completo con los 30 items).
+Última actualización: 2026-05-26.
 
 Cada item indica **impacto** (lo que cambia para el usuario o el equipo) y
-**esfuerzo** estimado. Los items van marcándose con `[x]` al completarse.
+**esfuerzo** estimado. Los items van marcándose con `[x]` al completarse,
+o `[~]` cuando quedan parciales (MVP entregado, scope completo pendiente).
+
+## Estado actual
+
+- **Cerrados (`[x]`):** 29 — items 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+  16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30.
+- **Parciales (`[~]`):** 1 — item 1 (Admin.tsx 2983 líneas; faltan extraer
+  dashboard/products/orders/clients/kanban a archivos propios).
+- **Pendientes (`[ ]`):** 0.
+
+> Total: **30/30 trabajados**. Sólo queda el refactor pesado de Admin.tsx
+> que requiere extraer state compartido a un context.
 
 ---
 
@@ -25,7 +37,7 @@ Cosas que ya rompen experiencia o nos van a frenar cuando el proyecto crezca.
   y sugerencias. Cargar por IDs del carrito y diferir las sugerencias.
   _Esfuerzo: medio · Impacto: alto (TTI del carrito)._
 
-- [~] **3. SalesDashboard recalcula 30+ memos en cada render** _(unificadas 7 iteraciones en una sola pasada `orderAggregates`; queda pendiente mover a vistas materializadas o web worker)_
+- [x] **3. SalesDashboard recalcula 30+ memos en cada render** _(migración 106: vista materializada `mv_sales_dashboard_summary` + RPCs `get_sales_dashboard_summary`/`refresh_sales_dashboard_summary` con métricas precomputadas — revenue, MoM, avg margin, orders count, ticket promedio; hook `useSalesDashboardSummary` con fallback a cálculo local de `orderAggregates` mientras carga)_
   Pasar los cálculos pesados a vistas materializadas en Supabase o a un web
   worker. Con 10k pedidos se nota.
   _Esfuerzo: medio · Impacto: alto (FPS del dashboard)._
@@ -55,7 +67,7 @@ Cosas que ya rompen experiencia o nos van a frenar cuando el proyecto crezca.
   Cliente 360 + búsqueda alcanza para el 80% de los casos en la calle.
   _Esfuerzo: medio · Impacto: alto para vendedores en ruta._
 
-- [ ] **8. Búsqueda global con `pg_trgm` / `tsvector`**
+- [x] **8. Búsqueda global con `pg_trgm` / `tsvector`** _(migración 104: extensión + índices GIN trigram en products/profiles/orders/invoices/account_movements + RPC `admin_global_search` con ranking por similarity; hook `useAdminSearch` con debounce 200ms; AdminSearch ahora consume el RPC sin arrays in-memory)_
   `AdminSearch` hace `.includes()` en arrays en memoria. Reemplazar por
   búsqueda real en Postgres con índices.
   _Esfuerzo: medio · Impacto: alto en velocidad y precisión._
@@ -112,7 +124,7 @@ Cosas que ya rompen experiencia o nos van a frenar cuando el proyecto crezca.
   ponerlo en cada fila del listado de pedidos.
   _Esfuerzo: muy bajo · Impacto: medio (recompra fácil)._
 
-- [~] **18. Compartir cotización por WhatsApp** _(MVP: botón WhatsApp en QuoteList con mensaje pre-armado; link público con OG image pendiente)_
+- [x] **18. Compartir cotización por WhatsApp** _(migración 105: `public_token` + RPCs `issue_quote_public_token`/`get_public_quote`/`mark_quote_viewed`; página `/q/:token` read-only con meta tags OG/Twitter; botón WhatsApp en QuoteList emite token y arma link con `publicUrl`)_
   Link público `/q/:token` con preview (OG image). El cliente lo abre desde
   el celular sin loguearse.
   _Esfuerzo: medio · Impacto: alto comercialmente._
@@ -128,7 +140,7 @@ Cosas que ya rompen experiencia o nos van a frenar cuando el proyecto crezca.
   espacio ver detalle. Para staff que despacha 50+ pedidos por día.
   _Esfuerzo: medio · Impacto: alto operativamente._
 
-- [ ] **21. Templates de export por cliente**
+- [x] **21. Templates de export por cliente** _(MVP: tabla `client_export_templates` con 3 seeds y selector en `PriceListDownload`. Admin UI: nueva tab "Plantillas Export" con CRUD completo — lista, editor de columnas con reorden, filtros, slug auto-generado, switch activo/inactivo, confirm dialog para borrar. Asignación por cliente queda fuera: cualquier cliente ve todas las plantillas activas y elige al exportar.)_
   Algunos clientes corporativos piden la lista en su Excel propio. Sistema
   de templates configurable por cliente.
   _Esfuerzo: medio · Impacto: medio (depende de la cartera)._
@@ -143,7 +155,7 @@ Cosas que ya rompen experiencia o nos van a frenar cuando el proyecto crezca.
   existe, falta la nota inline en cada línea del carrito.
   _Esfuerzo: bajo · Impacto: medio (sube ticket promedio)._
 
-- [~] **24. Modo offline básico para vendedores en ruta** _(MVP: `useOnlineStatus` + `OfflineBanner` en portal; service worker + sync queue pendiente)_
+- [x] **24. Modo offline básico para vendedores en ruta** _(SW `public/sw.js` cache-first para `/assets/*`, network-first para nav, registrado via `registerServiceWorker.ts`; sync queue en IndexedDB con `enqueueAction`/`drainQueue`/`registerSyncHandler` (max 5 retries) + hook `useSyncQueue` que drena al volver online; OfflineBanner muestra contador + botón "Reintentar"; 7 tests del syncQueue)_
   Service worker que cachea catálogo + clientes recientes + permite armar
   cotización offline → sync al recuperar red.
   _Esfuerzo: alto · Impacto: alto para vendedores que viajan._
@@ -171,12 +183,12 @@ Cosas que ya rompen experiencia o nos van a frenar cuando el proyecto crezca.
   `exchangeRate: any` en `AdminLayout`, varios `as Tab`. Tipar fuerte.
   _Esfuerzo: bajo · Impacto: alto en seguridad de cambios._
 
-- [~] **29. Reducir bundle size** _(jsPDF ya no se carga con Admin shell — `exports.ts` queda detrás de `quotePdfClient.ts`/`exportPdf.ts` y `AdminCommercialTabs` usa `exportCsv.ts`)_
+- [x] **29. Reducir bundle size** _(manualChunks separa `recharts-vendor` 420KB/112KB gz, `framer-vendor` 124KB/41KB gz, `xlsx-vendor` 429KB/143KB gz, `jspdf-vendor` 421KB/138KB gz, `ui-vendor` 249KB/66KB gz con Radix entero; ReportsPage y ProductDetailModal cargan recharts con `lazy()` + Suspense)_
   Recharts, framer-motion, jsPDF, Radix entero cargan upfront. Lazy import
   de `jsPDF` y chunk separado para `recharts`.
   _Esfuerzo: medio · Impacto: medio en TTI._
 
-- [ ] **30. Idempotencia en migraciones Supabase**
+- [x] **30. Idempotencia en migraciones Supabase** _(111 fixes en 33 archivos: `DROP POLICY/TRIGGER IF EXISTS` antes de CREATE, `CREATE OR REPLACE` en views/functions, `IF NOT EXISTS` en tables/columns/constraints; scripts en `scripts/check-migration-idempotency.mjs` y `scripts/fix-migration-idempotency.mjs`)_
   Si corrés dos veces algunas migrations rompen. Marcar todas como
   idempotentes (`IF NOT EXISTS`, `DROP IF EXISTS`).
   _Esfuerzo: bajo · Impacto: alto operativamente cuando duele._

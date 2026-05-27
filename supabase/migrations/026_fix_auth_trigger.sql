@@ -5,7 +5,7 @@ drop trigger if exists on_auth_user_created on auth.users;
 drop function if exists public.handle_new_user cascade;
 
 -- crear función corregida
-create function public.handle_new_user()
+CREATE OR REPLACE FUNCTION public.handle_new_user()
 returns trigger as $$
 begin
   insert into public.profiles (
@@ -34,6 +34,6 @@ end;
 $$ language plpgsql security definer;
 
 -- recrear trigger
-create trigger on_auth_user_created
-after insert on auth.users
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created after insert on auth.users
 for each row execute procedure public.handle_new_user();

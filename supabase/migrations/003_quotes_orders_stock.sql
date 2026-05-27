@@ -33,8 +33,8 @@ DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_trigger WHERE tgname = 'quotes_updated_at'
   ) THEN
-    CREATE TRIGGER quotes_updated_at
-      BEFORE UPDATE ON quotes
+    DROP TRIGGER IF EXISTS quotes_updated_at ON quotes;
+    CREATE TRIGGER quotes_updated_at BEFORE UPDATE ON quotes
       FOR EACH ROW EXECUTE FUNCTION update_updated_at();
   END IF;
 EXCEPTION WHEN undefined_function THEN
@@ -45,8 +45,8 @@ EXCEPTION WHEN undefined_function THEN
     BEGIN NEW.updated_at = now(); RETURN NEW; END;
     $body$;
   $fn$;
-  CREATE TRIGGER quotes_updated_at
-    BEFORE UPDATE ON quotes
+  DROP TRIGGER IF EXISTS quotes_updated_at ON quotes;
+  CREATE TRIGGER quotes_updated_at BEFORE UPDATE ON quotes
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 END $$;
 
@@ -62,24 +62,29 @@ DROP POLICY IF EXISTS "quotes_delete_own"   ON quotes;
 DROP POLICY IF EXISTS "quotes_all_admin"    ON quotes;
 
 -- Clients see own quotes
+DROP POLICY IF EXISTS "quotes_select_own" ON quotes;
 CREATE POLICY "quotes_select_own" ON quotes FOR SELECT
   USING (client_id = auth.uid());
 
 -- Admin/vendedor see all
+DROP POLICY IF EXISTS "quotes_select_admin" ON quotes;
 CREATE POLICY "quotes_select_admin" ON quotes FOR SELECT
   USING (EXISTS (
     SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','vendedor')
   ));
 
 -- Clients can insert own
+DROP POLICY IF EXISTS "quotes_insert_own" ON quotes;
 CREATE POLICY "quotes_insert_own" ON quotes FOR INSERT
   WITH CHECK (client_id = auth.uid());
 
 -- Clients can update own
+DROP POLICY IF EXISTS "quotes_update_own" ON quotes;
 CREATE POLICY "quotes_update_own" ON quotes FOR UPDATE
   USING (client_id = auth.uid());
 
 -- Admin can do anything
+DROP POLICY IF EXISTS "quotes_all_admin" ON quotes;
 CREATE POLICY "quotes_all_admin" ON quotes FOR ALL
   USING (EXISTS (
     SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'
@@ -89,6 +94,7 @@ CREATE POLICY "quotes_all_admin" ON quotes FOR ALL
   ));
 
 -- Clients can delete own drafts
+DROP POLICY IF EXISTS "quotes_delete_own" ON quotes;
 CREATE POLICY "quotes_delete_own" ON quotes FOR DELETE
   USING (client_id = auth.uid() AND status = 'draft');
 
@@ -104,20 +110,24 @@ DROP POLICY IF EXISTS "orders_update_admin" ON orders;
 DROP POLICY IF EXISTS "orders_update_own"   ON orders;
 
 -- Clients see own orders
+DROP POLICY IF EXISTS "orders_select_own" ON orders;
 CREATE POLICY "orders_select_own" ON orders FOR SELECT
   USING (client_id::text = auth.uid()::text);
 
 -- Admin/vendedor see all orders
+DROP POLICY IF EXISTS "orders_select_admin" ON orders;
 CREATE POLICY "orders_select_admin" ON orders FOR SELECT
   USING (EXISTS (
     SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','vendedor')
   ));
 
 -- Clients can insert own orders
+DROP POLICY IF EXISTS "orders_insert_own" ON orders;
 CREATE POLICY "orders_insert_own" ON orders FOR INSERT
   WITH CHECK (client_id::text = auth.uid()::text);
 
 -- Admin/vendedor can update any order
+DROP POLICY IF EXISTS "orders_update_admin" ON orders;
 CREATE POLICY "orders_update_admin" ON orders FOR UPDATE
   USING (EXISTS (
     SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','vendedor')
@@ -127,6 +137,7 @@ CREATE POLICY "orders_update_admin" ON orders FOR UPDATE
   ));
 
 -- Clients can update own pending/approved orders (e.g., upload payment proof)
+DROP POLICY IF EXISTS "orders_update_own" ON orders;
 CREATE POLICY "orders_update_own" ON orders FOR UPDATE
   USING (
     client_id::text = auth.uid()::text
@@ -146,6 +157,7 @@ CREATE POLICY "suppliers_admin" ON suppliers FOR ALL
     SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','vendedor')
   ));
 
+DROP POLICY IF EXISTS "pricing_rules_admin" ON pricing_rules;
 CREATE POLICY "pricing_rules_admin" ON pricing_rules FOR ALL
   USING (EXISTS (
     SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'

@@ -149,7 +149,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER calculate_invoice_taxes_trg
-  BEFORE INSERT ON invoices
+DROP TRIGGER IF EXISTS calculate_invoice_taxes_trg ON invoices;
+CREATE TRIGGER calculate_invoice_taxes_trg BEFORE INSERT ON invoices
   FOR EACH ROW
   EXECUTE FUNCTION calculate_invoice_taxes_trigger();

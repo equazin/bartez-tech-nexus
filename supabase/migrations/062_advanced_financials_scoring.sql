@@ -53,8 +53,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE TRIGGER trg_log_price_change
-AFTER UPDATE ON products
+DROP TRIGGER IF EXISTS trg_log_price_change ON products;
+CREATE TRIGGER trg_log_price_change AFTER UPDATE ON products
 FOR EACH ROW EXECUTE FUNCTION log_product_price_change();
 
 -- 5. User Hierarchies (Comprador vs Dueño)

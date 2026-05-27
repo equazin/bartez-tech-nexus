@@ -33,8 +33,8 @@ CREATE INDEX IF NOT EXISTS idx_sm_reference_id ON stock_movements(reference_id);
 
 ALTER TABLE stock_movements ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "sm_admin_all"
-  ON stock_movements FOR ALL TO authenticated
+DROP POLICY IF EXISTS "sm_admin_all" ON stock_movements;
+CREATE POLICY "sm_admin_all" ON stock_movements FOR ALL TO authenticated
   USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','vendedor'))
   );
@@ -195,8 +195,8 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER order_status_stock_trigger
-  AFTER UPDATE OF status ON orders
+DROP TRIGGER IF EXISTS order_status_stock_trigger ON orders;
+CREATE TRIGGER order_status_stock_trigger AFTER UPDATE OF status ON orders
   FOR EACH ROW
   WHEN (OLD.status IS DISTINCT FROM NEW.status)
   EXECUTE FUNCTION handle_order_status_change();
@@ -322,8 +322,8 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER order_credit_release_trigger
-  AFTER UPDATE OF status ON orders
+DROP TRIGGER IF EXISTS order_credit_release_trigger ON orders;
+CREATE TRIGGER order_credit_release_trigger AFTER UPDATE OF status ON orders
   FOR EACH ROW
   WHEN (OLD.status IS DISTINCT FROM NEW.status)
   EXECUTE FUNCTION handle_order_credit_release();

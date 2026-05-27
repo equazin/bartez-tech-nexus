@@ -80,8 +80,8 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 4. Re-crear disparador único
-CREATE TRIGGER on_auth_user_sync
-  AFTER INSERT OR UPDATE OF email ON auth.users
+DROP TRIGGER IF EXISTS on_auth_user_sync ON auth.users;
+CREATE TRIGGER on_auth_user_sync AFTER INSERT OR UPDATE OF email ON auth.users
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_auth_user_sync();
 

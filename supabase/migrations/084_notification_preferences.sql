@@ -29,8 +29,8 @@ BEGIN
     WHERE tablename = 'notification_preferences'
       AND policyname = 'clients_own_preferences'
   ) THEN
-    CREATE POLICY clients_own_preferences
-      ON notification_preferences
+    DROP POLICY IF EXISTS clients_own_preferences ON notification_preferences;
+    CREATE POLICY clients_own_preferences ON notification_preferences
       FOR ALL
       USING (profile_id = auth.uid())
       WITH CHECK (profile_id = auth.uid());

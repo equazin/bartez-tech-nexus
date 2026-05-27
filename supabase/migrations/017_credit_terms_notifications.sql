@@ -28,8 +28,8 @@ CREATE TABLE IF NOT EXISTS notifications (
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
 -- Admins can see all notifications; each user sees their own
-CREATE POLICY "Admin can read all notifications"
-  ON notifications FOR SELECT
+DROP POLICY IF EXISTS "Admin can read all notifications" ON notifications;
+CREATE POLICY "Admin can read all notifications" ON notifications FOR SELECT
   TO authenticated
   USING (
     user_id = auth.uid()
@@ -38,13 +38,13 @@ CREATE POLICY "Admin can read all notifications"
     )
   );
 
-CREATE POLICY "Authenticated can insert notifications"
-  ON notifications FOR INSERT
+DROP POLICY IF EXISTS "Authenticated can insert notifications" ON notifications;
+CREATE POLICY "Authenticated can insert notifications" ON notifications FOR INSERT
   TO authenticated
   WITH CHECK (true);
 
-CREATE POLICY "User can update own notifications"
-  ON notifications FOR UPDATE
+DROP POLICY IF EXISTS "User can update own notifications" ON notifications;
+CREATE POLICY "User can update own notifications" ON notifications FOR UPDATE
   TO authenticated
   USING (
     user_id = auth.uid()

@@ -1,11 +1,22 @@
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useImpersonate } from "@/context/ImpersonateContext";
 import { useClientReports } from "@/hooks/useClientReports";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MonthlyTrend } from "@/components/portal/reports/MonthlyTrend";
-import { PurchasesByCategory } from "@/components/portal/reports/PurchasesByCategory";
 import { TopProducts } from "@/components/portal/reports/TopProducts";
+
+const MonthlyTrend = lazy(() =>
+  import("@/components/portal/reports/MonthlyTrend").then((m) => ({ default: m.MonthlyTrend })),
+);
+const PurchasesByCategory = lazy(() =>
+  import("@/components/portal/reports/PurchasesByCategory").then((m) => ({
+    default: m.PurchasesByCategory,
+  })),
+);
+
+function ChartFallback() {
+  return <div className="h-64 animate-pulse rounded-lg bg-muted/40" />;
+}
 
 export default function ReportsPage() {
   const { profile: authProfile } = useAuth();
@@ -43,13 +54,17 @@ export default function ReportsPage() {
         {/* Monthly trend */}
         <div className="rounded-xl border bg-card p-4 lg:col-span-2">
           <p className="mb-4 text-sm font-semibold">Compras por mes</p>
-          <MonthlyTrend data={monthlyTrend} loading={loading} />
+          <Suspense fallback={<ChartFallback />}>
+            <MonthlyTrend data={monthlyTrend} loading={loading} />
+          </Suspense>
         </div>
 
         {/* By category */}
         <div className="rounded-xl border bg-card p-4">
           <p className="mb-4 text-sm font-semibold">Por categoría</p>
-          <PurchasesByCategory data={byCategory} loading={loading} />
+          <Suspense fallback={<ChartFallback />}>
+            <PurchasesByCategory data={byCategory} loading={loading} />
+          </Suspense>
         </div>
 
         {/* Top products */}

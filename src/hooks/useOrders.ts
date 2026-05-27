@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { parseInternalReferenceFromNotes } from "@/lib/cartCheckout";
 import { logActivity } from "@/lib/api/activityLog";
-import { createOrderFromCart } from "@/lib/api/checkoutApi";
+import { submitCheckoutWithQueueFallback } from "@/lib/api/checkoutApi";
 import { trackFirstOrder, trackOrderPlaced } from "@/lib/marketingTracker";
 import { backend, hasBackendUrl } from "@/lib/api/backend";
 import { logger } from "@/lib/logger";
@@ -205,7 +205,7 @@ export function useOrders() {
     if (!user) return { error: "No autenticado" };
 
     try {
-      const orderResult = await createOrderFromCart({
+      const checkoutResult = await submitCheckoutWithQueueFallback({
         items: orderData.products.map((product) => ({
           product_id: product.product_id,
           quantity: product.quantity,
@@ -221,6 +221,22 @@ export function useOrders() {
         notes: orderData.notes ?? null,
         coupon_code: orderData.coupon_code ?? null,
       });
+
+      // Offline path: the order is queued, surface a pseudo-id so the UI can
+      // close the checkout flow and show the offline banner. We exit early and
+      // skip activity log + email since both require network.
+      if (checkoutResult.queued) {
+        return {
+          error: null,
+          orderId: `queued-${Date.now()}`,
+          orderNumber: "EN COLA",
+        };
+      }
+
+      const orderResult = checkoutResult.order;
+      if (!orderResult) {
+        return { error: "Respuesta de checkout inválida" };
+      }
       const orderId = orderResult.id;
       const orderNumber =
         typeof (orderResult as { order_number?: unknown }).order_number === "string"

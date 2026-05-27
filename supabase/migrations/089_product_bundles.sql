@@ -99,8 +99,8 @@ CREATE POLICY "admins manage product_bundles"
     )
   );
 
-CREATE POLICY "authenticated read active bundles"
-  ON product_bundles FOR SELECT
+DROP POLICY IF EXISTS "authenticated read active bundles" ON product_bundles;
+CREATE POLICY "authenticated read active bundles" ON product_bundles FOR SELECT
   TO authenticated
   USING (active = true);
 
@@ -127,8 +127,8 @@ CREATE POLICY "admins manage bundle_slots"
     )
   );
 
-CREATE POLICY "authenticated read bundle_slots"
-  ON bundle_slots FOR SELECT
+DROP POLICY IF EXISTS "authenticated read bundle_slots" ON bundle_slots;
+CREATE POLICY "authenticated read bundle_slots" ON bundle_slots FOR SELECT
   TO authenticated
   USING (
     EXISTS (
@@ -161,8 +161,8 @@ CREATE POLICY "admins manage bundle_slot_options"
     )
   );
 
-CREATE POLICY "authenticated read bundle_slot_options"
-  ON bundle_slot_options FOR SELECT
+DROP POLICY IF EXISTS "authenticated read bundle_slot_options" ON bundle_slot_options;
+CREATE POLICY "authenticated read bundle_slot_options" ON bundle_slot_options FOR SELECT
   TO authenticated
   USING (
     EXISTS (

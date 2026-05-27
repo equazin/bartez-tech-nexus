@@ -32,30 +32,30 @@ DROP POLICY IF EXISTS "profiles_update_own"      ON profiles;
 DROP POLICY IF EXISTS "profiles_insert_trigger"  ON profiles;
 
 -- Users can always read their own profile
-CREATE POLICY "profiles_select_own"
-  ON profiles FOR SELECT TO authenticated
+DROP POLICY IF EXISTS "profiles_select_own" ON profiles;
+CREATE POLICY "profiles_select_own" ON profiles FOR SELECT TO authenticated
   USING (id = auth.uid());
 
 -- Admins and vendedores can read ALL profiles (non-recursive via get_my_role())
-CREATE POLICY "profiles_select_staff"
-  ON profiles FOR SELECT TO authenticated
+DROP POLICY IF EXISTS "profiles_select_staff" ON profiles;
+CREATE POLICY "profiles_select_staff" ON profiles FOR SELECT TO authenticated
   USING (get_my_role() IN ('admin', 'vendedor'));
 
 -- Admins can update any profile
-CREATE POLICY "profiles_update_admin"
-  ON profiles FOR UPDATE TO authenticated
+DROP POLICY IF EXISTS "profiles_update_admin" ON profiles;
+CREATE POLICY "profiles_update_admin" ON profiles FOR UPDATE TO authenticated
   USING (get_my_role() = 'admin')
   WITH CHECK (get_my_role() = 'admin');
 
 -- Users can update their own profile
-CREATE POLICY "profiles_update_own"
-  ON profiles FOR UPDATE TO authenticated
+DROP POLICY IF EXISTS "profiles_update_own" ON profiles;
+CREATE POLICY "profiles_update_own" ON profiles FOR UPDATE TO authenticated
   USING (id = auth.uid())
   WITH CHECK (id = auth.uid());
 
 -- Allow inserts from authenticated users (for the auth trigger SECURITY DEFINER)
-CREATE POLICY "profiles_insert_own"
-  ON profiles FOR INSERT TO authenticated
+DROP POLICY IF EXISTS "profiles_insert_own" ON profiles;
+CREATE POLICY "profiles_insert_own" ON profiles FOR INSERT TO authenticated
   WITH CHECK (id = auth.uid());
 
 -- 3. Also fix all other tables that use the recursive pattern
@@ -96,10 +96,10 @@ CREATE POLICY "activity_logs_own"
   ON activity_logs FOR SELECT TO authenticated
   USING (user_id = auth.uid());
 
-CREATE POLICY "activity_logs_staff"
-  ON activity_logs FOR SELECT TO authenticated
+DROP POLICY IF EXISTS "activity_logs_staff" ON activity_logs;
+CREATE POLICY "activity_logs_staff" ON activity_logs FOR SELECT TO authenticated
   USING (get_my_role() IN ('admin', 'vendedor'));
 
-CREATE POLICY "activity_logs_insert"
-  ON activity_logs FOR INSERT TO authenticated
+DROP POLICY IF EXISTS "activity_logs_insert" ON activity_logs;
+CREATE POLICY "activity_logs_insert" ON activity_logs FOR INSERT TO authenticated
   WITH CHECK (true);

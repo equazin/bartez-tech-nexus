@@ -1,21 +1,26 @@
-import { useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { PriceListRow } from "@/components/portal/catalog/types";
+import {
+  applyFilters,
+  fetchExportTemplates,
+  projectRows,
+  resolveFilename,
+  type ExportTemplate,
+} from "@/lib/exportTemplates";
 
-function rowsToCsv(rows: PriceListRow[]): string {
-  const header = ["SKU", "Nombre", "Marca", "Categoría", "Precio", "Stock", "Cant. mínima"].join(",");
+function rowsToCsv(records: Record<string, string | number>[]): string {
+  if (records.length === 0) return "";
+  const headers = Object.keys(records[0]);
   const escape = (v: string | number) => {
-    const s = String(v);
+    const s = String(v ?? "");
     return s.includes(",") || s.includes('"') || s.includes("\n")
       ? `"${s.replace(/"/g, '""')}"`
       : s;
   };
-  const lines = rows.map((r) =>
-    [r.sku, r.name, r.brand_name, r.category, r.unit_price, r.stock, r.min_order_qty]
-      .map(escape)
-      .join(",")
-  );
-  return [header, ...lines].join("\n");
+  const headerLine = headers.join(",");
+  const dataLines = records.map((rec) => headers.map((h) => escape(rec[h])).join(","));
+  return [headerLine, ...dataLines].join("\n");
 }
 
 function triggerDownload(blob: Blob, filename: string) {
@@ -35,53 +40,68 @@ async function fetchRows(clientId: string): Promise<PriceListRow[]> {
   return (data ?? []) as PriceListRow[];
 }
 
-export function usePriceListExport(clientId: string | undefined) {
+export function usePriceListExport(clientId: string | undefined, clientName?: string) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<ExportTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
 
-  const exportCsv = useCallback(async () => {
-    if (!clientId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const rows = await fetchRows(clientId);
-      const csv = rowsToCsv(rows);
-      triggerDownload(new Blob([csv], { type: "text/csv;charset=utf-8;" }), "lista_precios.csv");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error al exportar");
-    } finally {
-      setLoading(false);
-    }
-  }, [clientId]);
+  useEffect(() => {
+    let cancelled = false;
+    setTemplatesLoading(true);
+    fetchExportTemplates()
+      .then((list) => {
+        if (!cancelled) setTemplates(list);
+      })
+      .catch(() => {
+        if (!cancelled) setTemplates([]);
+      })
+      .finally(() => {
+        if (!cancelled) setTemplatesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const exportXlsx = useCallback(async () => {
-    if (!clientId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const rows = await fetchRows(clientId);
-      // Lazy-load xlsx to keep main bundle small
-      const XLSX = await import("xlsx");
-      const ws = XLSX.utils.json_to_sheet(
-        rows.map((r) => ({
-          SKU: r.sku,
-          Nombre: r.name,
-          Marca: r.brand_name,
-          Categoría: r.category,
-          Precio: r.unit_price,
-          Stock: r.stock,
-          "Cant. mínima": r.min_order_qty,
-        }))
-      );
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Lista de precios");
-      XLSX.writeFile(wb, "lista_precios.xlsx");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error al exportar");
-    } finally {
-      setLoading(false);
-    }
-  }, [clientId]);
+  const exportWithTemplate = useCallback(
+    async (template: ExportTemplate) => {
+      if (!clientId) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const rows = await fetchRows(clientId);
+        const filtered = applyFilters(rows, template.filters);
+        const projected = projectRows(filtered, template.columns);
+        const filename = resolveFilename(template, { clientName });
 
-  return { exportCsv, exportXlsx, loading, error };
+        if (template.format === "xlsx") {
+          const XLSX = await import("xlsx");
+          const ws = XLSX.utils.json_to_sheet(projected);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, template.name.slice(0, 31));
+          XLSX.writeFile(wb, filename);
+        } else {
+          const csv = rowsToCsv(projected);
+          triggerDownload(
+            new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" }),
+            filename,
+          );
+        }
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Error al exportar");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [clientId, clientName],
+  );
+
+  return {
+    templates,
+    templatesLoading,
+    exportWithTemplate,
+    loading,
+    error,
+  };
 }

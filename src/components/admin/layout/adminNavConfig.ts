@@ -16,7 +16,8 @@ export type Tab =
   | "clients" | "users_permissions" | "credit" | "business_alerts" | "documents" | "support"
   | "invoices" | "reports"
   | "suppliers" | "brands" | "pricing" | "supplier_sync" | "stock" | "serials"
-  | "movements" | "purchase_orders" | "rma" | "price_agreements" | "marketing" | "webhooks" | "activity" | "admin_management";
+  | "movements" | "purchase_orders" | "rma" | "price_agreements" | "export_templates"
+  | "marketing" | "webhooks" | "activity" | "admin_management";
 
 export type ModuleId = "top" | "catalogo" | "pedidos" | "vendedores" | "clientes" | "finanzas" | "marketing" | "inventario" | "configuracion" | "sistema";
 
@@ -137,6 +138,7 @@ export const NAV_MODULES: NavModule[] = [
       { id: "brands",           label: "Marcas",          icon: Bookmark,   adminOnly: true },
       { id: "pricing",          label: "Precios",         icon: Tag,        adminOnly: true },
       { id: "price_agreements", label: "Acuerdos Precio", icon: Handshake,  adminOnly: true },
+      { id: "export_templates", label: "Plantillas Export", icon: Download, adminOnly: true },
       { id: "supplier_sync",    label: "Sync",            icon: Wifi,       adminOnly: true },
     ],
   },

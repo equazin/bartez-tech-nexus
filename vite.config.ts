@@ -307,6 +307,26 @@ export default defineConfig(({ mode }) => {
             }
 
             if (
+              normalizedId.includes("/recharts/") ||
+              normalizedId.includes("/d3-") ||
+              normalizedId.includes("/victory-vendor/")
+            ) {
+              return "recharts-vendor";
+            }
+
+            if (
+              normalizedId.includes("/framer-motion/") ||
+              normalizedId.includes("/motion-dom/") ||
+              normalizedId.includes("/motion-utils/")
+            ) {
+              return "framer-vendor";
+            }
+
+            if (normalizedId.includes("/xlsx/")) {
+              return "xlsx-vendor";
+            }
+
+            if (
               normalizedId.includes("/@radix-ui/") ||
               normalizedId.includes("/lucide-react/") ||
               normalizedId.includes("/cmdk/") ||

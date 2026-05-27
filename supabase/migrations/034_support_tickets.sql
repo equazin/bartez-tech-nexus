@@ -27,17 +27,17 @@ CREATE INDEX IF NOT EXISTS idx_tickets_status ON support_tickets(status);
 ALTER TABLE public.support_tickets ENABLE ROW LEVEL SECURITY;
 
 -- Clients can only see and create their own tickets
-CREATE POLICY "Clients can view their own tickets"
-    ON public.support_tickets FOR SELECT
+DROP POLICY IF EXISTS "Clients can view their own tickets" ON public.support_tickets;
+CREATE POLICY "Clients can view their own tickets" ON public.support_tickets FOR SELECT
     USING (auth.uid() = client_id);
 
-CREATE POLICY "Clients can create their own tickets"
-    ON public.support_tickets FOR INSERT
+DROP POLICY IF EXISTS "Clients can create their own tickets" ON public.support_tickets;
+CREATE POLICY "Clients can create their own tickets" ON public.support_tickets FOR INSERT
     WITH CHECK (auth.uid() = client_id);
 
 -- Admins and Sellers can see and manage all tickets
-CREATE POLICY "Admins can manage all tickets"
-    ON public.support_tickets FOR ALL
+DROP POLICY IF EXISTS "Admins can manage all tickets" ON public.support_tickets;
+CREATE POLICY "Admins can manage all tickets" ON public.support_tickets FOR ALL
     USING (
         EXISTS (
             SELECT 1 FROM profiles 

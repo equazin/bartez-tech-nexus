@@ -4,15 +4,6 @@ import { AdminSidebar } from "./AdminSidebar";
 import { type Tab, type ModuleId, type NavItem } from "./adminNavConfig";
 import type { ExchangeRate } from "@/context/CurrencyContext";
 
-interface SearchData {
-  products: Array<{ id: number; name: string; sku?: string; category?: string }>;
-  clients: Array<{ id: string; company_name?: string; contact_name?: string; email?: string }>;
-  orders: Array<{ id: string | number; client_id: string; order_number?: string; numero_remito?: string; total: number; status: string }>;
-  invoices: Array<{ id: string; invoice_number: string; client_id: string; status: string; total: number }>;
-  quotes: Array<{ id: number; client_id: string; status: string; total: number }>;
-  payments: Array<{ id: string; client_id: string; descripcion?: string; reference_id?: string; monto: number; tipo: string }>;
-}
-
 interface AdminLayoutProps {
   children: ReactNode;
   activeTab: Tab;
@@ -23,7 +14,6 @@ interface AdminLayoutProps {
   isDark: boolean;
   currency: "USD" | "ARS";
   currentUserLabel?: string;
-  searchData: SearchData;
   exchangeRate: ExchangeRate;
   isFetchingRate: boolean;
   onRefreshRate: () => void;
@@ -49,7 +39,6 @@ export function AdminLayout({
   isDark,
   currency,
   currentUserLabel,
-  searchData,
   exchangeRate,
   isFetchingRate,
   onRefreshRate,
@@ -74,7 +63,6 @@ export function AdminLayout({
             currentUserLabel={currentUserLabel}
             isDark={isDark}
             currency={currency}
-            searchData={searchData}
             exchangeRate={exchangeRate}
             isFetchingRate={isFetchingRate}
             onRefreshRate={onRefreshRate}

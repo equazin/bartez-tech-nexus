@@ -43,11 +43,11 @@ GROUP BY product_id;
 -- RLS
 ALTER TABLE product_suppliers ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "ps_select_authenticated"
-  ON product_suppliers FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "ps_select_authenticated" ON product_suppliers;
+CREATE POLICY "ps_select_authenticated" ON product_suppliers FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY "ps_admin_write"
-  ON product_suppliers FOR ALL TO authenticated
+DROP POLICY IF EXISTS "ps_admin_write" ON product_suppliers;
+CREATE POLICY "ps_admin_write" ON product_suppliers FOR ALL TO authenticated
   USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','vendedor'))
   );
@@ -100,6 +100,6 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER product_suppliers_updated_at
-  BEFORE UPDATE ON product_suppliers
+DROP TRIGGER IF EXISTS product_suppliers_updated_at ON product_suppliers;
+CREATE TRIGGER product_suppliers_updated_at BEFORE UPDATE ON product_suppliers
   FOR EACH ROW EXECUTE FUNCTION touch_updated_at();

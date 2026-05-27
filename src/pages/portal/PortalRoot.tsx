@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 
 import { AppShell } from "@/components/portal/AppShell";
@@ -11,6 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useImpersonate } from "@/context/ImpersonateContext";
 import { useBusinessAlerts } from "@/hooks/useBusinessAlerts";
 import { useSharedCartState } from "@/hooks/useSharedCartState";
+import { registerPortalSyncHandlers } from "@/lib/registerSyncHandlers";
 
 /**
  * PortalRoot wraps every /portal/* sub-route with the new shell:
@@ -43,6 +44,10 @@ function PortalRoot() {
   // chip we surface only the limit until we hoist that into a shared hook (Sprint 4).
 
   const [cmdOpen, setCmdOpen] = useState(false);
+
+  useEffect(() => {
+    registerPortalSyncHandlers();
+  }, []);
 
   return (
     <AppShell
