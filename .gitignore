@@ -29,3 +29,7 @@ dist-ssr
 .aider*
 .vercel
 .env*.local
+
+# Supabase CLI y sesiones locales
+supabase/.temp
+.claude/
