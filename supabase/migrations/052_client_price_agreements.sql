@@ -1,5 +1,5 @@
 -- ── 051_client_price_agreements.sql ──────────────────────────────────────────
--- Price contracts / agreements between Bartez and B2B clients.
+-- Price contracts / agreements with wholesale clients (legacy).
 -- Allows locking a negotiated price list for a client over a date range,
 -- overriding the default margin-based pricing engine.
 -- Fully idempotent.

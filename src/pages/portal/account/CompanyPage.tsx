@@ -135,8 +135,8 @@ function CompanyProfileTab() {
           setSeller(null);
         } else {
           setSeller({
-            name: data.company_name || data.contact_name || "Vendedor Bartez",
-            email: data.email || "ventas@bartez.com.ar",
+            name: data.company_name || data.contact_name || "Equipo de Teqo",
+            email: data.email || "EMAIL-DE-TEQO-A-CONFIRMAR",
             phone: data.phone ?? null,
           });
         }

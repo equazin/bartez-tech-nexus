@@ -142,7 +142,7 @@ export function newOrderAlertHTML(params: {
         <tr>
           <td style="padding:16px 32px;border-top:1px solid #f0f0f0;background:#fafafa;">
             <p style="margin:0;font-size:12px;color:#aaa;text-align:center;">
-              Accedé al <a href="https://bartez-tech-nexus.vercel.app/admin" style="color:#2D9F6A;">panel de administración</a> para gestionar este pedido.
+              Accedé al <a href="https://DOMINIO-DE-TEQO-A-CONFIRMAR/admin" style="color:#2D9F6A;">panel de administración</a> para gestionar este pedido.
             </p>
           </td>
         </tr>
@@ -200,7 +200,7 @@ export function orderShippedHTML(params: {
             </p>
             ${trackingSection}
             <p style="margin:24px 0 0;color:#888;font-size:13px;text-align:center;">
-              Podés ver más detalles en el <a href="https://bartez-tech-nexus.vercel.app/portal" style="color:#2D9F6A;">Portal B2B</a>.
+              Podés ver más detalles en el <a href="https://DOMINIO-DE-TEQO-A-CONFIRMAR/portal" style="color:#2D9F6A;">Portal B2B</a>.
             </p>
           </td>
         </tr>
@@ -246,7 +246,7 @@ export function quoteStatusHTML(params: {
             <p style="margin:0 0 16px;color:#333;font-size:15px;">Hola <strong>${clientName}</strong>,</p>
             <p style="margin:0 0 24px;color:#555;font-size:14px;line-height:1.6;">${bodyText}</p>
             <div style="text-align:center;margin:28px 0;">
-              <a href="https://bartez-tech-nexus.vercel.app/b2b-portal" style="display:inline-block;background:${headerBg};color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;">${ctaText}</a>
+              <a href="https://DOMINIO-DE-TEQO-A-CONFIRMAR/b2b-portal" style="display:inline-block;background:${headerBg};color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;">${ctaText}</a>
             </div>
           </td>
         </tr>
@@ -307,7 +307,7 @@ export function orderPreparingHTML(params: {
               ¡Buenas noticias! Nuestro equipo de depósito ya ha comenzado a preparar tu pedido. Te notificaremos nuevamente en cuanto sea despachado.
             </p>
             <p style="margin:24px 0 0;color:#888;font-size:13px;text-align:center;">
-              Podés hacer el seguimiento de este pedido en el <a href="https://bartez-tech-nexus.vercel.app/portal" style="color:#f59e0b;">Portal B2B</a>.
+              Podés hacer el seguimiento de este pedido en el <a href="https://DOMINIO-DE-TEQO-A-CONFIRMAR/portal" style="color:#f59e0b;">Portal B2B</a>.
             </p>
           </td>
         </tr>
@@ -388,7 +388,7 @@ export function orderApprovedHTML(params: {
               </tr>
             </table>
             <p style="margin:24px 0 0;color:#888;font-size:13px;text-align:center;">
-              Podés ver el estado y opciones en tu cuenta del <a href="https://bartez-tech-nexus.vercel.app/portal" style="color:#2D9F6A;">Portal B2B</a>.
+              Podés ver el estado y opciones en tu cuenta del <a href="https://DOMINIO-DE-TEQO-A-CONFIRMAR/portal" style="color:#2D9F6A;">Portal B2B</a>.
             </p>
           </td>
         </tr>
@@ -482,7 +482,7 @@ export function newPaymentHTML(params: {
         </tr>
         <tr>
           <td style="padding:20px 32px; border-top:1px solid #f0f0f0; background:#fafafa; text-align:center;">
-             <p style="margin:0; font-size:12px; color:#aaa;">Gestioná este pago desde el panel administrativo de Bartez.</p>
+             <p style="margin:0; font-size:12px; color:#aaa;">Gestioná este pago desde el panel administrativo de Teqo.</p>
           </td>
         </tr>
       </table>

@@ -1,6 +1,6 @@
 export type AppTheme = "dark" | "light";
 
-export const APP_THEME_STORAGE_KEY = "bartez-theme";
+export const APP_THEME_STORAGE_KEY = "teqo-tema";
 
 const LEGACY_THEME_STORAGE_KEYS = ["theme", "admin_theme", "b2b_theme"] as const;
 

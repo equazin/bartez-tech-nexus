@@ -16,14 +16,14 @@ const STATUS_EMAIL_SUBJECT: Partial<Record<string, string>> = {
   approved:   "Tu pedido {num} fue aprobado ✅",
   confirmed:  "Pedido {num} confirmado",
   preparing:  "Tu pedido {num} está en preparación",
-  shipped:    "Tu pedido {num} está en camino 🚚",
+  shipped:    "Tu pedido {num} está en camino",
   delivered:  "¡Tu pedido {num} fue entregado! 🎉",
   rejected:   "Actualización sobre tu pedido {num}",
   cancelled:  "Tu pedido {num} fue cancelado",
 };
 
 const STATUS_WA_TEXT: Partial<Record<string, string>> = {
-  approved:  "✅ Tu pedido {num} fue *aprobado*. Pronto comenzamos a prepararlo.",
+  approved:  "Tu pedido {num} fue *aprobado*. Pronto comenzamos a prepararlo.",
   confirmed: "📦 Tu pedido {num} fue *confirmado*.",
   preparing: "⚙️ Tu pedido {num} está *en preparación*.",
   shipped:   "🚚 Tu pedido {num} está *en camino*. {tracking}",
@@ -156,7 +156,7 @@ export async function notifyOrderStatusChange(
         try {
           const transport = createMailerTransport();
           await transport.sendMail({
-            from: `"Bartez Tecnologia" <${getDefaultFromEmail()}>`,
+            from: `"Teqo" <${getDefaultFromEmail()}>`,
             to:   profile.email,
             subject: sanitizeHeaderText(subject, "Actualización de tu pedido"),
             html,

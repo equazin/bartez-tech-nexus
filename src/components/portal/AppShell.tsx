@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 import { SidebarNav } from "./SidebarNav";
 
-const SIDEBAR_STORAGE_KEY = "bartez_portal_sidebar_collapsed";
+const SIDEBAR_STORAGE_KEY = "teqo_portal_sidebar_collapsed";
 
 interface AppShellProps {
   /** Top bar element (already includes search, currency, cart, profile) */
@@ -87,7 +87,7 @@ function AppShell({ topBar, banner, children, aside, role }: AppShellProps) {
             </div>
             {!collapsed && (
               <div className="flex flex-col">
-                <span className="font-display text-[14px] font-semibold leading-[16px] text-foreground">Bartez</span>
+                <span className="font-display text-[14px] font-semibold leading-[16px] text-foreground">Teqo</span>
                 <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">B2B Portal</span>
               </div>
             )}
@@ -112,7 +112,7 @@ function AppShell({ topBar, banner, children, aside, role }: AppShellProps) {
                 B
               </div>
               <div className="flex flex-col">
-                <span className="font-display text-[14px] font-semibold leading-[16px] text-foreground">Bartez</span>
+                <span className="font-display text-[14px] font-semibold leading-[16px] text-foreground">Teqo</span>
                 <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">B2B Portal</span>
               </div>
             </div>

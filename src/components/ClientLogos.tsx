@@ -17,7 +17,7 @@ export default function ClientLogos() {
     <section className="py-14 border-y border-border/20 bg-surface/50">
       <div className="container mx-auto px-4 lg:px-8">
         <p className="text-center text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/40 mb-8">
-          Empresas que confían en Bartez
+          Empresas que confían en Teqo
         </p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
           {clients.map((c, i) => (
@@ -35,7 +35,7 @@ export default function ClientLogos() {
           ))}
         </div>
         <p className="text-center text-xs text-muted-foreground/40 mt-6">
-          +500 empresas en Argentina confían en Bartez como su partner tecnológico.
+          +500 empresas en Argentina confían en Teqo como su partner tecnológico.
         </p>
       </div>
     </section>

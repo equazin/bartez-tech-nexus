@@ -262,7 +262,7 @@ async function createCampaignInGoogleAds(
             adGroup: agResource,
             status:  "ENABLED",
             ad: {
-              finalUrls: ["https://bartez.com.ar/empresas"],
+              finalUrls: ["https://DOMINIO-DE-TEQO-A-CONFIRMAR/empresas"],
               responsiveSearchAd: { headlines, descriptions },
             },
           },

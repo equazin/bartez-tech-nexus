@@ -10,7 +10,7 @@ export const isSupabaseConfigured = !isPlaceholderUrl && !isPlaceholderKey;
 
 if (!isSupabaseConfigured) {
   logger.warn(
-    "[Bartez] Supabase no configurado. Defini VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en .env"
+    "[Teqo] Supabase no configurado. Defini VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en .env"
   );
 }
 

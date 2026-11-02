@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle, X } from "lucide-react";
 import { useState } from "react";
 
-const WA_URL = "https://wa.me/5493415104902?text=Hola%2C%20quiero%20hacer%20una%20consulta%20sobre%20soluciones%20tecnol%C3%B3gicas.";
+const WA_URL = "https://wa.me/WHATSAPP-A-CONFIRMAR?text=Hola%2C%20quiero%20hacer%20una%20consulta%20sobre%20soluciones%20tecnol%C3%B3gicas.";
 
 export default function WhatsAppFloat() {
   const [open, setOpen] = useState(false);
@@ -24,7 +24,7 @@ export default function WhatsAppFloat() {
                   <MessageCircle size={16} className="text-white" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-foreground leading-tight">Bartez Tecnología</p>
+                  <p className="text-sm font-semibold text-foreground leading-tight">Teqo</p>
                   <p className="text-[10px] text-green-500 font-medium">● En línea</p>
                 </div>
               </div>

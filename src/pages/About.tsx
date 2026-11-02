@@ -12,7 +12,7 @@ const values = [
 ];
 
 const milestones = [
-  { year: "2009", event: "Fundación de Bartez Tecnología en Buenos Aires con foco en Soporte IT." },
+  { year: "2009", event: "Fundación de Teqo en Buenos Aires con foco en Soporte IT." },
   { year: "2015", event: "Alianzas estratégicas Platinum con Dell, HP, Lenovo, Cisco e Intel." },
   { year: "2018", event: "Lanzamiento del modelo de Partnership Tecnológico Integrado." },
   { year: "2021", event: "Expansión nacional y apertura de canales logísticos para todo el país." },
@@ -30,7 +30,7 @@ const About = () => {
             badge="Más que un Proveedor IT"
             title="Somos el HUB tecnológico de"
             highlight="nueva generación"
-            description="Bartez es la evolución del soporte IT. Combinamos 15 años de consultoría con el ecosistema de abastecimiento B2B más ágil de la industria."
+            description="Teqo es la evolución del soporte IT. Combinamos 15 años de consultoría con el ecosistema de abastecimiento B2B más ágil de la industria."
             large
           />
         </div>
@@ -51,10 +51,10 @@ const About = () => {
               </div>
               <h2 className="font-display text-2xl lg:text-3xl font-bold text-foreground mb-6">Nuestra Evolución</h2>
               <p className="text-muted-foreground leading-relaxed text-lg">
-                Desde 2009, Bartez Tecnología acompaña a empresas argentinas en la gestión de su infraestructura. Nacimos como un equipo de soporte, pero entendimos que el futuro B2B exigía **agilidad y transparencia total**.
+                Desde 2009, Teqo acompaña a empresas argentinas en la gestión de su infraestructura. Nacimos como un equipo de soporte, pero entendimos que el futuro B2B exigía **agilidad y transparencia total**.
               </p>
               <p className="mt-6 text-muted-foreground leading-relaxed text-lg">
-                Hoy, Bartez es un ecosistema integrado: un partner que ofrece consultoría técnica de alto nivel y, simultáneamente, el **Portal B2B líder** que permite a integradores e industrias comprar, gestionar y escalar su tecnología en segundos, no en días.
+                Hoy, Teqo es un ecosistema integrado: un partner que ofrece consultoría técnica de alto nivel y, simultáneamente, el **Portal B2B líder** que permite a integradores e industrias comprar, gestionar y escalar su tecnología en segundos, no en días.
               </p>
             </motion.div>
             
@@ -142,11 +142,11 @@ const About = () => {
 
           <div className="mt-20">
             <EnterpriseCTA
-              badge="Únase al HUB de Bartez"
+              badge="Únase al HUB de Teqo"
               badgeIcon={Shield}
               title="Profesionalice la infraestructura"
               highlight="de su empresa hoy"
-              description="Súmese a las más de 500 corporaciones e integradores que ya operan con Bartez Tecnología para potenciar sus resultados IT."
+              description="Súmese a las más de 500 corporaciones e integradores que ya operan con Teqo para potenciar sus resultados IT."
               primaryLabel="Acceder al Portal B2B"
               primaryTo="/login"
               secondaryLabel="Hablar con Consultoría"

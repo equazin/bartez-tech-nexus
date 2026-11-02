@@ -81,8 +81,8 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 };
 
   const contactInfo = [
-    { icon: Mail, label: "Email", value: "contacto@bartez.com.ar", href: "mailto:contacto@bartez.com.ar" },
-    { icon: Phone, label: "Teléfono / WhatsApp", value: "+54 9 341 510-4902", href: "https://wa.me/5493415104902" },
+    { icon: Mail, label: "Email", value: "EMAIL-DE-TEQO-A-CONFIRMAR", href: "mailto:EMAIL-DE-TEQO-A-CONFIRMAR" },
+    { icon: Phone, label: "Teléfono / WhatsApp", value: "+54 9 341 510-4902", href: "https://wa.me/WHATSAPP-A-CONFIRMAR" },
     { icon: MapPin, label: "Ubicación", value: "Rosario, Santa Fe, Argentina" },
     { icon: Clock, label: "Horario", value: "Lun-Vie 9:00-18:00" },
   ];

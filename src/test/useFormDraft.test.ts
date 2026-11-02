@@ -8,7 +8,7 @@ interface DemoState {
 }
 
 const KEY = "demo-form";
-const STORAGE_KEY = `bartez_form_draft__${KEY}`;
+const STORAGE_KEY = `teqo_form_draft__${KEY}`;
 
 beforeEach(() => {
   localStorage.clear();
@@ -30,7 +30,7 @@ describe("useFormDraft", () => {
       { initialProps: { state: { name: "", qty: 0 } } },
     );
 
-    rerender({ state: { name: "Bartez", qty: 5 } });
+    rerender({ state: { name: "Teqo", qty: 5 } });
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 30));
     });
@@ -38,7 +38,7 @@ describe("useFormDraft", () => {
     const raw = localStorage.getItem(STORAGE_KEY);
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw ?? "{}");
-    expect(parsed.state).toEqual({ name: "Bartez", qty: 5 });
+    expect(parsed.state).toEqual({ name: "Teqo", qty: 5 });
     expect(parsed.version).toBe(1);
     expect(result.current.savedAt).not.toBeNull();
   });

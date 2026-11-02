@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
     const objectiveLabel: Record<string, string> = {
       leads:     "captar leads B2B (formularios de contacto y registro de empresas)",
       ventas:    "generar ventas directas en el portal B2B",
-      awareness: "generar reconocimiento de marca Bartez entre empresas e integradores",
+      awareness: "generar reconocimiento de marca Teqo entre empresas e integradores",
     };
     const segmentLabel: Record<string, string> = {
       empresas:      "empresas medianas y grandes de Argentina buscando equipamiento IT",
@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
       general:       "empresas argentinas que necesiten tecnología, laptops, servidores o networking",
     };
 
-    const prompt = `Sos un experto en Google Ads B2B para el mercado argentino. Tenés que generar una campaña de Google Ads completa para Bartez, una empresa distribuidora de tecnología mayorista con portal B2B.
+    const prompt = `Sos un experto en Google Ads B2B para el mercado argentino. Tenés que generar una campaña de Google Ads completa para Teqo, una empresa distribuidora de tecnología mayorista con portal B2B.
 
 PARÁMETROS DE LA CAMPAÑA:
 - Objetivo: ${objectiveLabel[objective] ?? objective}
@@ -84,7 +84,7 @@ REQUERIMIENTOS:
 - Cada grupo debe tener entre 8-15 palabras clave relevantes (en español, para Argentina, incluir variantes con "Argentina", "Buenos Aires" donde aplique)
 - Cada grupo debe tener exactamente 15 headlines (máx 30 caracteres cada uno) y 4 descriptions (máx 90 caracteres cada uno) — formato RSA de Google Ads
 - Los textos deben ser en español rioplatense (vos, ustedes)
-- Incluir USPs de Bartez: envío a todo el país, precios mayoristas, portal B2B, soporte técnico
+- Incluir USPs de Teqo: envío a todo el país, precios mayoristas, portal B2B, soporte técnico
 - Negativos relevantes para excluir tráfico no calificado (consumidores finales, búsquedas genéricas)
 - Estrategia de puja recomendada
 

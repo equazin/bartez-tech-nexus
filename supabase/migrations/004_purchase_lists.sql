@@ -1,5 +1,5 @@
 -- =============================================================
--- BARTEZ B2B — Migration 004: Purchase Lists
+-- Migration 004: Purchase Lists
 -- Persistent recurring order templates saved by clients.
 -- Run in Supabase SQL Editor — idempotent.
 -- =============================================================

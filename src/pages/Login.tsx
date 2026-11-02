@@ -78,11 +78,11 @@ const Login = () => {
           <Link to="/" className="mb-6 flex items-center gap-3">
             <img
               src="/android-chrome-512x512.png"
-              alt="Bartez"
+              alt="Teqo"
               className="h-12 w-12 rounded-xl object-contain sm:h-14 sm:w-14"
             />
             <div className="flex flex-col">
-              <span className="font-display text-lg font-bold leading-none tracking-tight text-foreground">BARTEZ</span>
+              <span className="font-display text-lg font-bold leading-none tracking-tight text-foreground">TEQO</span>
               <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Tecnologia</span>
             </div>
           </Link>
@@ -220,7 +220,7 @@ const Login = () => {
           <p className="text-[10px] text-muted-foreground/70">O solicitá asistencia:</p>
           <Button asChild variant="outline" className="w-full gap-2 text-sm">
             <a
-              href="https://wa.me/5493415104902?text=Hola%2C%20quiero%20solicitar%20acceso%20al%20portal%20de%20clientes%20Bartez."
+              href="https://wa.me/WHATSAPP-A-CONFIRMAR?text=Hola%2C%20quiero%20solicitar%20acceso%20al%20portal%20de%20clientes%20Teqo."
               target="_blank"
               rel="noopener noreferrer"
             >

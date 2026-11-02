@@ -85,11 +85,11 @@ const ResetPassword = () => {
           <Link to="/" className="mb-6 flex items-center gap-3">
             <img
               src="/android-chrome-512x512.png"
-              alt="Bartez"
+              alt="Teqo"
               className="h-16 w-16 rounded-2xl object-contain"
             />
             <div className="flex flex-col">
-              <span className="font-display text-lg font-bold leading-none tracking-tight text-foreground">BARTEZ</span>
+              <span className="font-display text-lg font-bold leading-none tracking-tight text-foreground">TEQO</span>
               <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Tecnologia</span>
             </div>
           </Link>

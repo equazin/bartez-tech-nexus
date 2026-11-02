@@ -102,7 +102,7 @@ export function OnboardingWizard({ open, onClose, clientName, onGoToCatalog }: O
                 ¡Bienvenido{clientName ? `, ${clientName.split(" ")[0]}` : ""}!
               </h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Accedés al portal B2B de Bartez Tech. En los próximos segundos te mostramos cómo sacarle el máximo provecho.
+                Accedés al portal B2B de Teqo Tech. En los próximos segundos te mostramos cómo sacarle el máximo provecho.
               </p>
             </div>
             <div className="grid w-full grid-cols-2 gap-2.5">

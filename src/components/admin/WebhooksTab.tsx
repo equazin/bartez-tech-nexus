@@ -113,7 +113,7 @@ export function WebhooksTab({ isDark = true }: WebhooksTabProps) {
               <input
                 value={formUrl}
                 onChange={(e) => setFormUrl(e.target.value)}
-                placeholder="https://erp.empresa.com/webhooks/bartez"
+                placeholder="https://erp.empresa.com/webhooks/teqo"
                 type="url"
                 className={`w-full rounded-xl border px-3 py-2 text-sm outline-none ${dk("bg-[#0d0d0d] border-[#262626] text-white placeholder:text-[#404040]", "bg-white border-[#e5e5e5] text-[#171717]")}`}
               />

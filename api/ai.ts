@@ -303,7 +303,7 @@ async function createCampaignInGoogleAds(structure: LaunchCampaignStructure, bud
   const customerId = GOOGLE_ADS_CUSTOMER_ID.replace(/-/g, "");
   const baseUrl = buildGoogleAdsCustomerBaseUrl(customerId);
   const accessToken = await getGoogleAdsAccessToken();
-  const campaignName = structure.name || `Bartez ${new Date().toISOString()}`;
+  const campaignName = structure.name || `Teqo ${new Date().toISOString()}`;
 
   const headers = buildGoogleAdsHeaders(accessToken);
 
@@ -390,7 +390,7 @@ async function createCampaignInGoogleAds(structure: LaunchCampaignStructure, bud
               adGroup: adGroupResource,
               status: "ENABLED",
               ad: {
-                finalUrls: ["https://bartez.com.ar/empresas"],
+                finalUrls: ["https://DOMINIO-DE-TEQO-A-CONFIRMAR/empresas"],
                 responsiveSearchAd: { headlines, descriptions },
               },
             },
@@ -619,7 +619,7 @@ function buildFull(type: string, name: string, brand: string | null | undefined)
   if (type === "networking") return `${intro}\n\n⚡ Ofrece conectividad sólida para oficinas, locales y entornos con múltiples equipos.\n🔒 Integra funciones orientadas a seguridad y administración de red.\n\nIdeal para implementaciones donde la disponibilidad y la velocidad son prioritarias.\n\n• Instalación simple\n• Operación continua\n• Rendimiento estable`;
   if (type === "storage") return `${intro}\n\n⚡ Mejora tiempos de arranque y acceso a archivos.\n🧩 Se integra fácilmente en estaciones de trabajo y equipos empresariales.\n\nIdeal para actualización de rendimiento y expansión de capacidad.\n\n• Respuesta ágil\n• Compatibilidad amplia\n• Uso profesional diario`;
   if (type === "memory") return `${intro}\n\n⚡ Incrementa la capacidad de trabajo simultáneo en aplicaciones exigentes.\n🛠️ Diseñada para mantener estabilidad bajo uso intensivo.\n\n• Mejor fluidez\n• Operación consistente\n• Instalación directa`;
-  return `${intro}\n\n✅ Combina practicidad y especificaciones técnicas para uso corporativo.\n💼 Recomendado para empresas que buscan relación costo/rendimiento equilibrada.\n\n• Calidad profesional\n• Implementación simple\n• Soporte para uso continuo`;
+  return `${intro}\n\nCombina practicidad y especificaciones técnicas para uso corporativo.\n💼 Recomendado para empresas que buscan relación costo/rendimiento equilibrada.\n\n• Calidad profesional\n• Implementación simple\n• Soporte para uso continuo`;
 }
 function buildSpecs(type: string, name: string, sku?: string | null): Record<string, string> {
   const capacity = readCapacity(name);
@@ -705,9 +705,9 @@ const KEYWORDS_BY_PRODUCT: Record<string, string[]> = {
 };
 
 const HEADLINES_BY_OBJECTIVE: Record<string, string[]> = {
-  leads:      ["Portal B2B Bartez", "Registrate Gratis Hoy", "Cotizá Sin Compromiso", "Acceso B2B Inmediato", "Precios Mayoristas IT", "Tecnología para Empresas"],
-  ventas:     ["Comprá IT Mejor Precio", "Stock Disponible Hoy", "Entrega 24-48hs", "Precios Mayoristas IT", "Portal B2B Bartez", "Tecnología Corporativa"],
-  awareness:  ["Bartez Tecnología B2B", "Distribuidor IT Argentina", "14.000 Productos IT", "Portal Mayorista B2B", "Catálogo Completo IT", "Precios para Empresas"],
+  leads:      ["Portal B2B Teqo", "Registrate Gratis Hoy", "Cotizá Sin Compromiso", "Acceso B2B Inmediato", "Precios Mayoristas IT", "Tecnología para Empresas"],
+  ventas:     ["Comprá IT Mejor Precio", "Stock Disponible Hoy", "Entrega 24-48hs", "Precios Mayoristas IT", "Portal B2B Teqo", "Tecnología Corporativa"],
+  awareness:  ["Teqo B2B", "Distribuidor IT Argentina", "14.000 Productos IT", "Portal Mayorista B2B", "Catálogo Completo IT", "Precios para Empresas"],
 };
 
 const HEADLINES_BY_SEGMENT: Record<string, string[]> = {
@@ -718,9 +718,9 @@ const HEADLINES_BY_SEGMENT: Record<string, string[]> = {
 };
 
 const DESCRIPTIONS_BY_OBJECTIVE: Record<string, string[]> = {
-  leads:     ["Accedé al portal B2B de Bartez. Cotizá tecnología mayorista para tu empresa.", "Registrate y gestioná pedidos IT con precios preferenciales en Argentina."],
+  leads:     ["Accedé al portal B2B de Teqo. Cotizá tecnología mayorista para tu empresa.", "Registrate y gestioná pedidos IT con precios preferenciales en Argentina."],
   ventas:    ["Notebooks, servidores y networking al precio mayorista con stock en Argentina.", "Catálogo +14.000 productos con precios exclusivos y entrega en todo el país."],
-  awareness: ["Bartez: distribuidor mayorista de IT para empresas e integradores en Argentina.", "Portal B2B con más de 14.000 productos tecnológicos y precios mayoristas."],
+  awareness: ["Teqo: distribuidor mayorista de IT para empresas e integradores en Argentina.", "Portal B2B con más de 14.000 productos tecnológicos y precios mayoristas."],
 };
 
 const NEGATIVE_KEYWORDS = ["gratis", "segunda mano", "usado", "reparación", "tutoriales"];
@@ -770,7 +770,7 @@ function buildTemplateStructure(seg: string, obj: string, numGroups: number, pro
   }));
 
   const productLabel = product_focus ? ` - ${product_focus}` : "";
-  const campaignName = `Bartez ${seg} ${obj}${productLabel} ${new Date().toLocaleDateString("es-AR")}`;
+  const campaignName = `Teqo ${seg} ${obj}${productLabel} ${new Date().toLocaleDateString("es-AR")}`;
 
   return {
     campaignName,
@@ -828,7 +828,7 @@ async function handleGenerateCampaign(body: Record<string, unknown>, userId: str
   const geminiKey = process.env.GEMINI_API_KEY;
 
   if (geminiKey) {
-    const prompt = `Sos un experto en Google Ads B2B para el mercado argentino. Generá una campaña completa para Bartez, distribuidora de tecnología mayorista con portal B2B.
+    const prompt = `Sos un experto en Google Ads B2B para el mercado argentino. Generá una campaña completa para Teqo, distribuidora de tecnología mayorista con portal B2B.
 
 PARÁMETROS:
 - Objetivo: ${objectiveLabel[String(objective)] ?? objective}
@@ -850,7 +850,7 @@ Respondé SOLO con JSON minificado sin markdown:
         const match = cleaned.match(/\{[\s\S]*\}/);
         if (match) {
           structure = JSON.parse(match[0]);
-          campaignName = (structure.name as string) || `Bartez ${seg} ${obj} ${new Date().toLocaleDateString("es-AR")}`;
+          campaignName = (structure.name as string) || `Teqo ${seg} ${obj} ${new Date().toLocaleDateString("es-AR")}`;
           aiModel = "gemini-2.0-flash";
         } else {
           throw new Error("no JSON found");
@@ -1023,24 +1023,24 @@ const COPY_HEADLINES_BY_CATEGORY: Record<string, string[]> = {
 const COPY_DESCS_BY_SEGMENT: Record<string, string[]> = {
   "Empresas corporativas": [
     "Equipá tu empresa con tecnología mayorista. Portal B2B con precios exclusivos y entrega rápida.",
-    "Tecnología corporativa con precios preferenciales. Registrate en el portal B2B de Bartez.",
+    "Tecnología corporativa con precios preferenciales. Registrate en el portal B2B de Teqo.",
   ],
   "Resellers": [
     "Precios mayoristas para revendedores. Catálogo completo con stock disponible en Argentina.",
-    "Márgenes competitivos para resellers. Accedé al portal B2B de Bartez y comprá al por mayor.",
+    "Márgenes competitivos para resellers. Accedé al portal B2B de Teqo y comprá al por mayor.",
   ],
   "Integradores IT": [
     "Equipamiento para proyectos IT. Precios mayoristas con stock y entrega en todo el país.",
     "Soluciones tecnológicas para integradores. Portal B2B con catálogo de +14.000 productos.",
   ],
   "PyMEs": [
-    "Tecnología para PyMEs al mejor precio. Portal B2B de Bartez con precios mayoristas.",
+    "Tecnología para PyMEs al mejor precio. Portal B2B de Teqo con precios mayoristas.",
     "Equipá tu PyME con tecnología de calidad. Precios accesibles y stock disponible ya.",
   ],
 };
 
 async function generateCopyWithGemini(category: string, segment: string, count: number): Promise<Record<string, string>[] | null> {
-  const prompt = `Generá ${count} variante(s) de copy para Google Ads B2B en Argentina para Bartez, distribuidora mayorista de tecnología.
+  const prompt = `Generá ${count} variante(s) de copy para Google Ads B2B en Argentina para Teqo, distribuidora mayorista de tecnología.
 
 Categoría: ${category}
 Segmento: ${segment}

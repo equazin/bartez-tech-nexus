@@ -64,7 +64,7 @@ export const CatalogGridCard = memo(function CatalogGridCard({ product, onAdd, g
       <div className="flex flex-1 flex-col gap-3 p-3">
         <div className="flex-1 space-y-2">
           <div className="flex min-h-[18px] items-center justify-between gap-2 text-xs text-muted-foreground">
-            <span className="min-w-0 truncate">{product.brand_name ?? "Bartez"}</span>
+            <span className="min-w-0 truncate">{product.brand_name ?? "Sin marca"}</span>
             {product.sku ? <span className="shrink-0 font-mono text-[11px]">{product.sku}</span> : null}
           </div>
           <button

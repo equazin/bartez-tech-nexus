@@ -13,12 +13,12 @@ export const whatsappNotifications = {
     if (!client.phone) return;
     
     const message = `¡Hola ${client.contact_name}! 👋 
-Tu pedido *${order.order_number || `#${order.id.slice(-8)}`}* de Bartez ya fue despachado. 🚚
+Tu pedido *${order.order_number || `#${order.id.slice(-8)}`}* de Teqo ya fue despachado.
 
 📦 *Enviado por:* ${order.shipping_provider || "Logística"}
 🛤️ *Seguimiento:* ${order.tracking_number || "---"}
 
-Podés ver los detalles en tu portal: https://portal.bartez.com/pedidos/${order.id}`;
+Podés ver los detalles en tu portal: https://DOMINIO-DE-TEQO-A-CONFIRMAR/pedidos/${order.id}`;
 
     return this._send(client.phone, message);
   },
@@ -33,7 +33,7 @@ Podés ver los detalles en tu portal: https://portal.bartez.com/pedidos/${order.
 El producto *${product.name}* ya ingresó a stock y está disponible para la compra. 
 
 🛒 *Precio:* USD ${product.price?.toLocaleString()}
-👉 *Link:* https://portal.bartez.com/products/${product.id}`;
+*Link:* https://DOMINIO-DE-TEQO-A-CONFIRMAR/products/${product.id}`;
 
     return this._send(client.phone, message);
   },

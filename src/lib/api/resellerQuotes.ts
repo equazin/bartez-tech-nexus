@@ -13,16 +13,16 @@ export interface ResellerQuoteConfig {
 export interface QuoteItem {
   name: string;
   sku: string;
-  bartezPrice: number; // Our price to the reseller (USD or ARS)
-  resellerMarkupPrice: number; // BartezPrice * (1 + markupPct/100)
+  basePrice: number; // Our price to the reseller (USD or ARS)
+  resellerMarkupPrice: number; // BasePrice * (1 + markupPct/100)
   quantity: number;
 }
 
 /**
  * Calculates the final price for the end-customer.
  */
-export function calculateResellerPrice(bartezPrice: number, markupPct: number): number {
-  return Number((bartezPrice * (1 + markupPct / 100)).toFixed(2));
+export function calculateResellerPrice(basePrice: number, markupPct: number): number {
+  return Number((basePrice * (1 + markupPct / 100)).toFixed(2));
 }
 
 /**

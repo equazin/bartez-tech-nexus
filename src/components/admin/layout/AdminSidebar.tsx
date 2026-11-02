@@ -57,11 +57,11 @@ export function AdminSidebar({
       <div className="border-b border-border/70 px-3 py-4">
         <div className={`flex items-center gap-3 ${collapsed && !mobile ? "justify-center" : ""}`}>
           <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-gradient-primary shadow-lg shadow-primary/15">
-            <img src="/icon.png" alt="Bartez" className="h-6 w-6 object-contain brightness-0 invert" />
+            <img src="/icon.png" alt="Teqo" className="h-6 w-6 object-contain" />
           </div>
           {(!collapsed || mobile) && (
             <div className="min-w-0">
-              <p className="text-sm font-bold text-foreground">Bartez Admin</p>
+              <p className="text-sm font-bold text-foreground">Panel de Teqo</p>
               <p className="text-[11px] text-muted-foreground">Centro operativo comercial</p>
             </div>
           )}

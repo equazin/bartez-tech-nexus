@@ -35,8 +35,8 @@ interface CurrencyContextType {
 const RATE_TTL_MS = 6 * 60 * 60 * 1000;
 
 // ── Storage keys ───────────────────────────────────────────────────────────
-const CURRENCY_KEY     = "bartez_currency";
-const EXCHANGE_KEY     = "bartez_exchange_rate";
+const CURRENCY_KEY     = "teqo_currency";
+const EXCHANGE_KEY     = "teqo_exchange_rate";
 const DEFAULT_RATE: ExchangeRate = {
   rate: 1300,
   source: "manual",

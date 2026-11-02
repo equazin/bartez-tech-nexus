@@ -72,7 +72,7 @@ const Navbar = () => {
           </span>
           <div className="flex items-center gap-5">
             <a
-              href="https://wa.me/5493415104902"
+              href="https://wa.me/WHATSAPP-A-CONFIRMAR"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
@@ -97,11 +97,11 @@ const Navbar = () => {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5 group">
             <div className="flex h-12 w-12 items-center justify-center overflow-hidden transition-transform group-hover:scale-105">
-              <img src="/icon.png" alt="Bartez" className="h-full w-full object-contain" />
+              <img src="/icon.png" alt="Teqo" className="h-full w-full object-contain" />
             </div>
             <div className="flex flex-col">
-              <span className="font-display text-sm font-bold tracking-tight text-foreground leading-none">BARTEZ</span>
-              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground leading-none mt-0.5">Tecnología</span>
+              <span className="font-display text-sm font-bold tracking-tight text-foreground leading-none">TEQO</span>
+              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground leading-none mt-0.5">Subí tu mundo.</span>
             </div>
           </Link>
 

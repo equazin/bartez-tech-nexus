@@ -229,12 +229,12 @@ const Register = () => {
           <Link to="/" className="mb-6 inline-flex items-center gap-3">
             <img
               src="/android-chrome-512x512.png"
-              alt="Bartez"
+              alt="Teqo"
               className="h-16 w-16 rounded-2xl object-contain"
             />
             <div className="text-left">
               <span className="block font-display text-2xl font-black tracking-tight text-foreground">
-                BARTEZ
+                TEQO
               </span>
               <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 Canal empresas

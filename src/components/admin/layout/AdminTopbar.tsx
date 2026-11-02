@@ -70,14 +70,14 @@ export function AdminTopbar({
         </button>
 
         <div className="flex min-w-0 items-center gap-2.5">
-          <img src="/android-chrome-512x512.png" alt="Bartez" className="h-10 w-10 shrink-0 rounded-xl object-contain" />
+          <img src="/android-chrome-512x512.png" alt="Teqo" className="h-10 w-10 shrink-0 rounded-xl object-contain" />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="truncate text-sm font-bold text-foreground md:text-[15px]">Centro operativo</span>
               <span className="hidden text-xs text-muted-foreground md:inline">/ {getModuleLabel(activeModule)}</span>
               <span className="hidden text-xs text-muted-foreground lg:inline">/ {getTabLabel(activeTab)}</span>
             </div>
-            <p className="text-[10.5px] leading-tight text-primary">Bartez Tecnologia</p>
+            <p className="text-[10.5px] leading-tight text-primary">Teqo</p>
           </div>
         </div>
 

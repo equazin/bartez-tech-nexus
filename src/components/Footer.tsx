@@ -50,21 +50,21 @@ const Footer = () => {
             <div className="lg:col-span-5">
               <div className="flex items-center gap-2.5 mb-5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-primary">
-                  <span className="font-display text-sm font-bold text-primary-foreground">B</span>
+                  <span className="font-display text-sm font-bold text-primary-foreground">t</span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-display text-sm font-bold tracking-tight text-foreground leading-none">BARTEZ</span>
-                  <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground leading-none mt-0.5">Tecnología</span>
+                  <span className="font-display text-sm font-bold tracking-tight text-foreground leading-none">TEQO</span>
+                  <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground leading-none mt-0.5">Subí tu mundo.</span>
                 </div>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
                 Partner tecnológico para empresas argentinas. Gestionamos, implementamos y hacemos evolucionar la infraestructura IT de su organización. Más de 15 años de experiencia.
               </p>
               <div className="mt-6 space-y-2.5">
-                <a href="mailto:contacto@bartez.com.ar" className="flex items-center gap-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  <Mail size={13} className="text-primary/70" /> contacto@bartez.com.ar
+                <a href="mailto:EMAIL-DE-TEQO-A-CONFIRMAR" className="flex items-center gap-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  <Mail size={13} className="text-primary/70" /> EMAIL-DE-TEQO-A-CONFIRMAR
                 </a>
-                <a href="https://wa.me/5493415104902" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <a href="https://wa.me/WHATSAPP-A-CONFIRMAR" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
                   <Phone size={13} className="text-primary/70" /> +54 9 341 510-4902
                 </a>
                 <span className="flex items-start gap-2.5 text-sm text-muted-foreground">
@@ -101,7 +101,7 @@ const Footer = () => {
       <div className="border-t border-border/30 bg-background">
         <div className="container mx-auto px-4 lg:px-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-5 text-[11px] text-muted-foreground/70">
-            <p>© {new Date().getFullYear()} Bartez Tecnología. Todos los derechos reservados.</p>
+            <p>© {new Date().getFullYear()} Teqo. Todos los derechos reservados.</p>
             <p>Rosario, Santa Fe, Argentina · Partner Tecnológico Corporativo</p>
           </div>
         </div>

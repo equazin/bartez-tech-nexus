@@ -4,13 +4,13 @@ import SectionHeading from "./SectionHeading";
 
 const testimonials = [
   {
-    quote: "Bartez Tecnología equipó nuestras 12 sucursales con infraestructura de red y puestos de trabajo en tiempo récord. Su equipo técnico es de primer nivel.",
+    quote: "Teqo equipó nuestras 12 sucursales con infraestructura de red y puestos de trabajo en tiempo récord. Su equipo técnico es de primer nivel.",
     author: "María González",
     role: "CTO",
     company: "Grupo Financiero del Sur",
   },
   {
-    quote: "Llevamos 8 años trabajando con Bartez como nuestro partner IT. La calidad del soporte y los tiempos de respuesta son excepcionales.",
+    quote: "Llevamos 8 años trabajando con Teqo como nuestro partner IT. La calidad del soporte y los tiempos de respuesta son excepcionales.",
     author: "Carlos Méndez",
     role: "Director de Tecnología",
     company: "Laboratorios Pharma Plus",

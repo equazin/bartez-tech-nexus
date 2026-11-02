@@ -91,7 +91,7 @@ export async function generateQuotePDF(opts: QuotePDFOptions) {
     clientName, companyName, products, date, showCost,
     currency    = "USD",
     whiteLabel  = false,
-    qrUrl       = "https://www.bartez.com.ar",
+    qrUrl       = "https://DOMINIO-DE-TEQO-A-CONFIRMAR",
     validityDays = 7,
     paymentTerms  = "Transferencia bancaria / efectivo",
     deliveryTerms = "A coordinar con el área comercial",
@@ -108,7 +108,7 @@ export async function generateQuotePDF(opts: QuotePDFOptions) {
   const [logo, qr] = await Promise.all([
     opts.logoBase64 ? Promise.resolve(opts.logoBase64)
       : opts.logoUrl ? toDataUrl(opts.logoUrl)
-      : whiteLabel  ? Promise.resolve(null)   // no Bartez icon in white-label
+      : whiteLabel  ? Promise.resolve(null)   // no Teqo icon in white-label
       : toDataUrl("/icon.png"),
     !whiteLabel ? makeQR(qrUrl) : Promise.resolve(null),
   ]);
@@ -341,8 +341,8 @@ export async function generateQuotePDF(opts: QuotePDFOptions) {
   if (!whiteLabel) {
     doc.text(brand,                    M, y);
     sf(7.5); sc(MUTED);
-    doc.text("ventas@bartez.com.ar",   M, y + 5);
-    doc.text("www.bartez.com.ar",      M, y + 10);
+    doc.text("EMAIL-DE-TEQO-A-CONFIRMAR",   M, y + 5);
+    doc.text("www.DOMINIO-DE-TEQO-A-CONFIRMAR",      M, y + 10);
   }
 
   if (qr && !whiteLabel) {

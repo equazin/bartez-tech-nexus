@@ -1,4 +1,4 @@
-const STORAGE_PREFIX = "bartez_compare_";
+const STORAGE_PREFIX = "teqo_compare_";
 const MAX_COMPARE = 4;
 
 function key(clientId: string): string {

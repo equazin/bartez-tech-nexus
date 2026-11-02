@@ -25,10 +25,10 @@ export const EmailNotificationService = {
   }) {
     logger.debug(`[EmailService] Generando Weekly Pulse para ${adminEmail}...`);
     
-    const subject = `📊 Bartez B2B: Resumen Semanal de Operaciones`;
+    const subject = `Teqo: Resumen Semanal de Operaciones`;
     const body = `
       <h1>Informe Semanal de Gestión B2B</h1>
-      <p>Hola Bartez Admin, aquí tienes un resumen de la actividad:</p>
+      <p>Hola Panel de Teqo, aquí tienes un resumen de la actividad:</p>
       <ul>
         <li><strong>Nuevos Partners:</strong> ${data.newPartners} registrados esta semana.</li>
         <li><strong>Aprobaciones Pendientes:</strong> ${data.pendingApprovals} solicitudes esperando revisión.</li>
@@ -37,7 +37,7 @@ export const EmailNotificationService = {
         <li><strong>Riesgo de Stock:</strong> ${data.criticalStockSkus} productos requieren reposición inmediata.</li>
       </ul>
       <br/>
-      <a href="https://bartez.com.ar/admin" style="background:#2D9F6A; color:#fff; padding:10px 20px; border-radius:8px; text-decoration:none;">Acceder al Panel Admin</a>
+      <a href="https://DOMINIO-DE-TEQO-A-CONFIRMAR/admin" style="background:#2D9F6A; color:#fff; padding:10px 20px; border-radius:8px; text-decoration:none;">Acceder al Panel Admin</a>
     `;
 
     // En producción: fetch("/api/send-email", { to: adminEmail, subject, body });
@@ -49,7 +49,7 @@ export const EmailNotificationService = {
    */
   async notifyCreditUpdate(clientEmail: string, newLimit: number, companyName: string) {
     logger.debug(`[EmailService] Notificando crédito a ${clientEmail}...`);
-    const subject = `✅ Su línea de crédito en Bartez ha sido actualizada`;
+    const subject = `Su línea de crédito en Teqo ha sido actualizada`;
     const body = `
       <h2>¡Buenas noticias, ${companyName}!</h2>
       <p>Su solicitud de crédito ha sido procesada con éxito.</p>
@@ -162,7 +162,7 @@ export const EmailNotificationService = {
     
     const payload = {
       type: "new_payment",
-      to: "ventas@bartez.com.ar",
+      to: "EMAIL-DE-TEQO-A-CONFIRMAR",
       clientName: data.clientName,
       amount: data.amount,
       currency: data.currency,

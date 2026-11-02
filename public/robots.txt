@@ -7,4 +7,4 @@ Disallow: /login
 Disallow: /reset-password
 Disallow: /cart
 
-Sitemap: https://www.bartez.com.ar/sitemap.xml
+Sitemap: https://DOMINIO-DE-TEQO-A-CONFIRMAR/sitemap.xml

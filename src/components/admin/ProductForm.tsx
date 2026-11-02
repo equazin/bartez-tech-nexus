@@ -9,7 +9,7 @@ import {
   Star, Eye, AlertTriangle, Loader2,
   Tag, Cpu, Package, BarChart2, DollarSign, Settings2,
 } from "lucide-react";
-const DRAFT_KEY = "bartez_product_draft";
+const DRAFT_KEY = "teqo_product_draft";
 
 interface Category { id: number; name: string; parent_id: number | null; }
 interface BrandOption { id: string; name: string; }

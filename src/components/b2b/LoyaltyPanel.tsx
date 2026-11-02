@@ -114,7 +114,7 @@ export function LoyaltyPanel({ partnerLevel, ordersCount, onGoToAccount }: Loyal
           </div>
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Fidelizacion</p>
-            <p className="text-sm font-bold text-foreground">Programa de fidelidad Bartez</p>
+            <p className="text-sm font-bold text-foreground">Programa de fidelidad</p>
             <p className="text-xs text-muted-foreground">
               Compra, suma pedidos y desbloquea mejores condiciones comerciales.
             </p>

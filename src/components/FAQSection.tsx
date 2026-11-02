@@ -5,8 +5,8 @@ import SectionHeading from "@/components/SectionHeading";
 
 const faqs = [
   {
-    q: "¿Qué diferencia a Bartez de una empresa de soporte IT tradicional?",
-    a: "Bartez actúa como un departamento IT externo, no como un proveedor reactivo. Planificamos, implementamos y mantenemos toda la infraestructura con compromiso de largo plazo, SLAs definidos y un consultor dedicado a cada cuenta. No respondemos a tickets: prevenimos los problemas.",
+    q: "¿Qué diferencia a Teqo de una empresa de soporte IT tradicional?",
+    a: "Teqo actúa como un departamento IT externo, no como un proveedor reactivo. Planificamos, implementamos y mantenemos toda la infraestructura con compromiso de largo plazo, SLAs definidos y un consultor dedicado a cada cuenta. No respondemos a tickets: prevenimos los problemas.",
   },
   {
     q: "¿Cuánto demora una implementación típica?",
@@ -17,7 +17,7 @@ const faqs = [
     a: "Sí. Atendemos clientes en todo el país. Para proyectos fuera de Rosario, combinamos trabajo remoto con visitas técnicas programadas según el alcance. Muchos de nuestros clientes en Buenos Aires, Córdoba y Mendoza operan 100% con soporte remoto.",
   },
   {
-    q: "¿Necesito tener conocimientos técnicos para trabajar con Bartez?",
+    q: "¿Necesito tener conocimientos técnicos para trabajar con Teqo?",
     a: "No. Nuestro trabajo es traducir las necesidades de su empresa a soluciones tecnológicas concretas. Vos nos contás los problemas del negocio, nosotros diseñamos e implementamos la solución. Sin tecnicismos innecesarios.",
   },
   {
@@ -26,7 +26,7 @@ const faqs = [
   },
   {
     q: "¿Cómo funciona el portal B2B para revendedores e integradores?",
-    a: "El portal B2B de Bartez permite a integradores y revendedores acceder a precios mayoristas, gestionar cotizaciones, hacer pedidos y ver stock en tiempo real. El acceso es por invitación — solicitalo por WhatsApp o desde la sección de registro.",
+    a: "El portal B2B de Teqo permite a integradores y revendedores acceder a precios mayoristas, gestionar cotizaciones, hacer pedidos y ver stock en tiempo real. El acceso es por invitación — solicitalo por WhatsApp o desde la sección de registro.",
   },
   {
     q: "¿Tienen stock local o importan a pedido?",

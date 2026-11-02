@@ -39,7 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (payload.type === "order_confirmed" && payload.clientEmail) {
       await transport.sendMail({
-        from: `"Bartez Tecnologia" <${fromEmail}>`,
+        from: `"Teqo" <${fromEmail}>`,
         to: payload.clientEmail,
         subject: sanitizeHeaderText(
           `Pedido ${payload.orderNumber} confirmado`,
@@ -56,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (payload.type === "order_approved" && payload.clientEmail) {
       await transport.sendMail({
-        from: `"Bartez Tecnologia" <${fromEmail}>`,
+        from: `"Teqo" <${fromEmail}>`,
         to: payload.clientEmail,
         subject: sanitizeHeaderText(
           `Tu pedido ${payload.orderNumber} fue aprobado ✅`,
@@ -72,7 +72,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (payload.type === "order_preparing" && payload.clientEmail) {
       await transport.sendMail({
-        from: `"Bartez Tecnologia" <${fromEmail}>`,
+        from: `"Teqo" <${fromEmail}>`,
         to: payload.clientEmail,
         subject: sanitizeHeaderText(
           `Tu pedido ${payload.orderNumber} está en preparación`,
@@ -88,7 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (payload.type === "order_shipped" && payload.clientEmail) {
       const { orderShippedHTML } = await import("./_shared/emailTemplates.js");
       await transport.sendMail({
-        from: `"Bartez Tecnologia" <${fromEmail}>`,
+        from: `"Teqo" <${fromEmail}>`,
         to: payload.clientEmail,
         subject: sanitizeHeaderText(
           `Tu pedido ${payload.orderNumber} está en camino`,
@@ -106,7 +106,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (payload.type === "order_delivered" && payload.clientEmail) {
       const { orderDeliveredHTML } = await import("./_shared/emailTemplates.js");
       await transport.sendMail({
-        from: `"Bartez Tecnologia" <${fromEmail}>`,
+        from: `"Teqo" <${fromEmail}>`,
         to: payload.clientEmail,
         subject: sanitizeHeaderText(
           `¡Tu pedido ${payload.orderNumber} fue entregado!`,
@@ -121,7 +121,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (payload.type === "order_rejected" && payload.clientEmail) {
       await transport.sendMail({
-        from: `"Bartez Tecnologia" <${fromEmail}>`,
+        from: `"Teqo" <${fromEmail}>`,
         to: payload.clientEmail,
         subject: sanitizeHeaderText(
           `Actualización sobre tu pedido ${payload.orderNumber}`,
@@ -136,7 +136,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (payload.type === "order_confirmed" || payload.type === "new_order_admin") {
       await transport.sendMail({
-        from: `"Bartez B2B" <${fromEmail}>`,
+        from: `"Teqo" <${fromEmail}>`,
         to: adminEmail,
         subject: sanitizeHeaderText(
           `Nuevo pedido ${payload.orderNumber} - $${payload.total.toFixed(2)}`,
@@ -154,7 +154,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if ((payload.type === "quote_approved" || payload.type === "quote_rejected") && payload.clientEmail && payload.quoteId) {
       await transport.sendMail({
-        from: `"Bartez Tecnologia" <${fromEmail}>`,
+        from: `"Teqo" <${fromEmail}>`,
         to: payload.clientEmail,
         subject: sanitizeHeaderText(
           payload.type === "quote_approved"
@@ -174,7 +174,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (payload.type === "new_payment") {
       await transport.sendMail({
-        from: `"Bartez B2B" <${fromEmail}>`,
+        from: `"Teqo" <${fromEmail}>`,
         to: adminEmail,
         subject: sanitizeHeaderText(
           `Nuevo Pago: ${payload.clientName} - ${payload.currency} ${payload.amount}`,
@@ -223,8 +223,8 @@ async function handleContactEmail(req: VercelRequest, res: VercelResponse) {
       sanitizeHeaderText(`Nueva solicitud de contacto: ${name}`, "Nueva solicitud de contacto");
 
     await transporter.sendMail({
-      from: `"Bartez Soluciones IT" <${fromEmail}>`,
-      to: "contacto@bartez.com.ar",
+      from: `"Teqo" <${fromEmail}>`,
+      to: process.env.ADMIN_EMAIL?.trim() || fromEmail,
       replyTo: email,
       subject: sanitizeHeaderText(safeSubject, "Nueva solicitud de contacto"),
       text: `Nombre: ${name}\nEmail: ${email}\n\nMensaje:\n${message}`,

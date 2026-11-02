@@ -43,7 +43,7 @@ export function generateWhatsAppCartUrl(data: WhatsAppCartData): string {
   ).join("\n");
 
   const message = encodeURIComponent(
-    `*Bartez Tech Nexus - Pedido de ${data.clientName}*\n\n` +
+    `*Teqo - Pedido de ${data.clientName}*\n\n` +
     `Hola! Te comparto mi carrito actual:\n\n` +
     `${itemLines}\n\n` +
     `*Total estimado:* ${data.items[0]?.currency} ${data.total.toLocaleString("es-AR")}\n\n` +
@@ -68,7 +68,7 @@ export function generateWhatsAppStatusUrl(phone: string, orderNumber: string, st
   };
 
   const message = encodeURIComponent(
-    `*Bartez Tech Nexus*\n\n` +
+    `*Teqo*\n\n` +
     `Hola! El estado de tu pedido *${orderNumber}* ha cambiado a: *${statusLabels[status] || status}*.\n\n` +
     `Podés seguir el detalle desde el portal B2B.`
   );

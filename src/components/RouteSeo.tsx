@@ -9,87 +9,87 @@ type RouteSeoConfig = {
   schema?: "website" | "service" | "catalog" | "contact";
 };
 
-const SITE_URL = "https://www.bartez.com.ar";
+const SITE_URL = ((import.meta.env.VITE_SITE_URL as string | undefined) ?? "https://DOMINIO-DE-TEQO-A-CONFIRMAR").replace(//$/, "");
 const DEFAULT_SEO: RouteSeoConfig = {
-  title: "Bartez Tecnologia | Soluciones IT Corporativas en Argentina",
-  description: "Hardware, servidores, networking e infraestructura IT para empresas en Argentina.",
+  title: "Teqo | Notebooks, gaming, monitores y periféricos",
+  description: "Tecnología para trabajar, crear y jugar, con envío a todo el país y precios finales con IVA incluido.",
   canonicalPath: "/",
 };
 
 const PUBLIC_ROUTE_SEO: Record<string, RouteSeoConfig> = {
   "/": {
-    title: "Bartez Tecnologia | Soluciones IT Corporativas en Argentina",
-    description: "Hardware, servidores, networking, POS y servicios IT para empresas que necesitan comprar mejor.",
+    title: "Teqo | Notebooks, gaming, monitores y periféricos",
+    description: "Tecnología para trabajar, crear y jugar, con envío a todo el país y precios finales con IVA incluido.",
     canonicalPath: "/",
     schema: "website",
   },
   "/tecnologia": {
-    title: "Catalogo de Tecnologia para Empresas | Bartez",
-    description: "Equipamiento IT, hardware, redes y accesorios para compras corporativas y proyectos empresariales.",
+    title: "Catálogo | Teqo",
+    description: "Notebooks, gaming, monitores y periféricos con envío a todo el país.",
     canonicalPath: "/tecnologia",
     schema: "catalog",
   },
   "/productos": {
-    title: "Catalogo de Tecnologia para Empresas | Bartez",
-    description: "Equipamiento IT, hardware, redes y accesorios para compras corporativas y proyectos empresariales.",
+    title: "Catálogo | Teqo",
+    description: "Notebooks, gaming, monitores y periféricos con envío a todo el país.",
     canonicalPath: "/tecnologia",
     schema: "catalog",
   },
   "/soluciones-corporativas": {
-    title: "Soluciones Corporativas IT | Bartez",
+    title: "Soluciones Corporativas IT | Teqo",
     description: "Infraestructura, redes, hardware y servicios para empresas que necesitan tecnologia confiable.",
     canonicalPath: "/soluciones-corporativas",
     schema: "service",
   },
   "/servicios-it": {
-    title: "Servicios IT para Empresas | Bartez",
+    title: "Servicios IT para Empresas | Teqo",
     description: "Soporte, consultoria, redes, seguridad e infraestructura IT para operaciones empresariales.",
     canonicalPath: "/servicios-it",
     schema: "service",
   },
   "/partnership": {
-    title: "Partnership B2B para Integradores | Bartez",
+    title: "Partnership B2B para Integradores | Teqo",
     description: "Provision mayorista, soporte comercial y catalogo B2B para integradores y partners tecnologicos.",
     canonicalPath: "/partnership",
     schema: "service",
   },
   "/empresas": {
-    title: "Soluciones B2B para Empresas | Bartez",
+    title: "Soluciones B2B para Empresas | Teqo",
     description: "Compra corporativa de tecnologia, precios B2B y asistencia para proyectos de equipamiento IT.",
     canonicalPath: "/empresas",
     schema: "service",
   },
   "/soluciones-por-industria": {
-    title: "Soluciones IT por Industria | Bartez",
+    title: "Soluciones IT por Industria | Teqo",
     description: "Tecnologia y equipamiento adaptado a comercios, oficinas, industrias y organizaciones.",
     canonicalPath: "/soluciones-por-industria",
     schema: "service",
   },
   "/puntos-de-venta": {
-    title: "Puntos de Venta y Kits POS | Bartez",
+    title: "Puntos de Venta y Kits POS | Teqo",
     description: "Kits POS, impresoras, lectores, perifericos y equipamiento para comercios.",
     canonicalPath: "/puntos-de-venta",
     schema: "catalog",
   },
   "/nosotros": {
-    title: "Nosotros | Bartez Tecnologia",
-    description: "Conoce el equipo y la experiencia de Bartez en soluciones IT para empresas.",
+    title: "Nosotros | Teqo",
+    description: "Conoce el equipo y la experiencia de Teqo en soluciones IT para empresas.",
     canonicalPath: "/nosotros",
   },
   "/contacto": {
-    title: "Contacto | Bartez Tecnologia",
-    description: "Contacta a Bartez para compras corporativas, soporte IT y proyectos de tecnologia.",
+    title: "Contacto | Teqo",
+    description: "Contacta a Teqo para compras corporativas, soporte IT y proyectos de tecnologia.",
     canonicalPath: "/contacto",
     schema: "contact",
   },
   "/evaluacion-tecnologica": {
-    title: "Evaluacion Tecnologica para Empresas | Bartez",
+    title: "Evaluacion Tecnologica para Empresas | Teqo",
     description: "Solicita una evaluacion para definir infraestructura, equipamiento y prioridades IT.",
     canonicalPath: "/evaluacion-tecnologica",
     schema: "service",
   },
   "/cotizacion": {
-    title: "Cotizacion de Tecnologia para Empresas | Bartez",
+    title: "Cotizacion de Tecnologia para Empresas | Teqo",
     description: "Solicita una cotizacion de equipamiento, infraestructura o servicios IT para tu empresa.",
     canonicalPath: "/evaluacion-tecnologica",
     schema: "service",
@@ -154,13 +154,12 @@ function buildRouteSchema(seo: RouteSeoConfig, canonicalUrl: string) {
   const organization = {
     "@type": "Organization",
     "@id": `${SITE_URL}/#organization`,
-    name: "Bartez Tecnologia",
+    name: "Teqo",
     url: SITE_URL,
     logo: `${SITE_URL}/android-chrome-512x512.png`,
     contactPoint: {
       "@type": "ContactPoint",
-      telephone: "+54-9-341-510-4902",
-      contactType: "sales",
+      contactType: "customer service",
       areaServed: "AR",
       availableLanguage: "es",
     },
@@ -177,7 +176,7 @@ function buildRouteSchema(seo: RouteSeoConfig, canonicalUrl: string) {
       isPartOf: {
         "@type": "WebSite",
         "@id": `${SITE_URL}/#website`,
-        name: "Bartez Tecnologia",
+        name: "Teqo",
         url: SITE_URL,
         publisher: { "@id": `${SITE_URL}/#organization` },
       },
@@ -227,8 +226,8 @@ function buildRouteSchema(seo: RouteSeoConfig, canonicalUrl: string) {
 function getRouteSeo(pathname: string): RouteSeoConfig {
   if (pathname.startsWith("/portal") || pathname.startsWith("/admin") || pathname.startsWith("/clientes")) {
     return {
-      title: "Portal Clientes | Bartez",
-      description: "Acceso privado para clientes Bartez.",
+      title: "Portal Clientes | Teqo",
+      description: "Acceso privado para clientes Teqo.",
       canonicalPath: pathname,
       noindex: true,
     };
@@ -236,8 +235,8 @@ function getRouteSeo(pathname: string): RouteSeoConfig {
 
   if (pathname === "/login" || pathname === "/registrarse" || pathname === "/reset-password" || pathname === "/cart") {
     return {
-      title: "Acceso Clientes | Bartez",
-      description: "Ingreso y gestion de acceso al portal de clientes Bartez.",
+      title: "Acceso Clientes | Teqo",
+      description: "Ingreso y gestion de acceso al portal de clientes Teqo.",
       canonicalPath: pathname,
       noindex: true,
     };
@@ -262,7 +261,7 @@ export function RouteSeo() {
     upsertPropertyMeta("og:url", canonicalUrl);
     upsertNamedMeta("twitter:title", seo.title);
     upsertNamedMeta("twitter:description", seo.description);
-    upsertJsonLd("bartez-route-schema", buildRouteSchema(seo, canonicalUrl));
+    upsertJsonLd("teqo-route-schema", buildRouteSchema(seo, canonicalUrl));
   }, [location.pathname]);
 
   return null;

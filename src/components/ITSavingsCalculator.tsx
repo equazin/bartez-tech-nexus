@@ -19,7 +19,7 @@ const PAIN_OPTIONS = [
   { id: "no_it",    label: "Sin IT dedicado",         costPerUser: 180 },
 ];
 
-// Estimated savings rate Bartez delivers vs typical unmanaged IT spend
+// Estimated savings rate Teqo delivers vs typical unmanaged IT spend
 const SAVINGS_RATE = 0.35;
 
 function Chip({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) {
@@ -63,7 +63,7 @@ export default function ITSavingsCalculator() {
           <SectionHeading
             badge="Calculadora de Ahorro IT"
             title="¿Cuánto podrías"
-            highlight="ahorrar con Bartez?"
+            highlight="ahorrar con Teqo?"
             description="Estimá en 30 segundos cuánto gasta tu empresa en IT desorganizado y cuánto podés ahorrar con un partner profesional."
           />
 
@@ -123,7 +123,7 @@ export default function ITSavingsCalculator() {
                         <p className="text-xs text-muted-foreground/60 mt-0.5">por año ({result.emp} empleados)</p>
                       </div>
                       <div className="text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-primary/70 mb-1">Ahorro potencial con Bartez</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-primary/70 mb-1">Ahorro potencial con Teqo</p>
                         <p className="font-display text-2xl font-extrabold text-primary flex items-center justify-center gap-1">
                           <TrendingDown size={20} />
                           USD {result.savings.toLocaleString("en-US")}

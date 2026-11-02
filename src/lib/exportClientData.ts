@@ -75,7 +75,7 @@ export function exportClientOrders(orders: PortalOrder[], range: ExportDateRange
     const totalArs = String(order.total);
     rows.push([fecha, numero, estado, items, totalArs]);
   }
-  downloadCsv(`bartez_pedidos_${isoLabel()}.csv`, rows);
+  downloadCsv(`teqo_pedidos_${isoLabel()}.csv`, rows);
 }
 
 const INVOICE_STATUS_LABEL: Record<string, string> = {
@@ -101,7 +101,7 @@ export function exportClientInvoices(invoices: Invoice[], range: ExportDateRange
     const moneda = inv.currency;
     rows.push([fecha, numero, estado, subtotal, iva, total, moneda]);
   }
-  downloadCsv(`bartez_facturas_${isoLabel()}.csv`, rows);
+  downloadCsv(`teqo_facturas_${isoLabel()}.csv`, rows);
 }
 
 const QUOTE_STATUS_LABEL: Record<string, string> = {
@@ -129,5 +129,5 @@ export function exportClientQuotes(quotes: Quote[], range: ExportDateRange = "al
     const total = String(q.total);
     rows.push([fecha, numero, estado, items, total]);
   }
-  downloadCsv(`bartez_cotizaciones_${isoLabel()}.csv`, rows);
+  downloadCsv(`teqo_cotizaciones_${isoLabel()}.csv`, rows);
 }

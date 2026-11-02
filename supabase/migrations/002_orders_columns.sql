@@ -1,5 +1,5 @@
 -- =============================================================
--- BARTEZ B2B — Migration 002: Orders extended columns + Products price_tiers
+-- Migration 002: Orders extended columns + Products price_tiers
 -- Run in Supabase SQL Editor (Dashboard > SQL Editor)
 -- Fully idempotent — safe to run multiple times
 -- =============================================================

@@ -1,5 +1,5 @@
 -- =============================================================
--- BARTEZ B2B — Migration 003: Quotes table, server-side order numbers,
+-- Migration 003: Quotes table, server-side order numbers,
 -- atomic stock reservation RPC, orders RLS
 -- Run in Supabase SQL Editor (Dashboard > SQL Editor)
 -- Fully idempotent — safe to run multiple times

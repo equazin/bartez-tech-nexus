@@ -119,7 +119,7 @@ const COMPONENTS_TEMPLATE: Array<{ name: string; children: string[] }> = [
   { name: "Motherboard", children: ["AMD (AM4 / AM5)", "Intel (LGA 1700 / LGA1851)"] },
 ];
 
-const ADMIN_ACTIVE_TAB_KEY = "bartez_admin_active_tab";
+const ADMIN_ACTIVE_TAB_KEY = "teqo_admin_active_tab";
 
 function getInitialAdminTab(): Tab {
   try {
@@ -2560,7 +2560,7 @@ async function handleCreateSeller() {
                         <option value="Andreani">Andreani</option>
                         <option value="OCA">OCA</option>
                         <option value="OCASA">OCASA</option>
-                        <option value="Logística Bartez">Logística Bartez</option>
+                        <option value="Logística propia">Logística propia</option>
                         <option value="Retiro en sucursal">Retiro en sucursal</option>
                       </select>
                     </div>
@@ -2618,7 +2618,7 @@ async function handleCreateSeller() {
                 {selectedOrder.status === "pending" && (() => {
                   const phone = clients.find((c) => c.id === selectedOrder.client_id)?.phone ?? "";
                   const waMsg = encodeURIComponent(
-                    `Hola! Te escribimos de Bartez Tecnología sobre tu pedido #${String(selectedOrder.id).slice(-8).toUpperCase()}. ¿Podemos coordinar la confirmación?`
+                    `Hola! Te escribimos de Teqo sobre tu pedido #${String(selectedOrder.id).slice(-8).toUpperCase()}. ¿Podemos coordinar la confirmación?`
                   );
                   const waUrl = phone ? `https://wa.me/${phone.replace(/\D/g, "")}?text=${waMsg}` : null;
                   return (
@@ -2851,7 +2851,7 @@ async function handleCreateSeller() {
                         <input type="email" value={newSeller.email}
                           onChange={(e) => setNewSeller((p) => ({ ...p, email: e.target.value }))}
                           className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition ${dk("bg-[#0d0d0d] border-[#262626] text-white focus:border-[#404040]", "bg-[#f5f5f5] border-[#e5e5e5] text-[#171717] focus:border-[#d4d4d4]")}`}
-                          placeholder="ventas@bartez.com" />
+                          placeholder="EMAIL-DE-TEQO-A-CONFIRMAR" />
                       </div>
                       <div className="col-span-2">
                         <label className={`text-xs mb-1 block ${dk("text-gray-400", "text-[#737373]")}`}>Contraseña *</label>

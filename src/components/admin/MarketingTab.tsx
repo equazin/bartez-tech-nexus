@@ -1513,7 +1513,7 @@ function CouponsSection({ isDark }: { isDark: boolean }) {
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-3">
               <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Código</label>
-              <input value={code} onChange={e=>setCode(e.target.value)} placeholder="BARTEZ2026" className={inputCls} />
+              <input value={code} onChange={e=>setCode(e.target.value)} placeholder="TEQO2026" className={inputCls} />
             </div>
             <div>
               <label className="text-[10px] uppercase tracking-widest text-[#525252] mb-1 block">Tipo</label>

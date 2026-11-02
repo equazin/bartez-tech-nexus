@@ -1,5 +1,5 @@
 -- =============================================================
--- BARTEZ B2B — Product custom name override
+-- Product custom name override
 -- =============================================================
 
 ALTER TABLE products ADD COLUMN IF NOT EXISTS name_original text;

@@ -23,7 +23,7 @@ export function useCompareList(clientId: string | undefined) {
 
   useEffect(() => {
     function handler(event: StorageEvent) {
-      if (event.key && event.key.startsWith("bartez_compare_")) {
+      if (event.key && event.key.startsWith("teqo_compare_")) {
         setIds(getCompareProducts(safeId));
       }
     }
@@ -40,7 +40,7 @@ export function useCompareList(clientId: string | undefined) {
   const remove = useCallback((productId: number) => {
     const next = getCompareProducts(safeId).filter((id) => id !== productId);
     try {
-      window.localStorage.setItem(`bartez_compare_${safeId}`, JSON.stringify(next));
+      window.localStorage.setItem(`teqo_compare_${safeId}`, JSON.stringify(next));
     } catch {
       // ignore quota
     }

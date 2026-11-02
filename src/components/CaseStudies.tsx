@@ -15,7 +15,7 @@ const cases = [
       { icon: Clock,      label: "0 caídas",     sub: "en 18 meses" },
       { icon: Users,      label: "40% menos",    sub: "en costos de IT" },
     ],
-    quote: "Con Bartez dejamos de apagar incendios y empezamos a planificar. Es como tener un departamento IT propio.",
+    quote: "Con Teqo dejamos de apagar incendios y empezamos a planificar. Es como tener un departamento IT propio.",
     author: "Gerente de Operaciones",
     color: "from-blue-500/10 to-transparent",
     border: "border-blue-500/20",
@@ -32,7 +32,7 @@ const cases = [
       { icon: Clock,      label: "ISO 27001",     sub: "cumplimiento logrado" },
       { icon: Users,      label: "100% cobertura",sub: "en todas las áreas" },
     ],
-    quote: "La seguridad de los datos de nuestros pacientes era crítica. Bartez nos llevó al estándar que necesitábamos.",
+    quote: "La seguridad de los datos de nuestros pacientes era crítica. Teqo nos llevó al estándar que necesitábamos.",
     author: "Director Médico",
     color: "from-green-500/10 to-transparent",
     border: "border-green-500/20",
@@ -64,7 +64,7 @@ export default function CaseStudies() {
           badge="Casos de Éxito"
           title="Empresas que ya"
           highlight="transformaron su IT"
-          description="Resultados reales de clientes que confiaron en Bartez para modernizar su infraestructura tecnológica."
+          description="Resultados reales de clientes que confiaron en Teqo para modernizar su infraestructura tecnológica."
         />
         <div className="grid gap-6 lg:grid-cols-3">
           {cases.map((c, i) => (

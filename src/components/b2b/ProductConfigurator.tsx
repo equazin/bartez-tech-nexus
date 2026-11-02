@@ -381,7 +381,7 @@ export function ProductConfigurator({
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-semibold text-foreground">{configuration.name}</p>
                         <Badge variant={configuration.is_template ? "outline" : "secondary"}>
-                          {configuration.is_template ? "Bartez" : "Propia"}
+                          {configuration.is_template ? "Teqo" : "Propia"}
                         </Badge>
                       </div>
                       <p className="mt-2 text-sm text-muted-foreground">

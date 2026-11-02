@@ -1,5 +1,5 @@
 -- =============================================================
--- BARTEZ B2B — Wholesale Scale Migration
+-- Wholesale Scale Migration
 -- Run in Supabase SQL Editor (Dashboard > SQL Editor)
 -- =============================================================
 

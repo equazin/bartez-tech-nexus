@@ -71,11 +71,11 @@ describe("commercialOps", () => {
           descripcion: "Transferencia",
         },
       ],
-      clientMap: { "client-1": "Bartez Cliente" },
+      clientMap: { "client-1": "Teqo Cliente" },
     });
 
     expect(stories).toHaveLength(1);
-    expect(stories[0].clientName).toBe("Bartez Cliente");
+    expect(stories[0].clientName).toBe("Teqo Cliente");
     expect(stories[0].quote?.label).toBe("COT-00044");
     expect(stories[0].order?.label).toBe("PED-101");
     expect(stories[0].invoices[0].label).toBe("FAC-0001");

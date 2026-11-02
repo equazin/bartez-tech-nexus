@@ -126,7 +126,7 @@ export function CartDrawer({
       
       // 2. Generate WhatsApp URL
       const shareUrl = `${window.location.origin}/b2b?cart_token=${data.id}`;
-      const message = `¡Hola! Te comparto mi pedido sugerido en Bartez Tech Nexus: \n\n${shareUrl}`;
+      const message = `¡Hola! Te comparto mi pedido sugerido en Teqo: \n\n${shareUrl}`;
       window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
     } catch (err) {
       logger.error("WhatsApp Share Error:", err);

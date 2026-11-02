@@ -127,7 +127,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
         <div className="flex shrink-0 items-center gap-3">
           <img
             src="/android-chrome-512x512.png"
-            alt="Bartez"
+            alt="Teqo"
             className="h-10 w-10 shrink-0 rounded-xl object-contain md:h-11 md:w-11"
           />
           <div className="space-y-0.5">

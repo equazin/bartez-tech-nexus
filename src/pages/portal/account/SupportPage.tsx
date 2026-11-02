@@ -116,8 +116,8 @@ export default function SupportPage() {
       .then(({ data }) => {
         if (!data) return;
         setSeller({
-          name: data.company_name || data.contact_name || "Vendedor Bartez",
-          email: data.email || "ventas@bartez.com.ar",
+          name: data.company_name || data.contact_name || "Equipo de Teqo",
+          email: data.email || "EMAIL-DE-TEQO-A-CONFIRMAR",
           phone: data.phone ?? null,
         });
       });
@@ -182,8 +182,8 @@ export default function SupportPage() {
           ) : (
             <p className="text-sm text-muted-foreground">
               Aún no tenés un vendedor asignado. Mientras tanto podés escribirnos a{" "}
-              <a href="mailto:ventas@bartez.com.ar" className="text-brand-600 hover:underline">
-                ventas@bartez.com.ar
+              <a href="mailto:EMAIL-DE-TEQO-A-CONFIRMAR" className="text-brand-600 hover:underline">
+                EMAIL-DE-TEQO-A-CONFIRMAR
               </a>
               .
             </p>

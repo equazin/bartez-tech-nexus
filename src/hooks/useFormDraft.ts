@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-const STORAGE_PREFIX = "bartez_form_draft__";
+const STORAGE_PREFIX = "teqo_form_draft__";
 const DEFAULT_DEBOUNCE_MS = 2000;
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 

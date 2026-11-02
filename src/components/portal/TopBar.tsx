@@ -72,7 +72,7 @@ function TopBar({
         className="hidden items-center gap-2 pr-2 md:inline-flex"
         aria-label="Ir al inicio"
       >
-        <span className="font-display text-[18px] font-bold tracking-tight text-foreground">Bartez</span>
+        <span className="font-display text-[18px] font-bold tracking-tight text-foreground">Teqo</span>
         <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand">B2B</span>
       </Link>
 

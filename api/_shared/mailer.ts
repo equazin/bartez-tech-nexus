@@ -30,7 +30,7 @@ export function getDefaultFromEmail(): string {
   return (
     process.env.FROM_EMAIL?.trim() ||
     process.env.SMTP_USER?.trim() ||
-    "pedidos@bartez.com.ar"
+    ""
   );
 }
 

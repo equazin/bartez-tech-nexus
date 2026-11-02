@@ -1,5 +1,5 @@
 /**
- * backendClient — typed HTTP client for bartez-backend (Fastify).
+ * backendClient — typed HTTP client for teqo-backend (Fastify).
  *
  * All privileged mutations go through this client instead of Vercel
  * serverless functions. Reads (SELECT with RLS) still use the Supabase
@@ -7,7 +7,7 @@
  *
  * Setup: add VITE_BACKEND_URL to .env
  *   VITE_BACKEND_URL=http://localhost:8787   # dev
- *   VITE_BACKEND_URL=https://api.bartez.com.ar  # prod
+ *   VITE_BACKEND_URL=https://api.DOMINIO-DE-TEQO-A-CONFIRMAR  # prod
  */
 
 import { supabase } from "@/lib/supabase";

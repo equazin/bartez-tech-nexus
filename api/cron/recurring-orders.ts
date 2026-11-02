@@ -76,7 +76,7 @@ async function sendConfirmationEmail(profile: ProfileRow, template: RecurringOrd
     const itemsLabel = Array.isArray(template.items) ? template.items.length : 0;
 
     await transport.sendMail({
-      from: `"Bartez Tecnologia" <${getDefaultFromEmail()}>`,
+      from: `"Teqo" <${getDefaultFromEmail()}>`,
       to: profile.email,
       subject: sanitizeHeaderText(`Confirmacion requerida para "${template.name}"`, "Confirmacion de pedido recurrente"),
       html: `

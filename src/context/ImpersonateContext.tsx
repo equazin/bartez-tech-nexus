@@ -20,7 +20,7 @@ const ImpersonateContext = createContext<ImpersonateContextType>({
   activeProfile: null,
 });
 
-const IMPERSONATE_KEY = "bartez_impersonated_id";
+const IMPERSONATE_KEY = "teqo_impersonated_id";
 
 export function ImpersonateProvider({ children }: { children: ReactNode }) {
   const { profile, isAdmin, isSeller } = useAuth();

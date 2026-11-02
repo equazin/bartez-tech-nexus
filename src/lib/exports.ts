@@ -57,7 +57,7 @@ export function exportCatalogPDF(
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(13);
   doc.setFont("helvetica", "bold");
-  doc.text("Catálogo de Productos — Bartez Tecnología", 14, 12);
+  doc.text("Catálogo de Productos — Teqo", 14, 12);
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.text(
@@ -106,7 +106,7 @@ export function exportCatalogPDF(
     },
   });
 
-  doc.save("catalogo-bartez.pdf");
+  doc.save("catalogo-teqo.pdf");
 }
 
 // ── Reports CSV (ventas por cliente) ─────────────────────────────────────────
@@ -158,7 +158,7 @@ export function exportRemitoPDF(order: {
   doc.text("REMITO DE ENTREGA", 14, 10);
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
-  doc.text("Bartez Tecnología · bartez.com.ar", 14, 17);
+  doc.text("Teqo · DOMINIO-DE-TEQO-A-CONFIRMAR", 14, 17);
 
   doc.setTextColor(0, 0, 0);
 
@@ -212,7 +212,7 @@ export function exportRemitoPDF(order: {
   doc.setTextColor(150, 150, 150);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
-  doc.text("Bartez Tecnología — Este documento es válido como comprobante de entrega.", 14, 285);
+  doc.text("Teqo — Este documento es válido como comprobante de entrega.", 14, 285);
 
   doc.save(`remito-${label}-${fecha}.pdf`);
 }
@@ -234,7 +234,7 @@ export function exportPriceListPDF(
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
-  doc.text("Lista de precios — Bartez Tecnología", 14, 10);
+  doc.text("Lista de precios — Teqo", 14, 10);
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.text(`${clientName} · ${fecha} · ${currency}`, 14, 17);
@@ -274,7 +274,7 @@ export function exportPriceListPDF(
     doc.setFontSize(7);
     doc.setFont("helvetica", "normal");
     doc.text(
-      `Bartez Tecnología · Lista confidencial para uso exclusivo de ${clientName} · Pág. ${i}/${pageCount}`,
+      `Teqo · Lista confidencial para uso exclusivo de ${clientName} · Pág. ${i}/${pageCount}`,
       14,
       290,
     );

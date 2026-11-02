@@ -66,7 +66,7 @@ const B2BSolutions = () => {
       <section className="py-20 lg:py-28 bg-surface/30">
         <div className="container mx-auto px-4 lg:px-8">
           <SectionHeading
-            badge="Por qué Bartez Mayorista"
+            badge="Por qué Teqo"
             title="Suministros IT con"
             highlight="respaldo real"
             description="Nos convertimos en el brazo logístico y financiero de su departamento de compras o de su negocio de reventa."
@@ -132,7 +132,7 @@ const B2BSolutions = () => {
                     <div className="h-3 w-3 rounded-full bg-yellow-500/20" />
                     <div className="h-3 w-3 rounded-full bg-green-500/20" />
                   </div>
-                  <span className="text-[10px] font-mono text-muted-foreground/40">bartez-b2b-portal.v1</span>
+                  <span className="text-[10px] font-mono text-muted-foreground/40">teqo-portal.v1</span>
                 </div>
                 <div className="space-y-4">
                   <div className="h-8 w-1/3 bg-muted/30 rounded-lg animate-pulse" />
@@ -161,7 +161,7 @@ const B2BSolutions = () => {
         <div className="container mx-auto px-4 lg:px-8">
           <div className="max-w-4xl mx-auto rounded-3xl border border-white/5 bg-card p-10 lg:p-16">
             <h3 className="font-display text-2xl lg:text-3xl font-bold text-foreground text-center mb-12">
-              Sea un Partner <span className="text-gradient">Bartez Mayorista</span>
+              Sea un Partner <span className="text-gradient">Teqo</span>
             </h3>
             <div className="grid gap-6 sm:grid-cols-2">
               {partnerChecklist.map((item) => (
@@ -196,7 +196,7 @@ const B2BSolutions = () => {
             badgeIcon={HandshakeIcon}
             title="Lleve su negocio IT al"
             highlight="próximo nivel"
-            description="Únase a la red de partners de Bartez. Disponibilidad inmediata, acompañamiento técnico y el Portal B2B más veloz del país."
+            description="Únase a la red de partners de Teqo. Disponibilidad inmediata, acompañamiento técnico y el Portal B2B más veloz del país."
             primaryLabel="Solicitar cuenta B2B"
             primaryTo="/registrarse"
             secondaryLabel="Hablar con un Ejecutivo"

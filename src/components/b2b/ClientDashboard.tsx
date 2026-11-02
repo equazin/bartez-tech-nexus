@@ -201,7 +201,7 @@ export function ClientDashboard({
   );
 
   const creditPct = creditLimit > 0 ? Math.min(100, (creditUsed / creditLimit) * 100) : 0;
-  const sellerName = assignedSeller?.name ?? "Bartez Soporte";
+  const sellerName = assignedSeller?.name ?? "Soporte de Teqo";
   const sellerUrl = generateWhatsAppDirectUrl(assignedSeller?.phone);
 
   const spendingStats = useMemo(() => {

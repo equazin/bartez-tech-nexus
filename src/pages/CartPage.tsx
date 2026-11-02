@@ -650,14 +650,14 @@ export default function CartPage() {
     if (errs.length) { setValidationErrors(errs); return; }
     setValidationErrors([]);
     setOrderSubmitting(true);
-    const shippingNote = shippingType !== "envio" ? "" : freeShippingApplied ? `EnvÃ­o: bonificado por Bartez por pedido superior a USD 800 a travÃ©s de ${TRANSPORT_LABELS[shippingTransport]}.` : shippingPaymentType === "destino" 
+    const shippingNote = shippingType !== "envio" ? "" : freeShippingApplied ? `EnvÃ­o: bonificado por Teqo por pedido superior a USD 800 a travÃ©s de ${TRANSPORT_LABELS[shippingTransport]}.` : shippingPaymentType === "destino" 
       ? `Envío: Pago en destino por el cliente a través de ${TRANSPORT_LABELS[shippingTransport]}.`
       : "";
     void shippingNote;
     const shippingNoteText = shippingType !== "envio"
       ? ""
       : freeShippingApplied
-        ? `Envio: bonificado por Bartez por pedido superior a USD 800 a traves de ${TRANSPORT_LABELS[shippingTransport]}.`
+        ? `Envio: bonificado por Teqo por pedido superior a USD 800 a traves de ${TRANSPORT_LABELS[shippingTransport]}.`
         : shippingPaymentType === "destino"
           ? `Envio: Pago en destino por el cliente a traves de ${TRANSPORT_LABELS[shippingTransport]}.`
           : "";
@@ -746,7 +746,7 @@ export default function CartPage() {
     const extraMarginFactor = resellerMode ? (1 + resellerMargin / 100) : 1;
     const isWhiteLabel = resellerMode;
     const exportClientName = orderMeta.finalClientName.trim() || clientName;
-    const exportCompanyName = isWhiteLabel ? exportClientName : "Bartez Tecnología";
+    const exportCompanyName = isWhiteLabel ? exportClientName : "Teqo";
     const paymentTerms = paymentMethod === "echeq"
       ? `${paymentSummaryLabel} + ${paymentSurchargePct.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
       : paymentMethod === "cuenta_corriente" && currentAccountSharePct === 100
