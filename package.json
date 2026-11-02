@@ -12,7 +12,8 @@
     "check": "npm run typecheck && npm run lint && npm test && npm run build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "tema": "node scripts/generar-tema.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
