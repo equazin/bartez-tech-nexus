@@ -508,6 +508,17 @@ export default function ProductTable({
     setBulkOpen(false);
   }
 
+  async function bulkSetPublicado(publicado: boolean) {
+    const { error } = await supabase.from("products").update({ publicado }).in("id", Array.from(selected));
+    if (error) {
+      window.alert(`No se pudo cambiar la publicación: ${error.message}`);
+      return;
+    }
+    setSelected(new Set());
+    onRefresh();
+    setBulkOpen(false);
+  }
+
   async function bulkSetActive(active: boolean) {
     await supabase.from("products").update({ active }).in("id", Array.from(selected));
     setSelected(new Set());
@@ -706,6 +717,8 @@ export default function ProductTable({
                 <div className={`border-t my-1 ${dk("border-[#2a2a2a]", "border-[#e5e5e5]")}`} />
                 <button onClick={() => bulkSetActive(true)}  className={`w-full text-left px-4 py-2 text-sm text-green-400 ${dk("hover:bg-[#2a2a2a]", "hover:bg-[#f5f5f5]")}`}>✓ Activar</button>
                 <button onClick={() => bulkSetActive(false)} className={`w-full text-left px-4 py-2 text-sm text-yellow-400 ${dk("hover:bg-[#2a2a2a]", "hover:bg-[#f5f5f5]")}`}>✗ Desactivar</button>
+                <button onClick={() => bulkSetPublicado(true)}  className={`w-full text-left px-4 py-2 text-sm text-green-400 ${dk("hover:bg-[#2a2a2a]", "hover:bg-[#f5f5f5]")}`}>Publicar en la tienda</button>
+                <button onClick={() => bulkSetPublicado(false)} className={`w-full text-left px-4 py-2 text-sm text-gray-400 ${dk("hover:bg-[#2a2a2a]", "hover:bg-[#f5f5f5]")}`}>Sacar de la tienda</button>
               </div>
             )}
           </div>
