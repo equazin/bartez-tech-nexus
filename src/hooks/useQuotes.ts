@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Quote, QuoteStatus } from "@/models/quote";
-import { hasBackendUrl } from "@/lib/api/backend";
+import { backend, hasBackendUrl } from "@/lib/api/backend";
 import { callVercelApi } from "@/lib/api/ordersApi";
 import { supabase } from "@/lib/supabase";
 

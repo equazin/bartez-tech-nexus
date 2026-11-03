@@ -1,4 +1,4 @@
-import { hasBackendUrl } from "./backend";
+import { backend, hasBackendUrl } from "./backend";
 import { supabase } from "@/lib/supabase";
 
 // ─── Types ────────────────────────────────────────────────────────────────────

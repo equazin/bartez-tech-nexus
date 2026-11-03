@@ -15,10 +15,10 @@ export type Tab =
   | "seller_mode" | "seller_management" | "seller_portfolio" | "seller_targets" | "seller_activity"
   | "clients" | "users_permissions" | "credit" | "business_alerts" | "documents" | "support"
   | "invoices" | "reports"
-  | "suppliers" | "brands" | "pricing" | "dolar" | "envios" | "pagos" | "transferencia" | "supplier_sync" | "stock" | "serials"
+  | "suppliers" | "brands" | "pricing" | "dolar" | "envios" | "pagos" | "transferencia" | "arrepentimientos" | "textos_legales" | "supplier_sync" | "stock" | "serials"
   | "movements" | "purchase_orders" | "rma" | "price_agreements" | "marketing" | "webhooks" | "activity" | "admin_management";
 
-export type ModuleId = "top" | "catalogo" | "pedidos" | "vendedores" | "clientes" | "finanzas" | "marketing" | "inventario" | "configuracion" | "sistema";
+export type ModuleId = "top" | "catalogo" | "pedidos" | "vendedores" | "clientes" | "finanzas" | "marketing" | "inventario" | "configuracion" | "sistema" | "legal";
 
 export interface NavItem {
   id: Tab;
@@ -152,6 +152,15 @@ export const NAV_MODULES: NavModule[] = [
       { id: "admin_management", label: "Administradores", icon: ShieldAlert, adminOnly: true },
       { id: "webhooks",         label: "Webhooks",        icon: Globe,       adminOnly: true },
       { id: "activity",         label: "Actividad",       icon: Activity,    adminOnly: true },
+    ],
+  },
+  {
+    id: "legal",
+    label: "Legal",
+    icon: ShieldCheck,
+    items: [
+      { id: "arrepentimientos", label: "Arrepentimientos", icon: RotateCcw, manageOrders: true },
+      { id: "textos_legales",   label: "Textos y datos",   icon: FileText,  adminOnly: true },
     ],
   },
 ];
