@@ -13,19 +13,9 @@ import { CurrencyProvider } from "@/context/CurrencyContext";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { refreshUTMs, track, getOrCreateSession } from "@/lib/marketingTracker";
 
-const Index = lazy(() => import("./pages/Index"));
-const Products = lazy(() => import("./pages/Products"));
-const PointOfSale = lazy(() => import("./pages/PointOfSale"));
-const CorporateSolutions = lazy(() => import("./pages/CorporateSolutions"));
-const ITServices = lazy(() => import("./pages/ITServices"));
-const B2BSolutions = lazy(() => import("./pages/B2BSolutions"));
-const IndustrySolutions = lazy(() => import("./pages/IndustrySolutions"));
-const About = lazy(() => import("./pages/About"));
-const Contact = lazy(() => import("./pages/Contact"));
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
 const CartPage = lazy(() => import("./pages/CartPage"));
-const QuoteRequest = lazy(() => import("./pages/QuoteRequest"));
 const Admin = lazy(() => import("./pages/Admin"));
 const CustomerView = lazy(() => import("./pages/CustomerView"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
@@ -61,7 +51,6 @@ const queryClient = new QueryClient({
 // ── Route Tracker ─────────────────────────────────────────────
 // Registra page_view en cada cambio de ruta y actualiza UTMs activos.
 // Debe vivir DENTRO de BrowserRouter para poder usar useLocation.
-const EMPRESAS_PATHS = new Set(["/empresas", "/partnership", "/soluciones-corporativas"]);
 
 function RouteTracker() {
   const location = useLocation();
@@ -76,11 +65,6 @@ function RouteTracker() {
     const path   = location.pathname;
 
     void track("page_view", { path }, userId);
-
-    // Evento especial para páginas de conversión empresarial
-    if (EMPRESAS_PATHS.has(path)) {
-      void track("landing_empresas_view", { path }, userId);
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 
@@ -189,19 +173,11 @@ const App = () => (
                 <RouteSeo />
                 <Suspense fallback={<RouteLoading />}>
                   <Routes>
-                    <Route path="/" element={<Index />} />
-                    <Route path="/tecnologia" element={<Products />} />
-                    <Route path="/productos" element={<Products />} />
-                    <Route path="/soluciones-corporativas" element={<CorporateSolutions />} />
-                    <Route path="/servicios-it" element={<ITServices />} />
-                    <Route path="/partnership" element={<B2BSolutions />} />
-                    <Route path="/empresas" element={<B2BSolutions />} />
-                    <Route path="/soluciones-por-industria" element={<IndustrySolutions />} />
-                    <Route path="/puntos-de-venta" element={<PointOfSale />} />
-                    <Route path="/nosotros" element={<About />} />
-                    <Route path="/contacto" element={<Contact />} />
-                    <Route path="/evaluacion-tecnologica" element={<QuoteRequest />} />
-                    <Route path="/cotizacion" element={<QuoteRequest />} />
+                    <Route path="/" element={<Inicio />} />
+                    <Route path="/buscar" element={<Buscar />} />
+                    {RUTAS_VIEJAS.map((ruta) => (
+                      <Route key={ruta} path={ruta} element={<Navigate to="/" replace />} />
+                    ))}
                     <Route path="/login" element={<Login />} />
                     <Route path="/reset-password" element={<ResetPassword />} />
                     <Route path="/registrarse" element={<Register />} />

@@ -1,4 +1,4 @@
-import Layout from "@/components/Layout";
+import { Tienda } from "@/components/tienda/Tienda";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -37,7 +37,7 @@ function Seccion({ titulo, children }: { titulo: string; children: React.ReactNo
 
 export default function SistemaDeDiseno() {
   return (
-    <Layout>
+    <Tienda>
       <div className="container mx-auto max-w-5xl space-y-16 px-4 py-12">
         <header className="space-y-2">
           <p className="font-display text-xs font-semibold uppercase tracking-[1px] text-muted-foreground">Sistema de diseño</p>
@@ -134,6 +134,6 @@ export default function SistemaDeDiseno() {
           </div>
         </Seccion>
       </div>
-    </Layout>
+    </Tienda>
   );
 }

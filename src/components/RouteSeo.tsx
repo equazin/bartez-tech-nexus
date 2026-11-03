@@ -18,81 +18,21 @@ const DEFAULT_SEO: RouteSeoConfig = {
 
 const PUBLIC_ROUTE_SEO: Record<string, RouteSeoConfig> = {
   "/": {
-    title: "Teqo | Notebooks, gaming, monitores y periféricos",
-    description: "Tecnología para trabajar, crear y jugar, con envío a todo el país y precios finales con IVA incluido.",
+    title: DEFAULT_SEO.title,
+    description: DEFAULT_SEO.description,
     canonicalPath: "/",
     schema: "website",
   },
-  "/tecnologia": {
-    title: "Catálogo | Teqo",
-    description: "Notebooks, gaming, monitores y periféricos con envío a todo el país.",
-    canonicalPath: "/tecnologia",
-    schema: "catalog",
+  "/buscar": {
+    title: "Buscar | Teqo",
+    description: DEFAULT_SEO.description,
+    canonicalPath: "/buscar",
+    noindex: true,
   },
-  "/productos": {
-    title: "Catálogo | Teqo",
-    description: "Notebooks, gaming, monitores y periféricos con envío a todo el país.",
-    canonicalPath: "/tecnologia",
-    schema: "catalog",
-  },
-  "/soluciones-corporativas": {
-    title: "Soluciones Corporativas IT | Teqo",
-    description: "Infraestructura, redes, hardware y servicios para empresas que necesitan tecnologia confiable.",
-    canonicalPath: "/soluciones-corporativas",
-    schema: "service",
-  },
-  "/servicios-it": {
-    title: "Servicios IT para Empresas | Teqo",
-    description: "Soporte, consultoria, redes, seguridad e infraestructura IT para operaciones empresariales.",
-    canonicalPath: "/servicios-it",
-    schema: "service",
-  },
-  "/partnership": {
-    title: "Partnership B2B para Integradores | Teqo",
-    description: "Provision mayorista, soporte comercial y catalogo B2B para integradores y partners tecnologicos.",
-    canonicalPath: "/partnership",
-    schema: "service",
-  },
-  "/empresas": {
-    title: "Soluciones B2B para Empresas | Teqo",
-    description: "Compra corporativa de tecnologia, precios B2B y asistencia para proyectos de equipamiento IT.",
-    canonicalPath: "/empresas",
-    schema: "service",
-  },
-  "/soluciones-por-industria": {
-    title: "Soluciones IT por Industria | Teqo",
-    description: "Tecnologia y equipamiento adaptado a comercios, oficinas, industrias y organizaciones.",
-    canonicalPath: "/soluciones-por-industria",
-    schema: "service",
-  },
-  "/puntos-de-venta": {
-    title: "Puntos de Venta y Kits POS | Teqo",
-    description: "Kits POS, impresoras, lectores, perifericos y equipamiento para comercios.",
-    canonicalPath: "/puntos-de-venta",
-    schema: "catalog",
-  },
-  "/nosotros": {
-    title: "Nosotros | Teqo",
-    description: "Conoce el equipo y la experiencia de Teqo en soluciones IT para empresas.",
-    canonicalPath: "/nosotros",
-  },
-  "/contacto": {
-    title: "Contacto | Teqo",
-    description: "Contacta a Teqo para compras corporativas, soporte IT y proyectos de tecnologia.",
-    canonicalPath: "/contacto",
-    schema: "contact",
-  },
-  "/evaluacion-tecnologica": {
-    title: "Evaluacion Tecnologica para Empresas | Teqo",
-    description: "Solicita una evaluacion para definir infraestructura, equipamiento y prioridades IT.",
-    canonicalPath: "/evaluacion-tecnologica",
-    schema: "service",
-  },
-  "/cotizacion": {
-    title: "Cotizacion de Tecnologia para Empresas | Teqo",
-    description: "Solicita una cotizacion de equipamiento, infraestructura o servicios IT para tu empresa.",
-    canonicalPath: "/evaluacion-tecnologica",
-    schema: "service",
+  "/sistema-de-diseno": {
+    title: "Sistema de diseño | Teqo",
+    description: "Muestra interna de los tokens de la tienda.",
+    noindex: true,
   },
 };
 

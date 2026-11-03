@@ -1,6 +1,8 @@
 {
   "cleanUrls": true,
-  "regions": ["gru1"],
+  "regions": [
+    "gru1"
+  ],
   "functions": {
     "api/image-finder.ts": {
       "maxDuration": 120
@@ -13,31 +15,134 @@
     }
   },
   "redirects": [
-    { "source": "/arrepentimiento", "destination": "/", "permanent": true },
-    { "source": "/arrepentimiento/:path*", "destination": "/", "permanent": true },
-
-    { "source": "/producto/:slug*", "destination": "/", "permanent": true }
+    {
+      "source": "/arrepentimiento",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/arrepentimiento/:path*",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/tecnologia",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/productos",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/soluciones-corporativas",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/servicios-it",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/partnership",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/empresas",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/soluciones-por-industria",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/puntos-de-venta",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/nosotros",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/contacto",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/evaluacion-tecnologica",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/cotizacion",
+      "destination": "/",
+      "permanent": true
+    }
   ],
   "rewrites": [
-    { "source": "/sitemap.xml", "destination": "/sitemap.xml" },
-    { "source": "/robots.txt", "destination": "/robots.txt" },
-    { "source": "/assets/(.*)", "destination": "/assets/$1" },
-
-    { "source": "/api/create-user", "destination": "/api/users" },
-    { "source": "/api/profiles", "destination": "/api/users?scope=profile" },
-    { "source": "/api/impersonate", "destination": "/api/users?scope=impersonate" },
-    
-    { "source": "/api/quotes", "destination": "/api/commerce?resource=quotes" },
-    { "source": "/api/rma", "destination": "/api/commerce?resource=rma" },
-    
-    { "source": "/api/coupons", "destination": "/api/pricing/coupons" },
-    { "source": "/api/pricing/:path*", "destination": "/api/pricing" },
-    
-    { "source": "/api/stock", "destination": "/api/products?scope=stock" },
-    { "source": "/api/contact", "destination": "/api/email?scope=contact" },
-
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/" }
+    {
+      "source": "/sitemap.xml",
+      "destination": "/sitemap.xml"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/robots.txt"
+    },
+    {
+      "source": "/assets/(.*)",
+      "destination": "/assets/$1"
+    },
+    {
+      "source": "/api/create-user",
+      "destination": "/api/users"
+    },
+    {
+      "source": "/api/profiles",
+      "destination": "/api/users?scope=profile"
+    },
+    {
+      "source": "/api/impersonate",
+      "destination": "/api/users?scope=impersonate"
+    },
+    {
+      "source": "/api/quotes",
+      "destination": "/api/commerce?resource=quotes"
+    },
+    {
+      "source": "/api/rma",
+      "destination": "/api/commerce?resource=rma"
+    },
+    {
+      "source": "/api/coupons",
+      "destination": "/api/pricing/coupons"
+    },
+    {
+      "source": "/api/pricing/:path*",
+      "destination": "/api/pricing"
+    },
+    {
+      "source": "/api/stock",
+      "destination": "/api/products?scope=stock"
+    },
+    {
+      "source": "/api/contact",
+      "destination": "/api/email?scope=contact"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/"
+    }
   ],
   "crons": [
     {
