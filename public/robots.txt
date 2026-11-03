@@ -12,4 +12,4 @@ Disallow: /compra
 Disallow: /seguimiento
 Disallow: /arrepentimiento
 
-Sitemap: https://DOMINIO-DE-TEQO-A-CONFIRMAR/sitemap.xml
+Sitemap: https://teqo.com.ar/sitemap.xml

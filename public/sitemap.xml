@@ -2,7 +2,7 @@
 <!-- Provisorio: en la fase 10 el sitemap se genera desde la base con categorías y productos activos. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://DOMINIO-DE-TEQO-A-CONFIRMAR/</loc>
+    <loc>https://teqo.com.ar/</loc>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
