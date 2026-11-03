@@ -103,6 +103,8 @@ interface SyncContext {
   productById: Map<number, CatalogProductRow>;
   supplierRows: ProductSupplierRow[];
   supplierRowByExternalId: Map<string, ProductSupplierRow>;
+  /** La oferta de este proveedor en cada producto: un producto tiene una sola por proveedor. */
+  supplierRowByProductId: Map<number, ProductSupplierRow>;
 }
 
 function withTimeout<T>(
@@ -822,12 +824,14 @@ async function buildSyncContext(supplier: SupplierRow): Promise<SyncContext> {
   const supplierRows = (supplierRowsData ?? []) as ProductSupplierRow[];
   const productById = new Map(products.map((product) => [product.id, product]));
   const supplierRowByExternalId = new Map<string, ProductSupplierRow>();
+  const supplierRowByProductId = new Map<number, ProductSupplierRow>();
 
   for (const row of supplierRows) {
     const key = normalizeToken(row.external_id);
     if (key) {
       supplierRowByExternalId.set(key, row);
     }
+    supplierRowByProductId.set(row.product_id, row);
   }
 
   return {
@@ -836,6 +840,7 @@ async function buildSyncContext(supplier: SupplierRow): Promise<SyncContext> {
     productById,
     supplierRows,
     supplierRowByExternalId,
+    supplierRowByProductId,
   };
 }
 
@@ -1139,6 +1144,16 @@ export async function syncSupplierCatalogRecords(
         let product = record.forceCreate
           ? (canReuseLinkedProduct ? linkedProduct : null)
           : (linkedProduct ?? findMatchingCatalogProduct(context.products, record));
+
+        // Un producto que ya tiene la oferta de OTRO artículo de este mismo proveedor no es este
+        // artículo, aunque el nombre o el modelo se parezcan (ELIT: la RTX 5070 "O12G" pisaba a la
+        // RX 9070 GRE "O12G"). Sin esto, el último que se procesaba le cambiaba el costo y el stock.
+        if (product && !linkedProduct) {
+          const otraOferta = context.supplierRowByProductId.get(product.id);
+          if (otraOferta && normalizeToken(otraOferta.external_id) && normalizeToken(otraOferta.external_id) !== externalKey) {
+            product = null;
+          }
+        }
         const wasExisting = Boolean(product);
 
         if (!product) {
@@ -1189,6 +1204,7 @@ export async function syncSupplierCatalogRecords(
           external_id: record.supplierExternalId,
         };
         context.supplierRowByExternalId.set(externalKey, refreshedSupplierRow);
+        context.supplierRowByProductId.set(product.id, refreshedSupplierRow);
       })(), perRecordTimeoutMs, `Timeout procesando ${record.supplierExternalId}`);
     } catch (error) {
       errors.push(`${record.supplierExternalId}: ${error instanceof Error ? error.message : String(error)}`);
