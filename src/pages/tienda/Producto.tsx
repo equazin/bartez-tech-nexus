@@ -10,7 +10,7 @@ import { NoEncontrado } from "@/components/tienda/NoEncontrado";
 import { Galeria } from "@/components/tienda/Galeria";
 import { FichaTecnica } from "@/components/tienda/FichaTecnica";
 import { Precio } from "@/components/tienda/Precio";
-import { EstadoDeStock, agregarYAvisar } from "@/components/tienda/TarjetaProducto";
+import { EstadoDeStock, EtiquetasDeProducto, agregarYAvisar } from "@/components/tienda/TarjetaProducto";
 import { imagenesDe, listarCategorias, obtenerProducto, rutaDeCategoria, type CategoriaPublica, type ProductoPublico } from "@/lib/tienda/catalogo";
 import { useSeo } from "@/lib/tienda/seo";
 
@@ -109,7 +109,7 @@ export default function Producto() {
 
           <div className="flex flex-col gap-5">
             <div className="flex flex-wrap items-center gap-2">
-              {producto.oferta && <Badge>Oferta</Badge>}
+              <EtiquetasDeProducto producto={producto} />
               {producto.marca && <Badge variant="outline">{producto.marca}</Badge>}
             </div>
             <div className="space-y-1">

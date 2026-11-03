@@ -3,7 +3,7 @@ import {
   ClipboardList, Layers, CheckCircle2, MessageSquare, Users, UserPlus,
   CreditCard, Bell, FileText, BarChart2, Building2, Bookmark, Wifi,
   ShieldCheck, ShieldAlert, History, ShoppingBag, RotateCcw, Handshake, LifeBuoy,
-  Ticket, Globe, Activity, Megaphone, PackagePlus, type LucideIcon,
+  Ticket, Globe, Activity, Megaphone, PackagePlus, Star, type LucideIcon,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -16,7 +16,7 @@ export type Tab =
   | "clients" | "users_permissions" | "credit" | "business_alerts" | "documents" | "support"
   | "invoices" | "reports"
   | "suppliers" | "brands" | "pricing" | "dolar" | "envios" | "pagos" | "transferencia" | "arrepentimientos" | "textos_legales" | "supplier_sync" | "stock" | "serials"
-  | "movements" | "purchase_orders" | "rma" | "price_agreements" | "marketing" | "webhooks" | "activity" | "admin_management";
+  | "movements" | "purchase_orders" | "rma" | "price_agreements" | "marketing" | "portada" | "webhooks" | "activity" | "admin_management";
 
 export type ModuleId = "top" | "catalogo" | "pedidos" | "vendedores" | "clientes" | "finanzas" | "marketing" | "inventario" | "configuracion" | "sistema" | "legal";
 
@@ -112,6 +112,7 @@ const NAV_MODULES_COMPLETOS: NavModule[] = [
     label: "Marketing",
     icon: Megaphone,
     items: [
+      { id: "portada",   label: "Portada",  icon: Star,      adminOnly: true },
       { id: "marketing", label: "Campañas", icon: Ticket,    adminOnly: true },
       { id: "support",   label: "Soporte",  icon: LifeBuoy,  adminOnly: true },
     ],

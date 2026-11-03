@@ -1,72 +1,79 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, RotateCcw, ShieldCheck, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tienda } from "@/components/tienda/Tienda";
 import { GrillaProductos } from "@/components/tienda/TarjetaProducto";
-import { listarCategorias, listarDestacados, type CategoriaPublica, type ProductoPublico } from "@/lib/tienda/catalogo";
+import { BloqueDeProductos } from "@/components/tienda/inicio/BloqueDeProductos";
+import { ElegidoDeLaSemana } from "@/components/tienda/inicio/ElegidoDeLaSemana";
+import { FranjaDeConfianza } from "@/components/tienda/inicio/FranjaDeConfianza";
+import { Marcas } from "@/components/tienda/inicio/Marcas";
+import { MasVendidos } from "@/components/tienda/inicio/MasVendidos";
+import { QueEstasBuscando } from "@/components/tienda/inicio/QueEstasBuscando";
+import { listarCategorias, listarNuevosIngresos, listarOfertas, type CategoriaPublica, type ProductoPublico } from "@/lib/tienda/catalogo";
+import {
+  listarMarcas,
+  obtenerMasVendidos,
+  obtenerPortada,
+  type MarcaPublica,
+  type MasVendidos as DatosMasVendidos,
+  type Portada,
+} from "@/lib/tienda/portada";
 import { useSeo } from "@/lib/tienda/seo";
 
-const CONFIANZA = [
-  {
-    icono: Truck,
-    titulo: "Envío a todo el país",
-    texto: "El mismo precio y el mismo plazo en cualquier provincia, a tu domicilio.",
-  },
-  {
-    icono: ShieldCheck,
-    titulo: "Precio final, sin sorpresas",
-    texto: "Todos los precios incluyen IVA. Pagás de contado o en cuotas.",
-  },
-  {
-    icono: RotateCcw,
-    titulo: "Arrepentimiento sin vueltas",
-    texto: "Podés revocar la compra dentro de los 10 días corridos de recibirla, sin registro.",
-  },
-];
+const PORTADA_INICIAL: Portada = { elegido: null, garantia_meses: null, cuotas_maximas: null };
 
 function buscarPorNombre(categorias: CategoriaPublica[], patron: RegExp): CategoriaPublica | undefined {
   return categorias.find((c) => patron.test(c.nombre) || patron.test(c.slug));
 }
 
-export default function Inicio() {
-  useSeo("Notebooks, gaming, monitores y periféricos", "Tecnología para trabajar, crear y jugar, con envío a todo el país y precios finales con IVA incluido.");
-
-  const [categorias, setCategorias] = useState<CategoriaPublica[]>([]);
-  const [destacados, setDestacados] = useState<ProductoPublico[]>([]);
-  const [cargandoDestacados, setCargandoDestacados] = useState(true);
-
+/** Carga una lista para la portada; si falla, el bloque no aparece en lugar de romper la página. */
+function useCarga<T>(cargar: () => Promise<T>, vacio: T): { valor: T; cargando: boolean } {
+  const [estado, setEstado] = useState<{ valor: T; cargando: boolean }>({ valor: vacio, cargando: true });
   useEffect(() => {
     let cancelado = false;
-    listarCategorias()
-      .then((lista) => {
-        if (!cancelado) setCategorias(lista.filter((c) => c.cantidad > 0));
+    cargar()
+      .then((valor) => {
+        if (!cancelado) setEstado({ valor, cargando: false });
       })
       .catch(() => {
-        if (!cancelado) setCategorias([]);
-      });
-    listarDestacados(8)
-      .then((lista) => {
-        if (!cancelado) setDestacados(lista);
-      })
-      .catch(() => {
-        if (!cancelado) setDestacados([]);
-      })
-      .finally(() => {
-        if (!cancelado) setCargandoDestacados(false);
+        if (!cancelado) setEstado({ valor: vacio, cargando: false });
       });
     return () => {
       cancelado = true;
     };
+    // Cada bloque se carga una vez por visita a la portada.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  return estado;
+}
 
+const SIN_PRODUCTOS: ProductoPublico[] = [];
+const SIN_MARCAS: MarcaPublica[] = [];
+const SIN_CATEGORIAS: CategoriaPublica[] = [];
+
+/**
+ * La portada, bloque por bloque según docs/plan-pagina-y-contenido.md (sección 3): portada,
+ * qué estás buscando, elegido de la semana, lo más vendido, ofertas, gaming, franja de
+ * confianza, nuevos ingresos y marcas. Los bloques sin datos no se muestran.
+ */
+export default function Inicio() {
+  useSeo("Notebooks, gaming, monitores y periféricos", "Tecnología para trabajar, crear y jugar, con envío a todo el país y precios finales con IVA incluido.");
+
+  const { valor: raices } = useCarga(listarCategorias, SIN_CATEGORIAS);
+  const { valor: portada } = useCarga(obtenerPortada, PORTADA_INICIAL);
+  const masVendidos = useCarga<DatosMasVendidos | null>(() => obtenerMasVendidos(24), null);
+  const ofertas = useCarga(() => listarOfertas(8), SIN_PRODUCTOS);
+  const nuevos = useCarga(() => listarNuevosIngresos(8), SIN_PRODUCTOS);
+  const { valor: marcas } = useCarga(listarMarcas, SIN_MARCAS);
+
+  const categorias = raices.filter((c) => c.cantidad > 0);
   const notebooks = buscarPorNombre(categorias, /notebook|portátil|laptop/i);
   const gaming = buscarPorNombre(categorias, /gaming|gamer/i);
   const destino = notebooks ?? categorias[0];
 
   return (
     <Tienda>
-      {/* Portada */}
+      {/* 1 · Portada */}
       <section className="relative overflow-hidden bg-background">
         <img src="/portada/portada.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-60" />
         <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-background/20" aria-hidden />
@@ -82,46 +89,27 @@ export default function Inicio() {
             </Button>
             {gaming && (
               <Button asChild size="lg" variant="outline">
-                <Link to={`/${gaming.slug}`}>Gaming</Link>
+                <Link to={`/${gaming.slug}`}>Ver gaming</Link>
               </Button>
             )}
           </div>
         </div>
       </section>
 
-      {/* Categorías */}
-      {categorias.length > 0 && (
-        <section className="container mx-auto px-4 py-12 lg:py-16">
-          <h2 className="mb-6 text-[28px] font-bold leading-[34px] tracking-[-0.5px]">Qué estás buscando</h2>
-          <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-            {categorias.map((categoria) => (
-              <li key={categoria.id}>
-                <Link
-                  to={`/${categoria.slug}`}
-                  className="flex h-full items-center justify-between gap-3 rounded-2xl border border-border bg-card p-5 transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <span className="font-bold">{categoria.nombre}</span>
-                  <span className="text-sm tabular-nums text-muted-foreground">{categoria.cantidad}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      {/* 2 · Qué estás buscando */}
+      <QueEstasBuscando raices={raices} />
 
-      {/* Destacados */}
-      {(cargandoDestacados || destacados.length > 0) && (
-        <section className="container mx-auto px-4 py-12 lg:py-16">
-          <div className="mb-6 flex items-end justify-between gap-4">
-            <h2 className="text-[28px] font-bold leading-[34px] tracking-[-0.5px]">Destacados</h2>
-            {destino && (
-              <Link to={`/${destino.slug}`} className="inline-flex items-center gap-1 text-sm font-bold hover:underline">
-                Ver todo <ArrowRight className="h-4 w-4" aria-hidden />
-              </Link>
-            )}
-          </div>
-          <GrillaProductos productos={destacados} cargando={cargandoDestacados} />
-        </section>
+      {/* 3 · Elegido de la semana */}
+      {portada.elegido && <ElegidoDeLaSemana elegido={portada.elegido} />}
+
+      {/* 4 · Lo más vendido (o destacados, mientras no haya ventas) */}
+      <MasVendidos datos={masVendidos.valor} cargando={masVendidos.cargando} verTodo={destino ? `/${destino.slug}` : undefined} />
+
+      {/* 5 · Ofertas */}
+      {ofertas.valor.length > 0 && (
+        <BloqueDeProductos id="ofertas" titulo="Ofertas" bajada="Precio final rebajado sobre el de lista, con IVA incluido." verTodo={{ ruta: "/ofertas", etiqueta: "Ver todas" }}>
+          <GrillaProductos productos={ofertas.valor} />
+        </BloqueDeProductos>
       )}
 
       {/* Gaming */}
@@ -140,20 +128,18 @@ export default function Inicio() {
         </section>
       )}
 
-      {/* Confianza */}
-      <section className="container mx-auto px-4 py-12 lg:py-16">
-        <ul className="grid gap-4 md:grid-cols-3">
-          {CONFIANZA.map(({ icono: Icono, titulo, texto }) => (
-            <li key={titulo} className="flex gap-4 rounded-2xl border border-border bg-card p-6">
-              <Icono className="h-6 w-6 shrink-0" aria-hidden />
-              <div className="space-y-1">
-                <p className="font-bold">{titulo}</p>
-                <p className="text-sm leading-5 text-muted-foreground">{texto}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {/* 7 · Franja de confianza */}
+      <FranjaDeConfianza portada={portada} />
+
+      {/* 8 · Nuevos ingresos */}
+      {nuevos.valor.length > 0 && (
+        <BloqueDeProductos id="nuevos" titulo="Nuevos ingresos" bajada="Lo último que entró al catálogo." verTodo={{ ruta: "/nuevos-ingresos" }}>
+          <GrillaProductos productos={nuevos.valor} />
+        </BloqueDeProductos>
+      )}
+
+      {/* 9 · Marcas */}
+      <Marcas marcas={marcas} />
     </Tienda>
   );
 }

@@ -32,6 +32,11 @@ export interface ProductoPublico {
   specs: Record<string, unknown> | null;
   /** Las etiquetas del producto más las que hereda de su categoría (por ejemplo, gaming). */
   etiquetas: string[];
+  creado_en: string | null;
+  /** Entró al catálogo hace menos de los días que fija el panel (30 por defecto). */
+  nuevo: boolean;
+  /** Cuánto baja el precio final contra el de lista, en %, redondeado hacia abajo; nulo sin oferta. */
+  ahorro_pct: number | null;
 }
 
 export interface CategoriaPublica {
@@ -59,13 +64,20 @@ export interface FilaDeCategoria {
   incluye_etiqueta?: string | null;
 }
 
-export type OrdenDelCatalogo = "destacados" | "precio_asc" | "precio_desc" | "nombre";
+export type OrdenDelCatalogo = "destacados" | "precio_asc" | "precio_desc" | "nombre" | "nuevos" | "ahorro";
 
 export const ORDENES: Array<{ valor: OrdenDelCatalogo; etiqueta: string }> = [
   { valor: "destacados", etiqueta: "Destacados" },
   { valor: "precio_asc", etiqueta: "Menor precio" },
   { valor: "precio_desc", etiqueta: "Mayor precio" },
+  { valor: "nuevos", etiqueta: "Más nuevos" },
   { valor: "nombre", etiqueta: "Nombre" },
+];
+
+/** Las ofertas suman el orden por ahorro. */
+export const ORDENES_DE_OFERTAS: Array<{ valor: OrdenDelCatalogo; etiqueta: string }> = [
+  { valor: "ahorro", etiqueta: "Mayor ahorro" },
+  ...ORDENES.filter((o) => o.valor !== "destacados"),
 ];
 
 export const POR_PAGINA = 24;
@@ -73,7 +85,7 @@ export const POR_PAGINA = 24;
 const COLUMNAS =
   "id, slug, nombre, descripcion_corta, descripcion, imagenes, imagen, categoria_nombre, categoria_id, " +
   "categoria_slug, marca_id, marca, hay_stock, pocas_unidades, sku, iva_rate, precio_final_ars, " +
-  "precio_lista_ars, oferta, tags, peso_kg, destacado, specs, etiquetas";
+  "precio_lista_ars, oferta, tags, peso_kg, destacado, specs, etiquetas, creado_en, nuevo, ahorro_pct";
 
 export const SEGMENTO_SIN_CATEGORIA = "productos";
 
@@ -102,6 +114,10 @@ function conOrden<T extends { order: (columna: string, opciones?: { ascending?: 
       return consulta.order("precio_final_ars", { ascending: false, nullsFirst: false }).order("nombre", { ascending: true });
     case "nombre":
       return consulta.order("nombre", { ascending: true });
+    case "nuevos":
+      return consulta.order("creado_en", { ascending: false, nullsFirst: false }).order("nombre", { ascending: true });
+    case "ahorro":
+      return consulta.order("ahorro_pct", { ascending: false, nullsFirst: false }).order("nombre", { ascending: true });
     case "destacados":
     default:
       return consulta.order("destacado", { ascending: false }).order("nombre", { ascending: true });
@@ -161,12 +177,20 @@ export interface OpcionesDeListado {
   orden?: OrdenDelCatalogo;
   pagina?: number;
   porPagina?: number;
+  /** Solo los que tienen precio de lista tachado (las ofertas). */
+  soloOfertas?: boolean;
+  /** Solo los que tienen precio final calculado. */
+  soloConPrecio?: boolean;
+  soloConStock?: boolean;
 }
 
 export async function listarProductos(opciones: OpcionesDeListado = {}): Promise<{ productos: ProductoPublico[]; total: number }> {
-  const { filtro, marcaId, orden = "destacados", pagina = 0, porPagina = POR_PAGINA } = opciones;
+  const { filtro, marcaId, orden = "destacados", pagina = 0, porPagina = POR_PAGINA, soloOfertas, soloConPrecio, soloConStock } = opciones;
   let consulta = conFiltro(supabase.from("tienda_productos").select(COLUMNAS, { count: "exact" }), filtro);
   if (marcaId) consulta = consulta.eq("marca_id", marcaId);
+  if (soloOfertas) consulta = consulta.eq("oferta", true);
+  if (soloConPrecio) consulta = consulta.not("precio_final_ars", "is", null);
+  if (soloConStock) consulta = consulta.eq("hay_stock", true);
   consulta = conOrden(consulta, orden);
   const desde = pagina * porPagina;
   const { data, error, count } = await consulta.range(desde, desde + porPagina - 1);
@@ -219,6 +243,18 @@ export async function listarDestacados(limite = 8): Promise<ProductoPublico[]> {
     .limit(limite);
   if (error) throw new Error(`No se pudieron cargar los destacados: ${error.message}`);
   return (data ?? []) as unknown as ProductoPublico[];
+}
+
+/** Las ofertas con stock, de mayor a menor ahorro. */
+export async function listarOfertas(limite = 8): Promise<ProductoPublico[]> {
+  const { productos } = await listarProductos({ soloOfertas: true, soloConStock: true, orden: "ahorro", porPagina: limite });
+  return productos;
+}
+
+/** Lo último que entró al catálogo, con precio y stock. */
+export async function listarNuevosIngresos(limite = 8): Promise<ProductoPublico[]> {
+  const { productos } = await listarProductos({ soloConPrecio: true, soloConStock: true, orden: "nuevos", porPagina: limite });
+  return productos;
 }
 
 export async function buscarProductos(q: string, limite = 48): Promise<ProductoPublico[]> {

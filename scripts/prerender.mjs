@@ -85,7 +85,7 @@ async function main() {
   for (let desde = 0; desde < MAXIMO_DE_PRODUCTOS; desde += 1000) {
     const { data, error } = await supabase
       .from("tienda_productos")
-      .select("id, slug, nombre, descripcion_corta, imagenes, imagen, categoria_id, categoria_slug, categoria_nombre, marca, hay_stock, precio_final_ars, precio_lista_ars, sku, specs, etiquetas")
+      .select("id, slug, nombre, descripcion_corta, imagenes, imagen, categoria_id, categoria_slug, categoria_nombre, marca_id, marca, hay_stock, precio_final_ars, precio_lista_ars, sku, specs, etiquetas, oferta, ahorro_pct, creado_en")
       .order("id")
       .range(desde, desde + 999);
     if (error) throw new Error(`No se pudieron leer los productos: ${error.message}`);
@@ -131,6 +131,36 @@ async function main() {
     const extraHead = jsonLd({ "@context": "https://schema.org", "@type": "CollectionPage", name: categoria.nombre, url: sitio + ruta, isPartOf: { "@id": `${sitio}/#website` } });
     escribirPagina(ruta, armarPagina(plantilla, { titulo: categoria.nombre, descripcion: `${categoria.nombre} con envío a todo el país y precios finales con IVA incluido.`, ruta, extraHead, cuerpo }));
     urls.push(sitio + ruta);
+  }
+
+  // Ofertas, nuevos ingresos y marcas: listados sin categoría propia.
+  const listado = (titulo, ruta, descripcion, lista) => {
+    const cuerpo = `<main><h1>${escapar(titulo)}</h1><p>${escapar(descripcion)}</p><ul>${lista
+      .slice(0, 60)
+      .map((p) => `<li><a href="${escapar(`/${p.categoria_slug ?? SEGMENTO_SIN_CATEGORIA}/${p.slug}`)}">${escapar(p.nombre)}</a>${p.precio_final_ars !== null ? ` · ${escapar(formatoPesos.format(p.precio_final_ars))}` : ""}</li>`)
+      .join("")}</ul></main>`;
+    const extraHead = jsonLd({ "@context": "https://schema.org", "@type": "CollectionPage", name: titulo, url: sitio + ruta, isPartOf: { "@id": `${sitio}/#website` } });
+    escribirPagina(ruta, armarPagina(plantilla, { titulo, descripcion, ruta, extraHead, cuerpo }));
+    urls.push(sitio + ruta);
+  };
+  const ofertas = publicables.filter((p) => p.oferta && p.hay_stock).sort((a, b) => (b.ahorro_pct ?? 0) - (a.ahorro_pct ?? 0));
+  if (ofertas.length > 0) listado("Ofertas", "/ofertas", "Precio final rebajado sobre el de lista, con IVA incluido.", ofertas);
+  const nuevos = publicables
+    .filter((p) => p.precio_final_ars !== null && p.creado_en)
+    .sort((a, b) => String(b.creado_en).localeCompare(String(a.creado_en)));
+  if (nuevos.length > 0) listado("Nuevos ingresos", "/nuevos-ingresos", "Lo último que entró al catálogo.", nuevos);
+
+  // Sin las marcas (por ejemplo, antes de aplicar la migración 118) el build sigue sin esas páginas.
+  const { data: marcasCrudas, error: errorMarcas } = await supabase.rpc("tienda_marcas");
+  if (errorMarcas) console.log(`[prerender] Sin marcas: ${errorMarcas.message}`);
+  const marcas = (errorMarcas ? [] : (marcasCrudas ?? [])).filter((m) => SLUG.test(m.slug ?? ""));
+  if (marcas.length > 0) {
+    const cuerpo = `<main><h1>Marcas</h1><ul>${marcas.map((m) => `<li><a href="${escapar(`/marcas/${m.slug}`)}">${escapar(m.nombre)}</a></li>`).join("")}</ul></main>`;
+    escribirPagina("/marcas", armarPagina(plantilla, { titulo: "Marcas", descripcion: "Las marcas de notebooks, gaming, monitores y periféricos que vendemos, con envío a todo el país.", ruta: "/marcas", extraHead: "", cuerpo }));
+    urls.push(`${sitio}/marcas`);
+    for (const m of marcas) {
+      listado(m.nombre, `/marcas/${m.slug}`, `${m.nombre} con envío a todo el país y precios finales con IVA incluido.`, publicables.filter((p) => p.marca_id === m.id));
+    }
   }
 
   // Productos

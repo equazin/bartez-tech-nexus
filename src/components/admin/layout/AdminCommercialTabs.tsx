@@ -23,6 +23,7 @@ const PagosTab = lazy(() => import("@/components/admin/PagosTab").then((m) => ({
 const TransferenciaTab = lazy(() => import("@/components/admin/TransferenciaTab").then((m) => ({ default: m.TransferenciaTab })));
 const ArrepentimientosTab = lazy(() => import("@/components/admin/ArrepentimientosTab").then((m) => ({ default: m.ArrepentimientosTab })));
 const TextosLegalesTab = lazy(() => import("@/components/admin/TextosLegalesTab").then((m) => ({ default: m.TextosLegalesTab })));
+const PortadaTab = lazy(() => import("@/components/admin/PortadaTab").then((m) => ({ default: m.PortadaTab })));
 const ReportsTab = lazy(() => import("@/components/admin/ReportsTab").then((m) => ({ default: m.ReportsTab })));
 const ActivityLogTab = lazy(() => import("@/components/admin/ActivityLogTab").then((m) => ({ default: m.ActivityLogTab })));
 const SupportTab = lazy(() => import("@/components/admin/SupportTab").then((m) => ({ default: m.SupportTab })));
@@ -191,6 +192,10 @@ export function AdminCommercialTabs({
 
       <KeepAliveTab active={activeTab === "textos_legales"} id="textos_legales">
         <TextosLegalesTab />
+      </KeepAliveTab>
+
+      <KeepAliveTab active={activeTab === "portada"} id="portada">
+        <PortadaTab />
       </KeepAliveTab>
 
       <KeepAliveTab active={activeTab === "reports"} id="reports">

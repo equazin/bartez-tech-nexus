@@ -10,13 +10,39 @@ export function Pie() {
 
   return (
     <footer className="mt-16 border-t border-border bg-background">
-      <div className="container mx-auto grid gap-10 px-4 py-12 md:grid-cols-3">
+      <div className="container mx-auto grid gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-4">
           <img src="/marca/teqo-logo-blanco.svg" alt="teqo." className="h-7 w-auto" />
           <p className="text-sm text-muted-foreground">Subí tu mundo.</p>
           <p className="text-sm text-muted-foreground">
             Notebooks, gaming, monitores y periféricos. Envío a todo el país, al mismo precio en cualquier provincia.
           </p>
+        </div>
+
+        <div className="space-y-3">
+          <p className="font-display text-xs font-semibold uppercase tracking-[1px] text-muted-foreground">Comprar</p>
+          <ul className="space-y-2 text-sm">
+            <li>
+              <Link to="/ofertas" className="hover:underline">
+                Ofertas
+              </Link>
+            </li>
+            <li>
+              <Link to="/nuevos-ingresos" className="hover:underline">
+                Nuevos ingresos
+              </Link>
+            </li>
+            <li>
+              <Link to="/marcas" className="hover:underline">
+                Marcas
+              </Link>
+            </li>
+            <li>
+              <Link to="/buscar" className="hover:underline">
+                Buscar en el catálogo
+              </Link>
+            </li>
+          </ul>
         </div>
 
         <div className="space-y-3">

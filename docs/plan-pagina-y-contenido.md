@@ -160,6 +160,41 @@ corta y larga; se extiende con los dos bloques nuevos y se aprueba desde el pane
 A y B se pueden empezar ya con la tienda publicada. C y D no cambian de forma, cambian de contenido, así que
 conviene hacerlos con productos reales a la vista.
 
+## Estado (3 de noviembre de 2026)
+
+**Fase A · Datos: código hecho; falta la carga.** Migración 117 y panel.
+
+- Árbol de la sección 4 con nombre completo (único, para migas, títulos y el panel), nombre corto para los chips y
+  orden de menú. Las nueve categorías de Bartez quedan inactivas.
+- Gaming es una vista transversal: `categories.incluye_etiqueta = 'gaming'`. Un producto entra por `tags` o porque su
+  categoría hereda la etiqueta (`etiqueta_heredada`: Notebooks gamer y Monitores para jugar). En `/gaming`, los chips
+  filtran por subcategoría de cualquier rama (`/gaming?sub=perifericos-teclados` son los teclados gamer).
+- Mapeo: en lugar de `category_mapping` (por proveedor e id externo, que el panel no usa) se agregó `mapeo_categorias`,
+  por texto: el panel y las sincronizaciones guardan la categoría como texto en `products.category`, y un disparador la
+  traduce a `category_id` (por el mapeo, por el nombre o por el slug). Antes, un producto cargado desde el panel no
+  aparecía en ninguna categoría de la tienda. El texto original queda en `products.categoria_origen`.
+- Panel, Catálogo › Categorías › Categorías de los mayoristas: cada texto de origen con sus productos y la categoría
+  de Teqo a la que va. Se mapea una vez y alcanza para lo que ya entró y lo que entre.
+- La tienda muestra solo productos con una categoría activa.
+- Falta, del lado de la carga: importar los primeros productos, nombres normalizados, fotos y el dólar (sección 7).
+
+**Fase B · Portada completa: hecha.** Migración 118, la portada y Marketing › Portada en el panel.
+
+- Bloques 1, 2, 3, 4, 5, 7, 8 y 9 de la sección 3, en ese orden, más la franja de Gaming. Los que no tienen datos no
+  se muestran.
+- Elegido de la semana: producto, hasta cuatro datos clave y de una a tres razones, cargados por el administrador.
+- Lo más vendido: unidades de pedidos pagados en adelante de las últimas cuatro semanas; con menos de cuatro productos
+  vendidos, el bloque se titula Destacados y lista los marcados como destacados. Chips de marca para filtrar.
+- Etiquetas en la tarjeta y la ficha: Oferta con el porcentaje de ahorro, Nuevo (días configurables, 30 por defecto)
+  y Últimas unidades.
+- Franja de cuatro promesas y "no vemos ni guardamos tu tarjeta". Los meses de garantía se cargan en el panel; hasta
+  entonces la franja muestra [N]. Las cuotas toman el tope de Dólar y margen o dicen "Cuotas con Mercado Pago".
+- Vistas `/ofertas`, `/nuevos-ingresos`, `/marcas` y `/marcas/:marca`, con prerender y sitemap.
+- Afuera de esta fase, como dice el orden de trabajo: comparador (C), guías ¿Cuál me compro? (D) y opiniones (E).
+
+Las migraciones 117 y 118 se probaron en un Postgres 16 local con el historial completo; hay que aplicarlas en el
+proyecto `teqo` antes de desplegar el código.
+
 ## 9. Decisiones abiertas
 
 - Si Gaming incluye sillas y escritorios (FullH4rd los vende; pesan y el envío nacional los encarece).
