@@ -272,7 +272,7 @@ export function Encabezado() {
       <FranjaDeServicio />
       <div className="container mx-auto flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3.5">
         <Link to="/" className="flex h-11 shrink-0 items-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Teqo, inicio">
-          <img src="/marca/teqo-logo-blanco.svg" alt="teqo." className="h-[34px] w-auto" />
+          <img src="/marca/teqo-encendido-fondo-claro.svg" alt="teqo." className="h-10 w-auto" />
         </Link>
         <MenuDeCategorias categorias={categorias} />
         <Buscador categorias={categorias} className="order-last w-full md:order-none md:w-auto md:flex-1" />

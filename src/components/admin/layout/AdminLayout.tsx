@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { AdminTopbar } from "./AdminTopbar";
 import { AdminSidebar } from "./AdminSidebar";
 import { type Tab, type ModuleId, type NavItem } from "./adminNavConfig";
@@ -64,6 +64,17 @@ export function AdminLayout({
   onLogout,
   onSetCurrency,
 }: AdminLayoutProps) {
+  // Los menús y diálogos se dibujan fuera de este bloque: con el atributo en <html> también toman los colores del panel.
+  useEffect(() => {
+    const raiz = document.documentElement;
+    const anterior = raiz.getAttribute("data-tema");
+    raiz.setAttribute("data-tema", "panel");
+    return () => {
+      if (anterior === null) raiz.removeAttribute("data-tema");
+      else raiz.setAttribute("data-tema", anterior);
+    };
+  }, []);
+
   return (
     <div data-tema="panel" className="dashboard-stage min-h-screen bg-background px-3 py-3 font-sans md:px-4 md:py-4">
       <div className="dashboard-canvas flex min-h-[calc(100vh-1.5rem)] flex-col overflow-hidden">

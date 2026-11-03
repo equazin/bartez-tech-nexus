@@ -57,7 +57,7 @@ export function AdminSidebar({
     <div className="flex h-full flex-col bg-card/65">
       <div className="border-b border-border/70 px-3 py-4">
         <div className={`flex items-center gap-3 ${collapsed && !mobile ? "justify-center" : ""}`}>
-          <img src="/marca/teqo-isotipo-sin-fondo.svg" alt="" className="h-9 w-9 shrink-0" />
+          <img src="/marca/teqo-isotipo-encendido-sin-fondo.svg" alt="" className="h-9 w-9 shrink-0" />
           {(!collapsed || mobile) && (
             <div className="min-w-0">
               <p className="text-sm font-bold text-foreground">Panel de Teqo</p>

@@ -34,11 +34,11 @@ export function Pie() {
   }, []);
 
   return (
-    <footer className="mt-16 border-t border-border bg-card">
+    <footer data-tema="nocturno" className="mt-16 bg-background text-foreground">
       <div className="container mx-auto flex flex-col gap-9 px-4 pb-6 pt-12">
         <div className="flex flex-wrap gap-x-12 gap-y-9">
           <div className="flex min-w-[260px] flex-[1.4] flex-col gap-3.5">
-            <img src="/marca/teqo-logo-blanco.svg" alt="teqo." className="h-8 w-auto self-start" />
+            <img src="/marca/teqo-encendido-fondo-oscuro.svg" alt="teqo." className="h-10 w-auto self-start" />
             <p className="font-display text-xl font-bold uppercase">Subí tu mundo.</p>
             <p className="text-sm leading-relaxed text-muted-foreground">
               Notebooks, gaming, monitores, periféricos y componentes. Envío a todo el país, al mismo precio en cualquier provincia.

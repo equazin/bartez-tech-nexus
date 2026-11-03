@@ -337,6 +337,21 @@ export default function ArmaTuPc() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parametros, productos.length]);
 
+  // "Ver la PC" desde la portada: /arma-tu-pc?armada=<id> la carga en la lista.
+  useEffect(() => {
+    const id = parametros.get("armada");
+    if (!id || armadas.length === 0) return;
+    const armada = armadas.find((a) => a.id === id);
+    if (armada) {
+      cargarArmada(armada.id, armada.piezas);
+      abrir(null);
+    }
+    const siguientes = new URLSearchParams(parametros);
+    siguientes.delete("armada");
+    setParametros(siguientes, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parametros, armadas.length]);
+
   // Al llegar con un armado a medias, abre la primera pieza sin resolver.
   useEffect(() => {
     if (cargando) return;

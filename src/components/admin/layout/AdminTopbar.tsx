@@ -69,7 +69,7 @@ export function AdminTopbar({
         </button>
 
         <div className="flex min-w-0 items-center gap-2.5">
-          <img src="/marca/teqo-isotipo-sin-fondo.svg" alt="" className="h-9 w-9 shrink-0" />
+          <img src="/marca/teqo-isotipo-encendido-sin-fondo.svg" alt="" className="h-9 w-9 shrink-0" />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="truncate text-sm font-bold text-foreground md:text-[15px]">Panel</span>

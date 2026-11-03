@@ -1,80 +1,8 @@
 /* Generado por scripts/generar-tema.mjs desde src/tema/tokens.json (tokens de Teqo). No editar a mano: correr `npm run tema`. */
 
-/* Nocturno × Prisma: el tema de la tienda y el predeterminado. */
-:root, .dark, [data-tema="nocturno"] {
-  color-scheme: dark;
-  --background: 220 11.5% 10.2%;
-  --foreground: 0 0% 100.0%;
-  --card: 220 8.6% 13.7%;
-  --card-foreground: 0 0% 100.0%;
-  --popover: 220 8.6% 13.7%;
-  --popover-foreground: 0 0% 100.0%;
-  --primary: 352 90.9% 47.6%;
-  --primary-foreground: 0 0% 100.0%;
-  --primary-hover: 351 91.1% 39.8%;
-  --secondary: 220 9.7% 18.2%;
-  --secondary-foreground: 0 0% 100.0%;
-  --muted: 220 9.7% 18.2%;
-  --muted-foreground: 210 10.6% 81.6%;
-  --accent: 220 8.1% 21.8%;
-  --accent-foreground: 0 0% 100.0%;
-  --destructive: 0 100.0% 74.1%;
-  --destructive-foreground: 220 11.5% 10.2%;
-  --border: 220 9.4% 25.1%;
-  --input: 218 7.0% 55.3%;
-  --ring: 0 0% 100.0%;
-  --sidebar-background: 220 11.5% 10.2%;
-  --sidebar-foreground: 210 10.6% 81.6%;
-  --sidebar-primary: 352 90.9% 47.6%;
-  --sidebar-primary-foreground: 0 0% 100.0%;
-  --sidebar-accent: 220 9.7% 18.2%;
-  --sidebar-accent-foreground: 0 0% 100.0%;
-  --sidebar-border: 220 9.4% 25.1%;
-  --sidebar-ring: 0 0% 100.0%;
-  --glow: 220 8.1% 21.8%;
-  --surface: 220 8.6% 13.7%;
-  --surface-elevated: 220 9.7% 18.2%;
-  --surface-1: 220 8.6% 13.7%;
-  --surface-2: 220 9.7% 18.2%;
-  --surface-3: 220 8.1% 21.8%;
-  --gradient-start: 352 90.9% 47.6%;
-  --gradient-end: 351 91.1% 39.8%;
-  --glass: 220 8.6% 13.7%;
-  --glass-border: 220 9.4% 25.1%;
-  --brand: 352 90.9% 47.6%;
-  --brand-foreground: 0 0% 100.0%;
-  --brand-50: 350 81.8% 95.7%;
-  --brand-100: 351 81.4% 91.6%;
-  --brand-200: 352 82.5% 84.3%;
-  --brand-500: 352 90.9% 47.6%;
-  --brand-600: 351 91.1% 39.8%;
-  --brand-700: 352 90.6% 33.3%;
-  --brand-900: 352 90.8% 21.4%;
-  --success: 141 47.7% 61.0%;
-  --success-foreground: 220 11.5% 10.2%;
-  --warning: 0 0% 100.0%;
-  --warning-foreground: 220 11.5% 10.2%;
-  --danger: 0 100.0% 74.1%;
-  --danger-foreground: 220 11.5% 10.2%;
-  --info: 210 10.6% 81.6%;
-  --info-foreground: 220 11.5% 10.2%;
-  --placa-foto: 220 5.7% 89.6%;
-  --placa-foto-2: 223 9.1% 84.9%;
-  --texto-placa: 220 11.5% 10.2%;
-  --foco-placa: 220 11.5% 10.2%;
-  --exito-fondo: 220 9.7% 18.2%;
-  --error-fondo: 220 9.7% 18.2%;
-  --fuente-texto: "Space Grotesk", system-ui, sans-serif;
-  --fuente-titular: "Chakra Petch", "Space Grotesk", system-ui, sans-serif;
-  --peso-regular: 400;
-  --peso-medio: 500;
-  --peso-negrita: 700;
-  --peso-destacado: 700;
-  --peso-rotulo: 600;
-}
-
-/* Claro: la identidad Prisma × Central sobre blanco. */
-.light, [data-tema="claro"] {
+/* Claro: la identidad Prisma × Central sobre blanco. Es el tema de la tienda desde el 3/11/2026 (maqueta A),
+   vale con la clase .dark o .light que pone el tema del panel. */
+:root, .light, .dark, [data-tema="claro"] {
   color-scheme: light;
   --background: 0 0% 100.0%;
   --foreground: 220 11.5% 10.2%;
@@ -144,6 +72,79 @@
   --peso-negrita: 700;
   --peso-destacado: 800;
   --peso-rotulo: 700;
+}
+
+/* Nocturno × Prisma: el oscuro anterior. Queda para bloques sobre grafito (el pie) con data-tema="nocturno". */
+[data-tema="nocturno"] {
+  color-scheme: dark;
+  --background: 220 11.5% 10.2%;
+  --foreground: 0 0% 100.0%;
+  --card: 220 8.6% 13.7%;
+  --card-foreground: 0 0% 100.0%;
+  --popover: 220 8.6% 13.7%;
+  --popover-foreground: 0 0% 100.0%;
+  --primary: 352 90.9% 47.6%;
+  --primary-foreground: 0 0% 100.0%;
+  --primary-hover: 351 91.1% 39.8%;
+  --secondary: 220 9.7% 18.2%;
+  --secondary-foreground: 0 0% 100.0%;
+  --muted: 220 9.7% 18.2%;
+  --muted-foreground: 210 10.6% 81.6%;
+  --accent: 220 8.1% 21.8%;
+  --accent-foreground: 0 0% 100.0%;
+  --destructive: 0 100.0% 74.1%;
+  --destructive-foreground: 220 11.5% 10.2%;
+  --border: 220 9.4% 25.1%;
+  --input: 218 7.0% 55.3%;
+  --ring: 0 0% 100.0%;
+  --sidebar-background: 220 11.5% 10.2%;
+  --sidebar-foreground: 210 10.6% 81.6%;
+  --sidebar-primary: 352 90.9% 47.6%;
+  --sidebar-primary-foreground: 0 0% 100.0%;
+  --sidebar-accent: 220 9.7% 18.2%;
+  --sidebar-accent-foreground: 0 0% 100.0%;
+  --sidebar-border: 220 9.4% 25.1%;
+  --sidebar-ring: 0 0% 100.0%;
+  --glow: 220 8.1% 21.8%;
+  --surface: 220 8.6% 13.7%;
+  --surface-elevated: 220 9.7% 18.2%;
+  --surface-1: 220 8.6% 13.7%;
+  --surface-2: 220 9.7% 18.2%;
+  --surface-3: 220 8.1% 21.8%;
+  --gradient-start: 352 90.9% 47.6%;
+  --gradient-end: 351 91.1% 39.8%;
+  --glass: 220 8.6% 13.7%;
+  --glass-border: 220 9.4% 25.1%;
+  --brand: 352 90.9% 47.6%;
+  --brand-foreground: 0 0% 100.0%;
+  --brand-50: 350 81.8% 95.7%;
+  --brand-100: 351 81.4% 91.6%;
+  --brand-200: 352 82.5% 84.3%;
+  --brand-500: 352 90.9% 47.6%;
+  --brand-600: 351 91.1% 39.8%;
+  --brand-700: 352 90.6% 33.3%;
+  --brand-900: 352 90.8% 21.4%;
+  --success: 141 47.7% 61.0%;
+  --success-foreground: 220 11.5% 10.2%;
+  --warning: 0 0% 100.0%;
+  --warning-foreground: 220 11.5% 10.2%;
+  --danger: 0 100.0% 74.1%;
+  --danger-foreground: 220 11.5% 10.2%;
+  --info: 210 10.6% 81.6%;
+  --info-foreground: 220 11.5% 10.2%;
+  --placa-foto: 220 5.7% 89.6%;
+  --placa-foto-2: 223 9.1% 84.9%;
+  --texto-placa: 220 11.5% 10.2%;
+  --foco-placa: 220 11.5% 10.2%;
+  --exito-fondo: 220 9.7% 18.2%;
+  --error-fondo: 220 9.7% 18.2%;
+  --fuente-texto: "Space Grotesk", system-ui, sans-serif;
+  --fuente-titular: "Chakra Petch", "Space Grotesk", system-ui, sans-serif;
+  --peso-regular: 400;
+  --peso-medio: 500;
+  --peso-negrita: 700;
+  --peso-destacado: 700;
+  --peso-rotulo: 600;
 }
 
 /* Panel: los colores de Nocturno con DM Sans en todo. */
