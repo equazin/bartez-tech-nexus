@@ -9,9 +9,6 @@
     },
     "api/*.ts": {
       "maxDuration": 60
-    },
-    "api/cron/*.ts": {
-      "maxDuration": 60
     }
   },
   "redirects": [
@@ -141,7 +138,7 @@
     },
     {
       "path": "/api/pagos?recurso=vencer",
-      "schedule": "*/15 * * * *"
+      "schedule": "15 6 * * *"
     }
   ]
 }
