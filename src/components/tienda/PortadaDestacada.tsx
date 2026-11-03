@@ -6,7 +6,7 @@ import { imagenPrincipal, listarProductosPorIds, type PrecioPorMedio, type Produ
 import { seleccionDe } from "@/lib/tienda/componentes";
 import { formatearPesos } from "@/lib/tienda/dinero";
 import { listarPcArmadas, type PcArmadaPublica } from "@/lib/tienda/pcArmadas";
-import { esImagenSubida, listarPortadasVigentes, type PortadaPublica } from "@/lib/tienda/portadas";
+import { esFondoDeImagen, esImagenSubida, listarPortadasVigentes, type PortadaPublica } from "@/lib/tienda/portadas";
 import { nombreCortoDeMedio, precioConMedio, preciosDe } from "@/lib/tienda/precios";
 import { useServicios } from "@/lib/tienda/servicios";
 import { cn } from "@/lib/utils";
@@ -24,8 +24,43 @@ const ESTILOS = {
   rojo: { tema: undefined, fondo: "bg-primary text-primary-foreground", placa: "bg-card", etiqueta: "opacity-85", boton: "bg-card text-foreground hover:bg-secondary" },
 } as const;
 
+// Portadas diseñadas: la imagen ocupa todo el fondo (en el celular va arriba) y el texto va encima, a la izquierda.
+const MODOS_DE_IMAGEN = {
+  "imagen-oscura": { tema: "nocturno", fondo: "bg-background text-foreground", etiqueta: "text-muted-foreground", boton: "bg-primary text-primary-foreground hover:bg-primary/90" },
+  "imagen-clara": { tema: undefined, fondo: "bg-placa-foto text-texto-placa", etiqueta: "text-primary", boton: "bg-primary text-primary-foreground hover:bg-primary/90" },
+  "imagen-roja": { tema: undefined, fondo: "bg-primary text-primary-foreground", etiqueta: "opacity-85", boton: "bg-card text-foreground hover:bg-secondary" },
+} as const;
+
+function BannerConImagen({ banner, enlazar }: { banner: DatosDeBanner; enlazar: boolean }) {
+  const modo = MODOS_DE_IMAGEN[banner.fondo as keyof typeof MODOS_DE_IMAGEN] ?? MODOS_DE_IMAGEN["imagen-oscura"];
+  const claseBoton = cn("inline-flex h-12 items-center rounded-xl px-6 font-bold", modo.boton);
+  return (
+    <div data-tema={modo.tema} className={cn("relative flex min-h-[460px] min-w-0 flex-[2_1_560px] flex-col overflow-hidden rounded-2xl", modo.fondo)}>
+      {banner.imagen_url && (
+        <img src={banner.imagen_url} alt="" className="aspect-[16/10] w-full object-cover object-right md:absolute md:inset-0 md:aspect-auto md:h-full" />
+      )}
+      <div className="relative flex flex-1 flex-col justify-center gap-4 p-7 md:max-w-[50%] md:p-11">
+        {banner.etiqueta && <p className={cn("text-[13px] font-bold uppercase tracking-[0.12em]", modo.etiqueta)}>{banner.etiqueta}</p>}
+        <h1 className="font-display text-[44px] font-extrabold uppercase leading-[0.95] md:text-[56px]">{banner.titulo}</h1>
+        {banner.texto && <p className="text-base leading-relaxed opacity-85">{banner.texto}</p>}
+        {banner.boton && (
+          <div className="pt-1">
+            {enlazar ? (
+              <Link to={banner.enlace} className={claseBoton}>
+                {banner.boton}
+              </Link>
+            ) : (
+              <span className={claseBoton}>{banner.boton}</span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Contenedor({ fondo, children }: { fondo: DatosDeBanner["fondo"]; children: ReactNode }) {
-  const estilo = ESTILOS[fondo] ?? ESTILOS.gris;
+  const estilo = ESTILOS[fondo as keyof typeof ESTILOS] ?? ESTILOS.gris;
   return (
     <div data-tema={estilo.tema} className={cn("grid min-h-[460px] min-w-0 flex-[2_1_560px] overflow-hidden rounded-2xl md:grid-cols-[1.05fr_1fr]", estilo.fondo)}>
       {children}
@@ -34,7 +69,8 @@ function Contenedor({ fondo, children }: { fondo: DatosDeBanner["fondo"]; childr
 }
 
 export function BannerDePortada({ banner, enlazar = true }: { banner: DatosDeBanner; enlazar?: boolean }) {
-  const estilo = ESTILOS[banner.fondo] ?? ESTILOS.gris;
+  if (esFondoDeImagen(banner.fondo)) return <BannerConImagen banner={banner} enlazar={enlazar} />;
+  const estilo = ESTILOS[banner.fondo as keyof typeof ESTILOS] ?? ESTILOS.gris;
   const subida = esImagenSubida(banner.imagen_url);
   const claseBoton = cn("flex h-12 items-center rounded-xl px-6 font-bold", estilo.boton);
   return (

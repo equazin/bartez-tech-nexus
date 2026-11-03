@@ -52,7 +52,14 @@ const DESTINOS: Array<{ id: Destino; nombre: string }> = [
   { id: "armador", nombre: "Armá tu PC" },
 ];
 
-const COLOR_DE_FONDO: Record<FondoDePortada, { clase: string; tema?: string }> = { gris: { clase: "bg-placa-foto" }, grafito: { clase: "bg-background", tema: "nocturno" }, rojo: { clase: "bg-primary" } };
+const COLOR_DE_FONDO: Record<FondoDePortada, { clase: string; tema?: string }> = {
+  gris: { clase: "bg-placa-foto" },
+  grafito: { clase: "bg-background", tema: "nocturno" },
+  rojo: { clase: "bg-primary" },
+  "imagen-oscura": { clase: "bg-gradient-to-r from-background to-placa-foto", tema: "nocturno" },
+  "imagen-clara": { clase: "bg-gradient-to-r from-placa-foto to-background" },
+  "imagen-roja": { clase: "bg-gradient-to-r from-primary to-placa-foto" },
+};
 
 const hoy = () => new Date(Date.now() - 3 * 3600_000).toISOString().slice(0, 10);
 
@@ -405,7 +412,7 @@ export function PortadaTab() {
                         </button>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground">JPG, PNG o WebP de hasta 5 MB. Una foto propia ocupa todo el lado derecho; la de un producto va sobre su placa.</p>
+                    <p className="text-xs text-muted-foreground">JPG, PNG o WebP de hasta 5 MB. Con un fondo "Imagen", la imagen ocupa toda la portada y el texto va encima a la izquierda (dejá ese lado despejado). Con gris, grafito o rojo, va a la derecha.</p>
                   </div>
 
                   {buscandoPara && (
