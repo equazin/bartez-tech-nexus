@@ -206,10 +206,20 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_tienda_sincronizar_categoria ON products;
-CREATE TRIGGER trg_tienda_sincronizar_categoria
+-- Los disparadores BEFORE corren en orden alfabético: este (categoria) va antes que el del precio
+-- (precio), así el margen por categoría se calcula con la categoría ya traducida.
+DROP TRIGGER IF EXISTS trg_tienda_categoria_sincronizar ON products;
+CREATE TRIGGER trg_tienda_categoria_sincronizar
   BEFORE INSERT OR UPDATE OF category, category_id ON products
   FOR EACH ROW EXECUTE FUNCTION tienda_sincronizar_categoria();
+
+-- El precio se recalcula también cuando cambia solo category_id (un mapeo nuevo o un
+-- producto movido de categoría por id), porque el margen puede depender de la categoría.
+DROP TRIGGER IF EXISTS trg_tienda_precio_en_el_producto ON products;
+CREATE TRIGGER trg_tienda_precio_en_el_producto
+  BEFORE INSERT OR UPDATE OF cost_price, supplier_multiplier, special_price, offer_percent, iva_rate,
+                             primary_supplier_id, category, category_id, tags, sku, precio_manual ON products
+  FOR EACH ROW EXECUTE FUNCTION tienda_precio_en_el_producto();
 
 -- Al guardar un mapeo, los productos con ese origen que todavía no tenían categoría (o que tenían
 -- la del mapeo anterior) pasan a la nueva. Un producto movido a mano en el panel no se toca.
