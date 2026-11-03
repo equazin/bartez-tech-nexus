@@ -425,7 +425,7 @@ async function getSupplierImages(
   const specs = (product.specs ?? {}) as Record<string, unknown>;
   
   // Check if there's a supplier_image or elit_image in specs
-  const supplierImage = specs.supplier_image || specs.elit_image || specs.invid_image;
+  const supplierImage = specs.supplier_image || specs.elit_image;
   if (typeof supplierImage === "string" && supplierImage.startsWith("http")) {
     images.push({
       url: supplierImage,

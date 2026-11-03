@@ -19,7 +19,7 @@ interface Props {
   products: Product[];
   categories: Category[];
   brands?: BrandOption[];
-  apiSourcesByProductId?: Record<number, Array<"AIR" | "ELIT" | "INVID">>;
+  apiSourcesByProductId?: Record<number, Array<"AIR" | "ELIT">>;
   isDark?: boolean;
   onRefresh: () => void;
 }
@@ -91,20 +91,19 @@ function readProductSpec(product: Product, key: string): string {
   return String(value).trim();
 }
 
-function normalizeApiSupplierLabel(value: string | null | undefined): "AIR" | "ELIT" | "INVID" | null {
+function normalizeApiSupplierLabel(value: string | null | undefined): "AIR" | "ELIT" | null {
   const raw = String(value ?? "").trim().toLowerCase();
   if (!raw) return null;
   if (raw.includes("air")) return "AIR";
   if (raw.includes("elit")) return "ELIT";
-  if (raw.includes("invid")) return "INVID";
   return null;
 }
 
 function inferApiSuppliers(
   product: Product,
-  explicitSources: Array<"AIR" | "ELIT" | "INVID"> = []
-): Array<"AIR" | "ELIT" | "INVID"> {
-  const found = new Set<"AIR" | "ELIT" | "INVID">();
+  explicitSources: Array<"AIR" | "ELIT"> = []
+): Array<"AIR" | "ELIT"> {
+  const found = new Set<"AIR" | "ELIT">();
   explicitSources.forEach((source) => found.add(source));
 
   const fromSyncSupplier = normalizeApiSupplierLabel(readProductSpec(product, "sync_supplier"));
@@ -122,7 +121,6 @@ function inferApiSuppliers(
   const specKeys = Object.keys(getProductSpecsObject(product));
   if (specKeys.some((key) => key.toLowerCase().startsWith("air_"))) found.add("AIR");
   if (specKeys.some((key) => key.toLowerCase().startsWith("elit_"))) found.add("ELIT");
-  if (specKeys.some((key) => key.toLowerCase().startsWith("invid_"))) found.add("INVID");
   if (specKeys.some((key) => key.toLowerCase() === "lug_stock")) found.add("AIR");
 
   return Array.from(found);

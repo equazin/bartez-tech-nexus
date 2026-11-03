@@ -1,12 +1,11 @@
 import air from "./_proveedores/air";
 import elit from "./_proveedores/elit";
-import invid from "./_proveedores/invid";
 import { respuestaJson, sesionDelPanel } from "./_proveedores/sesion";
 
 /**
- * Proveedores: una sola función para los proxies de AIR, ELIT e INVID (el plan Hobby de
- * Vercel admite 12 funciones por deploy). vercel.json reescribe /api/air-proxy,
- * /api/elit-proxy y /api/invid-proxy a /api/proveedores?proveedor=... conservando la
+ * Proveedores: una sola función para los proxies de AIR y ELIT (el plan Hobby de
+ * Vercel admite 12 funciones por deploy). vercel.json reescribe /api/air-proxy y
+ * /api/elit-proxy a /api/proveedores?proveedor=... conservando la
  * consulta. Estos proxies devuelven costos mayoristas, así que exigen sesión del panel.
  */
 
@@ -14,7 +13,7 @@ export const config = { runtime: "edge" };
 
 type Manejador = (request: Request) => Promise<Response>;
 
-const PROVEEDORES: Record<string, Manejador> = { air, elit, invid };
+const PROVEEDORES: Record<string, Manejador> = { air, elit };
 
 export default async function handler(request: Request): Promise<Response> {
   if (request.method === "OPTIONS") {

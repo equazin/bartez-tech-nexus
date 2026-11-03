@@ -1,33 +1,5 @@
 import type { Product } from "../models/products.js";
 
-export const INVID_FIXED_COST_USD = 6;
-
-function readProductSpecValue(product: Pick<Product, "specs">, key: string): unknown {
-  return (product.specs as Record<string, unknown> | undefined)?.[key];
-}
-
-export function isInvidProduct(product: Pick<Product, "supplier_name" | "specs">): boolean {
-  const supplierName = String(product.supplier_name ?? "").trim().toUpperCase();
-  const syncSupplier = String(readProductSpecValue(product, "sync_supplier") ?? "").trim().toUpperCase();
-  return supplierName.includes("INVID") || syncSupplier.includes("INVID");
-}
-
-export function hasInvidFixedCostApplied(product: Pick<Product, "specs">): boolean {
-  const raw = readProductSpecValue(product, "invid_extra_cost_applied");
-  return raw === true || raw === "true" || raw === 1 || raw === "1";
-}
-
-export function applyInvidFixedCostUsd(baseCost: number): number {
-  return Number((baseCost + INVID_FIXED_COST_USD).toFixed(4));
-}
-
-function applySupplierFixedCost(product: Product, baseCost: number): number {
-  if (!isInvidProduct(product) || hasInvidFixedCostApplied(product)) {
-    return baseCost;
-  }
-  return applyInvidFixedCostUsd(baseCost);
-}
-
 /**
  * Costo base del producto para una cantidad dada.
  * Respeta price_tiers de volumen si existen.
@@ -37,13 +9,13 @@ export function getUnitPrice(product: Product, quantity: number): number {
   const baseCost = product.cost_price ?? 0;
 
   if (!product.price_tiers || product.price_tiers.length === 0) {
-    return applySupplierFixedCost(product, baseCost);
+    return baseCost;
   }
 
   const sortedTiers = [...product.price_tiers].sort((a, b) => b.min - a.min);
   const tier = sortedTiers.find((t) => quantity >= t.min);
 
-  return applySupplierFixedCost(product, tier ? tier.price : baseCost);
+  return tier ? tier.price : baseCost;
 }
 
 /**
@@ -59,7 +31,7 @@ export function getNextTier(product: Product, currentQuantity: number) {
   const nextTier = nextTiers[0];
   return {
     ...nextTier,
-    price: applySupplierFixedCost(product, nextTier.price),
+    price: nextTier.price,
   };
 }
 

@@ -151,10 +151,6 @@
       "destination": "/api/proveedores?proveedor=elit"
     },
     {
-      "source": "/api/invid-proxy",
-      "destination": "/api/proveedores?proveedor=invid"
-    },
-    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },

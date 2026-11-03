@@ -1,6 +1,5 @@
 import { supabase } from "@/lib/supabase";
 import { recordPriceChange } from "@/lib/api/priceHistory";
-import { applyInvidFixedCostUsd } from "@/lib/pricing";
 
 export interface SupplierCatalogRecord {
   supplierName: string;
@@ -147,10 +146,6 @@ function normalizeUsdCost(record: SupplierCatalogRecord): number {
     }
   } else {
     normalizedCost = Number(sourceCost.toFixed(4));
-  }
-
-  if (record.supplierName.trim().toUpperCase().includes("INVID")) {
-    return applyInvidFixedCostUsd(normalizedCost);
   }
 
   return normalizedCost;

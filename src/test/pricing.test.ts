@@ -1,13 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  INVID_FIXED_COST_USD,
-  applyInvidFixedCostUsd,
   getAvailableStock,
   getEffectiveCostPrice,
   getNextTier,
   getUnitPrice,
-  hasInvidFixedCostApplied,
-  isInvidProduct,
 } from "@/lib/pricing";
 import type { Product } from "@/models/products";
 
@@ -23,10 +19,6 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
     sku: "DEMO-001",
     ...overrides,
   };
-}
-
-function rawSpecs(specs: Record<string, unknown>): Product["specs"] {
-  return specs as Product["specs"];
 }
 
 describe("getUnitPrice", () => {
@@ -133,55 +125,6 @@ describe("getEffectiveCostPrice", () => {
       ],
     });
     expect(getEffectiveCostPrice(product, 6)).toBeCloseTo(88, 5);
-  });
-});
-
-describe("INVID fixed cost", () => {
-  it("detects INVID supplier from supplier_name", () => {
-    expect(isInvidProduct({ supplier_name: "INVID Corp", specs: {} })).toBe(true);
-    expect(isInvidProduct({ supplier_name: "invid s.a.", specs: {} })).toBe(true);
-    expect(isInvidProduct({ supplier_name: "other", specs: {} })).toBe(false);
-  });
-
-  it("detects INVID supplier from specs.sync_supplier", () => {
-    expect(isInvidProduct({ supplier_name: "other", specs: { sync_supplier: "INVID" } })).toBe(true);
-  });
-
-  it("recognises when the fixed cost has already been applied", () => {
-    expect(hasInvidFixedCostApplied({ specs: rawSpecs({ invid_extra_cost_applied: true }) })).toBe(true);
-    expect(hasInvidFixedCostApplied({ specs: { invid_extra_cost_applied: "true" } })).toBe(true);
-    expect(hasInvidFixedCostApplied({ specs: rawSpecs({ invid_extra_cost_applied: 1 }) })).toBe(true);
-    expect(hasInvidFixedCostApplied({ specs: { invid_extra_cost_applied: "1" } })).toBe(true);
-    expect(hasInvidFixedCostApplied({ specs: {} })).toBe(false);
-    expect(hasInvidFixedCostApplied({ specs: rawSpecs({ invid_extra_cost_applied: false }) })).toBe(false);
-  });
-
-  it("adds INVID_FIXED_COST_USD via helper", () => {
-    expect(applyInvidFixedCostUsd(100)).toBe(100 + INVID_FIXED_COST_USD);
-  });
-
-  it("applies the INVID fixed cost only when applicable", () => {
-    const invidPending = makeProduct({ supplier_name: "INVID", cost_price: 100 });
-    expect(getUnitPrice(invidPending, 1)).toBe(100 + INVID_FIXED_COST_USD);
-
-    const invidAlreadyApplied = makeProduct({
-      supplier_name: "INVID",
-      cost_price: 100,
-      specs: rawSpecs({ invid_extra_cost_applied: true }),
-    });
-    expect(getUnitPrice(invidAlreadyApplied, 1)).toBe(100);
-
-    const nonInvid = makeProduct({ supplier_name: "AIR", cost_price: 100 });
-    expect(getUnitPrice(nonInvid, 1)).toBe(100);
-  });
-
-  it("applies INVID fixed cost to tier price too", () => {
-    const product = makeProduct({
-      supplier_name: "INVID",
-      cost_price: 100,
-      price_tiers: [{ min: 5, max: null, price: 80 }],
-    });
-    expect(getUnitPrice(product, 5)).toBe(80 + INVID_FIXED_COST_USD);
   });
 });
 

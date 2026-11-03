@@ -17,7 +17,6 @@ import proveedoresHandler from "./api/proveedores";
 const PROXIES_DE_PROVEEDORES: Record<string, string> = {
   "/api/air-proxy": "air",
   "/api/elit-proxy": "elit",
-  "/api/invid-proxy": "invid",
 };
 
 async function readRequestBody(req: IncomingMessage): Promise<string> {
@@ -186,8 +185,6 @@ export default defineConfig(({ mode }) => {
     "AIR_TOKEN",
     "ELIT_API_USER_ID",
     "ELIT_API_TOKEN",
-    "INVID_USER",
-    "INVID_PASSWORD",
     "PUBLIC_POS_MARGIN_PCT",
   ]) {
     if (env[key]) {
