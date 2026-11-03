@@ -16,7 +16,7 @@ import { getSupabaseAdmin, getSupabaseClient } from "./_shared/supabaseServer.js
 
 export const config = { maxDuration: 60 };
 
-const CLAVES_DE_CONFIGURACION = ["margen_base", "redondeo_pesos", "cuotas_maximas"] as const;
+const CLAVES_DE_CONFIGURACION = ["margen_base", "redondeo_pesos", "cuotas_maximas", "envio_gratis_desde", "peso_por_defecto_kg"] as const;
 type ClaveDeConfiguracion = (typeof CLAVES_DE_CONFIGURACION)[number];
 
 interface FilaDeConfiguracion {
@@ -133,6 +133,17 @@ async function dolar(req: VercelRequest, res: VercelResponse) {
 
 // ── Configuración de precios (admin) ─────────────────────────────────────────
 function validarValor(clave: ClaveDeConfiguracion, valor: unknown): number | null {
+  if (clave === "envio_gratis_desde") {
+    if (valor === null || valor === "" || valor === undefined) return null;
+    const n = Number(valor);
+    if (!Number.isFinite(n) || n < 0) throw new Error("El envío gratis se define con un subtotal en pesos, o vacío para nunca.");
+    return n;
+  }
+  if (clave === "peso_por_defecto_kg") {
+    const n = Number(valor);
+    if (!Number.isFinite(n) || n <= 0 || n > 1000) throw new Error("El peso por defecto va de 0,001 a 1000 kg.");
+    return n;
+  }
   if (clave === "cuotas_maximas") {
     if (valor === null || valor === "" || valor === undefined) return null;
     const n = Number(valor);

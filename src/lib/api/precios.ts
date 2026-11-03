@@ -10,7 +10,7 @@ export interface CotizacionDelDolar {
 }
 
 export interface FilaDeConfiguracion {
-  clave: "margen_base" | "redondeo_pesos" | "cuotas_maximas";
+  clave: "margen_base" | "redondeo_pesos" | "cuotas_maximas" | "envio_gratis_desde" | "peso_por_defecto_kg";
   valor: number | null;
   descripcion: string | null;
   actualizado_en: string;
