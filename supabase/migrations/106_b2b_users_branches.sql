@@ -13,7 +13,7 @@
 --   1. client_branches table — shipping addresses per company
 --   2. b2b_invitations table — pending invitations (pre-signup)
 --   3. orders.branch_id FK
---   4. reject_b2b_order(UUID, TEXT) RPC
+--   4. reject_b2b_order(BIGINT, TEXT) RPC
 --   5. get_pending_approvals() — manager sees orders awaiting approval
 --   6. get_my_b2b_team() — list sub-users for the authenticated manager
 --   7. invite_b2b_user(email, role, threshold) — creates invitation record
@@ -109,7 +109,7 @@ ALTER TABLE orders
 
 -- 4. reject_b2b_order ─────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.reject_b2b_order(
-  p_order_id UUID,
+  p_order_id BIGINT,  -- orders.id es bigint
   p_reason   TEXT DEFAULT NULL
 )
 RETURNS JSONB
@@ -167,14 +167,14 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.reject_b2b_order(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.reject_b2b_order(BIGINT, TEXT) TO authenticated;
 
 -- 5. get_pending_approvals ─────────────────────────────────────────────────────
 -- Returns orders in 'pending_approval' placed by sub-users of the current manager.
 -- Also returns all pending_approval orders if caller is admin.
 CREATE OR REPLACE FUNCTION public.get_pending_approvals()
 RETURNS TABLE(
-  order_id      UUID,
+  order_id      BIGINT,
   order_number  TEXT,
   client_id     UUID,
   client_name   TEXT,

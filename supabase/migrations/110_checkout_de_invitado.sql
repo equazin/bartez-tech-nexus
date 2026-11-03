@@ -10,6 +10,13 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 ALTER TABLE orders ALTER COLUMN client_id DROP NOT NULL;
+
+-- Los estados de la tienda conviven con los del portal mayorista heredado.
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_check;
+ALTER TABLE orders ADD CONSTRAINT orders_status_check CHECK (status IN (
+  'pending_approval', 'pending', 'approved', 'confirmed', 'preparing', 'picked', 'shipped', 'dispatched', 'delivered', 'rejected', 'cancelled',
+  'pendiente_pago', 'pagado', 'preparando', 'enviado', 'entregado', 'cancelado', 'reintegrado', 'vencido'
+));
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS comprador_email       text;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS comprador_nombre      text;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS comprador_telefono    text;

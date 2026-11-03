@@ -178,13 +178,19 @@ DECLARE
   v_dolar numeric := dolar_vigente();
   v_cantidad integer;
 BEGIN
+  -- UPDATE ... FROM no puede mirar la fila que actualiza: se calcula en una subconsulta y se une por id.
   UPDATE products p
-  SET precio_final_ars   = c.precio_final,
-      precio_lista_ars   = c.precio_lista,
+  SET precio_final_ars    = c.precio_final,
+      precio_lista_ars    = c.precio_lista,
       precio_calculado_en = now()
-  FROM LATERAL tienda_calcular_precio(p, v_dolar) AS c
-  WHERE p.precio_manual = false
-    AND (p_solo_id IS NULL OR p.id = p_solo_id);
+  FROM (
+    SELECT q.id, calc.precio_final, calc.precio_lista
+    FROM products q
+    CROSS JOIN LATERAL tienda_calcular_precio(q, v_dolar) AS calc
+    WHERE q.precio_manual = false
+      AND (p_solo_id IS NULL OR q.id = p_solo_id)
+  ) AS c
+  WHERE p.id = c.id;
   GET DIAGNOSTICS v_cantidad = ROW_COUNT;
   RETURN v_cantidad;
 END;

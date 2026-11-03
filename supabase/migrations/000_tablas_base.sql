@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS products (
   cost_price          numeric(14,4),
   category            text,
   stock               integer NOT NULL DEFAULT 0,
+  stock_reserved      integer NOT NULL DEFAULT 0,
   sku                 text,
   supplier_id         integer,
   supplier_name       text,
@@ -49,6 +50,7 @@ CREATE TABLE IF NOT EXISTS orders (
   products    jsonb NOT NULL DEFAULT '[]'::jsonb,
   total       numeric(14,2) NOT NULL DEFAULT 0,
   status      text NOT NULL DEFAULT 'pending',
+  currency    text NOT NULL DEFAULT 'ARS',
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now()
 );
