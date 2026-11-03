@@ -402,15 +402,19 @@ function BloqueDeComponentes({ raices }: { raices: CategoriaPublica[] | null }) 
               Empezar a armar
             </Link>
           </div>
-          <p className="pb-2 text-sm leading-relaxed text-muted-foreground">O mirá cada categoría:</p>
-          {hijas.map((h) => (
-            <Link key={h.id} to={`/${h.slug}`} className="flex min-h-11 items-center justify-between border-t border-border text-[15px] font-medium hover:underline">
-              <span>{h.nombre}</span>
-              <span className="text-[13px] tabular-nums text-muted-foreground">{h.cantidad}</span>
-            </Link>
-          ))}
+          <p className="pb-2.5 text-sm leading-relaxed text-muted-foreground">O mirá cada categoría:</p>
+          <ul className="flex flex-wrap gap-2">
+            {hijas.map((h) => (
+              <li key={h.id}>
+                <Link to={`/${h.slug}`} className="flex h-9 items-center gap-1.5 rounded-chip border border-border px-3 text-[13px] font-medium transition-colors hover:border-input hover:bg-secondary">
+                  {h.nombre}
+                  <span className="tabular-nums text-muted-foreground">{h.cantidad}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </nav>
-        <div className="grid min-w-0 flex-[3_1_600px] grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid min-w-0 flex-[3_1_600px] grid-cols-2 content-start gap-3 lg:grid-cols-4">
           {(productos ?? []).map((p) => (
             <TarjetaProducto key={p.id} producto={p} />
           ))}
