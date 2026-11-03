@@ -5,6 +5,7 @@ import { createMailerTransport, getDefaultFromEmail, sanitizeHeaderText } from "
 import { compraRecibidaHTML } from "./_shared/plantillas.js";
 import { pedidoDeLaTiendaSchema, type PedidoDeLaTienda } from "./_shared/schemas.js";
 import { getSupabaseAdmin } from "./_shared/supabaseServer.js";
+import { configuracionDeMercadoPago } from "./_shared/mercadopago.js";
 
 /**
  * POST /api/checkout · crea el pedido de un invitado.
@@ -109,6 +110,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; numero: string; token: string }> {
   const supabase = getSupabaseAdmin();
+
+  const { data: medio } = await supabase.from("medios_de_pago").select("id, activo").eq("id", pedido.medio_pago).maybeSingle();
+  const medioActivo = Boolean((medio as { activo?: boolean } | null)?.activo) && (pedido.medio_pago !== "mercadopago" || configuracionDeMercadoPago() !== null);
+  if (!medioActivo) throw new Error("Ese medio de pago no está disponible. Elegí otro.");
 
   // Un producto por línea, sumando cantidades repetidas.
   const cantidades = new Map<number, number>();

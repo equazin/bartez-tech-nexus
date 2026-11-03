@@ -19,6 +19,8 @@ const PurchaseOrdersTab = lazy(() => import("@/components/admin/PurchaseOrdersTa
 const PricingRulesTab = lazy(() => import("@/components/admin/PricingRulesTab").then((m) => ({ default: m.PricingRulesTab })));
 const DolarTab = lazy(() => import("@/components/admin/DolarTab").then((m) => ({ default: m.DolarTab })));
 const EnviosTab = lazy(() => import("@/components/admin/EnviosTab").then((m) => ({ default: m.EnviosTab })));
+const PagosTab = lazy(() => import("@/components/admin/PagosTab").then((m) => ({ default: m.PagosTab })));
+const TransferenciaTab = lazy(() => import("@/components/admin/TransferenciaTab").then((m) => ({ default: m.TransferenciaTab })));
 const BundlesAdminTab = lazy(() => import("@/components/admin/BundlesAdminTab").then((m) => ({ default: m.BundlesAdminTab })));
 const ReportsTab = lazy(() => import("@/components/admin/ReportsTab").then((m) => ({ default: m.ReportsTab })));
 const ActivityLogTab = lazy(() => import("@/components/admin/ActivityLogTab").then((m) => ({ default: m.ActivityLogTab })));
@@ -172,6 +174,14 @@ export function AdminCommercialTabs({
 
       <KeepAliveTab active={activeTab === "envios"} id="envios">
         <EnviosTab />
+      </KeepAliveTab>
+
+      <KeepAliveTab active={activeTab === "pagos"} id="pagos">
+        <PagosTab />
+      </KeepAliveTab>
+
+      <KeepAliveTab active={activeTab === "transferencia"} id="transferencia">
+        <TransferenciaTab />
       </KeepAliveTab>
 
       <KeepAliveTab active={activeTab === "bundles"} id="bundles">

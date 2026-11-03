@@ -6,6 +6,7 @@ import usersHandler from "./api/users";
 import commerceHandler from "./api/commerce";
 import pricingHandler from "./api/pricing";
 import preciosHandler from "./api/precios";
+import pagosHandler from "./api/pagos";
 import productsHandler from "./api/products";
 import posProductsHandler from "./api/pos-products";
 import emailHandler from "./api/email";
@@ -125,6 +126,7 @@ function devApiProxyPlugin(env: Record<string, string>): PluginOption {
           "/api/pricing":     { handler: pricingHandler },
           "/api/precios":     { handler: preciosHandler },
           "/api/checkout":    { handler: checkoutHandler },
+          "/api/pagos":       { handler: pagosHandler },
           "/api/coupons":     { handler: pricingHandler }, // vercel.json has /api/coupons -> /api/pricing/coupons but local handler checks subpath
           "/api/products":    { handler: productsHandler },
           "/api/pos-products": { handler: posProductsHandler },

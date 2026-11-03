@@ -2,8 +2,14 @@ import { supabase } from "@/lib/supabase";
 
 export type MedioDePago = "mercadopago" | "transferencia";
 
+export interface MedioDisponible {
+  id: MedioDePago;
+  nombre: string;
+  detalle: string;
+}
+
 /** Los medios que ofrece el checkout. La fase de pagos los toma de la configuración del panel. */
-export const MEDIOS_DE_PAGO: Array<{ id: MedioDePago; nombre: string; detalle: string }> = [
+export const MEDIOS_DE_PAGO: MedioDisponible[] = [
   { id: "mercadopago", nombre: "Mercado Pago", detalle: "Tarjeta de crédito en cuotas, débito o dinero en cuenta. Pagás en Mercado Pago y volvés a la tienda." },
   { id: "transferencia", nombre: "Transferencia bancaria", detalle: "Te damos los datos de la cuenta al confirmar. El pedido se prepara cuando se acredita." },
 ];

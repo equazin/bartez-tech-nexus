@@ -152,6 +152,10 @@
     {
       "path": "/api/precios?recurso=recalcular",
       "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/pagos?recurso=vencer",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

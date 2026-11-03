@@ -7,7 +7,8 @@ import { useCarritoDetallado } from "@/lib/tienda/carritoDetallado";
 import { vaciarCarrito } from "@/lib/tienda/carrito";
 import { formatearPesos } from "@/lib/tienda/dinero";
 import { PROVINCIAS, cotizarEnvio, textoDeDemora, type CotizacionDeEnvio } from "@/lib/tienda/envios";
-import { MEDIOS_DE_PAGO, crearPedido, type MedioDePago } from "@/lib/tienda/pedidos";
+import { MEDIOS_DE_PAGO, crearPedido, type MedioDePago, type MedioDisponible } from "@/lib/tienda/pedidos";
+import { listarMedios } from "@/lib/tienda/pagos";
 import { usarSeo } from "@/lib/tienda/seo";
 import { cn } from "@/lib/utils";
 
@@ -80,6 +81,21 @@ export default function Checkout() {
   const [envio, setEnvio] = useState<CotizacionDeEnvio | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [errorDelServidor, setErrorDelServidor] = useState<string | null>(null);
+  const [medios, setMedios] = useState<MedioDisponible[]>(MEDIOS_DE_PAGO);
+
+  useEffect(() => {
+    let cancelado = false;
+    listarMedios()
+      .then((lista) => {
+        if (cancelado || lista.length === 0) return;
+        setMedios(lista);
+        setF((previo) => (lista.some((m) => m.id === previo.medio_pago) ? previo : { ...previo, medio_pago: lista[0].id }));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (lineas.length === 0 || cargando) return;
@@ -220,7 +236,7 @@ export default function Checkout() {
           <section className="space-y-4">
             <h2 className="text-[20px] font-bold leading-[26px]">3. Cómo pagás</h2>
             <div className="grid gap-3">
-              {MEDIOS_DE_PAGO.map((medio) => (
+              {medios.map((medio) => (
                 <label
                   key={medio.id}
                   className={cn(
