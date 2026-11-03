@@ -1518,7 +1518,7 @@ async function handleCreateSeller() {
   async function handleKanbanStatus(orderId: string, newStatus: KanbanStatus) {
     await rtUpdateStatus(orderId, newStatus);
     logActivity({ user_id: userId, action: "order_status_change", entity_type: "order", entity_id: orderId, metadata: { status: newStatus } });
-    if (newStatus === "shipped" || newStatus === "dispatched") {
+    if (newStatus === "shipped" || newStatus === "dispatched" || newStatus === "enviado") {
       const order = rtOrders.find((o) => o.id === orderId);
       // client_name holds the raw client_id value (see useOrdersRealtime rowToKanban mapper)
       const client = order ? clients.find((c) => c.id === order.client_name) : undefined;
@@ -2341,7 +2341,15 @@ async function handleCreateSeller() {
                   className={`border rounded-lg px-2 py-1.5 text-xs outline-none flex-1 min-w-[120px] ${dk("bg-[#111] border-[#2a2a2a] text-gray-300", "bg-white border-[#d4d4d4] text-[#525252]")}`}
                 >
                   <option value="all">Todos los estados</option>
-                  <option value="pending">En revisión</option>
+                  <option value="pendiente_pago">Pendiente de pago</option>
+                  <option value="pagado">Pagado</option>
+                  <option value="preparando">Preparando</option>
+                  <option value="enviado">Enviado</option>
+                  <option value="entregado">Entregado</option>
+                  <option value="cancelado">Cancelado</option>
+                  <option value="reintegrado">Reintegrado</option>
+                  <option value="vencido">Vencido</option>
+                  <option value="pending">En revisión (mayorista)</option>
                   <option value="approved">Aprobado</option>
                   <option value="preparing">Preparando</option>
                   <option value="shipped">Enviado</option>

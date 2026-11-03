@@ -1,4 +1,4 @@
-import { backend, hasBackendUrl } from "./backend";
+import { hasBackendUrl } from "./backend";
 import { supabase } from "@/lib/supabase";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -49,7 +49,8 @@ export async function patchOrder(payload: {
   shipping_provider?: string;
   tracking_number?: string;
 }): Promise<Order> {
-  return backend.patch<Order>(`/v1/orders/${String(payload.id)}/status`, {
+  return callVercelApi<Order>("/api/orders", "PATCH", {
+    id: payload.id,
     ...(payload.status ? { status: payload.status } : {}),
     ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
     ...(payload.shipping_provider !== undefined
@@ -73,10 +74,10 @@ export interface PatchProfilePayload {
 
 export async function patchProfile(payload: PatchProfilePayload): Promise<void> {
   const { id, ...body } = payload;
-  await backend.patch<void>(`/v1/admin/profiles/${id}`, body);
+  await callVercelApi<unknown>("/api/users?scope=profile", "PATCH", { id, ...body });
 }
 
-async function callVercelApi<T>(
+export async function callVercelApi<T>(
   path: string,
   method: "GET" | "POST" | "PATCH" | "DELETE",
   body?: unknown,
@@ -153,7 +154,7 @@ function normalizeCouponPayload(payload: CouponPayload | (Partial<CouponPayload>
 }
 
 export async function createCoupon(payload: CouponPayload): Promise<Coupon> {
-  return backend.post<Coupon>("/v1/coupons", normalizeCouponPayload(payload));
+  return callVercelApi<Coupon>("/api/pricing/coupons", "POST", normalizeCouponPayload(payload));
 }
 
 export async function updateCoupon(
@@ -162,11 +163,11 @@ export async function updateCoupon(
 ): Promise<Coupon> {
   const id = typeof idOrPayload === "string" ? idOrPayload : idOrPayload.id;
   const nextPatch = typeof idOrPayload === "string" ? (patch ?? {}) : idOrPayload;
-  return backend.patch<Coupon>(`/v1/coupons/${id}`, patch);
+  return callVercelApi<Coupon>("/api/pricing/coupons", "PATCH", { id, ...normalizeCouponPayload(nextPatch) });
 }
 
 export async function deleteCoupon(id: string): Promise<void> {
-  await backend.delete<void>(`/v1/coupons/${id}`);
+  await callVercelApi<unknown>("/api/pricing/coupons", "DELETE", { id });
 }
 
 export async function validateCoupon(params: {

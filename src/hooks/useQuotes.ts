@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Quote, QuoteStatus } from "@/models/quote";
-import { backend, hasBackendUrl } from "@/lib/api/backend";
+import { hasBackendUrl } from "@/lib/api/backend";
+import { callVercelApi } from "@/lib/api/ordersApi";
 import { supabase } from "@/lib/supabase";
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
@@ -94,7 +95,7 @@ export function useQuotes(userId: string) {
   const deleteQuote = useCallback(
     async (id: number): Promise<void> => {
       try {
-        await backend.delete<void>(`/v1/quotes/${id}`);
+        await callVercelApi<unknown>("/api/commerce?resource=quotes", "DELETE", { id });
         setQuotes((prev) => prev.filter((q) => q.id !== id));
       } catch {
         // Silencioso

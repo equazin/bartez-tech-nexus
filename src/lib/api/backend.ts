@@ -117,7 +117,7 @@ function buildQueryString(query?: BackendQueryParams): string {
 }
 
 const backendBaseUrl = normalizeBackendBaseUrl(import.meta.env.VITE_BACKEND_URL as string | undefined);
-export const hasBackendUrl = backendBaseUrl.length > 0;
+export const hasBackendUrl = false; // Teqo no usa un backend aparte: todo corre en api/*.ts
 
 type BackendQueryValue = string | number | boolean | null | undefined;
 type BackendQueryParams = Record<string, BackendQueryValue>;

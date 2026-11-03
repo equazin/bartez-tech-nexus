@@ -4,6 +4,7 @@ import { fail, methodNotAllowed, ok } from "./_shared/http.js";
 import { configuracionDeMercadoPago, crearPreferencia, firmaValida, obtenerPago, reintegrar as reintegrarEnMercadoPago } from "./_shared/mercadopago.js";
 import { getRoleFromRequest } from "./_shared/roles.js";
 import { getSupabaseAdmin, getSupabaseClient } from "./_shared/supabaseServer.js";
+import { avisarAlComprador } from "./_shared/avisos.js";
 
 /**
  * Pagos de la tienda.
@@ -292,6 +293,7 @@ async function aviso(req: VercelRequest, res: VercelResponse) {
       const { data: marcado, error } = await supabase.rpc("tienda_marcar_pagado", { p_order_id: fila.order_id });
       if (error) throw new Error(`El pago está aprobado pero no se pudo marcar el pedido: ${error.message}`);
       resultado = marcado ? "acreditado" : "ya_pagado";
+      if (marcado) void avisarAlComprador(fila.order_id, "pago_acreditado");
     } else if (pago.estado === "approved") {
       resultado = "revisar_monto";
     } else if (pago.estado === "refunded" || pago.estado === "charged_back") {
@@ -367,6 +369,7 @@ async function validar(req: VercelRequest, res: VercelResponse) {
   const { error } = await supabase.rpc("tienda_marcar_pagado", { p_order_id: p.id });
   if (error) throw new Error(error.message);
   await registrarActividad(userId, "validar_transferencia", String(p.id), { total: p.total, estado_anterior: p.status });
+  void avisarAlComprador(p.id, "pago_acreditado");
   return ok(res, { resultado: "acreditado" });
 }
 
@@ -382,6 +385,7 @@ async function cancelar(req: VercelRequest, res: VercelResponse) {
   if (error) throw new Error(error.message);
   if (!data) return fail(res, "Solo se cancela un pedido pendiente de pago.", 409);
   await registrarActividad(userId, "cancelar_pedido", String(orderId), { motivo });
+  void avisarAlComprador(orderId, "cancelado", { motivo });
   return ok(res, { resultado: "cancelado" });
 }
 

@@ -89,6 +89,15 @@ export const ORDER_STATUSES = [
   "delivered",
   "rejected",
   "cancelled",
+  // Tienda (consumidor final)
+  "pendiente_pago",
+  "pagado",
+  "preparando",
+  "enviado",
+  "entregado",
+  "cancelado",
+  "reintegrado",
+  "vencido",
 ] as const;
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
@@ -99,6 +108,7 @@ export const updateOrderSchema = z.object({
   shipping_provider: optionalTrimmedString(100),
   tracking_number: optionalTrimmedString(100),
   numero_remito: optionalTrimmedString(64),
+  notes: optionalTrimmedString(300),
 });
 
 // Fields an admin/vendedor can update on profiles

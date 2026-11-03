@@ -5,6 +5,12 @@ import {
 } from "lucide-react";
 
 export type KanbanStatus =
+  | "pendiente_pago"
+  | "pagado"
+  | "preparando"
+  | "enviado"
+  | "entregado"
+  | "cancelado"
   | "pending"
   | "approved"
   | "preparing"
@@ -39,15 +45,25 @@ interface Column {
 }
 
 const COLUMNS: Column[] = [
-  { key: "pending",    label: "En revisión",   icon: Clock,        headerClass: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30", cardAccent: "border-l-yellow-400" },
-  { key: "approved",   label: "Aprobado",      icon: CheckCircle2, headerClass: "bg-green-500/20 text-green-300 border-green-500/30",   cardAccent: "border-l-green-400"  },
-  { key: "preparing",  label: "Preparando",    icon: Package,      headerClass: "bg-orange-500/20 text-orange-300 border-orange-500/30",cardAccent: "border-l-orange-400" },
-  { key: "picked",     label: "Pickeado",      icon: PackageCheck, headerClass: "bg-purple-500/20 text-purple-300 border-purple-500/30", cardAccent: "border-l-purple-400" },
-  { key: "shipped",    label: "Enviado",       icon: Truck,        headerClass: "bg-blue-500/20 text-blue-300 border-blue-500/30",      cardAccent: "border-l-blue-400"   },
-  { key: "dispatched", label: "Despachado",    icon: CheckCheck,   headerClass: "bg-teal-500/20 text-teal-300 border-teal-500/30",     cardAccent: "border-l-teal-400"   },
-  { key: "delivered",  label: "Entregado",     icon: CheckCheck,   headerClass: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30", cardAccent: "border-l-emerald-400" },
-  { key: "rejected",   label: "Rechazado",     icon: XCircle,      headerClass: "bg-red-500/20 text-red-300 border-red-500/30",        cardAccent: "border-l-red-400"    },
+  { key: "pendiente_pago", label: "Pendiente de pago", icon: Clock,        headerClass: "bg-secondary text-foreground border-border", cardAccent: "border-l-input" },
+  { key: "pagado",         label: "Pagado",            icon: CheckCircle2, headerClass: "bg-success/15 text-success border-success/40", cardAccent: "border-l-success" },
+  { key: "preparando",     label: "Preparando",        icon: Package,      headerClass: "bg-secondary text-foreground border-border", cardAccent: "border-l-input" },
+  { key: "enviado",        label: "Enviado",           icon: Truck,        headerClass: "bg-secondary text-foreground border-border", cardAccent: "border-l-input" },
+  { key: "entregado",      label: "Entregado",         icon: CheckCheck,   headerClass: "bg-success/15 text-success border-success/40", cardAccent: "border-l-success" },
+  { key: "cancelado",      label: "Cancelado",         icon: XCircle,      headerClass: "bg-muted text-muted-foreground border-border", cardAccent: "border-l-border" },
 ];
+
+/** Los pedidos mayoristas heredados caen en la columna más parecida. */
+const EQUIVALENCIAS: Record<string, KanbanStatus> = {
+  pending: "pendiente_pago", pending_approval: "pendiente_pago",
+  approved: "pagado", confirmed: "pagado",
+  preparing: "preparando", picked: "preparando",
+  shipped: "enviado", dispatched: "enviado",
+  delivered: "entregado",
+  rejected: "cancelado", cancelled: "cancelado", vencido: "cancelado", reintegrado: "cancelado",
+};
+
+const columnaDe = (status: string): KanbanStatus => (EQUIVALENCIAS[status] ?? status) as KanbanStatus;
 
 interface Props {
   orders: KanbanOrder[];
@@ -63,12 +79,12 @@ export default function OrderKanban({ orders, onStatusChange, formatPrice, isDar
   const dragStatus = useRef<KanbanStatus | null>(null);
 
   function byStatus(status: KanbanStatus) {
-    return orders.filter((o) => o.status === status);
+    return orders.filter((o) => columnaDe(o.status) === status);
   }
 
   function handleDragStart(e: React.DragEvent, order: KanbanOrder) {
     setDraggingId(order.id);
-    dragStatus.current = order.status;
+    dragStatus.current = columnaDe(order.status);
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("orderId", order.id);
   }

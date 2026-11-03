@@ -1,6 +1,6 @@
 /**
  * Emails al comprador de la tienda. En español rioplatense, con voseo, sin signos
- * de exclamación en los títulos y sin emojis. Los montos llegan ya formateados.
+ * de exclamación en los títulos y sin emojis. Los montos llegan en pesos.
  */
 
 const formatoPesos = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
@@ -9,6 +9,12 @@ export const pesos = (valor: number): string => formatoPesos.format(Math.round(v
 
 function escapar(texto: string): string {
   return texto.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
+}
+
+function boton(enlace: string, texto: string): string {
+  return `<p style="margin:24px 0 0;">
+      <a href="${escapar(enlace)}" style="display:inline-block;background:#E80B2A;color:#FFFFFF;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:12px;">${escapar(texto)}</a>
+    </p>`;
 }
 
 function base(titulo: string, cuerpo: string): string {
@@ -42,6 +48,7 @@ export interface LineaDelEmail {
 }
 
 function tablaDeLineas(lineas: LineaDelEmail[]): string {
+  if (lineas.length === 0) return "";
   const filas = lineas
     .map(
       (l) => `<tr>
@@ -52,6 +59,9 @@ function tablaDeLineas(lineas: LineaDelEmail[]): string {
     .join("");
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">${filas}</table>`;
 }
+
+const parrafo = (texto: string): string => `<p style="margin:0 0 12px;font-size:16px;line-height:24px;">${texto}</p>`;
+const nota = (texto: string): string => `<p style="margin:16px 0 0;font-size:14px;line-height:22px;color:#676B73;">${texto}</p>`;
 
 export function compraRecibidaHTML(params: {
   numero: string;
@@ -66,7 +76,7 @@ export function compraRecibidaHTML(params: {
 }): string {
   const medio = params.medioPago === "mercadopago" ? "Mercado Pago" : params.medioPago === "transferencia" ? "transferencia bancaria" : params.medioPago;
   const cuerpo = `
-    <p style="margin:0 0 12px;font-size:16px;line-height:24px;">Hola ${escapar(params.nombre)}, recibimos tu compra <strong>${escapar(params.numero)}</strong>. Queda pendiente de pago por ${escapar(medio)}.</p>
+    ${parrafo(`Hola ${escapar(params.nombre)}, recibimos tu compra <strong>${escapar(params.numero)}</strong>. Queda pendiente de pago por ${escapar(medio)}.`)}
     ${tablaDeLineas(params.lineas)}
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">
       <tr><td style="padding:4px 0;color:#676B73;">Subtotal</td><td align="right" style="padding:4px 0;">${pesos(params.subtotal)}</td></tr>
@@ -74,10 +84,58 @@ export function compraRecibidaHTML(params: {
       ${params.descuento > 0 ? `<tr><td style="padding:4px 0;color:#676B73;">Descuento</td><td align="right" style="padding:4px 0;">- ${pesos(params.descuento)}</td></tr>` : ""}
       <tr><td style="padding:8px 0;font-weight:bold;font-size:16px;">Total</td><td align="right" style="padding:8px 0;font-weight:bold;font-size:16px;">${pesos(params.total)}</td></tr>
     </table>
-    <p style="margin:16px 0 0;font-size:14px;line-height:22px;color:#676B73;">Todos los precios son finales, con IVA incluido.</p>
-    <p style="margin:24px 0 0;">
-      <a href="${escapar(params.enlace)}" style="display:inline-block;background:#E80B2A;color:#FFFFFF;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:12px;">Ver mi compra</a>
-    </p>
-    <p style="margin:16px 0 0;font-size:14px;line-height:22px;color:#676B73;">Con ese enlace vas a poder ver el estado del pedido y pagarlo. Si tenés dudas, respondé este email.</p>`;
+    ${nota("Todos los precios son finales, con IVA incluido.")}
+    ${boton(params.enlace, "Ver mi compra y pagar")}
+    ${nota("Con ese enlace vas a poder ver el estado del pedido y pagarlo. Si tenés dudas, respondé este email.")}`;
   return base("Recibimos tu compra", cuerpo);
+}
+
+export function pagoAcreditadoHTML(params: { numero: string; nombre: string; total: number; demora: string | null; enlace: string }): string {
+  const cuerpo = `
+    ${parrafo(`Hola ${escapar(params.nombre)}, se acreditó el pago de ${pesos(params.total)} de tu compra <strong>${escapar(params.numero)}</strong>. Ya empezamos a prepararla.`)}
+    ${params.demora ? parrafo(escapar(params.demora)) : ""}
+    ${boton(params.enlace, "Ver mi compra")}
+    ${nota("Cuando despachemos el pedido te mandamos el número de seguimiento por este mismo medio.")}`;
+  return base("Pago acreditado", cuerpo);
+}
+
+export function pedidoEnviadoHTML(params: { numero: string; nombre: string; transporte: string | null; seguimiento: string | null; demora: string | null; enlace: string }): string {
+  const seguimiento = params.seguimiento
+    ? parrafo(`Número de seguimiento${params.transporte ? ` de ${escapar(params.transporte)}` : ""}: <strong>${escapar(params.seguimiento)}</strong>`)
+    : params.transporte
+      ? parrafo(`Lo lleva ${escapar(params.transporte)}.`)
+      : "";
+  const cuerpo = `
+    ${parrafo(`Hola ${escapar(params.nombre)}, tu compra <strong>${escapar(params.numero)}</strong> ya salió hacia tu domicilio.`)}
+    ${seguimiento}
+    ${params.demora ? parrafo(escapar(params.demora)) : ""}
+    ${boton(params.enlace, "Ver mi compra")}`;
+  return base("Tu pedido está en camino", cuerpo);
+}
+
+export function pedidoEntregadoHTML(params: { numero: string; nombre: string; enlace: string; enlaceArrepentimiento: string }): string {
+  const cuerpo = `
+    ${parrafo(`Hola ${escapar(params.nombre)}, tu compra <strong>${escapar(params.numero)}</strong> figura como entregada.`)}
+    ${parrafo("Si algo no está bien, respondé este email y lo resolvemos.")}
+    ${nota(`Podés arrepentirte de la compra dentro de los 10 días corridos desde hoy, sin dar motivos, con el <a href="${escapar(params.enlaceArrepentimiento)}" style="color:#17191D;">botón de arrepentimiento</a>.`)}
+    ${boton(params.enlace, "Ver mi compra")}`;
+  return base("Entregamos tu pedido", cuerpo);
+}
+
+export function pedidoCanceladoHTML(params: { numero: string; nombre: string; motivo: string | null; pagado: boolean; enlace: string }): string {
+  const cuerpo = `
+    ${parrafo(`Hola ${escapar(params.nombre)}, tu compra <strong>${escapar(params.numero)}</strong> quedó cancelada${params.motivo ? `: ${escapar(params.motivo)}` : "."}`)}
+    ${params.pagado ? parrafo("Como ya estaba paga, te devolvemos el dinero por el mismo medio con el que pagaste. Te avisamos cuando esté hecho.") : ""}
+    ${boton(params.enlace, "Ver mi compra")}
+    ${nota("Si tenés dudas, respondé este email.")}`;
+  return base("Compra cancelada", cuerpo);
+}
+
+export function arrepentimientoRecibidoHTML(params: { codigo: string; nombre: string | null; numero: string | null }): string {
+  const cuerpo = `
+    ${parrafo(`Hola${params.nombre ? ` ${escapar(params.nombre)}` : ""}, recibimos tu pedido de arrepentimiento${params.numero ? ` sobre la compra <strong>${escapar(params.numero)}</strong>` : ""}.`)}
+    ${parrafo(`Tu código de identificación es <strong style="font-size:20px;letter-spacing:1px;">${escapar(params.codigo)}</strong>. Guardalo: con él seguimos el trámite.`)}
+    ${parrafo("Dentro de las 24 horas te escribimos por este medio con los pasos para la devolución y el reintegro.")}
+    ${nota("Podés arrepentirte dentro de los 10 días corridos desde que recibiste el producto. Si tenés dudas, respondé este email.")}`;
+  return base("Recibimos tu arrepentimiento", cuerpo);
 }

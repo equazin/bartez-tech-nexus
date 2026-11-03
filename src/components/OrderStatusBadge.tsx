@@ -1,4 +1,4 @@
-import { Ban, CheckCircle2, Clock, Package, PackageCheck, Truck, XCircle, type LucideIcon } from "lucide-react";
+import { Ban, CheckCircle2, Clock, CreditCard, Package, PackageCheck, RotateCcw, Truck, XCircle, type LucideIcon } from "lucide-react";
 
 type UnifiedOrderStatus =
   | "pending"
@@ -10,62 +10,37 @@ type UnifiedOrderStatus =
   | "picked"
   | "delivered"
   | "rejected"
-  | "cancelled";
+  | "cancelled"
+  | "pendiente_pago"
+  | "pagado"
+  | "preparando"
+  | "enviado"
+  | "entregado"
+  | "cancelado"
+  | "reintegrado"
+  | "vencido";
 
-const STATUS_CONFIG: Record<
-  UnifiedOrderStatus,
-  { label: string; className: string; icon: LucideIcon }
-> = {
-  pending: {
-    label: "En revision",
-    icon: Clock,
-    className: "border-amber-500/30 bg-amber-500/10 text-amber-500",
-  },
-  confirmed: {
-    label: "Confirmado",
-    icon: CheckCircle2,
-    className: "border-primary/30 bg-primary/10 text-primary",
-  },
-  approved: {
-    label: "Aprobado",
-    icon: CheckCircle2,
-    className: "border-primary/30 bg-primary/10 text-primary",
-  },
-  preparing: {
-    label: "Preparando",
-    icon: Package,
-    className: "border-blue-500/30 bg-blue-500/10 text-blue-500",
-  },
-  shipped: {
-    label: "Enviado",
-    icon: Truck,
-    className: "border-indigo-500/30 bg-indigo-500/10 text-indigo-500",
-  },
-  dispatched: {
-    label: "Despachado",
-    icon: Truck,
-    className: "border-blue-500/30 bg-blue-500/10 text-blue-500",
-  },
-  picked: {
-    label: "Pickeado",
-    icon: PackageCheck,
-    className: "border-violet-500/30 bg-violet-500/10 text-violet-500",
-  },
-  delivered: {
-    label: "Entregado",
-    icon: CheckCircle2,
-    className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-500",
-  },
-  rejected: {
-    label: "Rechazado",
-    icon: XCircle,
-    className: "border-destructive/30 bg-destructive/10 text-destructive",
-  },
-  cancelled: {
-    label: "Cancelado",
-    icon: Ban,
-    className: "border-destructive/30 bg-destructive/10 text-destructive",
-  },
+const STATUS_CONFIG: Record<UnifiedOrderStatus, { label: string; className: string; icon: LucideIcon }> = {
+  // Tienda
+  pendiente_pago: { label: "Pendiente de pago", icon: Clock, className: "border-border bg-secondary text-foreground" },
+  pagado: { label: "Pagado", icon: CreditCard, className: "border-success/40 bg-success/15 text-success" },
+  preparando: { label: "Preparando", icon: Package, className: "border-border bg-secondary text-foreground" },
+  enviado: { label: "Enviado", icon: Truck, className: "border-border bg-secondary text-foreground" },
+  entregado: { label: "Entregado", icon: CheckCircle2, className: "border-success/40 bg-success/15 text-success" },
+  cancelado: { label: "Cancelado", icon: Ban, className: "border-border bg-muted text-muted-foreground" },
+  reintegrado: { label: "Reintegrado", icon: RotateCcw, className: "border-danger/40 bg-danger/15 text-danger" },
+  vencido: { label: "Vencido", icon: Clock, className: "border-border bg-muted text-muted-foreground" },
+  // Mayorista heredado
+  pending: { label: "En revisión", icon: Clock, className: "border-border bg-secondary text-foreground" },
+  confirmed: { label: "Confirmado", icon: CheckCircle2, className: "border-border bg-secondary text-foreground" },
+  approved: { label: "Aprobado", icon: CheckCircle2, className: "border-border bg-secondary text-foreground" },
+  preparing: { label: "Preparando", icon: Package, className: "border-border bg-secondary text-foreground" },
+  shipped: { label: "Enviado", icon: Truck, className: "border-border bg-secondary text-foreground" },
+  dispatched: { label: "Despachado", icon: Truck, className: "border-border bg-secondary text-foreground" },
+  picked: { label: "Pickeado", icon: PackageCheck, className: "border-border bg-secondary text-foreground" },
+  delivered: { label: "Entregado", icon: CheckCircle2, className: "border-success/40 bg-success/15 text-success" },
+  rejected: { label: "Rechazado", icon: XCircle, className: "border-danger/40 bg-danger/15 text-danger" },
+  cancelled: { label: "Cancelado", icon: Ban, className: "border-border bg-muted text-muted-foreground" },
 };
 
 const STATUS_ALIASES: Record<string, UnifiedOrderStatus> = {
