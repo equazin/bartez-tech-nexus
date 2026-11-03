@@ -48,3 +48,43 @@ export const cargarDolar = (valor: number, nota: string) => llamarPrecios<Estado
 export const guardarConfiguracionDePrecios = (cambios: Partial<Record<FilaDeConfiguracion["clave"], number | null>>) =>
   llamarPrecios<EstadoDelDolar>("configuracion", { method: "PATCH", body: cambios });
 export const recalcularPrecios = () => llamarPrecios<{ recalculados: number; en: string }>("recalcular", { method: "POST" });
+
+// ── Sincronización automática (dólar del BNA y ELIT) ─────────────────────────
+export type TipoDeDolar = "billete" | "divisa";
+
+export interface ConfiguracionAutomatica {
+  dolar: { activo: boolean; tipo: TipoDeDolar };
+  elit: { activa: boolean };
+}
+
+export interface CorridaDeSincronizacion {
+  empezo: string;
+  termino: string;
+  disparada_por: "cron" | "panel";
+  dolar: { estado: "actualizado" | "sin_cambios" | "apagado" | "error"; valor?: number; anterior?: number | null; fecha?: string | null; origen?: string; error?: string };
+  elit: { estado: "ok" | "parcial" | "apagada" | "sin_credenciales" | "error"; vinculados: number; revisados: number; productos_cambiados: number; no_encontrados: number; error?: string };
+  recalculados: number | null;
+  error_recalculo?: string;
+}
+
+export interface EstadoDeSincronizacion {
+  configuracion: ConfiguracionAutomatica;
+  ultima: CorridaDeSincronizacion | null;
+  credenciales_elit: boolean;
+}
+
+async function llamarSincronizacion<T>(recurso: string, init: { method?: "GET" | "POST" | "PATCH"; body?: unknown } = {}): Promise<T> {
+  const respuesta = await fetch(`/api/tienda?modulo=sincronizacion&recurso=${encodeURIComponent(recurso)}`, {
+    method: init.method ?? "GET",
+    headers: { "Content-Type": "application/json", ...(await cabecerasConSesion()) },
+    body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+  });
+  const json = (await respuesta.json().catch(() => ({}))) as { ok?: boolean; data?: T; error?: string };
+  if (!respuesta.ok || json.ok === false) throw new Error(json.error ?? `Error ${respuesta.status}`);
+  return json.data as T;
+}
+
+export const obtenerSincronizacion = () => llamarSincronizacion<EstadoDeSincronizacion>("estado");
+export const guardarSincronizacion = (cambios: { dolar?: Partial<ConfiguracionAutomatica["dolar"]>; elit?: Partial<ConfiguracionAutomatica["elit"]> }) =>
+  llamarSincronizacion<EstadoDeSincronizacion>("configuracion", { method: "PATCH", body: cambios });
+export const sincronizarAhora = () => llamarSincronizacion<CorridaDeSincronizacion>("correr", { method: "POST" });

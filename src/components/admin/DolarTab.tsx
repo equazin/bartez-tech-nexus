@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { cargarDolar, guardarConfiguracionDePrecios, obtenerEstadoDelDolar, recalcularPrecios, type EstadoDelDolar } from "@/lib/api/precios";
+import { SincronizacionAutomatica } from "./SincronizacionAutomatica";
 
 const formatoPesos = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 2 });
 const formatoFecha = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" });
@@ -14,7 +15,7 @@ function valorDe(estado: EstadoDelDolar | null, clave: "margen_base" | "redondeo
   return fila?.valor === null || fila?.valor === undefined ? "" : String(fila.valor);
 }
 
-/** Precios › Dólar y margen: el dólar vigente, su historial, el redondeo y las cuotas máximas. El margen está en cada medio de pago. */
+/** Precios › Dólar y margen: la sincronización automática, el dólar vigente, su historial, el redondeo y las cuotas máximas. El margen está en cada medio de pago. */
 export function DolarTab() {
   const [estado, setEstado] = useState<EstadoDelDolar | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -104,6 +105,13 @@ export function DolarTab() {
 
   return (
     <div className="grid max-w-5xl gap-4 lg:grid-cols-2">
+      <SincronizacionAutomatica
+        alTerminar={() => {
+          obtenerEstadoDelDolar()
+            .then(tomar)
+            .catch(() => undefined);
+        }}
+      />
       <SurfaceCard className="space-y-4">
         <div>
           <h2 className="text-lg font-bold">Dólar vigente</h2>

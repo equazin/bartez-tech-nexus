@@ -167,6 +167,14 @@
     {
       "path": "/api/tienda?modulo=pagos&recurso=vencer",
       "schedule": "15 6 * * *"
+    },
+    {
+      "path": "/api/tienda?modulo=sincronizacion&recurso=correr&turno=manana",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/tienda?modulo=sincronizacion&recurso=correr&turno=tarde",
+      "schedule": "0 21 * * *"
     }
   ]
 }
