@@ -63,17 +63,19 @@ que hacen que Teqo no parezca una lista de precios más.
 
 ## 4. Categorías y subcategorías
 
-El menú queda con cinco entradas (la maqueta tiene Notebooks, Gaming, Monitores, Periféricos, Componentes y
-Red de la casa; el plan de marca pone a la red de la casa como complemento y descarta vender componentes
-sueltos, así que Componentes se reemplaza por Accesorios y la red va adentro).
+El menú queda con seis entradas. La maqueta tiene Notebooks, Gaming, Monitores, Periféricos, Componentes y
+Red de la casa; la red de la casa va dentro de Accesorios, como complemento. Componentes entra al menú como
+"PC y componentes" por decisión de Nico del 3/11/2026: Teqo también vende componentes, mini PC y consolas
+(migración 122).
 
 | Categoría | Subcategorías | Filtros propios | Notas |
 | --- | --- | --- | --- |
 | Notebooks | Para estudiar y trabajar · Gamer · Para crear · Ultralivianas | Marca, precio, pantalla, procesador, memoria, almacenamiento, placa de video, uso | Las subcategorías son por uso, no por marca; es lo que el cliente pregunta |
-| Gaming | Notebooks gamer · Monitores gaming · Teclados · Mouse · Auriculares · Joysticks y volantes · Streaming (webcam, micrófono, capturadora) | Marca, precio, frecuencia, conexión (cable o inalámbrico), plataforma | Es una vista transversal: un monitor de 165 Hz vive en Monitores y aparece en Gaming |
+| Gaming | Notebooks gamer · Monitores gaming · Teclados · Mouse · Auriculares · Joysticks y volantes · Streaming (webcam, micrófono, capturadora) · Consolas | Marca, precio, frecuencia, conexión (cable o inalámbrico), plataforma | Es una vista transversal: un monitor de 165 Hz vive en Monitores y aparece en Gaming |
 | Monitores | Para jugar (120 Hz o más) · Para trabajar y estudiar · Ultrawide y curvos · Soportes | Marca, precio, pulgadas, resolución, frecuencia, panel, conexiones | Los filtros de la maqueta ya son estos |
 | Periféricos | Teclados · Mouse · Auriculares · Parlantes · Webcams · Mousepads · Combos | Marca, precio, conexión, formato, iluminación | Rotación y venta cruzada |
 | Accesorios y red | SSD externos y pendrives · Hubs y adaptadores · Cargadores · Mochilas y fundas · Routers y Wi-Fi · Estabilizadores y UPS | Marca, precio, capacidad, compatibilidad | Menos del 30% de las ventas según el plan de marca |
+| PC y componentes | Mini PC · Procesadores · Motherboards · Placas de video · Memorias RAM · Discos internos · Fuentes · Gabinetes · Coolers y refrigeración | Marca, precio, socket, capacidad, potencia, formato | Se venden sueltos; en la ficha de una notebook no se ofrecen como ampliación (la regla de configuraciones de fábrica sigue) |
 
 Vistas virtuales, sin categoría propia: Ofertas, Nuevos ingresos y, más adelante, Outlet (abiertos de caja o
 última unidad, con la garantía explicada).
@@ -163,8 +165,8 @@ conviene hacerlos con productos reales a la vista.
 ## 9. Decisiones abiertas
 
 - Si Gaming incluye sillas y escritorios (FullH4rd los vende; pesan y el envío nacional los encarece).
-- Si se vende algo de "Componentes" sueltos (SSD internos, memorias) o solo accesorios externos. El plan de
-  marca dice solo fábrica; la maqueta todavía lista Componentes en el menú.
+- Resuelta el 3/11/2026: Teqo vende componentes sueltos, mini PC y consolas ("PC y componentes" en el menú y
+  Consolas dentro de Gaming).
 - Cuántas cuotas se muestran como tope en la tarjeta ([N] en la maqueta) y el porcentaje de descuento por
   transferencia.
 - Si el comparador entra antes del lanzamiento o después de los primeros 30 días.
