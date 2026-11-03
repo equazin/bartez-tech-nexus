@@ -41,7 +41,7 @@ repositorio.
 
 ## Base de datos
 
-Las migraciones viven en `supabase/migrations`, numeradas en orden (000 a 105). Se aplican con `supabase db push`
+Las migraciones viven en `supabase/migrations`, numeradas en orden (000 a 114; la 000 crea las tablas que Bartez había hecho a mano). Se aplican con `supabase db push`
 contra el proyecto de Teqo. El proyecto depende de RPC y políticas RLS para la reserva atómica de stock, los
 pedidos, los pagos y la auditoría.
 
