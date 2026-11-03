@@ -243,11 +243,12 @@ async function flushRetryQueue(): Promise<void> {
     const queue: TrackPayload[] = JSON.parse(raw) as TrackPayload[];
     if (!queue.length) return;
 
-    const { error } = await supabase
-      .from("marketing_events")
-      .upsert(queue, { onConflict: "event_id", ignoreDuplicates: true });
+    // Insert simple: el upsert con ON CONFLICT exige una política de lectura que el visitante
+    // sin cuenta no tiene, y daba 401 en cada carga. Si algún evento ya estaba guardado
+    // (clave duplicada, 23505), la cola se descarta igual: son reintentos de analítica.
+    const { error } = await supabase.from("marketing_events").insert(queue);
 
-    if (!error) {
+    if (!error || error.code === "23505") {
       localStorage.removeItem(RETRY_QUEUE_KEY);
     }
   } catch { /* ignore — se reintentará la próxima vez */ }
