@@ -77,6 +77,22 @@ export function NewBytesImportar({ userId, alImportar }: { userId?: string; alIm
     });
   }
 
+  const idsDeLaLista = useMemo(() => filtrados.map((p) => String(p.id)), [filtrados]);
+  const todaLaListaElegida = idsDeLaLista.length > 0 && idsDeLaLista.every((id) => elegidos.has(id));
+  const parteDeLaListaElegida = !todaLaListaElegida && idsDeLaLista.some((id) => elegidos.has(id));
+
+  /** Elige (o suelta) todos los de la lista filtrada, también los que no entran en pantalla. Lo elegido de otras búsquedas queda. */
+  function alternarLaLista() {
+    setElegidos((previo) => {
+      const nuevo = new Set(previo);
+      for (const id of idsDeLaLista) {
+        if (todaLaListaElegida) nuevo.delete(id);
+        else nuevo.add(id);
+      }
+      return nuevo;
+    });
+  }
+
   async function importar() {
     const productos = (catalogo ?? []).filter((p) => elegidos.has(String(p.id)));
     if (productos.length === 0) return;
@@ -141,9 +157,24 @@ export function NewBytesImportar({ userId, alImportar }: { userId?: string; alIm
             </label>
           </div>
 
-          <p className="text-sm text-muted-foreground">
-            {filtrados.length} de {catalogo.length} productos{filtrados.length > MOSTRAR ? `: se muestran los primeros ${MOSTRAR}, afiná la búsqueda` : ""}.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <label className={cn("flex items-center gap-2 text-sm font-medium", idsDeLaLista.length === 0 ? "opacity-50" : "cursor-pointer")}>
+              <input
+                type="checkbox"
+                checked={todaLaListaElegida}
+                ref={(el) => {
+                  if (el) el.indeterminate = parteDeLaListaElegida;
+                }}
+                disabled={idsDeLaLista.length === 0}
+                onChange={alternarLaLista}
+              />
+              {todaLaListaElegida ? `Soltar los ${idsDeLaLista.length} de la lista` : `Elegir los ${idsDeLaLista.length} de la lista`}
+            </label>
+            <p className="text-sm text-muted-foreground">
+              {filtrados.length} de {catalogo.length} productos{filtrados.length > MOSTRAR ? `: se muestran los primeros ${MOSTRAR}` : ""}
+              {elegidos.size > 0 ? ` · ${elegidos.size} elegidos en total` : ""}.
+            </p>
+          </div>
 
           <ul className="max-h-[520px] divide-y divide-border overflow-y-auto rounded-xl border border-border">
             {filtrados.slice(0, MOSTRAR).map((p) => {
