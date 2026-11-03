@@ -1,3 +1,15 @@
+-- get_my_role() se usa desde acá y la migración que lo define (056_fix_profiles_rls) viene después:
+-- se crea antes para que el historial corra entero en un proyecto nuevo.
+CREATE OR REPLACE FUNCTION get_my_role()
+RETURNS text
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT role FROM profiles WHERE id = auth.uid()
+$$;
+
 -- ── 048_client_catalog_segments.sql ─────────────────────────────────────────
 -- Catálogo segmentado por cliente: permite ocultar o mostrar productos/categorías
 -- específicas para clientes individuales o tipos de cliente.

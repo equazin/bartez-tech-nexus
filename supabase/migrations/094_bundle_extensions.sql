@@ -3,6 +3,9 @@
 -- opciones por slot (cantidad, opcional, reemplazable).
 -- Compatible con las tablas creadas en 089_product_bundles.sql.
 
+-- unaccent lo usa generate_bundle_slug; en un proyecto nuevo hay que crear la extensión.
+CREATE EXTENSION IF NOT EXISTS unaccent;
+
 -- ── 1. EXTENDER product_bundles ───────────────────────────────────────────────
 
 -- Tipo de bundle: pc_armada (fija), esquema (configurable por cliente), bundle (genérico)

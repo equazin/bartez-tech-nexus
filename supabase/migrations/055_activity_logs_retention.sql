@@ -18,7 +18,7 @@
 
 -- 1. Archive table (mirrors activity_logs structure)
 CREATE TABLE IF NOT EXISTS activity_logs_archive (
-  id          BIGINT,
+  id          UUID,   -- activity_logs.id es uuid
   user_id     UUID,
   action      TEXT,
   entity_type TEXT,

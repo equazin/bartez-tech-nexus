@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS rma_requests (
   id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   rma_number      TEXT UNIQUE,           -- e.g. "RMA-0001"
   client_id       UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  order_id        UUID NOT NULL REFERENCES orders(id)  ON DELETE CASCADE,
+  order_id        BIGINT NOT NULL REFERENCES orders(id)  ON DELETE CASCADE, -- orders.id es bigint
   -- Status workflow: draft → submitted → reviewing → approved → rejected → resolved
   status          TEXT NOT NULL DEFAULT 'submitted'
                   CHECK (status IN ('draft', 'submitted', 'reviewing', 'approved', 'rejected', 'resolved')),

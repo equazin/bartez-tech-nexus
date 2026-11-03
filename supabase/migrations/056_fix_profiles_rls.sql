@@ -30,6 +30,8 @@ DROP POLICY IF EXISTS "profiles_select_admin"    ON profiles;
 DROP POLICY IF EXISTS "profiles_update_admin"    ON profiles;
 DROP POLICY IF EXISTS "profiles_update_own"      ON profiles;
 DROP POLICY IF EXISTS "profiles_insert_trigger"  ON profiles;
+DROP POLICY IF EXISTS "profiles_select_staff"    ON profiles;
+DROP POLICY IF EXISTS "profiles_insert_own"      ON profiles;
 
 -- Users can always read their own profile
 CREATE POLICY "profiles_select_own"
@@ -91,6 +93,8 @@ CREATE POLICY "pricing_rules_write"
 -- activity_logs
 DROP POLICY IF EXISTS "activity_logs_own"   ON activity_logs;
 DROP POLICY IF EXISTS "activity_logs_admin" ON activity_logs;
+DROP POLICY IF EXISTS "activity_logs_staff"  ON activity_logs;
+DROP POLICY IF EXISTS "activity_logs_insert" ON activity_logs;
 
 CREATE POLICY "activity_logs_own"
   ON activity_logs FOR SELECT TO authenticated
