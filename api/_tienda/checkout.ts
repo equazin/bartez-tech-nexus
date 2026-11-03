@@ -161,7 +161,6 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
     supabase.from("tienda_configuracion").select("clave, valor").in("clave", ["peso_por_defecto_kg", "redondeo_pesos"]),
   ]);
   const dolar = typeof dolarCrudo === "number" ? dolarCrudo : Number(dolarCrudo ?? 0) || null;
-  const pesoPorDefecto = Number((configuracion ?? []).find((c: { clave: string; valor: unknown }) => c.clave === "peso_por_defecto_kg")?.valor ?? 1) || 1;
   // Mismo redondeo que tienda_redondear en la base, para que el precio cobrado sea el que se mostró.
   const redondeo = Math.max(Number((configuracion ?? []).find((c: { clave: string; valor: unknown }) => c.clave === "redondeo_pesos")?.valor ?? 10) || 10, 1);
   const conMargenDelMedio = (precio: number) => Math.round((precio * (1 + margenDelMedio / 100)) / redondeo) * redondeo;
@@ -171,7 +170,6 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
   const items: Array<Record<string, unknown>> = [];
   const lineasDelEmail: Array<{ nombre: string; cantidad: number; precioFinal: number }> = [];
   let subtotal = 0;
-  let pesoKg = 0;
 
   for (const [productoId, cantidad] of cantidades) {
     const p = productos.get(productoId);
@@ -186,7 +184,6 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
     const costoPesos = aDosDecimales((p.cost_price ?? 0) * (p.supplier_multiplier ?? 1) * (dolar ?? 0));
 
     subtotal += precioFinal * cantidad;
-    pesoKg += (p.weight_kg && p.weight_kg > 0 ? p.weight_kg : pesoPorDefecto) * cantidad;
     items.push({
       product_id: p.id,
       name: nombreDe(p),
@@ -247,7 +244,10 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
   }
   subtotal = aDosDecimales(subtotal);
 
-  const { data: cotizacion, error: errorEnvio } = await supabase.rpc("tienda_cotizar_envio", { p_peso_kg: aDosDecimales(pesoKg), p_subtotal: subtotal });
+  // Lo que despacha Teqo va por peso y lo que despacha un mayorista directo paga su tarifa plana;
+  // si se mezclan, se cobra solo el envío más alto (tienda_cotizar_envio_carrito).
+  const itemsDeEnvio = [...cantidades].map(([productoId, cantidad]) => ({ product_id: productoId, cantidad }));
+  const { data: cotizacion, error: errorEnvio } = await supabase.rpc("tienda_cotizar_envio_carrito", { p_items: itemsDeEnvio, p_subtotal: subtotal });
   if (errorEnvio) throw new Error(`No se pudo cotizar el envío: ${errorEnvio.message}`);
   const envio = (Array.isArray(cotizacion) ? cotizacion[0] : cotizacion) as { precio: number | null; demora_dias_min: number | null; demora_dias_max: number | null; disponible: boolean } | null;
   if (!envio || !envio.disponible || envio.precio === null) throw new Error("Todavía no podemos cotizar el envío. Probá más tarde.");

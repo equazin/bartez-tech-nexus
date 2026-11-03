@@ -77,7 +77,7 @@ export default function Checkout() {
   usarSeo("Finalizar la compra");
   const navigate = useNavigate();
   const [parametros] = useSearchParams();
-  const { lineas, subtotal, subtotalPorMedio, serviciosElegidos, pesoKg, cargando, listoParaComprar } = useCarritoDetallado();
+  const { lineas, subtotal, subtotalPorMedio, serviciosElegidos, itemsDeEnvio, claveDeEnvio, cargando, listoParaComprar } = useCarritoDetallado();
   // El carrito deja elegir el medio antes de llegar acá; si viene en la URL, arranca elegido.
   const medioDelCarrito = parametros.get("medio");
   const [f, setF] = useState<Formulario>(() =>
@@ -108,7 +108,7 @@ export default function Checkout() {
   useEffect(() => {
     if (lineas.length === 0 || cargando) return;
     let cancelado = false;
-    cotizarEnvio(pesoKg, subtotalDelMedio)
+    cotizarEnvio(itemsDeEnvio, subtotalDelMedio)
       .then((c) => {
         if (!cancelado) setEnvio(c);
       })
@@ -118,7 +118,7 @@ export default function Checkout() {
     return () => {
       cancelado = true;
     };
-  }, [lineas.length, cargando, pesoKg, subtotalDelMedio]);
+  }, [lineas.length, cargando, claveDeEnvio, subtotalDelMedio]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function cambiar<K extends keyof Formulario>(clave: K, valor: Formulario[K]) {
     setF((previo) => ({ ...previo, [clave]: valor }));

@@ -55,6 +55,16 @@ export type TipoDeDolar = "billete" | "divisa";
 export interface ConfiguracionAutomatica {
   dolar: { activo: boolean; tipo: TipoDeDolar };
   elit: { activa: boolean };
+  newbytes: { activa: boolean };
+}
+
+export interface ResultadoDeMayorista {
+  estado: "ok" | "parcial" | "apagada" | "sin_credenciales" | "error";
+  vinculados: number;
+  revisados: number;
+  productos_cambiados: number;
+  no_encontrados: number;
+  error?: string;
 }
 
 export interface CorridaDeSincronizacion {
@@ -62,7 +72,9 @@ export interface CorridaDeSincronizacion {
   termino: string;
   disparada_por: "cron" | "panel";
   dolar: { estado: "actualizado" | "sin_cambios" | "apagado" | "error"; valor?: number; anterior?: number | null; fecha?: string | null; origen?: string; error?: string };
-  elit: { estado: "ok" | "parcial" | "apagada" | "sin_credenciales" | "error"; vinculados: number; revisados: number; productos_cambiados: number; no_encontrados: number; error?: string };
+  elit: ResultadoDeMayorista;
+  /** Las corridas anteriores al alta de New Bytes no lo traen. */
+  newbytes?: ResultadoDeMayorista;
   recalculados: number | null;
   error_recalculo?: string;
 }
@@ -71,6 +83,7 @@ export interface EstadoDeSincronizacion {
   configuracion: ConfiguracionAutomatica;
   ultima: CorridaDeSincronizacion | null;
   credenciales_elit: boolean;
+  credenciales_newbytes: boolean;
 }
 
 async function llamarSincronizacion<T>(recurso: string, init: { method?: "GET" | "POST" | "PATCH"; body?: unknown } = {}): Promise<T> {
@@ -85,6 +98,10 @@ async function llamarSincronizacion<T>(recurso: string, init: { method?: "GET" |
 }
 
 export const obtenerSincronizacion = () => llamarSincronizacion<EstadoDeSincronizacion>("estado");
-export const guardarSincronizacion = (cambios: { dolar?: Partial<ConfiguracionAutomatica["dolar"]>; elit?: Partial<ConfiguracionAutomatica["elit"]> }) =>
+export const guardarSincronizacion = (cambios: {
+  dolar?: Partial<ConfiguracionAutomatica["dolar"]>;
+  elit?: Partial<ConfiguracionAutomatica["elit"]>;
+  newbytes?: Partial<ConfiguracionAutomatica["newbytes"]>;
+}) =>
   llamarSincronizacion<EstadoDeSincronizacion>("configuracion", { method: "PATCH", body: cambios });
 export const sincronizarAhora = () => llamarSincronizacion<CorridaDeSincronizacion>("correr", { method: "POST" });

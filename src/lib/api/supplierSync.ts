@@ -968,9 +968,13 @@ async function reconcileCatalogProducts(
     try {
       await withTimeout((async () => {
         const rows = rowsByProductId.get(productId) ?? [];
+        // Solo precios: la fila activa con stock más barata, la misma que usan tienda_proveedor_de y
+        // reconciliar_costos_y_stock en la base para saber quién despacha (migración 133).
         const preferred = priceOnlyMode
           ? [...(rows.filter((row) => row.active).length > 0 ? rows.filter((row) => row.active) : rows)].sort((a, b) => {
-            return a.cost_price - b.cost_price || a.id.localeCompare(b.id);
+            const aSinStock = a.stock_available - a.stock_reserved <= 0 ? 1 : 0;
+            const bSinStock = b.stock_available - b.stock_reserved <= 0 ? 1 : 0;
+            return aSinStock - bSinStock || a.cost_price - b.cost_price || a.id.localeCompare(b.id);
           })[0]
           : choosePreferredSupplier(rows);
         if (!preferred) {

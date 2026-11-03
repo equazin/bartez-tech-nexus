@@ -8,9 +8,18 @@ export interface CotizacionDeEnvio {
   disponible: boolean;
 }
 
-/** La misma tarifa para todo el país, por peso. Se cotiza con el RPC público; el servidor la recalcula al confirmar. */
-export async function cotizarEnvio(pesoKg: number, subtotal: number): Promise<CotizacionDeEnvio> {
-  const { data, error } = await supabase.rpc("tienda_cotizar_envio", { p_peso_kg: Math.max(pesoKg, 0.001), p_subtotal: subtotal });
+export interface ItemDeEnvio {
+  product_id: number;
+  cantidad: number;
+}
+
+/**
+ * La misma tarifa para todo el país. Lo que despacha Teqo se cotiza por peso; lo que despacha un mayorista
+ * directo (New Bytes) paga su tarifa plana, una por pedido; si el carrito mezcla los dos, se cobra solo el
+ * envío más alto. Se cotiza con el RPC público y el servidor lo recalcula al confirmar.
+ */
+export async function cotizarEnvio(items: ItemDeEnvio[], subtotal: number): Promise<CotizacionDeEnvio> {
+  const { data, error } = await supabase.rpc("tienda_cotizar_envio_carrito", { p_items: items, p_subtotal: subtotal });
   if (error) throw new Error(`No se pudo cotizar el envío: ${error.message}`);
   const fila = (Array.isArray(data) ? data[0] : data) as CotizacionDeEnvio | undefined;
   return fila ?? { precio: null, demora_dias_min: null, demora_dias_max: null, gratis: false, disponible: false };

@@ -11,6 +11,19 @@ export interface PedidoDeLaTienda {
   created_at: string;
   pagado_en: string | null;
   notes: string | null;
+  comprador_telefono?: string | null;
+  comprador_documento?: string | null;
+  direccion_envio?: Record<string, string | null> | null;
+}
+
+/** Una línea que despacha un mayorista directo (New Bytes): se le pide a mano en su sitio. */
+export interface LineaDeDespachoDirecto {
+  order_id: number;
+  nombre: string;
+  sku: string | null;
+  cantidad: number;
+  proveedor: string;
+  id_del_mayorista: string | null;
 }
 
 export interface PagoDelPanel {
@@ -53,7 +66,7 @@ export async function llamarPagos<T>(recurso: string, init: { method?: "GET" | "
   return json.data as T;
 }
 
-export const listarPagos = () => llamarPagos<{ pedidos: PedidoDeLaTienda[]; pagos: PagoDelPanel[] }>("lista");
+export const listarPagos = () => llamarPagos<{ pedidos: PedidoDeLaTienda[]; pagos: PagoDelPanel[]; despachos?: LineaDeDespachoDirecto[] }>("lista");
 export const validarTransferencia = (orderId: number) => llamarPagos<{ resultado: string }>("validar", { method: "POST", body: { order_id: orderId } });
 export const cancelarPedido = (orderId: number, motivo: string) => llamarPagos<{ resultado: string }>("cancelar", { method: "POST", body: { order_id: orderId, motivo } });
 export const reintegrarPago = (pagoId: number, monto: number | null, motivo: string) =>

@@ -3,15 +3,17 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { consultarDolarBna, type TipoDeDolar } from "../_shared/dolarBna.js";
 import { camposDeElit, hayCredencialesDeElit, productoPorId, productosCambiadosDesde, type ProductoElit } from "../_shared/elitServidor.js";
 import { fail, methodNotAllowed, ok } from "../_shared/http.js";
+import { camposDeNewBytes, catalogoDeNewBytes, hayCredencialesDeNewBytes } from "../_shared/newBytesServidor.js";
 import { getRoleFromRequest } from "../_shared/roles.js";
 import { getSupabaseAdmin, getSupabaseClient } from "../_shared/supabaseServer.js";
 
 /**
  * Sincronización automática de la tienda. El cron de Vercel la corre a las 9 y a las 18 (hora de Argentina):
- * trae el dólar del BNA, los costos y el stock de ELIT de los productos vinculados, y recalcula los precios.
+ * trae el dólar del BNA, los costos y el stock de ELIT y de New Bytes de los productos vinculados, y recalcula
+ * los precios.
  *   GET/POST ?recurso=correr          admin o el cron (CRON_SECRET): corre la sincronización
  *   GET      ?recurso=estado          admin: configuración y resultado de la última corrida
- *   PATCH    ?recurso=configuracion   admin: {dolar: {activo, tipo}, elit: {activa}}
+ *   PATCH    ?recurso=configuracion   admin: {dolar: {activo, tipo}, elit: {activa}, newbytes: {activa}}
  */
 
 export const config = { maxDuration: 60 };
@@ -31,6 +33,7 @@ const VARIACION_MAXIMA_DEL_DOLAR = 0.25;
 interface ConfiguracionAutomatica {
   dolar: { activo: boolean; tipo: TipoDeDolar };
   elit: { activa: boolean };
+  newbytes: { activa: boolean };
 }
 
 interface ResultadoDelDolar {
@@ -42,7 +45,7 @@ interface ResultadoDelDolar {
   error?: string;
 }
 
-interface ResultadoDeElit {
+interface ResultadoDeMayorista {
   estado: "ok" | "parcial" | "apagada" | "sin_credenciales" | "error";
   vinculados: number;
   revisados: number;
@@ -56,7 +59,8 @@ interface Corrida {
   termino: string;
   disparada_por: "cron" | "panel";
   dolar: ResultadoDelDolar;
-  elit: ResultadoDeElit;
+  elit: ResultadoDeMayorista;
+  newbytes: ResultadoDeMayorista;
   recalculados: number | null;
   error_recalculo?: string;
   /** Desde cuándo pedirle cambios a ELIT en la próxima corrida; solo avanza cuando la consulta terminó completa. */
@@ -114,7 +118,7 @@ async function leerFilas(): Promise<Record<string, unknown>> {
   const { data, error } = await getSupabaseAdmin()
     .from("tienda_configuracion")
     .select("clave, valor")
-    .in("clave", ["dolar_automatico", "sincronizacion_elit", "sincronizacion_ultima"]);
+    .in("clave", ["dolar_automatico", "sincronizacion_elit", "sincronizacion_newbytes", "sincronizacion_ultima"]);
   if (error) throw new Error(`No se pudo leer la configuración: ${error.message}`);
   const valores: Record<string, unknown> = {};
   for (const fila of (data ?? []) as Array<{ clave: string; valor: unknown }>) valores[fila.clave] = fila.valor;
@@ -124,9 +128,11 @@ async function leerFilas(): Promise<Record<string, unknown>> {
 function configuracionDe(valores: Record<string, unknown>): ConfiguracionAutomatica {
   const dolar = (valores.dolar_automatico ?? {}) as { activo?: unknown; tipo?: unknown };
   const elit = (valores.sincronizacion_elit ?? {}) as { activa?: unknown };
+  const newbytes = (valores.sincronizacion_newbytes ?? {}) as { activa?: unknown };
   return {
     dolar: { activo: dolar.activo !== false, tipo: dolar.tipo === "divisa" ? "divisa" : "billete" },
     elit: { activa: elit.activa !== false },
+    newbytes: { activa: newbytes.activa !== false },
   };
 }
 
@@ -139,7 +145,16 @@ async function estado(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") return methodNotAllowed(res, ["GET"]);
   if (!(await esAdmin(req)).admin) return fail(res, "Solo para administradores", 403);
   const valores = await leerFilas();
-  return ok(res, { configuracion: configuracionDe(valores), ultima: ultimaDe(valores), credenciales_elit: hayCredencialesDeElit() });
+  return ok(res, estadoPublico(valores));
+}
+
+function estadoPublico(valores: Record<string, unknown>) {
+  return {
+    configuracion: configuracionDe(valores),
+    ultima: ultimaDe(valores),
+    credenciales_elit: hayCredencialesDeElit(),
+    credenciales_newbytes: hayCredencialesDeNewBytes(),
+  };
 }
 
 async function configuracion(req: VercelRequest, res: VercelResponse) {
@@ -147,7 +162,7 @@ async function configuracion(req: VercelRequest, res: VercelResponse) {
   const { admin, userId } = await esAdmin(req);
   if (!admin) return fail(res, "Solo para administradores", 403);
 
-  const cuerpo = (req.body ?? {}) as { dolar?: { activo?: unknown; tipo?: unknown }; elit?: { activa?: unknown } };
+  const cuerpo = (req.body ?? {}) as { dolar?: { activo?: unknown; tipo?: unknown }; elit?: { activa?: unknown }; newbytes?: { activa?: unknown } };
   const actual = configuracionDe(await leerFilas());
   const cambios: Array<{ clave: string; valor: unknown }> = [];
   if (cuerpo.dolar) {
@@ -160,6 +175,10 @@ async function configuracion(req: VercelRequest, res: VercelResponse) {
     const activa = typeof cuerpo.elit.activa === "boolean" ? cuerpo.elit.activa : actual.elit.activa;
     cambios.push({ clave: "sincronizacion_elit", valor: { activa } });
   }
+  if (cuerpo.newbytes) {
+    const activa = typeof cuerpo.newbytes.activa === "boolean" ? cuerpo.newbytes.activa : actual.newbytes.activa;
+    cambios.push({ clave: "sincronizacion_newbytes", valor: { activa } });
+  }
   if (cambios.length === 0) return fail(res, "No hay nada para cambiar.");
 
   const supabase = getSupabaseAdmin();
@@ -170,8 +189,7 @@ async function configuracion(req: VercelRequest, res: VercelResponse) {
       .eq("clave", cambio.clave);
     if (error) throw new Error(`No se pudo guardar la configuración: ${error.message}`);
   }
-  const valores = await leerFilas();
-  return ok(res, { configuracion: configuracionDe(valores), ultima: ultimaDe(valores), credenciales_elit: hayCredencialesDeElit() });
+  return ok(res, estadoPublico(await leerFilas()));
 }
 
 // ── Corrida ──────────────────────────────────────────────────────────────────
@@ -185,9 +203,10 @@ async function correr(req: VercelRequest, res: VercelResponse) {
   const config = configuracionDe(valores);
   const anterior = ultimaDe(valores);
 
-  const [dolar, { resultado: elit, completa }] = await Promise.all([
+  const [dolar, { resultado: elit, completa }, newbytes] = await Promise.all([
     config.dolar.activo ? actualizarDolar(config.dolar.tipo) : Promise.resolve<ResultadoDelDolar>({ estado: "apagado" }),
     config.elit.activa ? sincronizarElit(anterior, inicio + TIEMPO_PARA_CONSULTAR_MS) : Promise.resolve({ resultado: elitVacia("apagada"), completa: false }),
+    config.newbytes.activa ? sincronizarNewBytes() : Promise.resolve(elitVacia("apagada")),
   ]);
 
   let recalculados: number | null = null;
@@ -202,6 +221,7 @@ async function correr(req: VercelRequest, res: VercelResponse) {
     disparada_por: delCron ? "cron" : "panel",
     dolar,
     elit,
+    newbytes,
     recalculados,
     ...(errorRecalculo ? { error_recalculo: errorRecalculo } : {}),
     elit_hasta: completa ? new Date(inicio).toISOString() : anterior?.elit_hasta,
@@ -246,7 +266,7 @@ async function actualizarDolar(tipo: TipoDeDolar): Promise<ResultadoDelDolar> {
   }
 }
 
-const elitVacia = (estado: ResultadoDeElit["estado"], error?: string): ResultadoDeElit => ({
+const elitVacia = (estado: ResultadoDeMayorista["estado"], error?: string): ResultadoDeMayorista => ({
   estado,
   vinculados: 0,
   revisados: 0,
@@ -267,7 +287,7 @@ async function enTandas<T>(items: T[], aLaVez: number, tarea: (item: T) => Promi
   await Promise.all(trabajadores);
 }
 
-async function sincronizarElit(anterior: Corrida | null, hasta: number): Promise<{ resultado: ResultadoDeElit; completa: boolean }> {
+async function sincronizarElit(anterior: Corrida | null, hasta: number): Promise<{ resultado: ResultadoDeMayorista; completa: boolean }> {
   if (!hayCredencialesDeElit()) return { resultado: elitVacia("sin_credenciales", "Faltan ELIT_API_USER_ID y ELIT_API_TOKEN en Vercel."), completa: false };
   try {
     const supabase = getSupabaseAdmin();
@@ -351,5 +371,78 @@ async function sincronizarElit(anterior: Corrida | null, hasta: number): Promise
   } catch (e: unknown) {
     console.error("[sincronizacion] ELIT:", mensaje(e));
     return { resultado: elitVacia("error", mensaje(e)), completa: false };
+  }
+}
+
+async function filasDelProveedor(nombreNormalizado: string): Promise<FilaDeProveedor[]> {
+  const supabase = getSupabaseAdmin();
+  const { data: proveedores, error: errorProveedor } = await supabase.from("suppliers").select("id, name");
+  if (errorProveedor) throw new Error(errorProveedor.message);
+  const normalizar = (texto: string) => texto.toLowerCase().replace(/\s+/g, "");
+  const proveedor = ((proveedores ?? []) as Array<{ id: string; name: string }>).find((p) => normalizar(p.name) === nombreNormalizado);
+  if (!proveedor) return [];
+  const { data, error } = await supabase
+    .from("product_suppliers")
+    .select("id, product_id, supplier_id, external_id, cost_price, stock_available, active, last_synced_at")
+    .eq("supplier_id", proveedor.id);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as FilaDeProveedor[];
+}
+
+/**
+ * New Bytes manda el catálogo entero en una consulta: se actualizan todas las filas vinculadas, y la que
+ * ya no aparece en el catálogo queda sin stock (conserva el último costo).
+ */
+async function sincronizarNewBytes(): Promise<ResultadoDeMayorista> {
+  if (!hayCredencialesDeNewBytes()) return elitVacia("sin_credenciales", "Faltan NB_API_USER y NB_API_PASSWORD en Vercel.");
+  try {
+    const vinculadas = (await filasDelProveedor("newbytes")).filter((f) => f.external_id);
+    if (vinculadas.length === 0) return elitVacia("ok");
+
+    const catalogo = await catalogoDeNewBytes();
+    if (catalogo.length === 0) throw new Error("New Bytes devolvió el catálogo vacío: no se tocó nada.");
+    const porId = new Map(catalogo.map((p) => [String(p.id), p]));
+
+    const ahora = new Date().toISOString();
+    const cambiados = new Set<number>();
+    const encontradas: Array<Record<string, unknown>> = [];
+    const faltantes: Array<Record<string, unknown>> = [];
+    for (const fila of vinculadas) {
+      const producto = porId.get(String(fila.external_id));
+      const base = { id: fila.id, product_id: fila.product_id, supplier_id: fila.supplier_id, last_synced_at: ahora, updated_at: ahora };
+      if (producto) {
+        const campos = camposDeNewBytes(producto);
+        if (Number(fila.cost_price ?? 0) !== campos.cost_price || (fila.stock_available ?? 0) !== campos.stock_available || fila.active !== campos.active) {
+          cambiados.add(fila.product_id);
+        }
+        encontradas.push({ ...base, ...campos });
+      } else {
+        if ((fila.stock_available ?? 0) !== 0) cambiados.add(fila.product_id);
+        faltantes.push({ ...base, stock_available: 0 });
+      }
+    }
+
+    const supabase = getSupabaseAdmin();
+    // Dos tandas aparte: un upsert con columnas distintas por fila pondría en nulo las que faltan.
+    for (const tanda of [encontradas, faltantes]) {
+      for (let i = 0; i < tanda.length; i += 200) {
+        const { error } = await supabase.from("product_suppliers").upsert(tanda.slice(i, i + 200), { onConflict: "id" });
+        if (error) throw new Error(`No se pudieron guardar las filas de New Bytes: ${error.message}`);
+      }
+    }
+    if (cambiados.size > 0) {
+      const { error } = await supabase.rpc("reconciliar_costos_y_stock", { p_ids: [...cambiados] });
+      if (error) throw new Error(`No se pudieron pasar costo y stock a los productos: ${error.message}`);
+    }
+    return {
+      estado: "ok",
+      vinculados: vinculadas.length,
+      revisados: encontradas.length,
+      productos_cambiados: cambiados.size,
+      no_encontrados: faltantes.length,
+    };
+  } catch (e: unknown) {
+    console.error("[sincronizacion] New Bytes:", mensaje(e));
+    return elitVacia("error", mensaje(e));
   }
 }

@@ -48,7 +48,7 @@ function Pasos() {
 
 export default function Carrito() {
   usarSeo("Carrito");
-  const { lineas, unidades, subtotal, medios, subtotalPorMedio, pcCompleta, serviciosOfrecidos, serviciosElegidos, pesoKg, cargando, problemas, listoParaComprar } =
+  const { lineas, unidades, subtotal, medios, subtotalPorMedio, pcCompleta, serviciosOfrecidos, serviciosElegidos, itemsDeEnvio, claveDeEnvio, cargando, problemas, listoParaComprar } =
     useCarritoDetallado();
   const [envio, setEnvio] = useState<CotizacionDeEnvio | null>(null);
   const [medio, setMedio] = useState<string>("transferencia");
@@ -60,7 +60,7 @@ export default function Carrito() {
       return;
     }
     let cancelado = false;
-    cotizarEnvio(pesoKg, subtotal)
+    cotizarEnvio(itemsDeEnvio, subtotal)
       .then((c) => {
         if (!cancelado) setEnvio(c);
       })
@@ -70,7 +70,7 @@ export default function Carrito() {
     return () => {
       cancelado = true;
     };
-  }, [lineas.length, cargando, pesoKg, subtotal]);
+  }, [lineas.length, cargando, claveDeEnvio, subtotal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const productosDelCarrito = useMemo(() => lineas.map((l) => l.producto).filter((p): p is ProductoPublico => Boolean(p)), [lineas]);
   const claveProductos = productosDelCarrito.map((p) => p.id).join(",");

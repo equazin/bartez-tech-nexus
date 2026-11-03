@@ -4,7 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SurfaceCard } from "@/components/ui/surface-card";
-import { cancelarPedido, listarPagos, reintegrarPago, validarTransferencia, type PagoDelPanel, type PedidoDeLaTienda } from "@/lib/api/pagos";
+import { cancelarPedido, listarPagos, reintegrarPago, validarTransferencia, type LineaDeDespachoDirecto, type PagoDelPanel, type PedidoDeLaTienda } from "@/lib/api/pagos";
+import { DespachoDirecto } from "./DespachoDirecto";
 import { useAuth } from "@/context/AuthContext";
 
 const formatoPesos = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
@@ -30,11 +31,12 @@ function tonoDe(estado: string): "success" | "secondary" | "destructive" | "mute
   return "secondary";
 }
 
-/** Ventas › Pagos: los pedidos de la tienda con sus pagos, y las acciones que cambian plata. */
+/** Ventas › Pagos: los pedidos de la tienda con sus pagos, lo que despacha un mayorista directo y las acciones que cambian plata. */
 export function PagosTab() {
   const { isAdmin } = useAuth();
   const [pedidos, setPedidos] = useState<PedidoDeLaTienda[]>([]);
   const [pagos, setPagos] = useState<PagoDelPanel[]>([]);
+  const [despachos, setDespachos] = useState<LineaDeDespachoDirecto[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<string>("todos");
@@ -46,6 +48,7 @@ export function PagosTab() {
     const datos = await listarPagos();
     setPedidos(datos.pedidos);
     setPagos(datos.pagos);
+    setDespachos(datos.despachos ?? []);
   }
 
   useEffect(() => {
@@ -59,6 +62,12 @@ export function PagosTab() {
     for (const pago of pagos) mapa.set(pago.order_id, [...(mapa.get(pago.order_id) ?? []), pago]);
     return mapa;
   }, [pagos]);
+
+  const despachosPorPedido = useMemo(() => {
+    const mapa = new Map<number, LineaDeDespachoDirecto[]>();
+    for (const linea of despachos) mapa.set(linea.order_id, [...(mapa.get(linea.order_id) ?? []), linea]);
+    return mapa;
+  }, [despachos]);
 
   const visibles = pedidos.filter((p) => {
     if (filtro !== "todos" && p.status !== filtro) return false;
@@ -145,6 +154,8 @@ export function PagosTab() {
                       ))}
                     </ul>
                   )}
+
+                  <DespachoDirecto pedido={pedido} lineas={despachosPorPedido.get(pedido.id) ?? []} />
 
                   {pedido.notes && <p className="text-sm text-muted-foreground">{pedido.notes}</p>}
 

@@ -339,14 +339,46 @@ async function lista(req: VercelRequest, res: VercelResponse) {
   const supabase = getSupabaseAdmin();
   const { data: pedidos, error } = await supabase
     .from("orders")
-    .select("id, order_number, status, payment_method, total, comprador_nombre, comprador_email, created_at, pagado_en, notes")
+    .select("id, order_number, status, payment_method, total, comprador_nombre, comprador_email, comprador_telefono, comprador_documento, direccion_envio, created_at, pagado_en, notes")
     .eq("origen", "tienda")
     .order("created_at", { ascending: false })
     .limit(200);
   if (error) throw new Error(error.message);
   const ids = (pedidos ?? []).map((p: { id: number }) => p.id);
-  const { data: pagos } = ids.length > 0 ? await supabase.from("pagos").select("*").in("order_id", ids).order("creado_en", { ascending: false }) : { data: [] };
-  return ok(res, { pedidos: pedidos ?? [], pagos: pagos ?? [] });
+  const [{ data: pagos }, despachos] = await Promise.all([
+    ids.length > 0 ? supabase.from("pagos").select("*").in("order_id", ids).order("creado_en", { ascending: false }) : Promise.resolve({ data: [] }),
+    lineasDeDespachoDirecto(ids),
+  ]);
+  return ok(res, { pedidos: pedidos ?? [], pagos: pagos ?? [], despachos });
+}
+
+/** Las líneas que despacha un mayorista directo (New Bytes), para hacerle el pedido a mano. */
+async function lineasDeDespachoDirecto(ids: number[]) {
+  if (ids.length === 0) return [];
+  const supabase = getSupabaseAdmin();
+  const { data: directos, error: errorDirectos } = await supabase.from("suppliers").select("id, name").eq("despacho_directo", true);
+  if (errorDirectos) throw new Error(errorDirectos.message);
+  const nombres = new Map(((directos ?? []) as Array<{ id: string; name: string }>).map((s) => [s.id, s.name]));
+  if (nombres.size === 0) return [];
+  const { data: lineas, error } = await supabase
+    .from("order_items")
+    .select("order_id, product_id, name, sku, quantity, despacha_proveedor_id")
+    .in("order_id", ids)
+    .in("despacha_proveedor_id", [...nombres.keys()]);
+  if (error) throw new Error(error.message);
+  const productos = [...new Set(((lineas ?? []) as Array<{ product_id: number | null }>).map((l) => l.product_id).filter((id): id is number => id !== null))];
+  const { data: externos } = productos.length
+    ? await supabase.from("product_suppliers").select("product_id, supplier_id, external_id").in("product_id", productos).in("supplier_id", [...nombres.keys()])
+    : { data: [] };
+  const codigo = new Map(((externos ?? []) as Array<{ product_id: number; supplier_id: string; external_id: string | null }>).map((e) => [`${e.product_id}:${e.supplier_id}`, e.external_id]));
+  return ((lineas ?? []) as Array<{ order_id: number; product_id: number | null; name: string; sku: string | null; quantity: number; despacha_proveedor_id: string }>).map((l) => ({
+    order_id: l.order_id,
+    nombre: l.name,
+    sku: l.sku,
+    cantidad: l.quantity,
+    proveedor: nombres.get(l.despacha_proveedor_id) ?? "",
+    id_del_mayorista: l.product_id ? (codigo.get(`${l.product_id}:${l.despacha_proveedor_id}`) ?? null) : null,
+  }));
 }
 
 async function validar(req: VercelRequest, res: VercelResponse) {

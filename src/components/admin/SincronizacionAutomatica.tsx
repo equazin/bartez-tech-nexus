@@ -11,6 +11,7 @@ import {
   sincronizarAhora,
   type CorridaDeSincronizacion,
   type EstadoDeSincronizacion,
+  type ResultadoDeMayorista,
   type TipoDeDolar,
 } from "@/lib/api/precios";
 
@@ -31,13 +32,14 @@ function textoDelDolar(corrida: CorridaDeSincronizacion): string {
   return `Dólar: ${valor}${d.anterior ? ` (antes ${formatoPesos.format(d.anterior)})` : ""}.`;
 }
 
-function textoDeElit(corrida: CorridaDeSincronizacion): string {
-  const e = corrida.elit;
-  if (e.estado === "apagada") return "ELIT: apagada.";
-  if (e.estado === "sin_credenciales" || e.estado === "error") return `ELIT: ${e.error ?? "no se pudo consultar"}.`;
+function textoDeMayorista(nombre: string, e: ResultadoDeMayorista | undefined): string | null {
+  if (!e) return null;
+  if (e.estado === "apagada") return `${nombre}: apagada.`;
+  if (e.estado === "sin_credenciales" || e.estado === "error") return `${nombre}: ${e.error ?? "no se pudo consultar"}.`;
+  if (e.vinculados === 0) return `${nombre}: todavía no hay productos vinculados.`;
   const partes = [`${e.revisados} de ${e.vinculados} productos revisados`, `${e.productos_cambiados} con costo o stock nuevo`];
-  if (e.no_encontrados > 0) partes.push(`${e.no_encontrados} que ELIT ya no devuelve`);
-  return `ELIT: ${partes.join(", ")}${e.estado === "parcial" ? ". Faltó tiempo: sigue en la próxima corrida" : ""}.`;
+  if (e.no_encontrados > 0) partes.push(`${e.no_encontrados} que ${nombre} ya no devuelve`);
+  return `${nombre}: ${partes.join(", ")}${e.estado === "parcial" ? ". Faltó tiempo: sigue en la próxima corrida" : ""}.`;
 }
 
 /** Precios › Dólar: el dólar del BNA y los costos y el stock de ELIT, a las 9 y a las 18 (hora de Argentina). */
@@ -93,7 +95,7 @@ export function SincronizacionAutomatica({ alTerminar }: { alTerminar: () => voi
           <h2 className="text-lg font-bold">Sincronización automática</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Todos los días a las 9 y a las 18 (hora de Argentina) se toma el dólar del Banco Nación, se traen los costos y el stock de ELIT
-            y se recalculan los precios.
+            y de New Bytes y se recalculan los precios.
           </p>
         </div>
         <Button type="button" variant="outline" disabled={ocupado} onClick={correr} className="gap-2">
@@ -102,7 +104,7 @@ export function SincronizacionAutomatica({ alTerminar }: { alTerminar: () => voi
         </Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
         <div className="space-y-3 rounded-xl border border-border p-3">
           <label className="flex items-center justify-between gap-3 text-sm">
             <span className="font-medium">Dólar del BNA automático</span>
@@ -140,6 +142,18 @@ export function SincronizacionAutomatica({ alTerminar }: { alTerminar: () => voi
               : "Faltan las credenciales de ELIT en Vercel (ELIT_API_USER_ID y ELIT_API_TOKEN)."}
           </p>
         </div>
+
+        <div className="space-y-3 rounded-xl border border-border p-3">
+          <label className="flex items-center justify-between gap-3 text-sm">
+            <span className="font-medium">Costos y stock de New Bytes</span>
+            <Switch checked={configuracion.newbytes.activa} disabled={ocupado} onCheckedChange={(activa) => guardar({ newbytes: { activa } })} />
+          </label>
+          <p className="text-xs text-muted-foreground">
+            {estado.credenciales_newbytes
+              ? "Actualiza los productos vinculados a New Bytes; el que sale de su catálogo queda sin stock."
+              : "Faltan las credenciales de New Bytes en Vercel (NB_API_USER y NB_API_PASSWORD)."}
+          </p>
+        </div>
       </div>
 
       <div className="rounded-xl bg-secondary/60 p-3 text-sm">
@@ -149,7 +163,8 @@ export function SincronizacionAutomatica({ alTerminar }: { alTerminar: () => voi
               Última corrida: {formatoFecha.format(new Date(ultima.empezo))} ({ultima.disparada_por === "cron" ? "automática" : "desde el panel"})
             </p>
             <p className="mt-1 text-muted-foreground">{textoDelDolar(ultima)}</p>
-            <p className="text-muted-foreground">{textoDeElit(ultima)}</p>
+            <p className="text-muted-foreground">{textoDeMayorista("ELIT", ultima.elit)}</p>
+            {ultima.newbytes && <p className="text-muted-foreground">{textoDeMayorista("New Bytes", ultima.newbytes)}</p>}
             <p className="text-muted-foreground">
               {ultima.error_recalculo ? `Recálculo: ${ultima.error_recalculo}.` : `${ultima.recalculados ?? 0} precios recalculados.`}
             </p>

@@ -1,9 +1,10 @@
 import air from "./_proveedores/air";
 import elit from "./_proveedores/elit";
+import newbytes from "./_proveedores/newbytes";
 import { respuestaJson, sesionDelPanel } from "./_proveedores/sesion";
 
 /**
- * Proveedores: una sola función para los proxies de AIR y ELIT (el plan Hobby de
+ * Proveedores: una sola función para los proxies de AIR, ELIT y New Bytes (el plan Hobby de
  * Vercel admite 12 funciones por deploy). vercel.json reescribe /api/air-proxy y
  * /api/elit-proxy a /api/proveedores?proveedor=... conservando la
  * consulta. Estos proxies devuelven costos mayoristas, así que exigen sesión del panel.
@@ -13,7 +14,7 @@ export const config = { runtime: "edge" };
 
 type Manejador = (request: Request) => Promise<Response>;
 
-const PROVEEDORES: Record<string, Manejador> = { air, elit };
+const PROVEEDORES: Record<string, Manejador> = { air, elit, newbytes };
 
 export default async function handler(request: Request): Promise<Response> {
   if (request.method === "OPTIONS") {

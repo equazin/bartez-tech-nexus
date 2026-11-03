@@ -15,6 +15,7 @@ import { useElitSync } from "@/hooks/useElitSync";
 import { fetchAirProductsPage, type AirProduct } from "@/lib/api/airApi";
 import { fetchElitProductsPagePayload, type ElitProduct, type ElitProductsQuery } from "@/lib/api/elitApi";
 import { supabase } from "@/lib/supabase";
+import { NewBytesImportar } from "./NewBytesImportar";
 
 interface Props {
   isDark?: boolean;
@@ -1029,6 +1030,8 @@ export function SupplierApisSyncTab({ isDark = true, userId, onSyncDone }: Props
           isDark={isDark}
         />
       </div>
+
+      <NewBytesImportar userId={userId} alImportar={onSyncDone} />
 
       <div className={`rounded-xl px-5 py-4 text-xs border ${dk("bg-blue-500/8 border-blue-500/20 text-blue-300", "bg-blue-50 border-blue-200 text-blue-700")}`}>
         <p className="font-semibold mb-2">Criterio de consolidacion</p>

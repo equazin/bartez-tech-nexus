@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { supabase } from "@/lib/supabase";
 import { guardarConfiguracionDePrecios, obtenerEstadoDelDolar } from "@/lib/api/precios";
+import { EnvioDeMayoristas } from "./EnvioDeMayoristas";
 
 interface Tarifa {
   id: number;
@@ -24,7 +25,7 @@ async function listarTarifas(): Promise<Tarifa[]> {
   return (data ?? []) as Tarifa[];
 }
 
-/** Configuración › Envíos: una tarifa nacional por rango de peso, el envío gratis y el peso por defecto. */
+/** Configuración › Envíos: una tarifa nacional por rango de peso, el envío gratis, el peso por defecto y la tarifa plana de los mayoristas que despachan directo. */
 export function EnviosTab() {
   const [tarifas, setTarifas] = useState<Tarifa[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -187,6 +188,8 @@ export function EnviosTab() {
           </Button>
         </form>
       </SurfaceCard>
+
+      <EnvioDeMayoristas />
     </div>
   );
 }

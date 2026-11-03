@@ -90,7 +90,7 @@ function Envio({ producto }: { producto: ProductoPublico }) {
   const [cotizacion, setCotizacion] = useState<CotizacionDeEnvio | null>(null);
   useEffect(() => {
     let cancelado = false;
-    cotizarEnvio(producto.peso_kg ?? 1, producto.precio_final_ars ?? 0)
+    cotizarEnvio([{ product_id: producto.id, cantidad: 1 }], producto.precio_final_ars ?? 0)
       .then((c) => {
         if (!cancelado) setCotizacion(c);
       })

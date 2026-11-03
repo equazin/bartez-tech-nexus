@@ -81,6 +81,11 @@ export function useCarritoDetallado() {
   }, [lineas, medios, serviciosElegidos]);
 
   const pesoKg = useMemo(() => lineas.reduce((suma, { linea, producto }) => suma + (producto?.peso_kg ?? 1) * linea.cantidad, 0), [lineas]);
+  const itemsDeEnvio = useMemo(
+    () => lineas.filter(({ producto }) => Boolean(producto)).map(({ linea }) => ({ product_id: linea.productoId, cantidad: linea.cantidad })),
+    [lineas],
+  );
+  const claveDeEnvio = itemsDeEnvio.map((i) => `${i.product_id}x${i.cantidad}`).join(",");
 
   const problemas = useMemo(
     () =>
@@ -104,6 +109,8 @@ export function useCarritoDetallado() {
     serviciosOfrecidos,
     serviciosElegidos,
     pesoKg,
+    itemsDeEnvio,
+    claveDeEnvio,
     cargando,
     problemas,
     listoParaComprar: lineas.length > 0 && problemas.length === 0 && !cargando,
