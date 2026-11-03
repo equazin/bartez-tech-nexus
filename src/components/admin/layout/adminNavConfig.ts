@@ -38,7 +38,7 @@ export interface NavModule {
 
 // ── Static nav config ─────────────────────────────────────────────────────────
 
-export const NAV_MODULES: NavModule[] = [
+const NAV_MODULES_COMPLETOS: NavModule[] = [
   {
     id: "top",
     label: "Dashboard",
@@ -58,7 +58,6 @@ export const NAV_MODULES: NavModule[] = [
       { id: "images",        label: "Imágenes",      icon: Image,      manageProducts: true },
       { id: "opportunities", label: "Oportunidades", icon: Flame,      manageProducts: true },
       { id: "pos",           label: "POS",           icon: Truck,      manageProducts: true },
-      { id: "bundles",       label: "Bundles",       icon: PackagePlus, manageProducts: true },
     ],
   },
   {
@@ -164,6 +163,20 @@ export const NAV_MODULES: NavModule[] = [
     ],
   },
 ];
+
+/** Modo de la tienda: "consumidor" (Teqo) esconde las pestañas del portal mayorista heredado; "mayorista" las muestra. */
+export const MODO_TIENDA: "consumidor" | "mayorista" = (import.meta.env.VITE_MODO_TIENDA as string | undefined) === "mayorista" ? "mayorista" : "consumidor";
+
+const TABS_MAYORISTAS = new Set<Tab>([
+  "seller_mode", "seller_management", "seller_portfolio", "seller_targets", "seller_activity",
+  "credit", "approvals", "registration_requests", "price_agreements", "quotes_admin", "pos", "bundles",
+  "business_alerts", "exception_inbox",
+]);
+
+export const NAV_MODULES: NavModule[] =
+  MODO_TIENDA === "mayorista"
+    ? NAV_MODULES_COMPLETOS
+    : NAV_MODULES_COMPLETOS.map((modulo) => ({ ...modulo, items: modulo.items.filter((item) => !TABS_MAYORISTAS.has(item.id)) })).filter((modulo) => modulo.items.length > 0);
 
 // ── Lookup helpers ─────────────────────────────────────────────────────────────
 

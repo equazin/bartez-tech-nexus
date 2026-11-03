@@ -58,3 +58,18 @@ pedidos, los pagos y la auditoría.
   por tokens para estados.
 - Acciones: `Button variant="default"` para la acción principal (rojo), `soft` para secundarias destacadas,
   `toolbar` para filtros y utilidades, `outline` para neutrales.
+
+## Qué quedó hecho (fases 0 a 11 del plan)
+
+- Tienda para el consumidor final en `src/pages/tienda` y `src/components/tienda`: inicio, categorías, fichas, búsqueda,
+  carrito e invitado sin cuenta, checkout, compra por token, seguimiento, arrepentimiento, ayuda y páginas legales.
+- Precios finales en pesos calculados en la base (`recalcular_precios`), con el dólar y el margen del panel; cuotas de
+  Mercado Pago solo con sus datos (CFTEA y TEA).
+- Pagos: Mercado Pago Checkout Pro con aviso firmado (`api/pagos.ts`) y transferencia confirmada desde el panel; un
+  pedido se marca pagado solo por esos dos caminos. Envíos con una tarifa nacional por peso.
+- Panel en modo tienda (`VITE_MODO_TIENDA=consumidor`): Dólar y margen, Envíos, Pagos, Transferencia y medios, Legal.
+  El portal mayorista de Bartez se borró; las pestañas mayoristas vuelven con `VITE_MODO_TIENDA=mayorista`.
+- SEO: `npm run build` prerenderiza categorías y fichas (`scripts/prerender.mjs`) con datos estructurados y el sitemap.
+
+Pendiente del plan: la fase 12 (corte y lanzamiento). Nada de esto se verificó con pruebas ni builds todavía:
+antes de desplegar, correr `npm run check` y aplicar las migraciones 106 a 112 en el proyecto de Supabase de Teqo.

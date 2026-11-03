@@ -2,7 +2,6 @@ import { Sun, Moon, LogOut, RefreshCw, LayoutDashboard, Bell, Search, UserCircle
 import { AdminSearch } from "@/components/admin/AdminSearch";
 import { NotificationBell } from "@/components/admin/NotificationBell";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ModeSwitcher } from "@/components/navigation/ModeSwitcher";
 import { getModuleLabel, getTabLabel, type Tab, type ModuleId, type NavItem } from "./adminNavConfig";
 import type { ExchangeRate } from "@/context/CurrencyContext";
 
@@ -146,7 +145,6 @@ export function AdminTopbar({
             <RefreshCw size={12} /> <span className="hidden xl:inline">Refrescar</span>
           </button>
 
-          <ModeSwitcher currentMode="admin" />
 
           <button className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-surface text-muted-foreground transition hover:bg-secondary hover:text-foreground sm:hidden">
             <Search size={15} />

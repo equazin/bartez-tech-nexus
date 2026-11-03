@@ -265,7 +265,7 @@ export function OpportunitiesTab({
             <option value="stock_asc">Automático: stock</option>
           </select>
           <button
-            onClick={() => window.open("/b2b-portal?context=oportunidades", "_blank")}
+            onClick={() => window.open("/", "_blank")}
             className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition ${dk("border-[#2a2a2a] text-gray-300 hover:bg-[#1b1b1b]", "border-[#d4d4d4] text-[#525252] hover:bg-[#f5f5f5]")}`}
           >
             <Eye size={12} /> Ver como cliente
