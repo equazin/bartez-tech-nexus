@@ -4,10 +4,10 @@ import { X } from "lucide-react";
 import { Tienda } from "@/components/tienda/Tienda";
 import { MigasDePan } from "@/components/tienda/MigasDePan";
 import { TablaComparativa } from "@/components/tienda/TablaComparativa";
-import { CuotasBreves, EstadoDeStock, agregarYAvisar } from "@/components/tienda/TarjetaProducto";
+import { EstadoDeStock, agregarYAvisar } from "@/components/tienda/TarjetaProducto";
+import { PreciosDelProducto } from "@/components/tienda/Precio";
 import { imagenPrincipal, listarProductosPorIds, rutaDelProducto, type ProductoPublico } from "@/lib/tienda/catalogo";
 import { quitarDeComparacion, useComparador, vaciarComparacion } from "@/lib/tienda/comparador";
-import { formatearPesos } from "@/lib/tienda/dinero";
 import { usarSeo } from "@/lib/tienda/seo";
 
 /** Hasta tres productos lado a lado: foto, precio y la ficha completa con lo que mejora resaltado. */
@@ -90,12 +90,7 @@ export default function Comparar() {
                     <Link to={rutaDelProducto(p)} className="line-clamp-2 text-sm font-medium leading-snug hover:underline">
                       {p.nombre}
                     </Link>
-                    {p.precio_final_ars !== null && (
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-[22px] font-bold tabular-nums">{formatearPesos(p.precio_final_ars)}</span>
-                        <CuotasBreves monto={p.precio_final_ars} />
-                      </div>
-                    )}
+                    <PreciosDelProducto producto={p} />
                     <EstadoDeStock producto={p} />
                     <button
                       type="button"

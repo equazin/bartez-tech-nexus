@@ -7,7 +7,7 @@ import { MigasDePan, type Miga } from "@/components/tienda/MigasDePan";
 import { NoEncontrado } from "@/components/tienda/NoEncontrado";
 import { Galeria } from "@/components/tienda/Galeria";
 import { FichaTecnica, parrafos } from "@/components/tienda/FichaTecnica";
-import { Precio } from "@/components/tienda/Precio";
+import { PreciosDelProducto } from "@/components/tienda/Precio";
 import { Bloque, EncabezadoDeSeccion } from "@/components/tienda/Seccion";
 import { EstadoDeStock, GrillaProductos, agregarYAvisar, compararYAvisar } from "@/components/tienda/TarjetaProducto";
 import { encontrarCategoria, imagenesDe, listarCategorias, obtenerProducto, rutaDeCategoria, type ProductoPublico } from "@/lib/tienda/catalogo";
@@ -27,7 +27,7 @@ function CajaDeCompra({ producto }: { producto: ProductoPublico }) {
 
   return (
     <div className="flex flex-col gap-3.5 rounded-2xl border border-border bg-card p-5">
-      <Precio precioFinal={producto.precio_final_ars} precioLista={producto.precio_lista_ars} tamano="ficha" conCuotas />
+      <PreciosDelProducto producto={producto} tamano="ficha" />
       <EstadoDeStock producto={producto} className="text-sm" />
       <div className="flex flex-wrap gap-2.5">
         <div className="flex h-12 items-center overflow-hidden rounded-xl border border-input">

@@ -111,9 +111,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; numero: string; token: string }> {
   const supabase = getSupabaseAdmin();
 
-  const { data: medio } = await supabase.from("medios_de_pago").select("id, activo").eq("id", pedido.medio_pago).maybeSingle();
-  const medioActivo = Boolean((medio as { activo?: boolean } | null)?.activo) && (pedido.medio_pago !== "mercadopago" || configuracionDeMercadoPago() !== null);
+  const { data: medio } = await supabase.from("medios_de_pago").select("id, activo, recargo_porcentaje").eq("id", pedido.medio_pago).maybeSingle();
+  const medioLeido = medio as { activo?: boolean; recargo_porcentaje?: number | string | null } | null;
+  const medioActivo = Boolean(medioLeido?.activo) && (pedido.medio_pago !== "mercadopago" || configuracionDeMercadoPago() !== null);
   if (!medioActivo) throw new Error("Ese medio de pago no está disponible. Elegí otro.");
+  // Cada medio suma su recargo sobre el precio final con IVA (Configuración › Transferencia y medios).
+  const recargo = Math.min(Math.max(Number(medioLeido?.recargo_porcentaje ?? 0) || 0, 0), 100);
 
   // Un producto por línea, sumando cantidades repetidas.
   const cantidades = new Map<number, number>();
@@ -130,10 +133,13 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
 
   const [{ data: dolarCrudo }, { data: configuracion }] = await Promise.all([
     supabase.rpc("dolar_vigente"),
-    supabase.from("tienda_configuracion").select("clave, valor").in("clave", ["peso_por_defecto_kg"]),
+    supabase.from("tienda_configuracion").select("clave, valor").in("clave", ["peso_por_defecto_kg", "redondeo_pesos"]),
   ]);
   const dolar = typeof dolarCrudo === "number" ? dolarCrudo : Number(dolarCrudo ?? 0) || null;
   const pesoPorDefecto = Number((configuracion ?? []).find((c: { clave: string; valor: unknown }) => c.clave === "peso_por_defecto_kg")?.valor ?? 1) || 1;
+  // Mismo redondeo que tienda_redondear en la base, para que el precio cobrado sea el que se mostró.
+  const redondeo = Math.max(Number((configuracion ?? []).find((c: { clave: string; valor: unknown }) => c.clave === "redondeo_pesos")?.valor ?? 10) || 10, 1);
+  const conRecargo = (precio: number) => Math.round((precio * (1 + recargo / 100)) / redondeo) * redondeo;
   // El costo (cost_price) siempre está en dólares: la sincronización con los mayoristas lo
   // normaliza. Se pasa a pesos con el dólar vigente.
 
@@ -149,7 +155,7 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
     const disponible = p.stock - (p.stock_reserved ?? 0);
     if (cantidad > disponible) throw new Error(`No queda stock suficiente de "${nombreDe(p)}": quedan ${Math.max(disponible, 0)} unidades.`);
 
-    const precioFinal = Number(p.precio_final_ars);
+    const precioFinal = conRecargo(Number(p.precio_final_ars));
     const iva = p.iva_rate ?? 21;
     const neto = aDosDecimales(precioFinal / (1 + iva / 100));
     const costoPesos = aDosDecimales((p.cost_price ?? 0) * (p.supplier_multiplier ?? 1) * (dolar ?? 0));

@@ -4,10 +4,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { agregarAlCarrito } from "@/lib/tienda/carrito";
 import { imagenPrincipal, rutaDelProducto, type ProductoPublico } from "@/lib/tienda/catalogo";
 import { alternarComparacion, useComparador } from "@/lib/tienda/comparador";
-import { mejorPlan, useCuotas } from "@/lib/tienda/cuotas";
-import { formatearPesos } from "@/lib/tienda/dinero";
 import { datosClave } from "@/lib/tienda/ficha";
 import { cn } from "@/lib/utils";
+import { PreciosDelProducto } from "./Precio";
 
 export function EstadoDeStock({ producto, className }: { producto: Pick<ProductoPublico, "hay_stock" | "pocas_unidades">; className?: string }) {
   if (!producto.hay_stock) return <span className={cn("text-[13px] text-muted-foreground", className)}>Sin stock</span>;
@@ -41,19 +40,6 @@ export function compararYAvisar(producto: ProductoPublico) {
     categoria_slug: producto.categoria_slug,
   });
   if (resultado === "lleno") toast("Podés comparar hasta tres productos", { description: "Quitá uno de la bandeja de abajo para sumar este." });
-}
-
-/** "o 12 cuotas de $ 50.271" con el plan de más cuotas de Mercado Pago; sin datos, solo el aviso de precio final. */
-export function CuotasBreves({ monto }: { monto: number }) {
-  const cuotas = useCuotas(monto);
-  const mejor = cuotas ? mejorPlan(cuotas) : null;
-  if (!mejor || mejor.plan.cuotas < 2) return <span className="text-xs text-muted-foreground">Precio final con IVA</span>;
-  return (
-    <span className="text-xs text-muted-foreground">
-      Precio final · o <span className="font-bold text-foreground tabular-nums">{mejor.plan.cuotas} cuotas</span> de{" "}
-      <span className="tabular-nums">{formatearPesos(mejor.plan.monto_cuota)}</span>
-    </span>
-  );
 }
 
 export function ChipsDeDatos({ datos, className }: { datos: string[]; className?: string }) {
@@ -109,17 +95,7 @@ export function TarjetaProducto({ producto, conComparar = false }: PropsDeTarjet
       </h3>
       <ChipsDeDatos datos={datos} />
 
-      <div className="mt-auto flex flex-col gap-0.5 pt-1">
-        {hayOferta && <span className="text-[13px] tabular-nums text-muted-foreground line-through">{formatearPesos(producto.precio_lista_ars as number)}</span>}
-        {producto.precio_final_ars !== null ? (
-          <>
-            <span className="text-[22px] font-bold leading-tight tracking-[-0.01em] tabular-nums">{formatearPesos(producto.precio_final_ars)}</span>
-            <CuotasBreves monto={producto.precio_final_ars} />
-          </>
-        ) : (
-          <span className="text-sm text-muted-foreground">Precio a confirmar</span>
-        )}
-      </div>
+      <PreciosDelProducto producto={producto} className="mt-auto pt-1" />
 
       {conComparar ? (
         <div className="flex flex-col gap-2">

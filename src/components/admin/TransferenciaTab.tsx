@@ -18,6 +18,8 @@ export function TransferenciaTab() {
   const [config, setConfig] = useState<ConfiguracionDePagos | null>(null);
   const [cuenta, setCuenta] = useState<Record<string, string>>({});
   const [horas, setHoras] = useState("");
+  const [recargos, setRecargos] = useState<Record<string, string>>({});
+  const [guardandoRecargos, setGuardandoRecargos] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
 
@@ -25,6 +27,29 @@ export function TransferenciaTab() {
     setConfig(c);
     setCuenta(Object.fromEntries(CAMPOS.map(({ clave }) => [clave, c.transferencia?.[clave] ?? ""])));
     setHoras(c.pendiente_vence_horas === null ? "" : String(c.pendiente_vence_horas));
+    setRecargos(Object.fromEntries(c.medios.map((m) => [m.id, String(Number(m.recargo_porcentaje ?? 0))])));
+  }
+
+  async function guardarRecargos(evento: FormEvent) {
+    evento.preventDefault();
+    const valores: Record<string, number> = {};
+    for (const [id, texto] of Object.entries(recargos)) {
+      const numero = Number(texto.replace(",", "."));
+      if (!Number.isFinite(numero) || numero < 0 || numero > 100) {
+        toast.error("Cada recargo va de 0 a 100 %.");
+        return;
+      }
+      valores[id] = numero;
+    }
+    setGuardandoRecargos(true);
+    try {
+      tomar(await guardarConfiguracionDePagos({ recargos: valores }));
+      toast.success("Recargos guardados: la tienda ya muestra los precios nuevos");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "No se pudieron guardar los recargos.");
+    } finally {
+      setGuardandoRecargos(false);
+    }
   }
 
   useEffect(() => {
@@ -124,6 +149,25 @@ export function TransferenciaTab() {
             </li>
           ))}
         </ul>
+        <form onSubmit={guardarRecargos} className="space-y-3 border-t border-border pt-4">
+          <div>
+            <h3 className="font-bold">Recargo por medio</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Porcentaje que se suma al precio final con IVA de cada producto según cómo paga el cliente. La tienda muestra los dos precios y cobra el del medio elegido. El envío no lleva recargo.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {config.medios.map((medio) => (
+              <label key={medio.id} className="block space-y-1 text-sm">
+                <span className="font-medium">{medio.nombre} (%)</span>
+                <Input inputMode="decimal" value={recargos[medio.id] ?? "0"} onChange={(e) => setRecargos({ ...recargos, [medio.id]: e.target.value })} />
+              </label>
+            ))}
+          </div>
+          <Button type="submit" disabled={guardandoRecargos}>
+            Guardar recargos
+          </Button>
+        </form>
       </SurfaceCard>
     </div>
   );

@@ -9,6 +9,7 @@ import { formatearPesos } from "@/lib/tienda/dinero";
 import { PROVINCIAS, cotizarEnvio, textoDeDemora, type CotizacionDeEnvio } from "@/lib/tienda/envios";
 import { MEDIOS_DE_PAGO, crearPedido, type MedioDePago, type MedioDisponible } from "@/lib/tienda/pedidos";
 import { listarMedios } from "@/lib/tienda/pagos";
+import { precioConMedio } from "@/lib/tienda/precios";
 import { usarSeo } from "@/lib/tienda/seo";
 import { cn } from "@/lib/utils";
 
@@ -76,7 +77,7 @@ export default function Checkout() {
   usarSeo("Finalizar la compra");
   const navigate = useNavigate();
   const [parametros] = useSearchParams();
-  const { lineas, subtotal, pesoKg, cargando, listoParaComprar } = useCarritoDetallado();
+  const { lineas, subtotal, subtotalPorMedio, pesoKg, cargando, listoParaComprar } = useCarritoDetallado();
   // El carrito deja elegir el medio antes de llegar acá; si viene en la URL, arranca elegido.
   const medioDelCarrito = parametros.get("medio");
   const [f, setF] = useState<Formulario>(() =>
@@ -87,6 +88,8 @@ export default function Checkout() {
   const [enviando, setEnviando] = useState(false);
   const [errorDelServidor, setErrorDelServidor] = useState<string | null>(null);
   const [medios, setMedios] = useState<MedioDisponible[]>(MEDIOS_DE_PAGO);
+  // Cada medio tiene su precio (recargo configurable); el servidor vuelve a calcularlo al confirmar.
+  const subtotalDelMedio = subtotalPorMedio[f.medio_pago] ?? subtotal;
 
   useEffect(() => {
     let cancelado = false;
@@ -105,7 +108,7 @@ export default function Checkout() {
   useEffect(() => {
     if (lineas.length === 0 || cargando) return;
     let cancelado = false;
-    cotizarEnvio(pesoKg, subtotal)
+    cotizarEnvio(pesoKg, subtotalDelMedio)
       .then((c) => {
         if (!cancelado) setEnvio(c);
       })
@@ -115,7 +118,7 @@ export default function Checkout() {
     return () => {
       cancelado = true;
     };
-  }, [lineas.length, cargando, pesoKg, subtotal]);
+  }, [lineas.length, cargando, pesoKg, subtotalDelMedio]);
 
   function cambiar<K extends keyof Formulario>(clave: K, valor: Formulario[K]) {
     setF((previo) => ({ ...previo, [clave]: valor }));
@@ -168,7 +171,7 @@ export default function Checkout() {
   }
 
   const costoEnvio = envio?.disponible ? (envio.precio ?? 0) : 0;
-  const total = subtotal + costoEnvio;
+  const total = subtotalDelMedio + costoEnvio;
 
   return (
     <Tienda>
@@ -250,8 +253,11 @@ export default function Checkout() {
                   )}
                 >
                   <input type="radio" name="medio_pago" value={medio.id} checked={f.medio_pago === medio.id} onChange={() => cambiar("medio_pago", medio.id)} className="mt-1" />
-                  <span className="space-y-1">
-                    <span className="block font-bold">{medio.nombre}</span>
+                  <span className="flex-1 space-y-1">
+                    <span className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="font-bold">{medio.nombre}</span>
+                      <span className="font-bold tabular-nums">{formatearPesos((subtotalPorMedio[medio.id] ?? subtotal) + costoEnvio)}</span>
+                    </span>
                     <span className="block text-sm text-muted-foreground">{medio.detalle}</span>
                   </span>
                 </label>
@@ -277,13 +283,13 @@ export default function Checkout() {
                   <span className="min-w-0 truncate">
                     {linea.cantidad} × {producto?.nombre ?? "Producto"}
                   </span>
-                  <span className="shrink-0 tabular-nums">{producto?.precio_final_ars !== null && producto ? formatearPesos(producto.precio_final_ars * linea.cantidad) : ""}</span>
+                  <span className="shrink-0 tabular-nums">{producto && precioConMedio(producto, f.medio_pago) !== null ? formatearPesos((precioConMedio(producto, f.medio_pago) ?? 0) * linea.cantidad) : ""}</span>
                 </li>
               ))}
             </ul>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal</span>
-              <span className="tabular-nums">{formatearPesos(subtotal)}</span>
+              <span className="tabular-nums">{formatearPesos(subtotalDelMedio)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Envío</span>

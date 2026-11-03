@@ -16,7 +16,7 @@ import { avisarAlComprador } from "../_shared/avisos.js";
  *   POST  ?recurso=validar {order_id}           admin: confirma una transferencia (único camino a "pagado" para ese medio)
  *   POST  ?recurso=cancelar {order_id, motivo}  admin: cancela un pedido pendiente y libera el stock
  *   POST  ?recurso=reintegrar {pago_id, monto?} admin: reintegro total o parcial
- *   GET/PATCH ?recurso=configuracion            admin: cuenta bancaria, medios activos y plazo de vencimiento
+ *   GET/PATCH ?recurso=configuracion            admin: cuenta bancaria, medios activos, recargo por medio y plazo de vencimiento
  *   GET/POST ?recurso=vencer                    admin o cron: vence los pedidos pendientes que pasaron el plazo
  */
 
@@ -147,13 +147,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 }
 
 // ── Medios activos ──────────────────────────────────────────────────────────
-async function mediosActivos(): Promise<Array<{ id: string; nombre: string; detalle: string }>> {
-  const { data, error } = await getSupabaseAdmin().from("medios_de_pago").select("id, nombre, detalle, activo, orden").order("orden");
+async function mediosActivos(): Promise<Array<{ id: string; nombre: string; detalle: string; recargo: number }>> {
+  const { data, error } = await getSupabaseAdmin().from("medios_de_pago").select("id, nombre, detalle, activo, orden, recargo_porcentaje").order("orden");
   if (error) throw new Error(error.message);
   const hayMercadoPago = configuracionDeMercadoPago() !== null;
-  return ((data ?? []) as Array<{ id: string; nombre: string; detalle: string; activo: boolean }>)
+  return ((data ?? []) as Array<{ id: string; nombre: string; detalle: string; activo: boolean; recargo_porcentaje: number | string | null }>)
     .filter((m) => m.activo && (m.id !== "mercadopago" || hayMercadoPago))
-    .map(({ id, nombre, detalle }) => ({ id, nombre, detalle }));
+    .map(({ id, nombre, detalle, recargo_porcentaje }) => ({ id, nombre, detalle, recargo: Number(recargo_porcentaje ?? 0) || 0 }));
 }
 
 async function medios(req: VercelRequest, res: VercelResponse) {
@@ -434,7 +434,12 @@ async function configuracion(req: VercelRequest, res: VercelResponse) {
   const supabase = getSupabaseAdmin();
 
   if (req.method === "PATCH") {
-    const cuerpo = (req.body ?? {}) as { transferencia?: Partial<ConfiguracionDeTransferencia>; medios?: Record<string, boolean>; pendiente_vence_horas?: unknown };
+    const cuerpo = (req.body ?? {}) as {
+      transferencia?: Partial<ConfiguracionDeTransferencia>;
+      medios?: Record<string, boolean>;
+      recargos?: Record<string, unknown>;
+      pendiente_vence_horas?: unknown;
+    };
     const ahora = new Date().toISOString();
     if (cuerpo.transferencia) {
       const t = cuerpo.transferencia;
@@ -457,13 +462,25 @@ async function configuracion(req: VercelRequest, res: VercelResponse) {
         if (error) throw new Error(error.message);
       }
     }
+    if (cuerpo.recargos) {
+      for (const [id, valor] of Object.entries(cuerpo.recargos)) {
+        if (id !== "mercadopago" && id !== "transferencia") continue;
+        const recargo = Number(valor);
+        if (!Number.isFinite(recargo) || recargo < 0 || recargo > 100) return fail(res, "El recargo va de 0 a 100 %.");
+        const { error } = await supabase
+          .from("medios_de_pago")
+          .update({ recargo_porcentaje: Math.round(recargo * 100) / 100, actualizado_en: ahora })
+          .eq("id", id);
+        if (error) throw new Error(error.message);
+      }
+    }
     await registrarActividad(userId, "configurar_pagos", "configuracion", { claves: Object.keys(cuerpo) });
   } else if (req.method !== "GET") {
     return methodNotAllowed(res, ["GET", "PATCH"]);
   }
 
   const valores = await leerConfiguracion(["transferencia", "pendiente_vence_horas"]);
-  const { data: mediosCrudos } = await supabase.from("medios_de_pago").select("id, nombre, detalle, activo, orden").order("orden");
+  const { data: mediosCrudos } = await supabase.from("medios_de_pago").select("id, nombre, detalle, activo, orden, recargo_porcentaje").order("orden");
   return ok(res, {
     transferencia: valores.transferencia ?? {},
     pendiente_vence_horas: typeof valores.pendiente_vence_horas === "number" ? valores.pendiente_vence_horas : null,

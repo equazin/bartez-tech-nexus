@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import { Check, CreditCard, MessageCircle, Receipt, RotateCcw, Truck } from "lucide-react";
 import { Tienda } from "@/components/tienda/Tienda";
 import { Bloque, EncabezadoDeSeccion } from "@/components/tienda/Seccion";
-import { ChipsDeDatos, CuotasBreves, EstadoDeStock, GrillaProductos, TarjetaProducto, agregarYAvisar } from "@/components/tienda/TarjetaProducto";
+import { ChipsDeDatos, EstadoDeStock, GrillaProductos, TarjetaProducto, agregarYAvisar } from "@/components/tienda/TarjetaProducto";
+import { PreciosDelProducto } from "@/components/tienda/Precio";
 import { TablaComparativa } from "@/components/tienda/TablaComparativa";
 import {
   categoriasPlanas,
@@ -296,9 +297,7 @@ function ElegidoDeLaSemana() {
           )}
         </div>
         <div className="flex min-w-[240px] flex-[0_1_280px] flex-col justify-center gap-3 rounded-2xl border border-border bg-background p-5">
-          <span className="text-[13px] text-muted-foreground">Precio final con IVA</span>
-          <span className="text-4xl font-bold tracking-[-0.02em] tabular-nums">{formatearPesos(elegido.precio_final_ars)}</span>
-          <CuotasBreves monto={elegido.precio_final_ars} />
+          <PreciosDelProducto producto={elegido} tamano="destacado" />
           <EstadoDeStock producto={elegido} />
           <button
             type="button"

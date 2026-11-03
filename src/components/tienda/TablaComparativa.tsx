@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { rutaDelProducto, type ProductoPublico } from "@/lib/tienda/catalogo";
 import { formatearPesos } from "@/lib/tienda/dinero";
 import { compararFichas, paresDeFicha, valorCorto } from "@/lib/tienda/ficha";
+import { nombreCortoDeMedio, precioConMedio, preciosDe } from "@/lib/tienda/precios";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -20,9 +21,14 @@ export function TablaComparativa({ productos, claves, cortos = false, className 
   const filas = claves
     ? claves.map((clave) => todas.find((f) => f.clave.toLowerCase() === clave.toLowerCase())).filter((f): f is (typeof todas)[number] => Boolean(f))
     : todas;
-  const precios = productos.map((p) => p.precio_final_ars);
-  const conPrecio = precios.filter((p): p is number => p !== null);
-  const masBarato = conPrecio.length >= 2 && new Set(conPrecio).size > 1 ? Math.min(...conPrecio) : null;
+  // Una fila de precio por medio de pago (transferencia, Mercado Pago), con el más barato resaltado.
+  const medios = productos.length > 0 ? preciosDe(productos[0]) : [];
+  const filasDePrecio = medios.map((medio) => {
+    const precios = productos.map((p) => precioConMedio(p, medio.id));
+    const conPrecio = precios.filter((p): p is number => p !== null);
+    const masBarato = conPrecio.length >= 2 && new Set(conPrecio).size > 1 ? Math.min(...conPrecio) : null;
+    return { id: medio.id, etiqueta: medios.length > 1 ? `Precio con ${nombreCortoDeMedio(medio).toLowerCase()}` : "Precio final", precios, masBarato };
+  });
 
   return (
     <div className={cn("overflow-x-auto", className)}>
@@ -54,16 +60,21 @@ export function TablaComparativa({ productos, claves, cortos = false, className 
               ))}
             </tr>
           ))}
-          <tr>
-            <th scope="row" className="px-3 py-2.5 text-left font-medium text-muted-foreground">
-              Precio final
-            </th>
-            {precios.map((precio, i) => (
-              <td key={i} className={cn("px-3 py-2.5 font-bold tabular-nums", precio !== null && precio === masBarato && "bg-accent")}>
-                {precio !== null ? formatearPesos(precio) : "A confirmar"}
-              </td>
-            ))}
-          </tr>
+          {filasDePrecio.map((fila, n) => (
+            <tr key={fila.id}>
+              <th scope="row" className={cn("px-3 py-2.5 text-left font-medium text-muted-foreground", n < filasDePrecio.length - 1 && "border-b border-border")}>
+                {fila.etiqueta}
+              </th>
+              {fila.precios.map((precio, i) => (
+                <td
+                  key={i}
+                  className={cn("px-3 py-2.5 font-bold tabular-nums", n < filasDePrecio.length - 1 && "border-b border-border", precio !== null && precio === fila.masBarato && "bg-accent")}
+                >
+                  {precio !== null ? formatearPesos(precio) : "A confirmar"}
+                </td>
+              ))}
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

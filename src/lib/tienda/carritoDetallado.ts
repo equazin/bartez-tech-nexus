@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { listarProductosPorIds, type ProductoPublico } from "./catalogo";
+import { listarProductosPorIds, type PrecioPorMedio, type ProductoPublico } from "./catalogo";
+import { precioConMedio, preciosDe } from "./precios";
 import { useCarrito, type LineaDelCarrito } from "./carrito";
 
 export interface LineaDetallada {
@@ -50,6 +51,21 @@ export function useCarritoDetallado() {
     [lineas],
   );
 
+  /** Los medios activos según los productos cargados, del más barato al más caro. */
+  const medios = useMemo<PrecioPorMedio[]>(() => {
+    const conMedios = lineas.find(({ producto }) => producto && (producto.precios_por_medio ?? []).length > 0)?.producto;
+    return conMedios ? preciosDe(conMedios) : [];
+  }, [lineas]);
+
+  /** El subtotal de los productos pagando con cada medio (cada uno con su recargo). */
+  const subtotalPorMedio = useMemo<Record<string, number>>(() => {
+    const totales: Record<string, number> = {};
+    for (const medio of medios) {
+      totales[medio.id] = lineas.reduce((suma, { linea, producto }) => suma + (producto ? (precioConMedio(producto, medio.id) ?? 0) : 0) * linea.cantidad, 0);
+    }
+    return totales;
+  }, [lineas, medios]);
+
   const pesoKg = useMemo(() => lineas.reduce((suma, { linea, producto }) => suma + (producto?.peso_kg ?? 1) * linea.cantidad, 0), [lineas]);
 
   const problemas = useMemo(
@@ -63,5 +79,16 @@ export function useCarritoDetallado() {
     [lineas],
   );
 
-  return { carrito, lineas, unidades, subtotal, pesoKg, cargando, problemas, listoParaComprar: lineas.length > 0 && problemas.length === 0 && !cargando };
+  return {
+    carrito,
+    lineas,
+    unidades,
+    subtotal,
+    medios,
+    subtotalPorMedio,
+    pesoKg,
+    cargando,
+    problemas,
+    listoParaComprar: lineas.length > 0 && problemas.length === 0 && !cargando,
+  };
 }

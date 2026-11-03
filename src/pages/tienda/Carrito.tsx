@@ -11,6 +11,7 @@ import { imagenPrincipal, rutaDelProducto, type ProductoPublico } from "@/lib/ti
 import { formatearPesos } from "@/lib/tienda/dinero";
 import { cotizarEnvio, textoDeDemora, type CotizacionDeEnvio } from "@/lib/tienda/envios";
 import { datosClave } from "@/lib/tienda/ficha";
+import { MEDIO_CON_CUOTAS, nombreCortoDeMedio, precioConMedio } from "@/lib/tienda/precios";
 import { complementosDe } from "@/lib/tienda/sugerencias";
 import { usarSeo } from "@/lib/tienda/seo";
 import { cn } from "@/lib/utils";
@@ -44,13 +45,11 @@ function Pasos() {
   );
 }
 
-type Medio = "transferencia" | "mercadopago";
-
 export default function Carrito() {
   usarSeo("Carrito");
-  const { lineas, unidades, subtotal, pesoKg, cargando, problemas, listoParaComprar } = useCarritoDetallado();
+  const { lineas, unidades, subtotal, medios, subtotalPorMedio, pesoKg, cargando, problemas, listoParaComprar } = useCarritoDetallado();
   const [envio, setEnvio] = useState<CotizacionDeEnvio | null>(null);
-  const [medio, setMedio] = useState<Medio>("transferencia");
+  const [medio, setMedio] = useState<string>("transferencia");
   const [sugeridos, setSugeridos] = useState<ProductoPublico[]>([]);
 
   useEffect(() => {
@@ -111,7 +110,10 @@ export default function Carrito() {
   }
 
   const costoEnvio = envio?.disponible ? (envio.precio ?? 0) : null;
-  const total = subtotal + (costoEnvio ?? 0);
+  // Cada medio tiene su precio (transferencia y Mercado Pago llevan recargos distintos); el envío es el mismo.
+  const medioActual = medios.some((m) => m.id === medio) ? medio : (medios[0]?.id ?? medio);
+  const subtotalDelMedio = subtotalPorMedio[medioActual] ?? subtotal;
+  const total = subtotalDelMedio + (costoEnvio ?? 0);
   const textoEnvio = envio === null ? "Cotizando" : !envio.disponible ? "A confirmar" : envio.gratis ? "Sin cargo" : formatearPesos(envio.precio ?? 0);
 
   return (
@@ -179,10 +181,12 @@ export default function Carrito() {
                           <Plus className="h-4 w-4" aria-hidden />
                         </button>
                       </div>
-                      {producto?.precio_final_ars != null && (
+                      {producto && precioConMedio(producto, medioActual) !== null && (
                         <div className="flex min-w-[120px] flex-col items-end">
-                          <span className="text-xl font-bold tabular-nums">{formatearPesos(producto.precio_final_ars * linea.cantidad)}</span>
-                          <span className="text-xs text-muted-foreground">{linea.cantidad > 1 ? `${formatearPesos(producto.precio_final_ars)} c/u` : "Precio final"}</span>
+                          <span className="text-xl font-bold tabular-nums">{formatearPesos((precioConMedio(producto, medioActual) ?? 0) * linea.cantidad)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {linea.cantidad > 1 ? `${formatearPesos(precioConMedio(producto, medioActual) ?? 0)} c/u` : "Precio final"}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -209,29 +213,32 @@ export default function Carrito() {
 
           <aside aria-label="Resumen de la compra" className="flex w-full flex-col gap-3.5 rounded-2xl border border-border bg-card p-[22px] lg:sticky lg:top-6 lg:w-[360px] lg:shrink-0">
             <p className="font-display text-lg font-bold uppercase tracking-[0.06em]">Resumen</p>
-            <div role="radiogroup" aria-label="Cómo vas a pagar" className="grid grid-cols-2 gap-1.5 rounded-xl bg-background p-1">
-              {(
-                [
-                  ["transferencia", "Transferencia"],
-                  ["mercadopago", "Mercado Pago"],
-                ] as Array<[Medio, string]>
-              ).map(([valor, nombre]) => (
-                <button
-                  key={valor}
-                  type="button"
-                  role="radio"
-                  aria-checked={medio === valor}
-                  onClick={() => setMedio(valor)}
-                  className={cn("h-[42px] rounded-[10px] text-sm font-bold transition-colors", medio === valor ? "bg-foreground text-background" : "hover:bg-secondary")}
-                >
-                  {nombre}
-                </button>
-              ))}
-            </div>
+            {medios.length > 1 && (
+              <div role="radiogroup" aria-label="Cómo vas a pagar" className="grid grid-cols-2 gap-1.5 rounded-xl bg-background p-1">
+                {medios.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={medioActual === m.id}
+                    onClick={() => setMedio(m.id)}
+                    className={cn(
+                      "flex flex-col items-center justify-center gap-0.5 rounded-[10px] py-2 transition-colors",
+                      medioActual === m.id ? "bg-foreground text-background" : "hover:bg-secondary",
+                    )}
+                  >
+                    <span className="text-sm font-bold">{nombreCortoDeMedio(m)}</span>
+                    <span className={cn("text-xs tabular-nums", medioActual === m.id ? "text-background/80" : "text-muted-foreground")}>
+                      {formatearPesos((subtotalPorMedio[m.id] ?? subtotal) + (costoEnvio ?? 0))}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="flex flex-col gap-2.5 text-[15px]">
               <div className="flex justify-between gap-3">
                 <span className="text-muted-foreground">Productos ({unidades})</span>
-                <span className="tabular-nums">{formatearPesos(subtotal)}</span>
+                <span className="tabular-nums">{formatearPesos(subtotalDelMedio)}</span>
               </div>
               <div className="flex justify-between gap-3">
                 <span className="text-muted-foreground">Envío</span>
@@ -242,7 +249,7 @@ export default function Carrito() {
               <span className="font-bold">Total</span>
               <span className="text-[30px] font-bold tracking-[-0.02em] tabular-nums">{formatearPesos(total)}</span>
             </div>
-            {medio === "mercadopago" ? (
+            {medioActual === MEDIO_CON_CUOTAS ? (
               <Precio precioFinal={total} conCuotas className="[&>span]:hidden" />
             ) : (
               <p className="text-[13px] leading-relaxed text-muted-foreground">Al confirmar te damos los datos de la cuenta. El pedido se prepara cuando se acredita la transferencia.</p>
@@ -255,7 +262,7 @@ export default function Carrito() {
               </ul>
             )}
             <Link
-              to={listoParaComprar ? `/checkout?medio=${medio}` : "#"}
+              to={listoParaComprar ? `/checkout?medio=${medioActual}` : "#"}
               aria-disabled={!listoParaComprar}
               className={cn(
                 "flex h-[52px] items-center justify-center rounded-xl text-base font-bold",

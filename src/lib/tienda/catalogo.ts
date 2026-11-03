@@ -6,6 +6,14 @@ import { resolveProductImageUrl } from "@/lib/productImage";
  * `tienda_categorias` y `tienda_buscar`, que nunca exponen costo ni margen.
  */
 
+/** El precio final del producto pagando con un medio, con su recargo ya sumado. */
+export interface PrecioPorMedio {
+  id: string;
+  nombre: string;
+  recargo: number;
+  precio: number | null;
+}
+
 export interface ProductoPublico {
   id: number;
   slug: string;
@@ -32,6 +40,11 @@ export interface ProductoPublico {
   specs: Record<string, unknown> | null;
   /** Ficha técnica cargada en el panel o por CSV, en orden. Si está vacía se usan las specs. */
   ficha: Array<{ clave: string; valor: string }> | null;
+  /**
+   * El precio con cada medio activo, del más barato al más caro. precio_final_ars y
+   * precio_lista_ars ya son los del medio más barato (transferencia).
+   */
+  precios_por_medio: PrecioPorMedio[] | null;
 }
 
 export interface CategoriaPublica {
@@ -70,7 +83,7 @@ export const POR_PAGINA = 24;
 const COLUMNAS =
   "id, slug, nombre, descripcion_corta, descripcion, imagenes, imagen, categoria_nombre, categoria_id, " +
   "categoria_slug, marca_id, marca, hay_stock, pocas_unidades, sku, iva_rate, precio_final_ars, " +
-  "precio_lista_ars, oferta, tags, peso_kg, destacado, specs, ficha";
+  "precio_lista_ars, oferta, tags, peso_kg, destacado, specs, ficha, precios_por_medio";
 
 export const SEGMENTO_SIN_CATEGORIA = "productos";
 
