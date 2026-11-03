@@ -1,20 +1,8 @@
 import type { ProductoPublico } from "@/lib/tienda/catalogo";
-
-function etiqueta(clave: string): string {
-  const limpia = clave.replace(/[_-]+/g, " ").trim();
-  return limpia.charAt(0).toUpperCase() + limpia.slice(1);
-}
-
-function valorComoTexto(valor: unknown): string {
-  if (valor === null || valor === undefined) return "";
-  if (typeof valor === "string") return valor;
-  if (typeof valor === "number" || typeof valor === "boolean") return String(valor);
-  if (Array.isArray(valor)) return valor.map(valorComoTexto).filter(Boolean).join(", ");
-  return "";
-}
+import { esNotebook, fichaAgrupada, paresDeFicha } from "@/lib/tienda/ficha";
 
 /** La descripción puede venir con HTML de las herramientas del panel; se muestra solo el texto. */
-function parrafos(texto: string | null): string[] {
+export function parrafos(texto: string | null): string[] {
   if (!texto) return [];
   return texto
     .replace(/<br\s*\/?>/gi, "\n")
@@ -25,48 +13,35 @@ function parrafos(texto: string | null): string[] {
     .filter(Boolean);
 }
 
+/** Especificaciones agrupadas (Pantalla, Rendimiento, Conexiones, Físico, Garantía) en tarjetas. */
 export function FichaTecnica({ producto }: { producto: ProductoPublico }) {
-  // La ficha cargada en el panel manda y conserva su orden; si no hay, las specs del mayorista.
-  const fichaCargada = (producto.ficha ?? [])
-    .filter((par) => par && typeof par.clave === "string" && typeof par.valor === "string")
-    .map((par) => [par.clave.trim(), par.valor.trim()] as const)
-    .filter(([clave, valor]) => clave !== "" && valor !== "");
-  const specs =
-    fichaCargada.length > 0
-      ? fichaCargada
-      : Object.entries(producto.specs ?? {})
-          .map(([clave, valor]) => [etiqueta(clave), valorComoTexto(valor)] as const)
-          .filter(([, valor]) => valor !== "");
-  const descripcion = parrafos(producto.descripcion);
-
-  if (specs.length === 0 && descripcion.length === 0) return null;
+  const grupos = fichaAgrupada(paresDeFicha(producto));
+  if (grupos.length === 0) return null;
 
   return (
-    <div className="grid gap-8 lg:grid-cols-2">
-      {specs.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-[20px] font-bold leading-[26px]">Ficha técnica</h2>
-          <dl className="overflow-hidden rounded-2xl border border-border bg-card">
-            {specs.map(([clave, valor], i) => (
-              <div key={clave} className={`grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-4 px-4 py-3 text-sm ${i > 0 ? "border-t border-border" : ""}`}>
-                <dt className="text-muted-foreground">{clave}</dt>
-                <dd className="break-words">{valor}</dd>
-              </div>
-            ))}
-          </dl>
-          <p className="text-sm text-muted-foreground">Configuración de fábrica. No ofrecemos ampliaciones de memoria ni de disco.</p>
-        </section>
-      )}
-      {descripcion.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-[20px] font-bold leading-[26px]">Descripción</h2>
-          <div className="space-y-3 text-base leading-6 text-muted-foreground">
-            {descripcion.map((p, i) => (
-              <p key={i}>{p}</p>
-            ))}
+    <section id="especificaciones" className="flex scroll-mt-6 flex-col gap-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="font-display text-[26px] font-bold uppercase">Especificaciones</h2>
+        <p className="text-[13px] text-muted-foreground">Datos del fabricante, informados por el mayorista.</p>
+      </div>
+      <div className="grid items-start gap-4 md:grid-cols-2">
+        {grupos.map((grupo) => (
+          <div key={grupo.titulo} className="rounded-2xl border border-border bg-card px-[18px] pb-2.5 pt-1.5">
+            <h3 className="pb-2 pt-3.5 font-display text-[15px] font-bold uppercase tracking-[0.08em]">{grupo.titulo}</h3>
+            <dl>
+              {grupo.pares.map((par) => (
+                <div key={par.clave} className="flex justify-between gap-4 border-t border-border py-2.5 text-sm">
+                  <dt className="text-muted-foreground">{par.clave}</dt>
+                  <dd className="break-words text-right font-medium">{par.valor}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
-        </section>
+        ))}
+      </div>
+      {esNotebook(producto.categoria_slug) && (
+        <p className="text-sm text-muted-foreground">Configuración de fábrica. No ofrecemos ampliaciones de memoria ni de disco.</p>
       )}
-    </div>
+    </section>
   );
 }

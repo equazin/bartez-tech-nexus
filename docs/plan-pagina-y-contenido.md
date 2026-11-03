@@ -182,3 +182,25 @@ conviene hacerlos con productos reales a la vista.
 - Maqueta aprobada: `design/maquetas/propuestas/06-nocturno-prisma/01-inicio.html`, `02-categoria.html`,
   `03-ficha.html` en equazin/teqo.
 - Plan de marca: `docs/plan-de-marca.md` en equazin/teqo (público, catálogo de arranque, recomendador).
+
+## Rediseño aprobado (3/11/2026)
+
+Nico aprobó la maqueta "Teqo tienda nueva" (https://claude.ai/artifact/CEFqa5VbYjdsKe5RgUvvUo), armada con lo que
+funciona en Compragamer y FullH4rd y la identidad Prisma × Central. Quedó programada en la rama `teqo`:
+
+- **Encabezado:** franja de servicio (envío, IVA, ayuda, seguimiento, arrepentimiento), buscador con selector de
+  categoría, menú desplegable con el árbol real y las cantidades, acceso a "Seguí tu compra" y carrito con total.
+  Debajo, las categorías raíz, Ofertas y Nuevos ingresos.
+- **Tarjeta:** datos clave de la ficha en chips según el tipo de producto, precio final, cuotas reales de Mercado Pago,
+  disponibilidad y, en los listados, el botón Comparar.
+- **Inicio:** portada con dos accesos, promesas, "Qué estás buscando" con foto, destacados con pestañas, elegido de la
+  semana (el primer destacado), PC y componentes, accesos por uso, notebooks, comparador, periféricos, marcas y ayuda.
+- **Categoría, Ofertas, Nuevos ingresos y Buscar:** filtros calculados de la ficha (marca, precio, stock y hasta seis
+  claves como pulgadas, Hz, panel o procesador), filtros activos, orden y comparador. La selección queda en la URL.
+- **Comparar:** hasta tres productos lado a lado; lo que mejora queda resaltado.
+- **Producto:** galería, datos clave, caja de compra con cantidad, envío nacional cotizado, especificaciones agrupadas,
+  envío y garantía, "Completá el setup" y "También podés mirar".
+- **Carrito:** pasos, chips, resumen con medio de pago (Mercado Pago muestra las cuotas del total) y complementos.
+
+Quedan para después, porque no hay contenido ni datos: las guías "¿Cuál me compro?", el bloque "¿Es para vos?" de la
+ficha, las preguntas y respuestas por producto y el texto propio del elegido de la semana.

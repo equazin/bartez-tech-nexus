@@ -18,6 +18,8 @@ const Inicio = lazy(() => import("./pages/tienda/Inicio"));
 const Categoria = lazy(() => import("./pages/tienda/Categoria"));
 const Producto = lazy(() => import("./pages/tienda/Producto"));
 const Buscar = lazy(() => import("./pages/tienda/Buscar"));
+const Comparar = lazy(() => import("./pages/tienda/Comparar"));
+const Vista = lazy(() => import("./pages/tienda/Vista"));
 const Carrito = lazy(() => import("./pages/tienda/Carrito"));
 const Checkout = lazy(() => import("./pages/tienda/Checkout"));
 const Compra = lazy(() => import("./pages/tienda/Compra"));
@@ -114,6 +116,9 @@ const App = () => (
                     <Routes>
                       <Route path="/" element={<Inicio />} />
                       <Route path="/buscar" element={<Buscar />} />
+                      <Route path="/comparar" element={<Comparar />} />
+                      <Route path="/ofertas" element={<Vista tipo="ofertas" />} />
+                      <Route path="/nuevos-ingresos" element={<Vista tipo="nuevos" />} />
                       <Route path="/carrito" element={<Carrito />} />
                       <Route path="/cart" element={<Navigate to="/carrito" replace />} />
                       <Route path="/checkout" element={<Checkout />} />

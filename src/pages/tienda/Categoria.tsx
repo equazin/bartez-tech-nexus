@@ -1,47 +1,39 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import { Link, useParams } from "react-router-dom";
 import { Tienda } from "@/components/tienda/Tienda";
 import { MigasDePan } from "@/components/tienda/MigasDePan";
 import { NoEncontrado } from "@/components/tienda/NoEncontrado";
-import { GrillaProductos } from "@/components/tienda/TarjetaProducto";
+import { ListadoFiltrable } from "@/components/tienda/ListadoFiltrable";
+import { PreguntasFrecuentes } from "@/components/tienda/PreguntasFrecuentes";
 import {
-  ORDENES,
-  POR_PAGINA,
   encontrarCategoria,
+  fotoDeCategoria,
+  fotosPorCategoria,
   idsConDescendientes,
   listarCategorias,
-  listarMarcasDeCategoria,
   listarProductos,
   rutaDeCategoria,
   type CategoriaPublica,
-  type OrdenDelCatalogo,
   type ProductoPublico,
 } from "@/lib/tienda/catalogo";
 import { usarSeo } from "@/lib/tienda/seo";
+import { cn } from "@/lib/utils";
 
-const CLASE_SELECT =
-  "h-11 rounded-xl border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-
-function esOrden(valor: string | null): valor is OrdenDelCatalogo {
-  return ORDENES.some((o) => o.valor === valor);
+/** Las subcategorías para elegir arriba: las hijas, o las hermanas si la categoría no tiene hijas. */
+function accesosDe(nodo: CategoriaPublica, migas: CategoriaPublica[]): { lista: CategoriaPublica[]; madre: CategoriaPublica | null } {
+  const hijas = nodo.hijas.filter((h) => h.cantidad > 0);
+  if (hijas.length > 0) return { lista: hijas, madre: null };
+  const madre = migas.length >= 2 ? migas[migas.length - 2] : null;
+  return { lista: madre ? madre.hijas.filter((h) => h.cantidad > 0) : [], madre };
 }
 
 export default function Categoria() {
   const { categoria: slug = "" } = useParams<{ categoria: string }>();
-  const [parametros, setParametros] = useSearchParams();
-
   const [raices, setRaices] = useState<CategoriaPublica[] | null>(null);
+  const [fotos, setFotos] = useState<Map<number, string>>(new Map());
   const [productos, setProductos] = useState<ProductoPublico[]>([]);
-  const [total, setTotal] = useState(0);
-  const [pagina, setPagina] = useState(0);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [marcas, setMarcas] = useState<Array<{ id: string; nombre: string }>>([]);
-
-  const ordenParametro = parametros.get("orden");
-  const orden: OrdenDelCatalogo = esOrden(ordenParametro) ? ordenParametro : "destacados";
-  const marcaId = parametros.get("marca");
 
   useEffect(() => {
     let cancelado = false;
@@ -52,6 +44,9 @@ export default function Categoria() {
       .catch(() => {
         if (!cancelado) setRaices([]);
       });
+    fotosPorCategoria().then((mapa) => {
+      if (!cancelado) setFotos(mapa);
+    });
     return () => {
       cancelado = true;
     };
@@ -65,19 +60,14 @@ export default function Categoria() {
   usarSeo(nodo ? nodo.nombre : null, nodo ? (nodo.descripcion ?? `${nodo.nombre} con envío a todo el país y precios finales con IVA incluido.`) : null);
 
   useEffect(() => {
-    setPagina(0);
-  }, [claveIds, orden, marcaId]);
-
-  useEffect(() => {
     if (!nodo) return;
     let cancelado = false;
     setCargando(true);
     setError(null);
-    listarProductos({ categoriaIds: ids, marcaId, orden, pagina })
+    setProductos([]);
+    listarProductos({ categoriaIds: ids, orden: "destacados", porPagina: 1000 })
       .then((resultado) => {
-        if (cancelado) return;
-        setTotal(resultado.total);
-        setProductos((previos) => (pagina === 0 ? resultado.productos : [...previos, ...resultado.productos]));
+        if (!cancelado) setProductos(resultado.productos);
       })
       .catch((e: unknown) => {
         if (!cancelado) setError(e instanceof Error ? e.message : "No se pudo cargar el catálogo.");
@@ -89,30 +79,7 @@ export default function Categoria() {
       cancelado = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodo, claveIds, marcaId, orden, pagina]);
-
-  useEffect(() => {
-    if (ids.length === 0) return;
-    let cancelado = false;
-    listarMarcasDeCategoria(ids)
-      .then((lista) => {
-        if (!cancelado) setMarcas(lista);
-      })
-      .catch(() => {
-        if (!cancelado) setMarcas([]);
-      });
-    return () => {
-      cancelado = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [claveIds]);
-
-  function cambiarParametro(clave: string, valor: string) {
-    const siguientes = new URLSearchParams(parametros);
-    if (valor) siguientes.set(clave, valor);
-    else siguientes.delete(clave);
-    setParametros(siguientes, { replace: true });
-  }
+  }, [nodo?.id, claveIds]);
 
   if (raices && !nodo) {
     return (
@@ -122,76 +89,58 @@ export default function Categoria() {
     );
   }
 
-  const hayMas = productos.length < total;
+  const accesos = nodo ? accesosDe(nodo, migas) : { lista: [], madre: null };
 
   return (
     <Tienda>
-      <div className="container mx-auto space-y-6 px-4 py-8">
+      <div className="container mx-auto flex flex-col gap-5 px-4 pb-6 pt-5">
         <MigasDePan migas={migas.map((m, i) => (i === migas.length - 1 ? { nombre: m.nombre } : { nombre: m.nombre, ruta: `/${m.slug}` }))} />
 
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-[40px] font-bold leading-[44px] tracking-[-1px]">{nodo?.nombre ?? "Categoría"}</h1>
-            {nodo?.descripcion && <p className="mt-3 max-w-2xl text-muted-foreground">{nodo.descripcion}</p>}
-            {!cargando && <p className="mt-1 text-sm text-muted-foreground">{total === 1 ? "1 producto" : `${total} productos`}</p>}
+        <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+          <div className="flex max-w-[720px] flex-col gap-2">
+            <h1 className="font-display text-[36px] font-bold uppercase leading-none md:text-[44px]">{nodo?.nombre ?? "Categoría"}</h1>
+            {nodo?.descripcion && <p className="text-base leading-relaxed text-muted-foreground">{nodo.descripcion}</p>}
           </div>
-          <div className="flex flex-wrap gap-2">
-            {marcas.length > 1 && (
-              <label className="flex items-center gap-2 text-sm">
-                <span className="sr-only">Marca</span>
-                <select value={marcaId ?? ""} onChange={(e) => cambiarParametro("marca", e.target.value)} className={CLASE_SELECT} aria-label="Marca">
-                  <option value="">Todas las marcas</option>
-                  {marcas.map((marca) => (
-                    <option key={marca.id} value={marca.id}>
-                      {marca.nombre}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <label className="flex items-center gap-2 text-sm">
-              <span className="sr-only">Ordenar</span>
-              <select value={orden} onChange={(e) => cambiarParametro("orden", e.target.value === "destacados" ? "" : e.target.value)} className={CLASE_SELECT} aria-label="Ordenar">
-                {ORDENES.map((o) => (
-                  <option key={o.valor} value={o.valor}>
-                    {o.etiqueta}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+          {!cargando && <span className="text-[15px] text-muted-foreground">{productos.length === 1 ? "1 producto" : `${productos.length} productos`}</span>}
         </div>
 
-        {nodo && nodo.hijas.length > 0 && (
-          <ul className="flex flex-wrap gap-2" aria-label="Subcategorías">
-            {nodo.hijas
-              .filter((h) => h.cantidad > 0)
-              .map((hija) => (
-                <li key={hija.id}>
-                  <Link to={`/${hija.slug}`} className="inline-flex h-9 items-center rounded-chip bg-secondary px-3 text-sm font-medium hover:bg-accent">
-                    {hija.nombre} <span className="ml-1.5 tabular-nums text-muted-foreground">{hija.cantidad}</span>
+        {accesos.lista.length > 0 && (
+          <ul className="flex flex-wrap gap-2.5" aria-label="Subcategorías">
+            {accesos.madre && (
+              <li>
+                <Link to={`/${accesos.madre.slug}`} className="flex h-[52px] items-center rounded-chip border border-border bg-card px-[18px] text-[15px] font-bold hover:border-input">
+                  Todo {accesos.madre.nombre.toLowerCase()}
+                </Link>
+              </li>
+            )}
+            {accesos.lista.map((c) => {
+              const activa = c.id === nodo?.id;
+              const foto = fotoDeCategoria(c, fotos);
+              return (
+                <li key={c.id}>
+                  <Link
+                    to={`/${c.slug}`}
+                    aria-current={activa ? "page" : undefined}
+                    className={cn(
+                      "flex h-[52px] items-center gap-2.5 rounded-chip border pl-2 pr-[18px] text-[15px] font-bold transition-colors",
+                      activa ? "border-foreground bg-foreground text-background" : "border-border bg-card hover:border-input",
+                    )}
+                  >
+                    <span className="flex h-[38px] w-[38px] items-center justify-center overflow-hidden rounded-full bg-placa-foto">
+                      {foto && <img src={foto} alt="" className="h-[30px] w-[30px] object-contain mix-blend-multiply" />}
+                    </span>
+                    {c.nombre}
+                    <span className="font-medium tabular-nums opacity-75">{c.cantidad}</span>
                   </Link>
                 </li>
-              ))}
+              );
+            })}
           </ul>
         )}
 
-        {error ? (
-          <p className="rounded-xl bg-error-fondo p-4 text-sm text-danger">{error}</p>
-        ) : !cargando && productos.length === 0 ? (
-          <p className="py-12 text-muted-foreground">Todavía no hay productos en esta categoría.</p>
-        ) : (
-          <GrillaProductos productos={productos} cargando={cargando} cantidadEsqueletos={POR_PAGINA / 2} />
-        )}
-
-        {hayMas && (
-          <div className="flex justify-center pt-4">
-            <Button variant="outline" size="lg" disabled={cargando} onClick={() => setPagina((p) => p + 1)}>
-              {cargando ? "Cargando" : "Ver más productos"}
-            </Button>
-          </div>
-        )}
+        <ListadoFiltrable productos={productos} cargando={cargando} error={error} textoVacio="Todavía no hay productos en esta categoría." />
       </div>
+      <PreguntasFrecuentes />
     </Tienda>
   );
 }

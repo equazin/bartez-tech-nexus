@@ -55,12 +55,13 @@ interface FilaDeCategoria {
   descripcion: string | null;
 }
 
-export type OrdenDelCatalogo = "destacados" | "precio_asc" | "precio_desc" | "nombre";
+export type OrdenDelCatalogo = "destacados" | "precio_asc" | "precio_desc" | "nombre" | "nuevos";
 
 export const ORDENES: Array<{ valor: OrdenDelCatalogo; etiqueta: string }> = [
   { valor: "destacados", etiqueta: "Destacados" },
   { valor: "precio_asc", etiqueta: "Menor precio" },
   { valor: "precio_desc", etiqueta: "Mayor precio" },
+  { valor: "nuevos", etiqueta: "Nuevos ingresos" },
   { valor: "nombre", etiqueta: "Nombre" },
 ];
 
@@ -98,6 +99,8 @@ function conOrden<T extends { order: (columna: string, opciones?: { ascending?: 
       return consulta.order("precio_final_ars", { ascending: false, nullsFirst: false }).order("nombre", { ascending: true });
     case "nombre":
       return consulta.order("nombre", { ascending: true });
+    case "nuevos":
+      return consulta.order("id", { ascending: false });
     case "destacados":
     default:
       return consulta.order("destacado", { ascending: false }).order("nombre", { ascending: true });
@@ -107,16 +110,20 @@ function conOrden<T extends { order: (columna: string, opciones?: { ascending?: 
 export interface OpcionesDeListado {
   categoriaIds?: number[];
   marcaId?: string | null;
+  soloOfertas?: boolean;
+  soloConStock?: boolean;
   orden?: OrdenDelCatalogo;
   pagina?: number;
   porPagina?: number;
 }
 
 export async function listarProductos(opciones: OpcionesDeListado = {}): Promise<{ productos: ProductoPublico[]; total: number }> {
-  const { categoriaIds, marcaId, orden = "destacados", pagina = 0, porPagina = POR_PAGINA } = opciones;
+  const { categoriaIds, marcaId, soloOfertas, soloConStock, orden = "destacados", pagina = 0, porPagina = POR_PAGINA } = opciones;
   let consulta = supabase.from("tienda_productos").select(COLUMNAS, { count: "exact" });
   if (categoriaIds && categoriaIds.length > 0) consulta = consulta.in("categoria_id", categoriaIds);
   if (marcaId) consulta = consulta.eq("marca_id", marcaId);
+  if (soloOfertas) consulta = consulta.eq("oferta", true);
+  if (soloConStock) consulta = consulta.eq("hay_stock", true);
   consulta = conOrden(consulta, orden);
   const desde = pagina * porPagina;
   const { data, error, count } = await consulta.range(desde, desde + porPagina - 1);
@@ -159,6 +166,73 @@ export async function listarDestacados(limite = 8): Promise<ProductoPublico[]> {
     .limit(limite);
   if (error) throw new Error(`No se pudieron cargar los destacados: ${error.message}`);
   return (data ?? []) as unknown as ProductoPublico[];
+}
+
+/** El precio más bajo de un grupo de categorías, para los accesos "desde $ X" de la portada. */
+export async function precioDesde(categoriaIds: number[]): Promise<number | null> {
+  if (categoriaIds.length === 0) return null;
+  const { data, error } = await supabase
+    .from("tienda_productos")
+    .select("precio_final_ars")
+    .in("categoria_id", categoriaIds)
+    .not("precio_final_ars", "is", null)
+    .order("precio_final_ars", { ascending: true })
+    .limit(1);
+  if (error) return null;
+  const fila = (data ?? [])[0] as { precio_final_ars: number | null } | undefined;
+  return fila?.precio_final_ars ?? null;
+}
+
+let fotosEnMemoria: Promise<Map<number, string>> | null = null;
+
+/** Una foto por categoría (la del primer destacado o del primero que tenga), para los accesos con imagen. */
+export function fotosPorCategoria(): Promise<Map<number, string>> {
+  if (!fotosEnMemoria) {
+    fotosEnMemoria = Promise.resolve(
+      supabase
+        .from("tienda_productos")
+        .select("categoria_id, imagen, imagenes")
+        .not("categoria_id", "is", null)
+        .order("destacado", { ascending: false })
+        .order("hay_stock", { ascending: false })
+        .limit(1000),
+    ).then(({ data, error }) => {
+      if (error) {
+        fotosEnMemoria = null;
+        return new Map<number, string>();
+      }
+      const fotos = new Map<number, string>();
+      for (const fila of (data ?? []) as Array<{ categoria_id: number | null; imagen: string | null; imagenes: string[] }>) {
+        if (fila.categoria_id === null || fotos.has(fila.categoria_id)) continue;
+        const foto = imagenPrincipal(fila);
+        if (foto) fotos.set(fila.categoria_id, foto);
+      }
+      return fotos;
+    });
+  }
+  return fotosEnMemoria;
+}
+
+/** La foto de una categoría o, si no tiene productos propios, la de su primera hija con foto. */
+export function fotoDeCategoria(nodo: CategoriaPublica, fotos: Map<number, string>): string | null {
+  const propia = fotos.get(nodo.id);
+  if (propia) return propia;
+  for (const hija of nodo.hijas) {
+    const foto = fotoDeCategoria(hija, fotos);
+    if (foto) return foto;
+  }
+  return null;
+}
+
+/** Todas las categorías en una lista plana, con la raíz de cada una. */
+export function categoriasPlanas(raices: CategoriaPublica[]): Array<CategoriaPublica & { raiz: CategoriaPublica }> {
+  const salida: Array<CategoriaPublica & { raiz: CategoriaPublica }> = [];
+  const recorrer = (nodo: CategoriaPublica, raiz: CategoriaPublica) => {
+    salida.push({ ...nodo, raiz });
+    nodo.hijas.forEach((hija) => recorrer(hija, raiz));
+  };
+  raices.forEach((raiz) => recorrer(raiz, raiz));
+  return salida;
 }
 
 export async function buscarProductos(q: string, limite = 48): Promise<ProductoPublico[]> {

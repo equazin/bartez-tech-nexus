@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tienda } from "@/components/tienda/Tienda";
@@ -75,8 +75,13 @@ function Campo({ etiqueta, error, children }: { etiqueta: string; error?: string
 export default function Checkout() {
   usarSeo("Finalizar la compra");
   const navigate = useNavigate();
+  const [parametros] = useSearchParams();
   const { lineas, subtotal, pesoKg, cargando, listoParaComprar } = useCarritoDetallado();
-  const [f, setF] = useState<Formulario>(VACIO);
+  // El carrito deja elegir el medio antes de llegar acá; si viene en la URL, arranca elegido.
+  const medioDelCarrito = parametros.get("medio");
+  const [f, setF] = useState<Formulario>(() =>
+    medioDelCarrito === "transferencia" || medioDelCarrito === "mercadopago" ? { ...VACIO, medio_pago: medioDelCarrito as MedioDePago } : VACIO,
+  );
   const [errores, setErrores] = useState<Partial<Record<keyof Formulario, string>>>({});
   const [envio, setEnvio] = useState<CotizacionDeEnvio | null>(null);
   const [enviando, setEnviando] = useState(false);
