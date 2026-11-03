@@ -30,6 +30,8 @@ export interface ProductoPublico {
   peso_kg: number | null;
   destacado: boolean;
   specs: Record<string, unknown> | null;
+  /** Ficha técnica cargada en el panel o por CSV, en orden. Si está vacía se usan las specs. */
+  ficha: Array<{ clave: string; valor: string }> | null;
 }
 
 export interface CategoriaPublica {
@@ -67,7 +69,7 @@ export const POR_PAGINA = 24;
 const COLUMNAS =
   "id, slug, nombre, descripcion_corta, descripcion, imagenes, imagen, categoria_nombre, categoria_id, " +
   "categoria_slug, marca_id, marca, hay_stock, pocas_unidades, sku, iva_rate, precio_final_ars, " +
-  "precio_lista_ars, oferta, tags, peso_kg, destacado, specs";
+  "precio_lista_ars, oferta, tags, peso_kg, destacado, specs, ficha";
 
 export const SEGMENTO_SIN_CATEGORIA = "productos";
 

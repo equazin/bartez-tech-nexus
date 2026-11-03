@@ -1,7 +1,7 @@
+import { exportarCatalogoCsv } from "@/lib/catalogoCsv";
 import Papa from "papaparse";
 import type { Product } from "@/models/products";
 import type { PortalOrder } from "@/hooks/useOrders";
-import { getAvailableStock } from "@/lib/pricing";
 
 function downloadBlob(content: string, filename: string, mime: string) {
   const blob = new Blob(["\uFEFF" + content], { type: mime });
@@ -19,20 +19,13 @@ function orderLabel(order: Pick<PortalOrder, "id" | "order_number">): string {
   return order.order_number ?? `ORD-${String(order.id).slice(-6).toUpperCase()}`;
 }
 
-export function exportCatalogCSV(products: Product[]) {
-  const rows = products.map((p) => ({
-    SKU: p.sku ?? "",
-    Nombre: p.name,
-    Categoria: p.category,
-    "Precio base (USD)": p.cost_price,
-    Stock: p.stock,
-    "Stock reservado": p.stock_reserved ?? 0,
-    "Stock disponible": getAvailableStock(p),
-    "IVA %": p.iva_rate ?? 21,
-    Descripcion: p.description,
-  }));
-  const csv = Papa.unparse(rows);
-  downloadBlob(csv, "catalogo.csv", "text/csv;charset=utf-8;");
+/** Catálogo con las mismas columnas que acepta el importador: se edita en una planilla y se vuelve a subir. */
+export function exportCatalogCSV(
+  products: Product[],
+  categories: Array<{ id: number; name: string; active?: boolean | null }> = [],
+) {
+  const csv = exportarCatalogoCsv(products as unknown as Array<Record<string, unknown>>, categories);
+  downloadBlob(csv, "catalogo-teqo.csv", "text/csv;charset=utf-8;");
 }
 
 export function exportReportsCSV(

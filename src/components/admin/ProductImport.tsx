@@ -1,122 +1,209 @@
 import { useRef, useState } from "react";
-import Papa from "papaparse";
 import { supabase } from "@/lib/supabase";
-import { Upload, AlertCircle, CheckCircle2, Eye, Loader2, X } from "lucide-react";
+import { Upload, AlertCircle, CheckCircle2, Eye, Loader2, X, Download } from "lucide-react";
+import {
+  COLUMNAS_CSV,
+  interpretarCsv,
+  plantillaCsv,
+  type CategoriaDelCsv,
+  type FilaInterpretada,
+  type MarcaDelCsv,
+} from "@/lib/catalogoCsv";
 
 interface ImportResult { imported: number; errors: string[]; }
 
-// Columns accepted in the CSV
-const COLUMNS = [
-  "name *", "sku *", "cost_price *", "category", "stock", "stock_min",
-  "description", "image", "supplier_id", "supplier_multiplier",
-  "featured", "active", "tags", "external_id",
-];
+type Accion = "crear" | "actualizar" | "sin_cambios";
 
-function parseBoolean(v: string | undefined, defaultVal = true): boolean {
-  if (v === undefined || v === "") return defaultVal;
-  return ["true", "1", "yes", "si", "sí"].includes(v.toLowerCase().trim());
+interface FilaParaImportar extends FilaInterpretada {
+  accion: Accion;
+  id: number | null;
 }
 
-function parseTags(v: string | undefined): string[] {
-  if (!v?.trim()) return [];
-  return v.split(/[,;|]/).map((t) => t.trim().toLowerCase()).filter(Boolean);
+/** Nombre de columna del CSV para cada campo, para mostrar qué cambia. */
+const COLUMNA_DE: Record<string, string> = {
+  name_custom: "nombre",
+  brand_name: "marca",
+  category_id: "categoria",
+  description_short: "descripcion_corta",
+  description_full: "descripcion",
+  ficha: "ficha_tecnica",
+  images: "fotos",
+  weight_kg: "peso_kg",
+  cost_price: "costo_usd",
+  iva_rate: "iva",
+  supplier_multiplier: "multiplicador",
+  offer_percent: "oferta_porcentaje",
+  stock: "stock",
+  stock_min: "stock_min",
+  tags: "etiquetas",
+  external_id: "external_id",
+  featured: "destacado",
+  publicado: "publicado",
+  active: "activo",
+};
+
+function columnasQueCambian(cambios: Record<string, unknown>): string[] {
+  return [...new Set(Object.keys(cambios).map((k) => COLUMNA_DE[k]).filter(Boolean))];
+}
+
+function descargar(contenido: string, nombre: string) {
+  const blob = new Blob(["﻿" + contenido], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nombre;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function skusExistentes(): Promise<Map<string, number>> {
+  const mapa = new Map<string, number>();
+  const pagina = 1000;
+  for (let desde = 0; ; desde += pagina) {
+    const { data, error } = await supabase.from("products").select("id, sku").order("id").range(desde, desde + pagina - 1);
+    if (error) throw new Error(`No se pudieron leer los productos: ${error.message}`);
+    for (const fila of (data ?? []) as Array<{ id: number; sku: string | null }>) {
+      if (fila.sku) mapa.set(fila.sku.trim().toUpperCase(), fila.id);
+    }
+    if (!data || data.length < pagina) break;
+  }
+  return mapa;
+}
+
+/** Agrupa por el conjunto exacto de columnas: cada grupo se inserta sin completar columnas con nulos. */
+function agruparPorColumnas(filas: Array<Record<string, unknown>>): Array<Array<Record<string, unknown>>> {
+  const grupos = new Map<string, Array<Record<string, unknown>>>();
+  for (const fila of filas) {
+    const firma = Object.keys(fila).sort().join(",");
+    grupos.set(firma, [...(grupos.get(firma) ?? []), fila]);
+  }
+  return [...grupos.values()];
 }
 
 export default function ProductImport({ onImport, isDark = true }: { onImport: (result: ImportResult) => void; isDark?: boolean }) {
-  const dk = (d: string, l: string) => isDark ? d : l;
-  const [preview, setPreview]   = useState<any[]>([]);
-  const [parseErrors, setParseErrors] = useState<string[]>([]);
-  const [dragActive, setDragActive]   = useState(false);
-  const [importing, setImporting]     = useState(false);
-  const [fileName, setFileName]       = useState("");
+  const dk = (d: string, l: string) => (isDark ? d : l);
+  const [filas, setFilas] = useState<FilaParaImportar[]>([]);
+  const [avisos, setAvisos] = useState<string[]>([]);
+  const [dragActive, setDragActive] = useState(false);
+  const [leyendo, setLeyendo] = useState(false);
+  const [importando, setImportando] = useState(false);
+  const [progreso, setProgreso] = useState("");
+  const [fileName, setFileName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  function handleFiles(files: FileList | null) {
+  const conErrores = filas.filter((f) => f.errores.length > 0);
+  const aCrear = filas.filter((f) => f.errores.length === 0 && f.accion === "crear");
+  const aActualizar = filas.filter((f) => f.errores.length === 0 && f.accion === "actualizar");
+  const sinCambios = filas.filter((f) => f.errores.length === 0 && f.accion === "sin_cambios");
+
+  async function handleFiles(files: FileList | null) {
     if (!files?.length) return;
-    setParseErrors([]); setPreview([]); setFileName(files[0].name);
+    const archivo = files[0];
+    setAvisos([]);
+    setFilas([]);
+    setFileName(archivo.name);
+    setLeyendo(true);
+    try {
+      const [texto, { data: categorias, error: errorCategorias }, { data: marcas }] = await Promise.all([
+        archivo.text(),
+        supabase.from("categories").select("id, name, slug, active"),
+        supabase.from("brands").select("id, name"),
+      ]);
+      if (errorCategorias) throw new Error(`No se pudieron leer las categorías: ${errorCategorias.message}`);
+      const { filas: leidas, columnasIgnoradas, errorGeneral } = interpretarCsv(
+        texto,
+        (categorias ?? []) as CategoriaDelCsv[],
+        (marcas ?? []) as MarcaDelCsv[],
+      );
+      if (errorGeneral) {
+        setAvisos([errorGeneral]);
+        return;
+      }
+      const existentes = await skusExistentes();
+      const nuevosAvisos: string[] = [];
+      if (columnasIgnoradas.length > 0) {
+        nuevosAvisos.push(`Se ignoran las columnas que no reconoce: ${columnasIgnoradas.join(", ")}.`);
+      }
 
-    Papa.parse<Record<string, string>>(files[0], {
-      header: true,
-      skipEmptyLines: true,
-      complete: ({ data }) => {
-        if (inputRef.current) inputRef.current.value = "";
-        const products: any[] = [];
-        const errors: string[] = [];
+      // Un SKU repetido en el archivo: vale la última fila.
+      const porSku = new Map<string, FilaInterpretada>();
+      for (const fila of leidas) {
+        if (fila.sku && porSku.has(fila.sku)) nuevosAvisos.push(`El SKU ${fila.sku} está repetido: vale la fila ${fila.fila}.`);
+        porSku.set(fila.sku || `fila-${fila.fila}`, fila);
+      }
 
-        data.forEach((row, i) => {
-          const rowNum = i + 2; // header = row 1
-          const name = row.name?.trim();
-          const cost_price = Number(row.cost_price);
-
-          if (!name)                              { errors.push(`Fila ${rowNum}: falta nombre`); return; }
-          if (!row.sku?.trim())                   { errors.push(`Fila ${rowNum}: falta SKU`); return; }
-          if (isNaN(cost_price) || cost_price <= 0) { errors.push(`Fila ${rowNum}: precio inválido`); return; }
-
-          // Build payload with ONLY the fields that have values in the CSV.
-          // Blank fields are omitted so Supabase upsert won't overwrite
-          // existing data with empty/zero values.
-          const product: Record<string, unknown> = {
-            name,
-            sku:       row.sku.trim().toUpperCase(),
-            cost_price,
-          };
-
-          if (row.description?.trim())     product.description        = row.description.trim();
-          if (row.image?.trim())           product.image              = row.image.trim();
-          if (row.category?.trim())        product.category           = row.category.trim();
-          if (row.stock?.trim())           product.stock              = Number(row.stock);
-          if (row.stock_min?.trim())       product.stock_min          = Number(row.stock_min);
-          if (row.supplier_id?.trim())     product.supplier_id        = Number(row.supplier_id);
-          if (row.supplier_multiplier?.trim()) product.supplier_multiplier = Number(row.supplier_multiplier);
-          if (row.featured?.trim())        product.featured           = parseBoolean(row.featured, false);
-          if (row.active?.trim())          product.active             = parseBoolean(row.active, true);
-          if (row.tags?.trim())            product.tags               = parseTags(row.tags);
-          if (row.external_id?.trim())     product.external_id        = row.external_id.trim();
-
-          products.push(product);
-        });
-
-        // Deduplicate by SKU — keep last occurrence (same as DB upsert behavior)
-        const seen = new Map<string, Record<string, unknown>>();
-        products.forEach((p) => seen.set(p.sku as string, p));
-        const deduped = Array.from(seen.values());
-        const dupCount = products.length - deduped.length;
-        if (dupCount > 0) errors.push(`⚠ ${dupCount} SKU${dupCount > 1 ? "s" : ""} duplicado${dupCount > 1 ? "s" : ""} en el CSV — se conservó la última fila de cada uno.`);
-
-        setPreview(deduped);
-        setParseErrors(errors);
-      },
-      error: (err) => setParseErrors([err.message]),
-    });
+      const preparadas = [...porSku.values()].map((fila): FilaParaImportar => {
+        const id = existentes.get(fila.sku) ?? null;
+        if (id === null) {
+          const errores = [...fila.errores];
+          if (fila.sku && !fila.cambios.name_custom) errores.push("para crear un producto nuevo hace falta el nombre");
+          if (fila.sku && !fila.cambios.cost_price) errores.push("para crear un producto nuevo hace falta costo_usd");
+          return { ...fila, errores, accion: "crear", id };
+        }
+        return { ...fila, accion: Object.keys(fila.cambios).length > 0 ? "actualizar" : "sin_cambios", id };
+      });
+      setFilas(preparadas);
+      setAvisos(nuevosAvisos);
+    } catch (error) {
+      setAvisos([error instanceof Error ? error.message : "No se pudo leer el archivo."]);
+    } finally {
+      setLeyendo(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
   }
 
   async function handleImport() {
-    if (!preview.length) return;
-    setImporting(true);
+    if (aCrear.length + aActualizar.length === 0) return;
+    setImportando(true);
+    const errores: string[] = [];
+    let listos = 0;
 
-    const { data, error } = await supabase
-      .from("products")
-      .upsert(preview, { onConflict: "sku", ignoreDuplicates: false })
-      .select();
+    // Actualizaciones: una por producto, solo con las columnas que trae la fila.
+    const cola = [...aActualizar];
+    const trabajar = async () => {
+      for (let fila = cola.shift(); fila; fila = cola.shift()) {
+        const { error } = await supabase.from("products").update(fila.cambios).eq("id", fila.id as number);
+        if (error) errores.push(`Fila ${fila.fila} (${fila.sku}): ${error.message}`);
+        else listos += 1;
+        setProgreso(`Actualizando ${listos} de ${aActualizar.length}...`);
+      }
+    };
+    await Promise.all(Array.from({ length: 6 }, trabajar));
 
-    setImporting(false);
-
-    if (error) {
-      onImport({ imported: 0, errors: [error.message] });
-      return;
+    // Altas: agrupadas por columnas y de a 200.
+    const nuevos = aCrear.map((fila) => ({
+      sku: fila.sku,
+      name: fila.cambios.name_custom,
+      name_original: fila.cambios.name_custom,
+      ...fila.cambios,
+    }));
+    for (const grupo of agruparPorColumnas(nuevos)) {
+      for (let i = 0; i < grupo.length; i += 200) {
+        const tanda = grupo.slice(i, i + 200);
+        setProgreso(`Creando productos nuevos...`);
+        const { error } = await supabase.from("products").insert(tanda);
+        if (error) errores.push(`Alta de ${tanda.length} productos (${tanda.map((t) => t.sku).slice(0, 3).join(", ")}...): ${error.message}`);
+        else listos += tanda.length;
+      }
     }
 
-    onImport({ imported: data?.length ?? preview.length, errors: [] });
-    setPreview([]);
+    setImportando(false);
+    setProgreso("");
+    onImport({ imported: listos, errors: errores });
+    if (errores.length === 0) reset();
+  }
+
+  function reset() {
+    setFilas([]);
+    setAvisos([]);
     setFileName("");
   }
 
-  function reset() { setPreview([]); setParseErrors([]); setFileName(""); }
-
   return (
     <div className="space-y-4">
-
-      {/* Drop zone */}
+      {/* Zona de carga */}
       <div
         className={`relative border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
           dragActive
@@ -125,104 +212,101 @@ export default function ProductImport({ onImport, isDark = true }: { onImport: (
         }`}
         onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
         onDragLeave={() => setDragActive(false)}
-        onDrop={(e) => { e.preventDefault(); setDragActive(false); handleFiles(e.dataTransfer.files); }}
+        onDrop={(e) => { e.preventDefault(); setDragActive(false); void handleFiles(e.dataTransfer.files); }}
         onClick={() => inputRef.current?.click()}
       >
-        <input ref={inputRef} type="file" accept=".csv" className="hidden"
-          onChange={(e) => handleFiles(e.target.files)} />
-        <Upload size={24} className="mx-auto mb-2 text-gray-600" />
+        <input ref={inputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => void handleFiles(e.target.files)} />
+        {leyendo ? <Loader2 size={24} className="mx-auto mb-2 text-gray-600 animate-spin" /> : <Upload size={24} className="mx-auto mb-2 text-gray-600" />}
         {fileName ? (
           <p className={`text-sm font-medium ${dk("text-white", "text-[#171717]")}`}>{fileName}</p>
         ) : (
-          <p className="text-sm text-gray-500">Arrastrá un CSV o hacé click para seleccionar</p>
+          <p className="text-sm text-gray-500">Arrastrá el CSV del catálogo o hacé click para elegirlo</p>
         )}
-        <p className="text-[11px] text-gray-700 mt-1.5">Solo archivos .csv</p>
-      </div>
-
-      {/* Column reference */}
-      <div className={`${dk("bg-[#141414] border-[#222]", "bg-[#f5f5f5] border-[#e5e5e5]")} border rounded-lg px-3 py-2.5`}>
-        <p className="text-[11px] text-gray-600 font-semibold mb-1.5 uppercase tracking-wider">Columnas soportadas</p>
-        <div className="flex flex-wrap gap-1">
-          {COLUMNS.map((col) => (
-            <span key={col}
-              className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                col.includes("*")
-                  ? "bg-[#2D9F6A]/10 text-[#2D9F6A] border border-[#2D9F6A]/20"
-                  : "bg-[#1e1e1e] text-gray-500 border border-[#2a2a2a]"
-              }`}>
-              {col}
-            </span>
-          ))}
-        </div>
-        <p className="text-[10px] text-gray-700 mt-1.5">
-          * obligatorio · tags separados por coma · featured/active: true/false
+        <p className="text-[11px] text-gray-700 mt-1.5">
+          Exportalo desde Productos con el botón CSV, editalo en Excel o Google Sheets y volvé a subirlo.
         </p>
       </div>
 
-      {/* Parse errors */}
-      {parseErrors.length > 0 && (
-        <div className="bg-red-500/5 border border-red-500/20 rounded-lg px-3 py-2.5 space-y-1">
-          <p className="text-xs font-semibold text-red-400 flex items-center gap-1.5">
-            <AlertCircle size={12} /> {parseErrors.length} error{parseErrors.length > 1 ? "es" : ""} encontrado{parseErrors.length > 1 ? "s" : ""}
-          </p>
-          {parseErrors.map((err, i) => (
-            <p key={i} className="text-xs text-red-400/80 pl-4">{err}</p>
+      {/* Referencia de columnas */}
+      <div className={`${dk("bg-[#141414] border-[#222]", "bg-[#f5f5f5] border-[#e5e5e5]")} border rounded-lg px-3 py-2.5 space-y-2`}>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[11px] text-gray-600 font-semibold uppercase tracking-wider">Columnas</p>
+          <button
+            type="button"
+            onClick={() => descargar(plantillaCsv(), "plantilla-catalogo-teqo.csv")}
+            className="text-[11px] text-[#2D9F6A] hover:underline flex items-center gap-1"
+          >
+            <Download size={11} /> Descargar plantilla
+          </button>
+        </div>
+        <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
+          {COLUMNAS_CSV.map((c) => (
+            <div key={c.columna} className="text-[11px] leading-4">
+              <dt className={`inline font-mono ${c.columna === "sku" ? "text-[#2D9F6A]" : dk("text-gray-300", "text-[#262626]")}`}>{c.columna}</dt>
+              <dd className="inline text-gray-500"> · {c.ayuda}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="text-[10px] text-gray-600">
+          Celda vacía: no cambia nada. Un guion (-): borra ese dato. Si el SKU no existe, se crea el producto (sin publicar, salvo que digas lo contrario).
+        </p>
+      </div>
+
+      {/* Avisos */}
+      {avisos.length > 0 && (
+        <div className="bg-yellow-500/5 border border-yellow-500/20 rounded-lg px-3 py-2.5 space-y-1">
+          {avisos.map((aviso, i) => (
+            <p key={i} className="text-xs text-yellow-500/90">{aviso}</p>
           ))}
         </div>
       )}
 
-      {/* Preview */}
-      {preview.length > 0 && (
+      {/* Errores por fila */}
+      {conErrores.length > 0 && (
+        <div className="bg-red-500/5 border border-red-500/20 rounded-lg px-3 py-2.5 space-y-1 max-h-48 overflow-y-auto">
+          <p className="text-xs font-semibold text-red-400 flex items-center gap-1.5">
+            <AlertCircle size={12} /> {conErrores.length} fila{conErrores.length > 1 ? "s" : ""} con errores: no se importan
+          </p>
+          {conErrores.map((f) => (
+            <p key={`${f.fila}-${f.sku}`} className="text-xs text-red-400/80 pl-4">
+              Fila {f.fila}{f.sku ? ` (${f.sku})` : ""}: {f.errores.join("; ")}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {/* Vista previa */}
+      {filas.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-semibold text-gray-400 flex items-center gap-1.5">
-              <Eye size={12} /> Vista previa — {preview.length} producto{preview.length !== 1 ? "s" : ""}
+              <Eye size={12} /> {aActualizar.length} a actualizar · {aCrear.length} nuevos · {sinCambios.length} sin cambios
             </p>
             <button onClick={reset} className="text-xs text-gray-600 hover:text-gray-300 transition flex items-center gap-1">
               <X size={11} /> Limpiar
             </button>
           </div>
 
-          <div className={`overflow-x-auto rounded-xl border ${dk("border-[#252525] bg-[#141414]", "border-[#e5e5e5] bg-white")}`}>
+          <div className={`overflow-x-auto rounded-xl border max-h-96 overflow-y-auto ${dk("border-[#252525] bg-[#141414]", "border-[#e5e5e5] bg-white")}`}>
             <table className="w-full text-xs">
               <thead>
                 <tr className={`border-b ${dk("border-[#252525]", "border-[#e5e5e5]")}`}>
-                  {["Nombre", "SKU", "Precio", "Categoría", "Stock", "St.Min", "Proveedor", "Mult.", "Tags", "Featured", "Activo"].map((h) => (
+                  {["SKU", "Acción", "Nombre", "Qué cambia"].map((h) => (
                     <th key={h} className="px-3 py-2 text-left text-gray-500 font-semibold whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {preview.map((p, i) => (
-                  <tr key={i} className={`border-t ${dk("border-[#1e1e1e] hover:bg-[#1a1a1a]", "border-[#f0f0f0] hover:bg-[#fafafa]")} transition-colors`}>
-                    <td className={`px-3 py-2 font-medium max-w-[160px] truncate ${dk("text-white", "text-[#171717]")}`}>{p.name}</td>
-                    <td className="px-3 py-2 font-mono text-gray-400">{p.sku}</td>
-                    <td className="px-3 py-2 text-[#2D9F6A] font-semibold tabular-nums">${p.cost_price.toLocaleString("es-AR")}</td>
-                    <td className="px-3 py-2 text-gray-400">{p.category}</td>
-                    <td className="px-3 py-2 text-gray-400 tabular-nums">{p.stock}</td>
-                    <td className="px-3 py-2 text-gray-600 tabular-nums">{p.stock_min || "—"}</td>
-                    <td className="px-3 py-2 text-gray-600">{p.supplier_id || "—"}</td>
-                    <td className="px-3 py-2 text-gray-600">{p.supplier_multiplier !== 1 ? p.supplier_multiplier : "—"}</td>
-                    <td className="px-3 py-2 max-w-[120px]">
-                      {p.tags?.length > 0 ? (
-                        <div className="flex flex-wrap gap-0.5">
-                          {p.tags.slice(0, 3).map((t: string) => (
-                            <span key={t} className={`${dk("bg-[#252525]", "bg-[#f0f0f0]")} text-gray-500 px-1 py-0.5 rounded text-[10px]`}>{t}</span>
-                          ))}
-                          {p.tags.length > 3 && <span className="text-gray-700 text-[10px]">+{p.tags.length - 3}</span>}
-                        </div>
-                      ) : "—"}
+                {filas.filter((f) => f.errores.length === 0 && f.accion !== "sin_cambios").map((f) => (
+                  <tr key={`${f.fila}-${f.sku}`} className={`border-t ${dk("border-[#1e1e1e] hover:bg-[#1a1a1a]", "border-[#f0f0f0] hover:bg-[#fafafa]")} transition-colors`}>
+                    <td className="px-3 py-2 font-mono text-gray-400 whitespace-nowrap">{f.sku}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {f.accion === "crear"
+                        ? <span className="text-[#2D9F6A]">Nuevo</span>
+                        : <span className="text-gray-400 flex items-center gap-1"><CheckCircle2 size={11} /> Actualiza</span>}
                     </td>
-                    <td className="px-3 py-2">
-                      {p.featured
-                        ? <CheckCircle2 size={13} className="text-yellow-400" />
-                        : <span className="text-gray-700">—</span>}
-                    </td>
-                    <td className="px-3 py-2">
-                      {p.active
-                        ? <CheckCircle2 size={13} className="text-green-400" />
-                        : <span className="text-gray-600 text-[10px]">inactivo</span>}
-                    </td>
+                    <td className={`px-3 py-2 max-w-[220px] truncate ${dk("text-white", "text-[#171717]")}`}>{String(f.cambios.name_custom ?? "—")}</td>
+                    <td className="px-3 py-2 text-gray-500">{columnasQueCambian(f.cambios).join(", ")}</td>
                   </tr>
                 ))}
               </tbody>
@@ -230,14 +314,13 @@ export default function ProductImport({ onImport, isDark = true }: { onImport: (
           </div>
 
           <button
-            onClick={handleImport}
-            disabled={importing}
+            onClick={() => void handleImport()}
+            disabled={importando || aCrear.length + aActualizar.length === 0}
             className="mt-3 w-full flex items-center justify-center gap-2 bg-[#2D9F6A] hover:bg-[#25835A] disabled:opacity-50 disabled:pointer-events-none text-white font-bold text-sm py-2.5 rounded-xl transition-all active:scale-[0.98]"
           >
-            {importing
-              ? <><Loader2 size={14} className="animate-spin" /> Importando...</>
-              : `Importar ${preview.length} producto${preview.length !== 1 ? "s" : ""}`
-            }
+            {importando
+              ? <><Loader2 size={14} className="animate-spin" /> {progreso || "Importando..."}</>
+              : `Importar: actualizar ${aActualizar.length} y crear ${aCrear.length}`}
           </button>
         </div>
       )}

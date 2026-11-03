@@ -26,9 +26,17 @@ function parrafos(texto: string | null): string[] {
 }
 
 export function FichaTecnica({ producto }: { producto: ProductoPublico }) {
-  const specs = Object.entries(producto.specs ?? {})
-    .map(([clave, valor]) => [clave, valorComoTexto(valor)] as const)
-    .filter(([, valor]) => valor !== "");
+  // La ficha cargada en el panel manda y conserva su orden; si no hay, las specs del mayorista.
+  const fichaCargada = (producto.ficha ?? [])
+    .filter((par) => par && typeof par.clave === "string" && typeof par.valor === "string")
+    .map((par) => [par.clave.trim(), par.valor.trim()] as const)
+    .filter(([clave, valor]) => clave !== "" && valor !== "");
+  const specs =
+    fichaCargada.length > 0
+      ? fichaCargada
+      : Object.entries(producto.specs ?? {})
+          .map(([clave, valor]) => [etiqueta(clave), valorComoTexto(valor)] as const)
+          .filter(([, valor]) => valor !== "");
   const descripcion = parrafos(producto.descripcion);
 
   if (specs.length === 0 && descripcion.length === 0) return null;
@@ -41,7 +49,7 @@ export function FichaTecnica({ producto }: { producto: ProductoPublico }) {
           <dl className="overflow-hidden rounded-2xl border border-border bg-card">
             {specs.map(([clave, valor], i) => (
               <div key={clave} className={`grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-4 px-4 py-3 text-sm ${i > 0 ? "border-t border-border" : ""}`}>
-                <dt className="text-muted-foreground">{etiqueta(clave)}</dt>
+                <dt className="text-muted-foreground">{clave}</dt>
                 <dd className="break-words">{valor}</dd>
               </div>
             ))}
