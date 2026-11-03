@@ -38,6 +38,8 @@ export interface CategoriaPublica {
   slug: string;
   padre_id: number | null;
   cantidad: number;
+  orden: number;
+  descripcion: string | null;
   hijas: CategoriaPublica[];
 }
 
@@ -47,6 +49,8 @@ interface FilaDeCategoria {
   slug: string;
   padre_id: number | null;
   cantidad: number;
+  orden: number;
+  descripcion: string | null;
 }
 
 export type OrdenDelCatalogo = "destacados" | "precio_asc" | "precio_desc" | "nombre";
@@ -175,7 +179,7 @@ function armarArbol(filas: FilaDeCategoria[]): CategoriaPublica[] {
     else raices.push(nodo);
   }
   const ordenar = (lista: CategoriaPublica[]): CategoriaPublica[] =>
-    [...lista].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).map((n) => ({ ...n, hijas: ordenar(n.hijas) }));
+    [...lista].sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre, "es")).map((n) => ({ ...n, hijas: ordenar(n.hijas) }));
   return ordenar(raices);
 }
 

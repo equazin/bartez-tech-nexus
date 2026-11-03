@@ -62,7 +62,7 @@ export default function Categoria() {
   const migas = useMemo(() => (raices && nodo ? rutaDeCategoria(raices, nodo.id) : []), [raices, nodo]);
   const claveIds = ids.join(",");
 
-  usarSeo(nodo ? nodo.nombre : null, nodo ? `${nodo.nombre} con envío a todo el país y precios finales con IVA incluido.` : null);
+  usarSeo(nodo ? nodo.nombre : null, nodo ? (nodo.descripcion ?? `${nodo.nombre} con envío a todo el país y precios finales con IVA incluido.`) : null);
 
   useEffect(() => {
     setPagina(0);
@@ -132,6 +132,7 @@ export default function Categoria() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-[40px] font-bold leading-[44px] tracking-[-1px]">{nodo?.nombre ?? "Categoría"}</h1>
+            {nodo?.descripcion && <p className="mt-3 max-w-2xl text-muted-foreground">{nodo.descripcion}</p>}
             {!cargando && <p className="mt-1 text-sm text-muted-foreground">{total === 1 ? "1 producto" : `${total} productos`}</p>}
           </div>
           <div className="flex flex-wrap gap-2">
