@@ -131,12 +131,17 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
   const [{ data: dolarCrudo }, { data: configuracion }, { data: proveedores }] = await Promise.all([
     supabase.rpc("dolar_vigente"),
     supabase.from("tienda_configuracion").select("clave, valor").in("clave", ["peso_por_defecto_kg"]),
-    supabase.from("suppliers").select("id, source_currency").in("id", [...new Set([...productos.values()].map((p) => p.primary_supplier_id).filter((x): x is string => Boolean(x)))]),
+    supabase.from("product_suppliers").select("product_id, supplier_id, source_currency, is_preferred").in("product_id", ids),
   ]);
   const dolar = typeof dolarCrudo === "number" ? dolarCrudo : Number(dolarCrudo ?? 0) || null;
   const pesoPorDefecto = Number((configuracion ?? []).find((c: { clave: string; valor: unknown }) => c.clave === "peso_por_defecto_kg")?.valor ?? 1) || 1;
-  const monedaDe = new Map<string, string>();
-  for (const s of (proveedores ?? []) as Array<{ id: string; source_currency: string | null }>) monedaDe.set(s.id, s.source_currency ?? "USD");
+  // La moneda del costo vive en product_suppliers: la fila del proveedor principal del producto, o la preferida.
+  const monedaDe = new Map<number, string>();
+  for (const fila of (proveedores ?? []) as Array<{ product_id: number; supplier_id: string; source_currency: string | null; is_preferred: boolean }>) {
+    const producto = productos.get(fila.product_id);
+    const esPrincipal = producto?.primary_supplier_id === fila.supplier_id;
+    if (!monedaDe.has(fila.product_id) || esPrincipal || fila.is_preferred) monedaDe.set(fila.product_id, fila.source_currency ?? "USD");
+  }
 
   const items: Array<Record<string, unknown>> = [];
   const lineasDelEmail: Array<{ nombre: string; cantidad: number; precioFinal: number }> = [];
@@ -153,7 +158,7 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
     const precioFinal = Number(p.precio_final_ars);
     const iva = p.iva_rate ?? 21;
     const neto = aDosDecimales(precioFinal / (1 + iva / 100));
-    const moneda = p.primary_supplier_id ? (monedaDe.get(p.primary_supplier_id) ?? "USD") : "USD";
+    const moneda = monedaDe.get(p.id) ?? "USD";
     const factor = moneda === "USD" ? (dolar ?? 0) : 1;
     const costoPesos = aDosDecimales((p.cost_price ?? 0) * (p.supplier_multiplier ?? 1) * factor);
 

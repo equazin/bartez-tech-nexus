@@ -128,9 +128,12 @@ DECLARE
   v_final    numeric;
   v_oferta   numeric;
 BEGIN
-  SELECT coalesce(s.source_currency, 'USD') INTO v_moneda
-  FROM suppliers s
-  WHERE s.id = p.primary_supplier_id;
+  -- La moneda del costo vive en product_suppliers (migración 022): la fila del proveedor principal, o la preferida.
+  SELECT ps.source_currency INTO v_moneda
+  FROM product_suppliers ps
+  WHERE ps.product_id = p.id
+  ORDER BY (ps.supplier_id = p.primary_supplier_id) DESC, ps.is_preferred DESC, ps.updated_at DESC
+  LIMIT 1;
   v_moneda := coalesce(v_moneda, 'USD');
 
   IF v_moneda = 'USD' AND (p_dolar IS NULL OR p_dolar <= 0) THEN
