@@ -1,4 +1,4 @@
-import { ChevronRight, LayoutDashboard, Package, ClipboardList, Users, DollarSign, Settings2, Megaphone, Layers, FileText, Activity } from "lucide-react";
+import { ChevronRight, LayoutDashboard, Package, ClipboardList, Users, DollarSign, Settings2, Megaphone, Layers, FileText, Activity, Cpu } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { NAV_MODULES, type Tab, type ModuleId, type NavItem } from "./adminNavConfig";
 
@@ -28,6 +28,7 @@ const WORKSPACE_ITEMS: Array<{
   { id: "sales", label: "Ventas", module: "pedidos", tab: "quotes_admin", icon: ClipboardList },
   { id: "clients", label: "Clientes 360", module: "clientes", tab: "clients", icon: Users },
   { id: "products", label: "Catalogo", module: "catalogo", tab: "products", icon: Package },
+  { id: "armador",  label: "Armá tu PC", module: "armador",  tab: "pc_armadas",        icon: Cpu },
   { id: "sellers",   label: "Vendedores", module: "vendedores", tab: "seller_mode",       icon: DollarSign },
   { id: "inventory", label: "Inventario", module: "inventario", tab: "stock",              icon: Layers },
   { id: "finances",  label: "Finanzas",   module: "finanzas",   tab: "invoices",           icon: FileText },

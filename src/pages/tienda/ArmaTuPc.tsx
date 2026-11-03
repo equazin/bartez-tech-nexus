@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Tienda } from "@/components/tienda/Tienda";
 import { MigasDePan } from "@/components/tienda/MigasDePan";
 import { ChipsDeDatos } from "@/components/tienda/TarjetaProducto";
-import { FilaDeOpcion, FilaDeServicio, TarjetaDeArmada, nombreCorto, type EstadoDeArmada } from "@/components/tienda/ArmadorPartes";
+import { FilaDeOpcion, FilaDeServicio, TarjetaDeArmada, chipsDeArmada, nombreCorto, type EstadoDeArmada } from "@/components/tienda/ArmadorPartes";
 import {
   PASOS,
   alternarServicioDelArmado,
@@ -465,16 +465,13 @@ export default function ArmaTuPc() {
                       nombre: nombreCortoDeMedio(m),
                       total: conPiezas.reduce((suma, p) => suma + (precioConMedio(sel[p.id] as ProductoPublico, m.id) ?? 0) * (a.piezas[p.id]?.cantidad ?? 1), 0),
                     }));
-                    const resumen = (["procesador", "video", "memoria", "almacenamiento"] as IdDePaso[])
-                      .filter((p) => sel[p])
-                      .map((p) => `${(a.piezas[p]?.cantidad ?? 1) > 1 ? `${a.piezas[p]?.cantidad} × ` : ""}${nombreCorto(sel[p] as ProductoPublico)}`)
-                      .join(" · ");
                     const estado: EstadoDeArmada = armado.origen !== a.id ? "libre" : modificada ? "modificada" : "cargada";
                     return (
                       <TarjetaDeArmada
                         key={a.id}
                         nombre={a.nombre}
-                        resumen={a.texto ? `${a.texto} ${resumen}` : resumen}
+                        texto={a.texto}
+                        chips={chipsDeArmada(sel, a.piezas)}
                         foto={sel.gabinete ? imagenPrincipal(sel.gabinete) : null}
                         totales={totalesDeArmada}
                         estado={estado}
@@ -485,9 +482,9 @@ export default function ArmaTuPc() {
                       />
                     );
                   })}
-                  <article className="flex flex-col justify-between gap-2.5 rounded-2xl border border-dashed border-input p-3.5">
+                  <article className="flex flex-col justify-between gap-2.5 rounded-2xl border border-dashed border-input p-4">
                     <span className="flex flex-col gap-1.5">
-                      <span className="font-display text-[17px] font-bold uppercase">Desde cero</span>
+                      <span className="font-display text-lg font-bold uppercase">Desde cero</span>
                       <span className="text-xs leading-snug text-muted-foreground">Elegís cada pieza y te mostramos solo lo compatible con lo que ya elegiste.</span>
                     </span>
                     <button
@@ -496,7 +493,7 @@ export default function ArmaTuPc() {
                         vaciarArmado();
                         abrir("procesador");
                       }}
-                      className="h-9 self-start rounded-xl border border-input px-3.5 text-[13px] font-bold hover:bg-secondary"
+                      className="h-10 w-full rounded-xl border border-input px-3.5 text-[13px] font-bold hover:bg-secondary"
                     >
                       Empezar de cero
                     </button>

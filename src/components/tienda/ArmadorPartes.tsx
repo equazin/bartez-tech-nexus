@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { AlertTriangle, Check, X } from "lucide-react";
 import { ChipsDeDatos } from "@/components/tienda/TarjetaProducto";
-import type { Evaluacion } from "@/lib/tienda/armador";
+import type { Armado, Evaluacion, Seleccion } from "@/lib/tienda/armador";
 import { imagenPrincipal, rutaDelProducto, type ProductoPublico } from "@/lib/tienda/catalogo";
 import { formatearPesos } from "@/lib/tienda/dinero";
 import { datosClave } from "@/lib/tienda/ficha";
@@ -17,6 +17,32 @@ export function nombreCorto(producto: Pick<ProductoPublico, "nombre">): string {
     .split(",")[0]
     .replace(/^(procesador|motherboard|memoria ram|disco ssd|disco rígido|disco|placa de video|fuente|gabinete|cooler)\s+/i, "")
     .trim();
+}
+
+/** Los datos que distinguen a una PC armada, cortos: "Ryzen 5 7600", "RTX 5060 Ti 8 GB", "16 GB DDR5", "SSD 500 GB". */
+export function chipsDeArmada(seleccion: Seleccion, piezas: Armado["piezas"]): string[] {
+  const chips: string[] = [];
+  const { procesador, video, memoria, almacenamiento } = seleccion;
+  if (procesador) chips.push(nombreCorto(procesador).replace(/^(amd|intel)\s+/i, ""));
+  if (video) {
+    const modelo = video.nombre.match(/\b(RTX|GTX|RX|Arc)\s*[A-Z]?\d{3,4}\s*(Ti|XTX|XT|GRE|SUPER)?/i)?.[0];
+    const gb = video.nombre.match(/(\d+)\s*GB/i)?.[1];
+    chips.push(modelo ? `${modelo.replace(/\s+/g, " ").trim()}${gb ? ` ${gb} GB` : ""}` : nombreCorto(video));
+  } else if (procesador) {
+    chips.push("Gráficos integrados");
+  }
+  if (memoria) {
+    const gb = memoria.nombre.match(/(\d+)\s*GB/i)?.[1];
+    const tipo = memoria.nombre.match(/DDR\d/i)?.[0]?.toUpperCase();
+    const total = gb ? Number(gb) * (piezas.memoria?.cantidad ?? 1) : null;
+    chips.push([total ? `${total} GB` : "", tipo ?? ""].filter(Boolean).join(" ") || nombreCorto(memoria));
+  }
+  if (almacenamiento) {
+    const capacidad = almacenamiento.nombre.match(/(\d+)\s*(GB|TB)/i);
+    const tipo = /ssd|nvme/i.test(almacenamiento.nombre) ? "SSD" : "Disco";
+    chips.push(capacidad ? `${tipo} ${capacidad[1]} ${capacidad[2].toUpperCase()}` : nombreCorto(almacenamiento));
+  }
+  return chips;
 }
 
 export function Insignia({ evaluacion }: { evaluacion: Evaluacion }) {
@@ -95,14 +121,16 @@ export type EstadoDeArmada = "libre" | "cargada" | "modificada";
 
 export function TarjetaDeArmada({
   nombre,
-  resumen,
+  texto,
+  chips,
   foto,
   totales,
   estado,
   onCargar,
 }: {
   nombre: string;
-  resumen: string;
+  texto: string;
+  chips: string[];
   foto: string | null;
   totales: Array<{ id: string; nombre: string; total: number }>;
   estado: EstadoDeArmada;
@@ -110,24 +138,27 @@ export function TarjetaDeArmada({
 }) {
   const [principal, segundo] = totales;
   return (
-    <article className={cn("flex min-w-0 gap-3 rounded-2xl bg-card p-3", estado === "libre" ? "border border-border" : "border-2 border-foreground")}>
-      <span className="flex w-[92px] shrink-0 items-center justify-center rounded-xl bg-placa-foto">
-        {foto && <img src={foto} alt="" loading="lazy" className="max-h-[110px] max-w-[78px] object-contain mix-blend-multiply" />}
+    <article className={cn("flex min-w-0 flex-col rounded-2xl bg-card p-3", estado === "libre" ? "border border-border" : "border-2 border-foreground")}>
+      <span className="flex h-[150px] items-center justify-center rounded-xl bg-placa-foto">
+        {foto && <img src={foto} alt="" loading="lazy" className="max-h-[130px] max-w-[70%] object-contain mix-blend-multiply" />}
       </span>
-      <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="font-display text-[17px] font-bold uppercase leading-tight">{nombre}</span>
-        <span className="text-xs leading-snug text-muted-foreground">{resumen}</span>
-        {principal && <span className="mt-0.5 text-[19px] font-bold tabular-nums">{formatearPesos(principal.total)}</span>}
-        {segundo && (
-          <span className="text-xs tabular-nums text-muted-foreground">
-            {formatearPesos(segundo.total)} con {segundo.nombre}
-          </span>
-        )}
+      <span className="mt-3 flex min-w-0 flex-1 flex-col gap-2 px-1">
+        <span className="font-display text-lg font-bold uppercase leading-tight">{nombre}</span>
+        {texto && <span className="line-clamp-2 text-[13px] leading-snug text-muted-foreground">{texto}</span>}
+        <ChipsDeDatos datos={chips} />
+        <span className="mt-auto flex flex-col pt-1">
+          {principal && <span className="text-[22px] font-bold tabular-nums">{formatearPesos(principal.total)}</span>}
+          {segundo && (
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {formatearPesos(segundo.total)} con {segundo.nombre}
+            </span>
+          )}
+        </span>
         <button
           type="button"
           onClick={onCargar}
           className={cn(
-            "mt-1 h-9 self-start rounded-xl border px-3.5 text-[13px] font-bold transition-colors",
+            "mt-1 h-10 w-full rounded-xl border px-3.5 text-[13px] font-bold transition-colors",
             estado === "cargada" && "border-foreground bg-foreground text-background",
             estado === "modificada" && "border-input hover:bg-secondary",
             estado === "libre" && "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
