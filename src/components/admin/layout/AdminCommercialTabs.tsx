@@ -17,6 +17,7 @@ const BusinessAlertsTab = lazy(() => import("@/components/admin/BusinessAlertsTa
 const QuotesAdminTab = lazy(() => import("@/components/admin/QuotesAdminTab").then((m) => ({ default: m.QuotesAdminTab })));
 const PurchaseOrdersTab = lazy(() => import("@/components/admin/PurchaseOrdersTab").then((m) => ({ default: m.PurchaseOrdersTab })));
 const PricingRulesTab = lazy(() => import("@/components/admin/PricingRulesTab").then((m) => ({ default: m.PricingRulesTab })));
+const DolarTab = lazy(() => import("@/components/admin/DolarTab").then((m) => ({ default: m.DolarTab })));
 const BundlesAdminTab = lazy(() => import("@/components/admin/BundlesAdminTab").then((m) => ({ default: m.BundlesAdminTab })));
 const ReportsTab = lazy(() => import("@/components/admin/ReportsTab").then((m) => ({ default: m.ReportsTab })));
 const ActivityLogTab = lazy(() => import("@/components/admin/ActivityLogTab").then((m) => ({ default: m.ActivityLogTab })));
@@ -162,6 +163,10 @@ export function AdminCommercialTabs({
 
       <KeepAliveTab active={activeTab === "pricing"} id="pricing">
         <PricingRulesTab isDark={isDark} categories={categoryNames} />
+      </KeepAliveTab>
+
+      <KeepAliveTab active={activeTab === "dolar"} id="dolar">
+        <DolarTab />
       </KeepAliveTab>
 
       <KeepAliveTab active={activeTab === "bundles"} id="bundles">

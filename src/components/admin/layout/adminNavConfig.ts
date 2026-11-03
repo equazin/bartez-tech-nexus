@@ -15,7 +15,7 @@ export type Tab =
   | "seller_mode" | "seller_management" | "seller_portfolio" | "seller_targets" | "seller_activity"
   | "clients" | "users_permissions" | "credit" | "business_alerts" | "documents" | "support"
   | "invoices" | "reports"
-  | "suppliers" | "brands" | "pricing" | "supplier_sync" | "stock" | "serials"
+  | "suppliers" | "brands" | "pricing" | "dolar" | "supplier_sync" | "stock" | "serials"
   | "movements" | "purchase_orders" | "rma" | "price_agreements" | "marketing" | "webhooks" | "activity" | "admin_management";
 
 export type ModuleId = "top" | "catalogo" | "pedidos" | "vendedores" | "clientes" | "finanzas" | "marketing" | "inventario" | "configuracion" | "sistema";
@@ -136,6 +136,7 @@ export const NAV_MODULES: NavModule[] = [
       { id: "suppliers",        label: "Proveedores",     icon: Building2,  adminOnly: true },
       { id: "brands",           label: "Marcas",          icon: Bookmark,   adminOnly: true },
       { id: "pricing",          label: "Precios",         icon: Tag,        adminOnly: true },
+      { id: "dolar",            label: "Dólar y margen",  icon: DollarSign, adminOnly: true },
       { id: "price_agreements", label: "Acuerdos Precio", icon: Handshake,  adminOnly: true },
       { id: "supplier_sync",    label: "Sync",            icon: Wifi,       adminOnly: true },
     ],

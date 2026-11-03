@@ -146,12 +146,12 @@
   ],
   "crons": [
     {
-      "path": "/api/sync-suppliers",
-      "schedule": "0 6 * * *"
-    },
-    {
       "path": "/api/cron/recurring-orders",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/precios?recurso=recalcular",
+      "schedule": "30 6 * * *"
     }
   ]
 }

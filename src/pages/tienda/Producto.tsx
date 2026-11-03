@@ -98,7 +98,7 @@ export default function Producto() {
             {producto.descripcion_corta && <p className="text-base leading-6 text-muted-foreground">{producto.descripcion_corta}</p>}
 
             <div className="space-y-4 rounded-2xl border border-border bg-card p-6">
-              <Precio precioFinal={producto.precio_final_ars} precioLista={producto.precio_lista_ars} tamano="ficha" />
+              <Precio precioFinal={producto.precio_final_ars} precioLista={producto.precio_lista_ars} tamano="ficha" conCuotas />
               <EstadoDeStock producto={producto} />
               <Button size="lg" className="w-full gap-2" disabled={!producto.hay_stock} onClick={() => agregarYAvisar(producto)}>
                 <ShoppingCart className="h-5 w-5" aria-hidden />

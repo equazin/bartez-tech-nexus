@@ -44,7 +44,7 @@ export function TarjetaProducto({ producto }: { producto: ProductoPublico }) {
           </Link>
         </h3>
         <div className="mt-auto flex flex-col gap-2 pt-2">
-          <Precio precioFinal={producto.precio_final_ars} precioLista={producto.precio_lista_ars} />
+          <Precio precioFinal={producto.precio_final_ars} precioLista={producto.precio_lista_ars} conCuotas />
           <EstadoDeStock producto={producto} />
         </div>
       </div>
