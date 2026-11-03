@@ -5,13 +5,13 @@ import path from "path";
 import usersHandler from "./api/users";
 import commerceHandler from "./api/commerce";
 import pricingHandler from "./api/pricing";
-import preciosHandler from "./api/precios";
-import pagosHandler from "./api/pagos";
-import legalHandler from "./api/legal";
+import preciosHandler from "./api/_tienda/precios";
+import pagosHandler from "./api/_tienda/pagos";
+import legalHandler from "./api/_tienda/legal";
 import productsHandler from "./api/products";
 import posProductsHandler from "./api/pos-products";
 import emailHandler from "./api/email";
-import checkoutHandler from "./api/checkout";
+import checkoutHandler from "./api/_tienda/checkout";
 import airProxyHandler from "./api/air-proxy";
 const ELIT_BASE = "https://clientes.elit.com.ar/v1/api";
 
