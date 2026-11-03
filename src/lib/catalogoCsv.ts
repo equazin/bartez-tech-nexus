@@ -271,6 +271,9 @@ export function interpretarCsv(
 
     texto("descripcion_corta", "description_short", 300);
     texto("descripcion", "description_full", 20_000);
+    // La tienda muestra description_full y, si está vacía, la descripción que trajo el mayorista.
+    // Borrar tiene que vaciar las dos para que no vuelva a aparecer el texto del mayorista.
+    if (celda("descripcion") === BORRAR) cambios.description = "";
 
     // Ficha técnica
     const ficha = celda("ficha_tecnica");
