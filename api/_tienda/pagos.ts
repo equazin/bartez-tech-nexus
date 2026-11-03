@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-import { fail, methodNotAllowed, ok } from "./_shared/http.js";
-import { configuracionDeMercadoPago, crearPreferencia, firmaValida, obtenerPago, reintegrar as reintegrarEnMercadoPago } from "./_shared/mercadopago.js";
-import { getRoleFromRequest } from "./_shared/roles.js";
-import { getSupabaseAdmin, getSupabaseClient } from "./_shared/supabaseServer.js";
-import { avisarAlComprador } from "./_shared/avisos.js";
+import { fail, methodNotAllowed, ok } from "../_shared/http.js";
+import { configuracionDeMercadoPago, crearPreferencia, firmaValida, obtenerPago, reintegrar as reintegrarEnMercadoPago } from "../_shared/mercadopago.js";
+import { getRoleFromRequest } from "../_shared/roles.js";
+import { getSupabaseAdmin, getSupabaseClient } from "../_shared/supabaseServer.js";
+import { avisarAlComprador } from "../_shared/avisos.js";
 
 /**
  * Pagos de la tienda.

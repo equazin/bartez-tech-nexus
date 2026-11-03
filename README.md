@@ -69,6 +69,8 @@ pedidos, los pagos y la auditoría.
   pedido se marca pagado solo por esos dos caminos. Envíos con una tarifa nacional por peso.
 - Panel en modo tienda (`VITE_MODO_TIENDA=consumidor`): Dólar y margen, Envíos, Pagos, Transferencia y medios, Legal.
   El portal mayorista de Bartez se borró; las pestañas mayoristas vuelven con `VITE_MODO_TIENDA=mayorista`.
+- Las rutas de la tienda (/api/checkout, /api/legal, /api/orders, /api/pagos y /api/precios) viven en `api/_tienda/` y salen
+  por la función única `api/tienda.ts` con rewrites en vercel.json: el plan Hobby de Vercel admite 12 funciones por deploy.
 - SEO: `npm run build` prerenderiza categorías y fichas (`scripts/prerender.mjs`) con datos estructurados y el sitemap.
 
 Pendiente del plan: la fase 12 (corte y lanzamiento). Nada de esto se verificó con pruebas ni builds todavía:

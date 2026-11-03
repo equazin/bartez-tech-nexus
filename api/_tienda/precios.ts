@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-import { consultarCuotas, hayMercadoPago, SIN_DATOS } from "./_shared/cuotas.js";
-import { fail, methodNotAllowed, ok } from "./_shared/http.js";
-import { getRoleFromRequest } from "./_shared/roles.js";
-import { getSupabaseAdmin, getSupabaseClient } from "./_shared/supabaseServer.js";
+import { consultarCuotas, hayMercadoPago, SIN_DATOS } from "../_shared/cuotas.js";
+import { fail, methodNotAllowed, ok } from "../_shared/http.js";
+import { getRoleFromRequest } from "../_shared/roles.js";
+import { getSupabaseAdmin, getSupabaseClient } from "../_shared/supabaseServer.js";
 
 /**
  * Precios de la tienda, en servidor.

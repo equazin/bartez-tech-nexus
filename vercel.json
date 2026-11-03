@@ -123,6 +123,26 @@
       "destination": "/api/email?scope=contact"
     },
     {
+      "source": "/api/checkout",
+      "destination": "/api/tienda?modulo=checkout"
+    },
+    {
+      "source": "/api/legal",
+      "destination": "/api/tienda?modulo=legal"
+    },
+    {
+      "source": "/api/orders",
+      "destination": "/api/tienda?modulo=orders"
+    },
+    {
+      "source": "/api/pagos",
+      "destination": "/api/tienda?modulo=pagos"
+    },
+    {
+      "source": "/api/precios",
+      "destination": "/api/tienda?modulo=precios"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },
@@ -133,11 +153,11 @@
   ],
   "crons": [
     {
-      "path": "/api/precios?recurso=recalcular",
+      "path": "/api/tienda?modulo=precios&recurso=recalcular",
       "schedule": "30 6 * * *"
     },
     {
-      "path": "/api/pagos?recurso=vencer",
+      "path": "/api/tienda?modulo=pagos&recurso=vencer",
       "schedule": "15 6 * * *"
     }
   ]

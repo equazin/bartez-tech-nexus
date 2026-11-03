@@ -1,11 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { fail, methodNotAllowed, ok, parsePagination } from "./_shared/http.js";
-import { getRoleFromRequest, ensureWriteRole } from "./_shared/roles.js";
-import { createOrderSchema, updateOrderSchema, ORDER_STATUSES, type OrderStatus } from "./_shared/schemas.js";
-import { getSupabaseClient, getSupabaseAdmin } from "./_shared/supabaseServer.js";
-import { notifyOrderStatusChange } from "./_shared/notifications.js";
-import { avisarAlComprador } from "./_shared/avisos.js";
-import type { ApiRole } from "./_shared/roles.js";
+import { fail, methodNotAllowed, ok, parsePagination } from "../_shared/http.js";
+import { getRoleFromRequest, ensureWriteRole } from "../_shared/roles.js";
+import { createOrderSchema, updateOrderSchema, ORDER_STATUSES, type OrderStatus } from "../_shared/schemas.js";
+import { getSupabaseClient, getSupabaseAdmin } from "../_shared/supabaseServer.js";
+import { notifyOrderStatusChange } from "../_shared/notifications.js";
+import { avisarAlComprador } from "../_shared/avisos.js";
+import type { ApiRole } from "../_shared/roles.js";
 
 /**
  * Pedidos. Los de la tienda (origen = 'tienda') siguen su propio flujo:

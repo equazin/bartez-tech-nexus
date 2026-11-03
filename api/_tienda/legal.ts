@@ -1,11 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
 
-import { fail, methodNotAllowed, ok } from "./_shared/http.js";
-import { createMailerTransport, getDefaultFromEmail, sanitizeHeaderText } from "./_shared/mailer.js";
-import { arrepentimientoRecibidoHTML } from "./_shared/plantillas.js";
-import { getRoleFromRequest } from "./_shared/roles.js";
-import { getSupabaseAdmin, getSupabaseClient } from "./_shared/supabaseServer.js";
+import { fail, methodNotAllowed, ok } from "../_shared/http.js";
+import { createMailerTransport, getDefaultFromEmail, sanitizeHeaderText } from "../_shared/mailer.js";
+import { arrepentimientoRecibidoHTML } from "../_shared/plantillas.js";
+import { getRoleFromRequest } from "../_shared/roles.js";
+import { getSupabaseAdmin, getSupabaseClient } from "../_shared/supabaseServer.js";
 
 /**
  * Legal.

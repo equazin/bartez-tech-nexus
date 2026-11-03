@@ -1,11 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-import { fail, methodNotAllowed, ok } from "./_shared/http.js";
-import { createMailerTransport, getDefaultFromEmail, sanitizeHeaderText } from "./_shared/mailer.js";
-import { compraRecibidaHTML } from "./_shared/plantillas.js";
-import { pedidoDeLaTiendaSchema, type PedidoDeLaTienda } from "./_shared/schemas.js";
-import { getSupabaseAdmin } from "./_shared/supabaseServer.js";
-import { configuracionDeMercadoPago } from "./_shared/mercadopago.js";
+import { fail, methodNotAllowed, ok } from "../_shared/http.js";
+import { createMailerTransport, getDefaultFromEmail, sanitizeHeaderText } from "../_shared/mailer.js";
+import { compraRecibidaHTML } from "../_shared/plantillas.js";
+import { pedidoDeLaTiendaSchema, type PedidoDeLaTienda } from "../_shared/schemas.js";
+import { getSupabaseAdmin } from "../_shared/supabaseServer.js";
+import { configuracionDeMercadoPago } from "../_shared/mercadopago.js";
 
 /**
  * POST /api/checkout · crea el pedido de un invitado.
