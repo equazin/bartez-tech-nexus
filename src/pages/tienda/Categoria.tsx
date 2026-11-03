@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { Cpu } from "lucide-react";
 import { Tienda } from "@/components/tienda/Tienda";
 import { MigasDePan } from "@/components/tienda/MigasDePan";
 import { NoEncontrado } from "@/components/tienda/NoEncontrado";
@@ -136,6 +137,22 @@ export default function Categoria() {
               );
             })}
           </ul>
+        )}
+
+        {migas[0]?.slug === "pc-y-componentes" && (
+          <Link
+            to="/arma-tu-pc"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card px-5 py-4 transition-colors hover:border-input"
+          >
+            <span className="flex items-center gap-3">
+              <Cpu className="h-7 w-7 shrink-0 text-primary" aria-hidden />
+              <span className="flex flex-col">
+                <span className="font-display text-lg font-bold uppercase leading-tight">¿Estás armando una PC?</span>
+                <span className="text-sm text-muted-foreground">En Armá tu PC elegís pieza por pieza y te mostramos solo lo compatible.</span>
+              </span>
+            </span>
+            <span className="text-sm font-bold">Ir al armador →</span>
+          </Link>
         )}
 
         <ListadoFiltrable productos={productos} cargando={cargando} error={error} textoVacio="Todavía no hay productos en esta categoría." />

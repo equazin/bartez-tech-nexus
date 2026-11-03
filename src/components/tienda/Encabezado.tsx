@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronDown, LayoutGrid, Package, Search, ShoppingCart } from "lucide-react";
+import { ChevronDown, Cpu, LayoutGrid, Package, Search, ShoppingCart } from "lucide-react";
 import { useCarritoDetallado } from "@/lib/tienda/carritoDetallado";
 import { encontrarCategoria, listarCategorias, rutaDeCategoria, type CategoriaPublica } from "@/lib/tienda/catalogo";
 import { formatearPesos } from "@/lib/tienda/dinero";
@@ -163,6 +163,12 @@ function MenuDeCategorias({ categorias }: { categorias: CategoriaPublica[] }) {
                       <span className="tabular-nums text-input">{hija.cantidad}</span>
                     </Link>
                   ))}
+                  {raiz.slug === "pc-y-componentes" && (
+                    <Link to="/arma-tu-pc" className="mt-1 flex min-h-8 items-center gap-2 text-sm font-bold text-foreground hover:underline">
+                      <Cpu className="h-4 w-4 text-primary" aria-hidden />
+                      Armá tu PC
+                    </Link>
+                  )}
                   {hijas.length === 0 && (
                     <Link to={`/${raiz.slug}`} className="flex min-h-8 items-center justify-between gap-2 text-sm text-muted-foreground hover:text-foreground">
                       <span>Ver todo</span>
@@ -235,6 +241,12 @@ function NavegacionPorCategoria({ categorias }: { categorias: CategoriaPublica[]
           })}
         </ul>
         <ul className="flex shrink-0 gap-1">
+          <li>
+            <NavLink to="/arma-tu-pc" className="flex h-[46px] items-center gap-2 whitespace-nowrap px-3 text-[15px] font-bold">
+              <Cpu className="h-4 w-4 text-primary" aria-hidden />
+              Armá tu PC
+            </NavLink>
+          </li>
           <li>
             <NavLink to="/ofertas" className="flex h-[46px] items-center gap-2 whitespace-nowrap px-3 text-[15px] font-bold">
               <span className="h-2 w-2 rounded-full bg-primary" aria-hidden />

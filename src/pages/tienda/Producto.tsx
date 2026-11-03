@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { CreditCard, Minus, Plus, RotateCcw, ShieldCheck, Truck } from "lucide-react";
+import { CreditCard, Cpu, Minus, Plus, RotateCcw, ShieldCheck, Truck } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tienda } from "@/components/tienda/Tienda";
 import { MigasDePan, type Miga } from "@/components/tienda/MigasDePan";
@@ -16,6 +16,7 @@ import { formatearPesos } from "@/lib/tienda/dinero";
 import { cotizarEnvio, textoDeDemora, type CotizacionDeEnvio } from "@/lib/tienda/envios";
 import { datosClaveConEtiqueta, esNotebook, paresDeFicha, valorDe } from "@/lib/tienda/ficha";
 import { complementosDe, parecidosA } from "@/lib/tienda/sugerencias";
+import { pasoDeCategoria } from "@/lib/tienda/armador";
 import { usarSeo } from "@/lib/tienda/seo";
 import { cn } from "@/lib/utils";
 
@@ -295,6 +296,21 @@ export default function Producto() {
             )}
 
             <CajaDeCompra producto={producto} />
+            {pasoDeCategoria(producto.categoria_slug) && (
+              <Link
+                to={`/arma-tu-pc?agregar=${producto.id}`}
+                className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-5 py-4 transition-colors hover:border-input"
+              >
+                <span className="flex items-center gap-3">
+                  <Cpu className="h-6 w-6 shrink-0 text-primary" aria-hidden />
+                  <span className="flex flex-col">
+                    <span className="text-[15px] font-bold">Sumalo a Armá tu PC</span>
+                    <span className="text-[13px] text-muted-foreground">Elegí el resto de las piezas y te mostramos solo las compatibles.</span>
+                  </span>
+                </span>
+                <span className="text-sm font-bold">→</span>
+              </Link>
+            )}
             <Envio producto={producto} />
 
             <ul className="flex flex-col gap-2.5 text-sm text-muted-foreground">

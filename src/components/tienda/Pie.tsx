@@ -56,6 +56,9 @@ export function Pie() {
                 {c.nombre}
               </Link>
             ))}
+            <Link to="/arma-tu-pc" className={ENLACE}>
+              Armá tu PC
+            </Link>
             <Link to="/ofertas" className={ENLACE}>
               Ofertas
             </Link>

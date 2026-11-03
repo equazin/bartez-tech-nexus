@@ -30,7 +30,8 @@ reales, marcas como bloque, y páginas de ayuda concretas ("Cómo comprar", "Env
 
 - Un solo precio final con IVA, mostrado como contado (transferencia) y en cuotas con Mercado Pago. Nada de
   "precio especial" ni "precio de lista" ambiguos.
-- Nada de armador de PC ni ampliaciones de memoria o disco: solo configuraciones de fábrica.
+- Nada de ampliaciones de memoria o disco en las notebooks: solo configuraciones de fábrica. El armador de PC sí
+  va, por decisión de Nico del 3/11/2026 (Armá tu PC, con componentes sueltos y compatibilidad verificada).
 - Nada de sucursal, retiro, entrega en el día ni ciudad destacada: el envío es el mismo en todo el país.
 - Sin superlativos que no se puedan probar ("la tienda #1"), sin signos de exclamación en títulos, sin
   mayúsculas gritadas en nombres de producto.
@@ -204,3 +205,14 @@ funciona en Compragamer y FullH4rd y la identidad Prisma × Central. Quedó prog
 
 Quedan para después, porque no hay contenido ni datos: las guías "¿Cuál me compro?", el bloque "¿Es para vos?" de la
 ficha, las preguntas y respuestas por producto y el texto propio del elegido de la semana.
+
+### Armá tu PC (3/11/2026)
+
+En /arma-tu-pc: ocho pasos (procesador, motherboard, memoria, almacenamiento, placa de video, fuente, gabinete y
+cooler) con las opciones ordenadas por compatibilidad según la ficha de cada componente: mismo socket entre procesador
+y motherboard, DDR4 o DDR5 según la motherboard, memoria de PC (UDIMM), formato de la motherboard que entra en el
+gabinete y potencia de fuente recomendada según el procesador y la placa de video. Avisa si el procesador no trae
+gráficos o cooler. Si falta un dato, pide confirmarlo en la ficha en lugar de bloquear. El resumen muestra los totales
+por transferencia y Mercado Pago y agrega todo al carrito. Se llega desde el menú, el desplegable de PC y
+componentes, el inicio, las categorías de componentes, la ficha de cada componente ("Sumalo a Armá tu PC") y el pie.
+Los coolers no traen socket en la ficha: el armador pide confirmarlo hasta que se cargue ese dato.

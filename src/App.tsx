@@ -19,6 +19,7 @@ const Categoria = lazy(() => import("./pages/tienda/Categoria"));
 const Producto = lazy(() => import("./pages/tienda/Producto"));
 const Buscar = lazy(() => import("./pages/tienda/Buscar"));
 const Comparar = lazy(() => import("./pages/tienda/Comparar"));
+const ArmaTuPc = lazy(() => import("./pages/tienda/ArmaTuPc"));
 const Vista = lazy(() => import("./pages/tienda/Vista"));
 const Carrito = lazy(() => import("./pages/tienda/Carrito"));
 const Checkout = lazy(() => import("./pages/tienda/Checkout"));
@@ -117,6 +118,7 @@ const App = () => (
                       <Route path="/" element={<Inicio />} />
                       <Route path="/buscar" element={<Buscar />} />
                       <Route path="/comparar" element={<Comparar />} />
+                      <Route path="/arma-tu-pc" element={<ArmaTuPc />} />
                       <Route path="/ofertas" element={<Vista tipo="ofertas" />} />
                       <Route path="/nuevos-ingresos" element={<Vista tipo="nuevos" />} />
                       <Route path="/carrito" element={<Carrito />} />

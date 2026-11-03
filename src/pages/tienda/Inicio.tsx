@@ -331,7 +331,14 @@ function BloqueDeComponentes({ raices }: { raices: CategoriaPublica[] | null }) 
       <EncabezadoDeSeccion titulo={nodo.nombre} enlace={{ texto: `Ver los ${nodo.cantidad} productos`, ruta: `/${nodo.slug}` }} />
       <div className="flex flex-wrap items-stretch gap-3">
         <nav aria-label={`Categorías de ${nodo.nombre}`} className="flex max-w-full flex-[1_1_260px] flex-col rounded-2xl border border-border bg-card p-5">
-          <p className="pb-2 text-sm leading-relaxed text-muted-foreground">Para armar tu PC de cero o cambiar una pieza. Cada ficha dice socket, formato y potencia.</p>
+          <div className="mb-3 flex flex-col gap-2 rounded-xl bg-background p-4">
+            <p className="font-display text-xl font-bold uppercase leading-none">Armá tu PC</p>
+            <p className="text-sm leading-relaxed text-muted-foreground">Elegí pieza por pieza y te mostramos solo lo compatible: socket, memoria, formato y potencia.</p>
+            <Link to="/arma-tu-pc" className="flex h-11 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground hover:bg-primary/90">
+              Empezar a armar
+            </Link>
+          </div>
+          <p className="pb-2 text-sm leading-relaxed text-muted-foreground">O mirá cada categoría:</p>
           {hijas.map((h) => (
             <Link key={h.id} to={`/${h.slug}`} className="flex min-h-11 items-center justify-between border-t border-border text-[15px] font-medium hover:underline">
               <span>{h.nombre}</span>
