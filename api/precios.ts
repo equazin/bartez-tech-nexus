@@ -49,6 +49,17 @@ async function quienPide(req: VercelRequest): Promise<{ admin: boolean; userId: 
   return { admin: rol === "admin", userId };
 }
 
+/** Con VERCEL_DEPLOY_HOOK_URL, un cambio de precios dispara un despliegue que vuelve a prerenderizar las fichas. */
+async function pedirDespliegue(motivo: string): Promise<void> {
+  const hook = process.env.VERCEL_DEPLOY_HOOK_URL?.trim();
+  if (!hook) return;
+  try {
+    await fetch(hook, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ motivo }) });
+  } catch (e: unknown) {
+    console.error("[precios] No se pudo pedir el despliegue:", e instanceof Error ? e.message : e);
+  }
+}
+
 function esElCron(req: VercelRequest): boolean {
   const secreto = process.env.CRON_SECRET?.trim();
   return Boolean(secreto) && req.headers.authorization === `Bearer ${secreto}`;
@@ -125,6 +136,7 @@ async function dolar(req: VercelRequest, res: VercelResponse) {
     configuracionGuardada = null;
     const { data: recalculados, error: errorRecalculo } = await supabase.rpc("recalcular_precios");
     if (errorRecalculo) throw new Error(`Se guardó el dólar pero falló el recálculo: ${errorRecalculo.message}`);
+    void pedirDespliegue("dolar");
     return ok(res, { ...(await estadoDelDolar()), recalculados: Number(recalculados ?? 0) });
   }
 
@@ -188,5 +200,6 @@ async function recalcular(req: VercelRequest, res: VercelResponse) {
   }
   const { data, error } = await getSupabaseAdmin().rpc("recalcular_precios");
   if (error) throw new Error(`No se pudieron recalcular los precios: ${error.message}`);
+  void pedirDespliegue("recalculo");
   return ok(res, { recalculados: Number(data ?? 0), en: new Date().toISOString() });
 }
