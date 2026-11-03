@@ -13,7 +13,7 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { session, loading, isAdmin, signIn } = useAuth();
+  const { session, loading, isAdmin, signIn, signOut } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -25,7 +25,9 @@ const Login = () => {
   const didResetPassword = locationState?.passwordReset === true;
 
   useEffect(() => {
-    if (!loading && session) {
+    // Una cuenta con sesión pero sin rol de administrador se queda acá con el aviso: si se la
+    // mandara a /admin, RequireAdmin la devolvería al login y quedaría en un loop.
+    if (!loading && session && isAdmin) {
       const fromPath = locationState?.from?.pathname;
       const fromSearch = locationState?.from?.search ?? "";
       const adminOnlyTarget = fromPath === "/admin" || fromPath?.startsWith("/clientes/");
@@ -90,13 +92,26 @@ const Login = () => {
           <PageHeader
             align="center"
             className="w-full max-w-full"
-            eyebrow="Portal B2B"
-            title="Ingresa a tu cuenta"
-            description="Accede a catálogo, precios y seguimiento de pedidos desde un único acceso."
+            eyebrow="Panel de Teqo"
+            title="Ingresá al panel"
+            description="Solo para el equipo de Teqo: productos, precios, pedidos y configuración de la tienda."
           />
         </div>
 
         <SurfaceCard tone="glass" padding="md" className="w-full max-w-full space-y-5 sm:p-8">
+          {session && !isAdmin ? (
+            <div className="space-y-4">
+              <p className="text-sm text-foreground">
+                La cuenta {session.user.email} no tiene acceso al panel.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Pedile a un administrador que le asigne el rol, o cerrá sesión y entrá con otra cuenta.
+              </p>
+              <Button type="button" className="w-full" onClick={() => void signOut()}>
+                Cerrar sesión
+              </Button>
+            </div>
+          ) : (
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-foreground" htmlFor="email">
@@ -208,6 +223,7 @@ const Login = () => {
               )}
             </Button>
           </form>
+          )}
         </SurfaceCard>
 
         <div className="mt-6 space-y-3 text-center">
