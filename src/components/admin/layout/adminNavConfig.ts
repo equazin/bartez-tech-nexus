@@ -17,7 +17,7 @@ export type Tab =
   | "invoices" | "reports"
   | "suppliers" | "brands" | "pricing" | "dolar" | "envios" | "pagos" | "transferencia" | "arrepentimientos" | "textos_legales" | "supplier_sync" | "stock" | "serials"
   | "movements" | "purchase_orders" | "rma" | "price_agreements" | "marketing" | "webhooks" | "activity" | "admin_management"
-  | "pc_armadas" | "servicios_tienda" | "portada";
+  | "pc_armadas" | "servicios_tienda" | "portada" | "secciones_inicio";
 
 export type ModuleId = "top" | "catalogo" | "armador" | "pedidos" | "vendedores" | "clientes" | "finanzas" | "marketing" | "inventario" | "configuracion" | "sistema" | "legal";
 
@@ -124,6 +124,7 @@ const NAV_MODULES_COMPLETOS: NavModule[] = [
     items: [
       { id: "marketing", label: "Campañas", icon: Ticket,    adminOnly: true },
       { id: "portada",   label: "Portada del inicio", icon: Image, adminOnly: true },
+      { id: "secciones_inicio", label: "Secciones del inicio", icon: Layers, adminOnly: true },
       { id: "support",   label: "Soporte",  icon: LifeBuoy,  adminOnly: true },
     ],
   },

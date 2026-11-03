@@ -22,6 +22,7 @@ const EnviosTab = lazy(() => import("@/components/admin/EnviosTab").then((m) => 
 const PagosTab = lazy(() => import("@/components/admin/PagosTab").then((m) => ({ default: m.PagosTab })));
 const TransferenciaTab = lazy(() => import("@/components/admin/TransferenciaTab").then((m) => ({ default: m.TransferenciaTab })));
 const ArrepentimientosTab = lazy(() => import("@/components/admin/ArrepentimientosTab").then((m) => ({ default: m.ArrepentimientosTab })));
+const SeccionesInicioTab = lazy(() => import("@/components/admin/SeccionesInicioTab").then((m) => ({ default: m.SeccionesInicioTab })));
 const PortadaTab = lazy(() => import("@/components/admin/PortadaTab").then((m) => ({ default: m.PortadaTab })));
 const PcArmadasTab = lazy(() => import("@/components/admin/PcArmadasTab").then((m) => ({ default: m.PcArmadasTab })));
 const ServiciosTiendaTab = lazy(() => import("@/components/admin/ServiciosTiendaTab").then((m) => ({ default: m.ServiciosTiendaTab })));
@@ -190,6 +191,10 @@ export function AdminCommercialTabs({
 
       <KeepAliveTab active={activeTab === "arrepentimientos"} id="arrepentimientos">
         <ArrepentimientosTab />
+      </KeepAliveTab>
+
+      <KeepAliveTab active={activeTab === "secciones_inicio"} id="secciones_inicio">
+        <SeccionesInicioTab />
       </KeepAliveTab>
 
       <KeepAliveTab active={activeTab === "portada"} id="portada">
