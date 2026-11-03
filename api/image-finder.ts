@@ -196,8 +196,8 @@ async function getMercadoLibreToken(): Promise<string> {
     return cachedMlToken;
   }
   
-  const appId = process.env.MERCADOLIBRE_APP_ID || "7715567298781097";
-  const clientSecret = process.env.MERCADOLIBRE_CLIENT_SECRET || "JzmAXvIQQKz68aYn2tVumR5M5INFEdVk";
+  const appId = process.env.MERCADOLIBRE_APP_ID?.trim() || "";
+  const clientSecret = process.env.MERCADOLIBRE_CLIENT_SECRET?.trim() || "";
 
   if (!appId || !clientSecret) {
     console.warn("[mercadolibre] Missing AppID or ClientSecret");

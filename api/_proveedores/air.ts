@@ -1,4 +1,4 @@
-import { extractAirJsonPayload } from "../src/lib/suppliers/air/response";
+import { extractAirJsonPayload } from "../../src/lib/suppliers/air/response";
 
 /**
  * Proxy serverless para la API AIR Intranet.
@@ -294,7 +294,6 @@ export default async function handler(request: Request): Promise<Response> {
   return firstResponse;
 }
 
-export const config = { runtime: "edge" };
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {

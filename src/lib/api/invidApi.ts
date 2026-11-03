@@ -1,13 +1,10 @@
 import { logger } from "@/lib/logger";
+import { encabezadosDelPanel } from "@/lib/api/encabezadosDelPanel";
 
-
-export interface InvidAuthResponse {
-  status: number;
-  access_token: string;
-  token_type: string;
-  expiration_time: number;
-  username: string;
-}
+/**
+ * Cliente de INVID. Pasa por el proxy /api/invid-proxy, que tiene las credenciales del
+ * lado del servidor (INVID_USER e INVID_PASSWORD) y exige sesión del panel.
+ */
 
 export interface InvidArticle {
   ID: string;
@@ -36,60 +33,32 @@ export interface InvidArticleResponse {
   status: number;
   data: InvidArticle[];
   next_page_url?: string;
+  message?: string;
 }
 
-let cachedToken: string | null = null;
-let tokenExpiresAt = 0;
-
-export async function getInvidToken(): Promise<string | null> {
-  if (cachedToken && Date.now() < tokenExpiresAt) {
-    return cachedToken;
-  }
-
-  const username = import.meta.env.VITE_INVID_USER || "bandres";
-  const password = import.meta.env.VITE_INVID_PASSWORD || "Benitez_a";
-
-  try {
-    const res = await fetch("https://www.invidcomputers.com/api/v1/auth.php", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
-
-    if (!res.ok) {
-      logger.error("INVID auth error:", res.status, await res.text());
-      return null;
-    }
-
-    const data = await res.json() as InvidAuthResponse;
-    if (data.status === 1 && data.access_token) {
-      cachedToken = data.access_token;
-      tokenExpiresAt = Date.now() + ((data.expiration_time || 3600) * 1000) - 60000;
-      return cachedToken;
-    }
-    return null;
-  } catch (err) {
-    logger.error("Failed to fetch INVID token", err);
-    return null;
-  }
-}
+const PROXY_URL = "/api/invid-proxy";
 
 export async function fetchInvidArticlesPage(offset = 0): Promise<InvidArticleResponse | null> {
-  const token = await getInvidToken();
-  if (!token) return null;
-
   try {
-    const res = await fetch(`https://www.invidcomputers.com/api/v1/articulo.php?offset=${offset}`, {
+    const res = await fetch(`${PROXY_URL}?offset=${encodeURIComponent(String(offset))}`, {
       method: "GET",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: await encabezadosDelPanel(),
     });
 
     if (!res.ok) {
-      logger.error("INVID articles error:", res.status, await res.text());
-      return null;
+      const cuerpo = await res.text().catch(() => "");
+      let mensaje = `HTTP ${res.status}`;
+      try {
+        const parsed = JSON.parse(cuerpo) as { error?: unknown };
+        if (typeof parsed.error === "string") mensaje = parsed.error;
+      } catch {
+        // cuerpo no JSON
+      }
+      logger.error("INVID articles error:", res.status, mensaje);
+      return { status: 0, data: [], message: mensaje };
     }
 
-    return await res.json() as InvidArticleResponse;
+    return (await res.json()) as InvidArticleResponse;
   } catch (err) {
     logger.error("Failed to fetch INVID articles", err);
     return null;

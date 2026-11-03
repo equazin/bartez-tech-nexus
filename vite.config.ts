@@ -9,14 +9,13 @@ import productsHandler from "./api/products";
 import posProductsHandler from "./api/pos-products";
 import emailHandler from "./api/email";
 import checkoutHandler from "./api/checkout";
-import airProxyHandler from "./api/air-proxy";
-const ELIT_BASE = "https://clientes.elit.com.ar/v1/api";
+import proveedoresHandler from "./api/proveedores";
 
-const ELIT_ALLOWED_PATHS = new Set(["productos"]);
-
-function resolveEnvValue(env: Record<string, string>, key: string): string {
-  return env[key]?.trim() || process.env[key]?.trim() || "";
-}
+const PROXIES_DE_PROVEEDORES: Record<string, string> = {
+  "/api/air-proxy": "air",
+  "/api/elit-proxy": "elit",
+  "/api/invid-proxy": "invid",
+};
 
 async function readRequestBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -94,7 +93,7 @@ async function invokeFetchHandler(
   await sendFetchResponse(res, response);
 }
 
-function devApiProxyPlugin(env: Record<string, string>): PluginOption {
+function devApiProxyPlugin(): PluginOption {
   return {
     name: "dev-api-proxy",
     configureServer(server) {
@@ -113,9 +112,10 @@ function devApiProxyPlugin(env: Record<string, string>): PluginOption {
           }
         }
 
-        if (requestUrl && pathname === "/api/air-proxy") {
+        if (requestUrl && PROXIES_DE_PROVEEDORES[pathname]) {
           try {
-            await invokeFetchHandler(req, res, requestUrl, airProxyHandler);
+            requestUrl.searchParams.set("proveedor", PROXIES_DE_PROVEEDORES[pathname]);
+            await invokeFetchHandler(req, res, requestUrl, proveedoresHandler);
             return;
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -167,68 +167,7 @@ function devApiProxyPlugin(env: Record<string, string>): PluginOption {
           }
         }
 
-        if (pathname !== "/api/elit-proxy") {
-          next();
-          return;
-        }
-
-        if (req.method !== "POST") {
-          sendJson(res, 405, { ok: false, error: "Method not allowed. Use POST." });
-          return;
-        }
-
-        try {
-          const pathParam = requestUrl?.searchParams.get("path") ?? "";
-          if (!pathParam || !ELIT_ALLOWED_PATHS.has(pathParam)) {
-            sendJson(res, 400, { ok: false, error: "Missing or disallowed path parameter." });
-            return;
-          }
-
-          const userId = resolveEnvValue(env, "ELIT_API_USER_ID");
-          const token = resolveEnvValue(env, "ELIT_API_TOKEN");
-          if (!userId || !token) {
-            sendJson(res, 500, { ok: false, error: "ELIT credentials not configured." });
-            return;
-          }
-
-          const query = new URLSearchParams();
-          requestUrl?.searchParams.forEach((value, key) => {
-            if (key !== "path") {
-              query.set(key, value);
-            }
-          });
-          if (!query.has("limit")) {
-            query.set("limit", "100");
-          }
-
-          const rawBody = await readRequestBody(req);
-          let body: Record<string, unknown> = {};
-          if (rawBody) {
-            const parsed = JSON.parse(rawBody);
-            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-              body = parsed as Record<string, unknown>;
-            }
-          }
-
-          const elitUrl = `${ELIT_BASE}/${pathParam}?${query.toString()}`;
-          const upstream = await fetch(elitUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              ...body,
-              user_id: Number(userId),
-              token,
-            }),
-          });
-
-          await sendFetchResponse(res, upstream);
-          return;
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          sendJson(res, 502, { ok: false, error: message });
-        }
+        next();
       });
     },
   };
@@ -249,9 +188,10 @@ export default defineConfig(({ mode }) => {
     "AIR_API_USER",
     "AIR_API_PASS",
     "AIR_TOKEN",
-    "VITE_AIR_TOKEN",
     "ELIT_API_USER_ID",
     "ELIT_API_TOKEN",
+    "INVID_USER",
+    "INVID_PASSWORD",
     "PUBLIC_POS_MARGIN_PCT",
   ]) {
     if (env[key]) {
@@ -267,7 +207,7 @@ export default defineConfig(({ mode }) => {
         overlay: false,
       },
     },
-    plugins: [react(), devApiProxyPlugin(env)],
+    plugins: [react(), devApiProxyPlugin()],
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
