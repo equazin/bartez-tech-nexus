@@ -116,8 +116,6 @@ export default async function handler(request: Request): Promise<Response> {
   }
 }
 
-// Run as Edge Function — no hard Lambda timeout; streaming responses can run indefinitely.
-export const config = { runtime: "edge" };
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {

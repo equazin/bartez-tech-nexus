@@ -1,3 +1,4 @@
+import { encabezadosDelPanel } from "@/lib/api/encabezadosDelPanel";
 const PROXY_URL = "/api/elit-proxy";
 
 export class ElitApiError extends Error {
@@ -82,6 +83,7 @@ async function elitFetch<T>(path: string, params: Record<string, string | number
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(await encabezadosDelPanel()),
     },
     body: JSON.stringify({}),
   });

@@ -1,6 +1,8 @@
 {
   "cleanUrls": true,
-  "regions": ["gru1"],
+  "regions": [
+    "gru1"
+  ],
   "functions": {
     "api/image-finder.ts": {
       "maxDuration": 120
@@ -13,31 +15,91 @@
     }
   },
   "redirects": [
-    { "source": "/arrepentimiento", "destination": "/", "permanent": true },
-    { "source": "/arrepentimiento/:path*", "destination": "/", "permanent": true },
-
-    { "source": "/producto/:slug*", "destination": "/", "permanent": true }
+    {
+      "source": "/arrepentimiento",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/arrepentimiento/:path*",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/producto/:slug*",
+      "destination": "/",
+      "permanent": true
+    }
   ],
   "rewrites": [
-    { "source": "/sitemap.xml", "destination": "/sitemap.xml" },
-    { "source": "/robots.txt", "destination": "/robots.txt" },
-    { "source": "/assets/(.*)", "destination": "/assets/$1" },
-
-    { "source": "/api/create-user", "destination": "/api/users" },
-    { "source": "/api/profiles", "destination": "/api/users?scope=profile" },
-    { "source": "/api/impersonate", "destination": "/api/users?scope=impersonate" },
-    
-    { "source": "/api/quotes", "destination": "/api/commerce?resource=quotes" },
-    { "source": "/api/rma", "destination": "/api/commerce?resource=rma" },
-    
-    { "source": "/api/coupons", "destination": "/api/pricing/coupons" },
-    { "source": "/api/pricing/:path*", "destination": "/api/pricing" },
-    
-    { "source": "/api/stock", "destination": "/api/products?scope=stock" },
-    { "source": "/api/contact", "destination": "/api/email?scope=contact" },
-
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/" }
+    {
+      "source": "/sitemap.xml",
+      "destination": "/sitemap.xml"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/robots.txt"
+    },
+    {
+      "source": "/assets/(.*)",
+      "destination": "/assets/$1"
+    },
+    {
+      "source": "/api/create-user",
+      "destination": "/api/users"
+    },
+    {
+      "source": "/api/profiles",
+      "destination": "/api/users?scope=profile"
+    },
+    {
+      "source": "/api/impersonate",
+      "destination": "/api/users?scope=impersonate"
+    },
+    {
+      "source": "/api/quotes",
+      "destination": "/api/commerce?resource=quotes"
+    },
+    {
+      "source": "/api/rma",
+      "destination": "/api/commerce?resource=rma"
+    },
+    {
+      "source": "/api/coupons",
+      "destination": "/api/pricing/coupons"
+    },
+    {
+      "source": "/api/pricing/:path*",
+      "destination": "/api/pricing"
+    },
+    {
+      "source": "/api/stock",
+      "destination": "/api/products?scope=stock"
+    },
+    {
+      "source": "/api/contact",
+      "destination": "/api/email?scope=contact"
+    },
+    {
+      "source": "/api/air-proxy",
+      "destination": "/api/proveedores?proveedor=air"
+    },
+    {
+      "source": "/api/elit-proxy",
+      "destination": "/api/proveedores?proveedor=elit"
+    },
+    {
+      "source": "/api/invid-proxy",
+      "destination": "/api/proveedores?proveedor=invid"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/"
+    }
   ],
   "crons": [
     {
