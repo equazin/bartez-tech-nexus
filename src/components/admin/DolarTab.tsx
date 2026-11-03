@@ -14,7 +14,7 @@ function valorDe(estado: EstadoDelDolar | null, clave: "margen_base" | "redondeo
   return fila?.valor === null || fila?.valor === undefined ? "" : String(fila.valor);
 }
 
-/** Precios › Dólar y margen: el dólar vigente, su historial, el margen base, el redondeo y las cuotas máximas. */
+/** Precios › Dólar y margen: el dólar vigente, su historial, el redondeo y las cuotas máximas. El margen está en cada medio de pago. */
 export function DolarTab() {
   const [estado, setEstado] = useState<EstadoDelDolar | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -22,13 +22,11 @@ export function DolarTab() {
   const [guardando, setGuardando] = useState(false);
   const [nuevoDolar, setNuevoDolar] = useState("");
   const [nota, setNota] = useState("");
-  const [margen, setMargen] = useState("");
   const [redondeo, setRedondeo] = useState("");
   const [cuotasMaximas, setCuotasMaximas] = useState("");
 
   function tomar(nuevo: EstadoDelDolar) {
     setEstado(nuevo);
-    setMargen(valorDe(nuevo, "margen_base"));
     setRedondeo(valorDe(nuevo, "redondeo_pesos"));
     setCuotasMaximas(valorDe(nuevo, "cuotas_maximas"));
   }
@@ -76,7 +74,6 @@ export function DolarTab() {
     setGuardando(true);
     try {
       const nuevo = await guardarConfiguracionDePrecios({
-        margen_base: Number(margen.replace(",", ".")),
         redondeo_pesos: Number(redondeo.replace(",", ".")),
         cuotas_maximas: cuotasMaximas.trim() === "" ? null : Number(cuotasMaximas),
       });
@@ -162,17 +159,13 @@ export function DolarTab() {
 
       <SurfaceCard className="space-y-4">
         <div>
-          <h2 className="text-lg font-bold">Margen, redondeo y cuotas</h2>
+          <h2 className="text-lg font-bold">Redondeo y cuotas</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            El precio final es el costo en pesos más el margen (el de la regla que coincide o este margen base), más el IVA del producto,
-            redondeado. Cualquier cambio recalcula todos los precios que no sean manuales.
+            El margen sobre el costo lo pone cada medio de pago (transferencia y Mercado Pago), en Configuración › Transferencia y medios. Una
+            regla de precios suma su margen encima. Cualquier cambio de acá recalcula todos los precios que no sean manuales.
           </p>
         </div>
         <form onSubmit={enviarConfiguracion} className="space-y-3">
-          <label className="block space-y-1 text-sm">
-            <span className="font-medium">Margen base (%)</span>
-            <Input inputMode="decimal" value={margen} onChange={(e) => setMargen(e.target.value)} />
-          </label>
           <label className="block space-y-1 text-sm">
             <span className="font-medium">Redondeo (pesos)</span>
             <Input inputMode="numeric" value={redondeo} onChange={(e) => setRedondeo(e.target.value)} />

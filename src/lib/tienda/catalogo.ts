@@ -6,11 +6,10 @@ import { resolveProductImageUrl } from "@/lib/productImage";
  * `tienda_categorias` y `tienda_buscar`, que nunca exponen costo ni margen.
  */
 
-/** El precio final del producto pagando con un medio, con su recargo ya sumado. */
+/** El precio final del producto pagando con un medio, con el margen de ese medio ya aplicado. */
 export interface PrecioPorMedio {
   id: string;
   nombre: string;
-  recargo: number;
   precio: number | null;
 }
 

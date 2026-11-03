@@ -18,8 +18,8 @@ export function TransferenciaTab() {
   const [config, setConfig] = useState<ConfiguracionDePagos | null>(null);
   const [cuenta, setCuenta] = useState<Record<string, string>>({});
   const [horas, setHoras] = useState("");
-  const [recargos, setRecargos] = useState<Record<string, string>>({});
-  const [guardandoRecargos, setGuardandoRecargos] = useState(false);
+  const [margenes, setMargenes] = useState<Record<string, string>>({});
+  const [guardandoMargenes, setGuardandoMargenes] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
 
@@ -27,28 +27,28 @@ export function TransferenciaTab() {
     setConfig(c);
     setCuenta(Object.fromEntries(CAMPOS.map(({ clave }) => [clave, c.transferencia?.[clave] ?? ""])));
     setHoras(c.pendiente_vence_horas === null ? "" : String(c.pendiente_vence_horas));
-    setRecargos(Object.fromEntries(c.medios.map((m) => [m.id, String(Number(m.recargo_porcentaje ?? 0))])));
+    setMargenes(Object.fromEntries(c.medios.map((m) => [m.id, String(Number(m.margen_porcentaje ?? 0))])));
   }
 
-  async function guardarRecargos(evento: FormEvent) {
+  async function guardarMargenes(evento: FormEvent) {
     evento.preventDefault();
     const valores: Record<string, number> = {};
-    for (const [id, texto] of Object.entries(recargos)) {
+    for (const [id, texto] of Object.entries(margenes)) {
       const numero = Number(texto.replace(",", "."));
-      if (!Number.isFinite(numero) || numero < 0 || numero > 100) {
-        toast.error("Cada recargo va de 0 a 100 %.");
+      if (!Number.isFinite(numero) || numero < 0 || numero > 500) {
+        toast.error("Cada margen va de 0 a 500 %.");
         return;
       }
       valores[id] = numero;
     }
-    setGuardandoRecargos(true);
+    setGuardandoMargenes(true);
     try {
-      tomar(await guardarConfiguracionDePagos({ recargos: valores }));
-      toast.success("Recargos guardados: la tienda ya muestra los precios nuevos");
+      tomar(await guardarConfiguracionDePagos({ margenes: valores }));
+      toast.success("Márgenes guardados: la tienda ya muestra los precios nuevos");
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "No se pudieron guardar los recargos.");
+      toast.error(e instanceof Error ? e.message : "No se pudieron guardar los márgenes.");
     } finally {
-      setGuardandoRecargos(false);
+      setGuardandoMargenes(false);
     }
   }
 
@@ -149,23 +149,24 @@ export function TransferenciaTab() {
             </li>
           ))}
         </ul>
-        <form onSubmit={guardarRecargos} className="space-y-3 border-t border-border pt-4">
+        <form onSubmit={guardarMargenes} className="space-y-3 border-t border-border pt-4">
           <div>
-            <h3 className="font-bold">Recargo por medio</h3>
+            <h3 className="font-bold">Margen por medio de pago</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Porcentaje que se suma al precio final con IVA de cada producto según cómo paga el cliente. La tienda muestra los dos precios y cobra el del medio elegido. El envío no lleva recargo.
+              Margen sobre el costo según cómo paga el cliente: precio = costo en pesos × (1 + margen) + IVA. La tienda muestra el precio de cada medio y cobra el del
+              elegido. Una regla de precios por categoría o producto suma su margen encima. El envío no lleva margen.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {config.medios.map((medio) => (
               <label key={medio.id} className="block space-y-1 text-sm">
-                <span className="font-medium">{medio.nombre} (%)</span>
-                <Input inputMode="decimal" value={recargos[medio.id] ?? "0"} onChange={(e) => setRecargos({ ...recargos, [medio.id]: e.target.value })} />
+                <span className="font-medium">{medio.nombre} (% sobre el costo)</span>
+                <Input inputMode="decimal" value={margenes[medio.id] ?? "0"} onChange={(e) => setMargenes({ ...margenes, [medio.id]: e.target.value })} />
               </label>
             ))}
           </div>
-          <Button type="submit" disabled={guardandoRecargos}>
-            Guardar recargos
+          <Button type="submit" disabled={guardandoMargenes}>
+            Guardar márgenes
           </Button>
         </form>
       </SurfaceCard>

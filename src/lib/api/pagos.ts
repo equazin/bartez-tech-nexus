@@ -30,7 +30,7 @@ export interface PagoDelPanel {
 export interface ConfiguracionDePagos {
   transferencia: { titular?: string | null; cuit?: string | null; banco?: string | null; cbu?: string | null; alias?: string | null };
   pendiente_vence_horas: number | null;
-  medios: Array<{ id: "mercadopago" | "transferencia"; nombre: string; detalle: string; activo: boolean; orden: number; recargo_porcentaje: number | string }>;
+  medios: Array<{ id: "mercadopago" | "transferencia"; nombre: string; detalle: string; activo: boolean; orden: number; margen_porcentaje: number | string }>;
   mercadopago_configurado: boolean;
   webhook_configurado: boolean;
 }
@@ -62,7 +62,7 @@ export const leerConfiguracionDePagos = () => llamarPagos<ConfiguracionDePagos>(
 export const guardarConfiguracionDePagos = (cambios: {
   transferencia?: ConfiguracionDePagos["transferencia"];
   medios?: Record<string, boolean>;
-  recargos?: Record<string, number>;
+  margenes?: Record<string, number>;
   pendiente_vence_horas?: number | null;
 }) =>
   llamarPagos<ConfiguracionDePagos>("configuracion", { method: "PATCH", body: cambios });

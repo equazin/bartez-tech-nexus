@@ -6,8 +6,6 @@ export interface MedioDisponible {
   id: MedioDePago;
   nombre: string;
   detalle: string;
-  /** Porcentaje que suma este medio sobre el precio final (Configuración › Transferencia y medios). */
-  recargo?: number;
 }
 
 /** Los medios que ofrece el checkout. La fase de pagos los toma de la configuración del panel. */

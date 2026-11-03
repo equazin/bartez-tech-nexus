@@ -16,7 +16,7 @@ import { avisarAlComprador } from "../_shared/avisos.js";
  *   POST  ?recurso=validar {order_id}           admin: confirma una transferencia (único camino a "pagado" para ese medio)
  *   POST  ?recurso=cancelar {order_id, motivo}  admin: cancela un pedido pendiente y libera el stock
  *   POST  ?recurso=reintegrar {pago_id, monto?} admin: reintegro total o parcial
- *   GET/PATCH ?recurso=configuracion            admin: cuenta bancaria, medios activos, recargo por medio y plazo de vencimiento
+ *   GET/PATCH ?recurso=configuracion            admin: cuenta bancaria, medios activos, margen por medio y plazo de vencimiento
  *   GET/POST ?recurso=vencer                    admin o cron: vence los pedidos pendientes que pasaron el plazo
  */
 
@@ -147,13 +147,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 }
 
 // ── Medios activos ──────────────────────────────────────────────────────────
-async function mediosActivos(): Promise<Array<{ id: string; nombre: string; detalle: string; recargo: number }>> {
-  const { data, error } = await getSupabaseAdmin().from("medios_de_pago").select("id, nombre, detalle, activo, orden, recargo_porcentaje").order("orden");
+// El margen de cada medio no sale acá: con el margen y el precio se podría calcular el costo.
+async function mediosActivos(): Promise<Array<{ id: string; nombre: string; detalle: string }>> {
+  const { data, error } = await getSupabaseAdmin().from("medios_de_pago").select("id, nombre, detalle, activo, orden").order("orden");
   if (error) throw new Error(error.message);
   const hayMercadoPago = configuracionDeMercadoPago() !== null;
-  return ((data ?? []) as Array<{ id: string; nombre: string; detalle: string; activo: boolean; recargo_porcentaje: number | string | null }>)
+  return ((data ?? []) as Array<{ id: string; nombre: string; detalle: string; activo: boolean }>)
     .filter((m) => m.activo && (m.id !== "mercadopago" || hayMercadoPago))
-    .map(({ id, nombre, detalle, recargo_porcentaje }) => ({ id, nombre, detalle, recargo: Number(recargo_porcentaje ?? 0) || 0 }));
+    .map(({ id, nombre, detalle }) => ({ id, nombre, detalle }));
 }
 
 async function medios(req: VercelRequest, res: VercelResponse) {
@@ -437,7 +438,7 @@ async function configuracion(req: VercelRequest, res: VercelResponse) {
     const cuerpo = (req.body ?? {}) as {
       transferencia?: Partial<ConfiguracionDeTransferencia>;
       medios?: Record<string, boolean>;
-      recargos?: Record<string, unknown>;
+      margenes?: Record<string, unknown>;
       pendiente_vence_horas?: unknown;
     };
     const ahora = new Date().toISOString();
@@ -462,14 +463,14 @@ async function configuracion(req: VercelRequest, res: VercelResponse) {
         if (error) throw new Error(error.message);
       }
     }
-    if (cuerpo.recargos) {
-      for (const [id, valor] of Object.entries(cuerpo.recargos)) {
+    if (cuerpo.margenes) {
+      for (const [id, valor] of Object.entries(cuerpo.margenes)) {
         if (id !== "mercadopago" && id !== "transferencia") continue;
-        const recargo = Number(valor);
-        if (!Number.isFinite(recargo) || recargo < 0 || recargo > 100) return fail(res, "El recargo va de 0 a 100 %.");
+        const margen = Number(valor);
+        if (!Number.isFinite(margen) || margen < 0 || margen > 500) return fail(res, "El margen va de 0 a 500 %.");
         const { error } = await supabase
           .from("medios_de_pago")
-          .update({ recargo_porcentaje: Math.round(recargo * 100) / 100, actualizado_en: ahora })
+          .update({ margen_porcentaje: Math.round(margen * 100) / 100, actualizado_en: ahora })
           .eq("id", id);
         if (error) throw new Error(error.message);
       }
@@ -480,7 +481,7 @@ async function configuracion(req: VercelRequest, res: VercelResponse) {
   }
 
   const valores = await leerConfiguracion(["transferencia", "pendiente_vence_horas"]);
-  const { data: mediosCrudos } = await supabase.from("medios_de_pago").select("id, nombre, detalle, activo, orden, recargo_porcentaje").order("orden");
+  const { data: mediosCrudos } = await supabase.from("medios_de_pago").select("id, nombre, detalle, activo, orden, margen_porcentaje").order("orden");
   return ok(res, {
     transferencia: valores.transferencia ?? {},
     pendiente_vence_horas: typeof valores.pendiente_vence_horas === "number" ? valores.pendiente_vence_horas : null,
