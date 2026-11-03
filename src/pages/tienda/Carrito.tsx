@@ -5,7 +5,8 @@ import { Tienda } from "@/components/tienda/Tienda";
 import { Precio } from "@/components/tienda/Precio";
 import { Bloque, EncabezadoDeSeccion } from "@/components/tienda/Seccion";
 import { ChipsDeDatos, EstadoDeStock, GrillaProductos } from "@/components/tienda/TarjetaProducto";
-import { cambiarCantidad, quitarDelCarrito } from "@/lib/tienda/carrito";
+import { FilaDeServicio } from "@/components/tienda/ArmadorPartes";
+import { alternarServicio, cambiarCantidad, quitarDelCarrito } from "@/lib/tienda/carrito";
 import { useCarritoDetallado } from "@/lib/tienda/carritoDetallado";
 import { imagenPrincipal, rutaDelProducto, type ProductoPublico } from "@/lib/tienda/catalogo";
 import { formatearPesos } from "@/lib/tienda/dinero";
@@ -47,7 +48,8 @@ function Pasos() {
 
 export default function Carrito() {
   usarSeo("Carrito");
-  const { lineas, unidades, subtotal, medios, subtotalPorMedio, pesoKg, cargando, problemas, listoParaComprar } = useCarritoDetallado();
+  const { lineas, unidades, subtotal, medios, subtotalPorMedio, pcCompleta, serviciosOfrecidos, serviciosElegidos, pesoKg, cargando, problemas, listoParaComprar } =
+    useCarritoDetallado();
   const [envio, setEnvio] = useState<CotizacionDeEnvio | null>(null);
   const [medio, setMedio] = useState<string>("transferencia");
   const [sugeridos, setSugeridos] = useState<ProductoPublico[]>([]);
@@ -200,6 +202,22 @@ export default function Carrito() {
                 <span className="text-muted-foreground">Precios finales con IVA incluido.</span>
               </li>
             </ul>
+
+            {serviciosOfrecidos.length > 0 && (
+              <div className="flex flex-col gap-2.5 rounded-2xl border border-border bg-card px-5 py-[18px]">
+                <div>
+                  <p className="text-[15px] font-bold">Servicios</p>
+                  <p className="text-[13px] text-muted-foreground">
+                    {pcCompleta ? "Tenés una PC completa en el carrito: te la podemos armar y dejar lista para usar." : "Sumalos a tu compra."}
+                  </p>
+                </div>
+                <ul className="flex flex-col gap-2">
+                  {serviciosOfrecidos.map((s) => (
+                    <FilaDeServicio key={s.id} servicio={s} elegido={serviciosElegidos.some((e) => e.id === s.id)} onAlternar={() => alternarServicio(s.id)} />
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card px-5 py-[18px]">
               <p className="text-[15px] font-bold">Envío a domicilio</p>

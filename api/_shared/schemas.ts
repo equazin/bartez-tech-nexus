@@ -302,6 +302,7 @@ export const pedidoDeLaTiendaSchema = z.object({
     .array(z.object({ product_id: z.coerce.number().int().positive(), quantity: z.coerce.number().int().min(1).max(99) }))
     .min(1)
     .max(50),
+  servicios: z.array(z.string().uuid()).max(10).optional(),
   comprador: z.object({
     nombre: z.string().trim().min(3).max(120),
     email: z.string().trim().email().max(320),

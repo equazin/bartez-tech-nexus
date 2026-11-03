@@ -16,10 +16,12 @@ export interface LineaDelCarrito {
 
 export interface Carrito {
   lineas: LineaDelCarrito[];
+  /** Los servicios sumados (armado, sistema y drivers...), por id. */
+  servicios: string[];
   actualizadoEn: string;
 }
 
-const VACIO: Carrito = { lineas: [], actualizadoEn: "" };
+const VACIO: Carrito = { lineas: [], servicios: [], actualizadoEn: "" };
 
 function leer(): Carrito {
   if (typeof window === "undefined") return VACIO;
@@ -32,7 +34,8 @@ function leer(): Carrito {
           .filter((l): l is LineaDelCarrito => typeof l?.productoId === "number" && typeof l?.cantidad === "number" && l.cantidad > 0)
           .map((l) => ({ productoId: l.productoId, slug: String(l.slug ?? ""), cantidad: Math.floor(l.cantidad) }))
       : [];
-    return { lineas, actualizadoEn: String(parseado.actualizadoEn ?? "") };
+    const servicios = Array.isArray(parseado.servicios) ? parseado.servicios.filter((id): id is string => typeof id === "string").slice(0, 10) : [];
+    return { lineas, servicios, actualizadoEn: String(parseado.actualizadoEn ?? "") };
   } catch {
     return VACIO;
   }
@@ -59,7 +62,7 @@ export function agregarAlCarrito(productoId: number, slug: string, cantidad = 1)
   const lineas = existente
     ? actual.lineas.map((l) => (l.productoId === productoId ? { ...l, cantidad: l.cantidad + cantidad } : l))
     : [...actual.lineas, { productoId, slug, cantidad }];
-  return guardar({ lineas, actualizadoEn: ahora() });
+  return guardar({ ...actual, lineas, actualizadoEn: ahora() });
 }
 
 export function cambiarCantidad(productoId: number, cantidad: number): Carrito {
@@ -68,7 +71,7 @@ export function cambiarCantidad(productoId: number, cantidad: number): Carrito {
     cantidad <= 0
       ? actual.lineas.filter((l) => l.productoId !== productoId)
       : actual.lineas.map((l) => (l.productoId === productoId ? { ...l, cantidad: Math.floor(cantidad) } : l));
-  return guardar({ lineas, actualizadoEn: ahora() });
+  return guardar({ ...actual, lineas, actualizadoEn: ahora() });
 }
 
 export function quitarDelCarrito(productoId: number): Carrito {
@@ -76,7 +79,20 @@ export function quitarDelCarrito(productoId: number): Carrito {
 }
 
 export function vaciarCarrito(): Carrito {
-  return guardar({ lineas: [], actualizadoEn: ahora() });
+  return guardar({ lineas: [], servicios: [], actualizadoEn: ahora() });
+}
+
+export function alternarServicio(id: string): Carrito {
+  const actual = leer();
+  const servicios = actual.servicios.includes(id) ? actual.servicios.filter((s) => s !== id) : [...actual.servicios, id];
+  return guardar({ ...actual, servicios, actualizadoEn: ahora() });
+}
+
+/** Suma servicios sin duplicar (los que trae el armador al agregar todo). */
+export function sumarServicios(ids: string[]): Carrito {
+  const actual = leer();
+  const servicios = [...new Set([...actual.servicios, ...ids])].slice(0, 10);
+  return guardar({ ...actual, servicios, actualizadoEn: ahora() });
 }
 
 export function unidadesEnElCarrito(carrito: Carrito): number {

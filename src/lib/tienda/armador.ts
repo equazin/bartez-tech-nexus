@@ -129,13 +129,17 @@ export interface Armado {
   piezas: Partial<Record<IdDePaso, PiezaElegida>>;
   /** Pasos que el cliente marcó como "ya tengo esta pieza". */
   yaTengo: IdDePaso[];
+  /** La PC armada de la que partió, si cargó una. */
+  origen: string | null;
+  /** Los servicios que sumó (armado, sistema y drivers...). */
+  servicios: string[];
 }
 
 export type Seleccion = Partial<Record<IdDePaso, ProductoPublico>>;
 
 const CLAVE = "teqo_armador";
 const EVENTO = "teqo:armador";
-const VACIO: Armado = { piezas: {}, yaTengo: [] };
+const VACIO: Armado = { piezas: {}, yaTengo: [], origen: null, servicios: [] };
 
 function leer(): Armado {
   if (typeof window === "undefined") return VACIO;
@@ -149,7 +153,9 @@ function leer(): Armado {
       if (pieza && typeof pieza.id === "number") piezas[paso.id] = { id: pieza.id, cantidad: Math.max(1, Math.min(8, Math.floor(pieza.cantidad ?? 1))) };
     }
     const yaTengo = Array.isArray(a.yaTengo) ? a.yaTengo.filter((id): id is IdDePaso => PASOS.some((p) => p.id === id)) : [];
-    return { piezas, yaTengo };
+    const origen = typeof a.origen === "string" ? a.origen : null;
+    const servicios = Array.isArray(a.servicios) ? a.servicios.filter((id): id is string => typeof id === "string").slice(0, 10) : [];
+    return { piezas, yaTengo, origen, servicios };
   } catch {
     return VACIO;
   }
@@ -167,7 +173,7 @@ function guardar(armado: Armado): void {
 
 export function elegirPieza(paso: IdDePaso, id: number, cantidad = 1): void {
   const actual = leer();
-  guardar({ piezas: { ...actual.piezas, [paso]: { id, cantidad } }, yaTengo: actual.yaTengo.filter((p) => p !== paso) });
+  guardar({ ...actual, piezas: { ...actual.piezas, [paso]: { id, cantidad } }, yaTengo: actual.yaTengo.filter((p) => p !== paso) });
 }
 
 export function cambiarCantidadDePieza(paso: IdDePaso, cantidad: number): void {
@@ -189,11 +195,24 @@ export function alternarYaTengo(paso: IdDePaso): void {
   const tiene = actual.yaTengo.includes(paso);
   const piezas = { ...actual.piezas };
   if (!tiene) delete piezas[paso];
-  guardar({ piezas, yaTengo: tiene ? actual.yaTengo.filter((p) => p !== paso) : [...actual.yaTengo, paso] });
+  guardar({ ...actual, piezas, yaTengo: tiene ? actual.yaTengo.filter((p) => p !== paso) : [...actual.yaTengo, paso] });
+}
+
+/** Carga una PC armada en la lista: reemplaza las piezas y conserva los servicios elegidos. */
+export function cargarArmada(origen: string, piezas: Armado["piezas"]): void {
+  const actual = leer();
+  guardar({ piezas: { ...piezas }, yaTengo: [], origen, servicios: actual.servicios });
+}
+
+export function alternarServicioDelArmado(id: string): void {
+  const actual = leer();
+  const tiene = actual.servicios.includes(id);
+  guardar({ ...actual, servicios: tiene ? actual.servicios.filter((s) => s !== id) : [...actual.servicios, id] });
 }
 
 export function vaciarArmado(): void {
-  guardar(VACIO);
+  const actual = leer();
+  guardar({ ...VACIO, servicios: actual.servicios });
 }
 
 let ultimoTexto: string | null = null;
@@ -324,6 +343,23 @@ export function evaluar(paso: IdDePaso, producto: ProductoPublico, seleccion: Se
     default:
       return OK;
   }
+}
+
+/**
+ * A qué paso pasa el armador después de resolver `desde`: el próximo sin resolver en el orden de los
+ * pasos; si no queda ninguno después, el primero que todavía falta para que la PC arranque. El cooler
+ * entra en la recorrida solo si el procesador no trae uno.
+ */
+export function siguientePaso(desde: IdDePaso, armado: Armado, seleccion: Seleccion): IdDePaso | null {
+  const cpu = seleccion.procesador ? datosDeCompatibilidad(seleccion.procesador) : null;
+  const pendientes = PASOS.filter(
+    (p) => !armado.piezas[p.id] && !armado.yaTengo.includes(p.id) && (p.id !== "cooler" || cpu?.coolerIncluido === false),
+  );
+  const indice = PASOS.findIndex((p) => p.id === desde);
+  const despues = pendientes.find((p) => PASOS.indexOf(p) > indice);
+  if (despues) return despues.id;
+  const falta = pendientes.find((p) => p.id !== desde && (p.necesaria || (p.id === "video" && cpu?.graficosIntegrados === false)));
+  return falta?.id ?? null;
 }
 
 export interface Chequeo {

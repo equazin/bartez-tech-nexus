@@ -77,7 +77,7 @@ export default function Checkout() {
   usarSeo("Finalizar la compra");
   const navigate = useNavigate();
   const [parametros] = useSearchParams();
-  const { lineas, subtotal, subtotalPorMedio, pesoKg, cargando, listoParaComprar } = useCarritoDetallado();
+  const { lineas, subtotal, subtotalPorMedio, serviciosElegidos, pesoKg, cargando, listoParaComprar } = useCarritoDetallado();
   // El carrito deja elegir el medio antes de llegar acá; si viene en la URL, arranca elegido.
   const medioDelCarrito = parametros.get("medio");
   const [f, setF] = useState<Formulario>(() =>
@@ -135,6 +135,7 @@ export default function Checkout() {
     try {
       const creado = await crearPedido({
         items: lineas.map(({ linea }) => ({ product_id: linea.productoId, quantity: linea.cantidad })),
+        servicios: serviciosElegidos.length > 0 ? serviciosElegidos.map((s) => s.id) : undefined,
         comprador: { nombre: f.nombre.trim(), email: f.email.trim(), telefono: f.telefono.trim(), documento: f.documento.trim() || undefined },
         envio: {
           calle: f.calle.trim(),
@@ -284,6 +285,12 @@ export default function Checkout() {
                     {linea.cantidad} × {producto?.nombre ?? "Producto"}
                   </span>
                   <span className="shrink-0 tabular-nums">{producto && precioConMedio(producto, f.medio_pago) !== null ? formatearPesos((precioConMedio(producto, f.medio_pago) ?? 0) * linea.cantidad) : ""}</span>
+                </li>
+              ))}
+              {serviciosElegidos.map((s) => (
+                <li key={s.id} className="flex justify-between gap-3 py-2">
+                  <span className="min-w-0 truncate">{s.nombre}</span>
+                  <span className="shrink-0 tabular-nums">{precioConMedio(s, f.medio_pago) !== null ? formatearPesos(precioConMedio(s, f.medio_pago) ?? 0) : ""}</span>
                 </li>
               ))}
             </ul>

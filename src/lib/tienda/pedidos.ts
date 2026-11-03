@@ -32,6 +32,8 @@ export interface DireccionDeEnvio {
 
 export interface PedidoNuevo {
   items: Array<{ product_id: number; quantity: number }>;
+  /** Servicios sumados (armado, sistema y drivers...), por id. */
+  servicios?: string[];
   comprador: DatosDelComprador;
   envio: DireccionDeEnvio;
   medio_pago: MedioDePago;

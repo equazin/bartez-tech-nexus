@@ -47,6 +47,26 @@ interface ProductoParaVender {
   publicado: boolean;
 }
 
+interface ServicioParaVender {
+  id: string;
+  nombre: string;
+  precios: Record<string, unknown> | null;
+  solo_con_pc: boolean;
+  activo: boolean;
+  iva_rate: number | null;
+}
+
+// Las piezas de una PC completa, por categoría: las mismas que PASOS_DE_UNA_PC en src/lib/tienda/servicios.ts
+// (procesador, motherboard, memoria, almacenamiento y gabinete) con las categorías de src/lib/tienda/armador.ts.
+const CATEGORIAS_DE_UNA_PC = ["procesadores", "motherboards", "memorias-ram", "discos-internos", "gabinetes"];
+
+async function carritoConPcCompleta(supabase: ReturnType<typeof getSupabaseAdmin>, ids: number[]): Promise<boolean> {
+  const { data, error } = await supabase.from("tienda_productos").select("id, categoria_slug").in("id", ids);
+  if (error) throw new Error(`No se pudieron leer las categorías del carrito: ${error.message}`);
+  const categorias = new Set(((data ?? []) as Array<{ categoria_slug: string | null }>).map((p) => p.categoria_slug));
+  return CATEGORIAS_DE_UNA_PC.every((c) => categorias.has(c));
+}
+
 interface Cupon {
   id: string;
   code: string;
@@ -179,6 +199,47 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
       costo_moneda: "USD",
     });
     lineasDelEmail.push({ nombre: nombreDe(p), cantidad, precioFinal });
+  }
+
+  // Servicios (armado, sistema y drivers...): precio final con IVA por medio de pago, cargado en el panel.
+  // No reservan stock ni suman peso; los "solo con PC" piden una PC completa en el mismo pedido.
+  const serviciosPedidos = [...new Set(pedido.servicios ?? [])];
+  if (serviciosPedidos.length > 0) {
+    const { data: serviciosCrudos, error: errorServicios } = await supabase
+      .from("servicios_tienda")
+      .select("id, nombre, precios, solo_con_pc, activo, iva_rate")
+      .in("id", serviciosPedidos);
+    if (errorServicios) throw new Error(`No se pudieron leer los servicios: ${errorServicios.message}`);
+    const servicios = (serviciosCrudos ?? []) as ServicioParaVender[];
+    if (servicios.length !== serviciosPedidos.length || servicios.some((s) => !s.activo)) {
+      throw new Error("Un servicio del carrito ya no está disponible. Sacalo para seguir.");
+    }
+    const pcCompleta = servicios.some((s) => s.solo_con_pc) ? await carritoConPcCompleta(supabase, ids) : true;
+    for (const s of servicios) {
+      if (s.solo_con_pc && !pcCompleta) throw new Error(`"${s.nombre}" se ofrece solo con una PC completa en el carrito.`);
+      const precio = Number((s.precios ?? {})[pedido.medio_pago]);
+      if (!Number.isFinite(precio) || precio <= 0) throw new Error(`"${s.nombre}" no tiene precio con ese medio de pago.`);
+      const precioFinal = aDosDecimales(precio);
+      const iva = Number(s.iva_rate ?? 21);
+      const neto = aDosDecimales(precioFinal / (1 + iva / 100));
+      subtotal += precioFinal;
+      items.push({
+        servicio_id: s.id,
+        name: s.nombre,
+        sku: "",
+        quantity: 1,
+        cost_price: null,
+        unit_price: neto,
+        total_price: neto,
+        margin: null,
+        iva_rate: iva,
+        precio_final: precioFinal,
+        costo_pesos: null,
+        dolar,
+        costo_moneda: null,
+      });
+      lineasDelEmail.push({ nombre: s.nombre, cantidad: 1, precioFinal });
+    }
   }
   subtotal = aDosDecimales(subtotal);
 

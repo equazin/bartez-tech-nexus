@@ -1,14 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { AlertTriangle, Check, ChevronDown, Cpu, Minus, Plus, X } from "lucide-react";
+import { AlertTriangle, Check, Minus, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Tienda } from "@/components/tienda/Tienda";
 import { MigasDePan } from "@/components/tienda/MigasDePan";
 import { ChipsDeDatos } from "@/components/tienda/TarjetaProducto";
+import { FilaDeOpcion, FilaDeServicio, TarjetaDeArmada, nombreCorto, type EstadoDeArmada } from "@/components/tienda/ArmadorPartes";
 import {
   PASOS,
+  alternarServicioDelArmado,
   alternarYaTengo,
   cambiarCantidadDePieza,
+  cargarArmada,
   chequeosDelArmado,
   datosDeCompatibilidad,
   elegirPieza,
@@ -16,270 +19,266 @@ import {
   pasoDeCategoria,
   potenciaRecomendada,
   quitarPieza,
+  siguientePaso,
   useArmado,
   vaciarArmado,
+  type Armado,
   type Evaluacion,
   type IdDePaso,
   type Paso,
   type Seleccion,
 } from "@/lib/tienda/armador";
-import { agregarAlCarrito } from "@/lib/tienda/carrito";
-import {
-  encontrarCategoria,
-  idsConDescendientes,
-  imagenPrincipal,
-  listarCategorias,
-  listarProductos,
-  rutaDelProducto,
-  type ProductoPublico,
-} from "@/lib/tienda/catalogo";
+import { agregarAlCarrito, sumarServicios } from "@/lib/tienda/carrito";
+import { imagenPrincipal, type ProductoPublico } from "@/lib/tienda/catalogo";
+import { agruparPorPaso, listarComponentes, seleccionDe } from "@/lib/tienda/componentes";
 import { formatearPesos } from "@/lib/tienda/dinero";
 import { datosClave } from "@/lib/tienda/ficha";
+import { listarPcArmadas, type PcArmadaPublica } from "@/lib/tienda/pcArmadas";
 import { nombreCortoDeMedio, precioConMedio, preciosDe } from "@/lib/tienda/precios";
 import { usarSeo } from "@/lib/tienda/seo";
+import { useServicios } from "@/lib/tienda/servicios";
 import { cn } from "@/lib/utils";
+
+/**
+ * Armá tu PC: todas las piezas en una lista. Se puede arrancar de una PC armada (panel › Armá tu PC) o de cero;
+ * al tocar una fila se abren sus opciones, primero las compatibles, y al elegir una pasa sola a la que falta.
+ */
 
 const ORDEN_DE_ESTADO: Record<Evaluacion["estado"], number> = { compatible: 0, revisar: 1, incompatible: 2 };
 
-function Insignia({ evaluacion }: { evaluacion: Evaluacion }) {
-  if (evaluacion.estado === "compatible")
-    return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-success">
-        <Check className="h-3.5 w-3.5" aria-hidden />
-        Compatible
-      </span>
-    );
-  if (evaluacion.estado === "revisar")
-    return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
-        <AlertTriangle className="h-3.5 w-3.5 text-primary" aria-hidden />
-        {evaluacion.motivo}
-      </span>
-    );
+const nombreDePaso = (id: IdDePaso) => PASOS.find((p) => p.id === id)?.nombre ?? "";
+
+function mismasPiezas(a: Armado["piezas"], b: Armado["piezas"]): boolean {
+  return PASOS.every((p) => (a[p.id]?.id ?? null) === (b[p.id]?.id ?? null) && (a[p.id]?.cantidad ?? 1) === (b[p.id]?.cantidad ?? 1));
+}
+
+function Dato({ titulo, valor, detalle, tono }: { titulo: string; valor: string; detalle: string; tono?: "bien" | "mal" }) {
   return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium text-danger">
-      <X className="h-3.5 w-3.5" aria-hidden />
-      {evaluacion.motivo}
-    </span>
+    <div className="flex flex-col gap-1 rounded-2xl border border-border bg-card px-4 py-3.5">
+      <span className="font-display text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">{titulo}</span>
+      <span className={cn("text-xl font-bold tabular-nums", tono === "bien" && "text-success", tono === "mal" && "text-danger")}>{valor}</span>
+      <span className="text-[13px] text-muted-foreground">{detalle}</span>
+    </div>
   );
 }
 
-function FilaDeOpcion({
+function FilaDePieza({
+  paso,
   producto,
-  evaluacion,
-  elegido,
-  onElegir,
+  cantidad,
+  tenida,
+  abierta,
+  textoVacio,
+  onAbrir,
+  onQuitar,
+  onYaTengo,
+  onCantidad,
+  children,
 }: {
-  producto: ProductoPublico;
-  evaluacion: Evaluacion;
-  elegido: boolean;
-  onElegir: () => void;
+  paso: Paso;
+  producto: ProductoPublico | null;
+  cantidad: number;
+  tenida: boolean;
+  abierta: boolean;
+  textoVacio: string;
+  onAbrir: () => void;
+  onQuitar: () => void;
+  onYaTengo: () => void;
+  onCantidad: (cantidad: number) => void;
+  children?: ReactNode;
 }) {
-  const foto = imagenPrincipal(producto);
-  const precioMp = precioConMedio(producto, "mercadopago");
+  const hecho = Boolean(producto) || tenida;
+  const foto = producto ? imagenPrincipal(producto) : null;
+  const precio = producto?.precio_final_ars ?? null;
+  const precioMp = producto ? precioConMedio(producto, "mercadopago") : null;
   return (
-    <li className={cn("flex flex-wrap items-center gap-3 rounded-xl border bg-background p-3", elegido ? "border-foreground" : "border-border")}>
-      <Link to={rutaDelProducto(producto)} className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-placa-foto" aria-label={`Ver la ficha de ${producto.nombre}`}>
-        {foto && <img src={foto} alt="" loading="lazy" className="max-h-14 max-w-14 object-contain mix-blend-multiply" />}
-      </Link>
-      <div className="flex min-w-0 flex-[1_1_220px] flex-col gap-1">
-        <Link to={rutaDelProducto(producto)} className="line-clamp-2 text-sm font-medium leading-snug hover:underline">
-          {producto.nombre}
-        </Link>
-        <ChipsDeDatos datos={datosClave(producto, 3)} />
-        <Insignia evaluacion={evaluacion} />
+    <li className={cn("rounded-2xl border px-3.5 py-3", abierta ? "border-foreground bg-secondary" : "border-border bg-card")}>
+      <div className="flex flex-wrap items-center gap-3.5">
+        <span className="flex w-[124px] shrink-0 flex-col gap-1">
+          <span
+            className={cn(
+              "flex h-[22px] w-[22px] items-center justify-center rounded-md",
+              hecho ? "bg-success text-background" : abierta ? "bg-primary text-primary-foreground" : "bg-accent text-foreground",
+            )}
+            aria-hidden
+          >
+            {hecho ? <Check className="h-3.5 w-3.5" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}
+          </span>
+          <span className="text-sm font-bold">{paso.nombre}</span>
+          <span className="text-xs text-muted-foreground">{paso.necesaria ? "Necesaria" : paso.id === "video" ? "Para jugar" : "Opcional"}</span>
+        </span>
+
+        {producto && (
+          <div className="flex min-w-0 flex-[1_1_320px] flex-wrap items-center gap-3.5">
+            <span className="flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-lg bg-placa-foto">
+              {foto && <img src={foto} alt="" className="max-h-[50px] max-w-[50px] object-contain mix-blend-multiply" />}
+            </span>
+            <span className="flex min-w-0 flex-[1_1_200px] flex-col gap-1.5">
+              <span className="text-sm font-medium leading-snug">{producto.nombre}</span>
+              <ChipsDeDatos datos={datosClave(producto, 3)} />
+            </span>
+            {paso.id === "memoria" && (
+              <span className="flex h-9 items-center rounded-xl border border-input">
+                <button type="button" onClick={() => onCantidad(cantidad - 1)} disabled={cantidad <= 1} aria-label="Una menos" className="px-2.5 disabled:opacity-40">
+                  <Minus className="h-4 w-4" aria-hidden />
+                </button>
+                <span className="min-w-6 text-center text-sm font-bold tabular-nums">{cantidad}</span>
+                <button type="button" onClick={() => onCantidad(cantidad + 1)} disabled={cantidad >= 4} aria-label="Una más" className="px-2.5 disabled:opacity-40">
+                  <Plus className="h-4 w-4" aria-hidden />
+                </button>
+              </span>
+            )}
+            <span className="flex min-w-[112px] flex-col items-end">
+              <span className="font-bold tabular-nums">{precio !== null ? formatearPesos(precio * cantidad) : ""}</span>
+              {precioMp !== null && precioMp !== precio && <span className="text-xs tabular-nums text-muted-foreground">{formatearPesos(precioMp * cantidad)} con MP</span>}
+            </span>
+            <span className="flex flex-col items-start gap-1">
+              <button type="button" onClick={onAbrir} className="text-[13px] font-bold underline">
+                Cambiar
+              </button>
+              <button type="button" onClick={onQuitar} className="text-[13px] text-muted-foreground underline">
+                Quitar
+              </button>
+            </span>
+          </div>
+        )}
+
+        {!producto && tenida && (
+          <div className="flex min-w-0 flex-[1_1_320px] items-center justify-between gap-3">
+            <span className="text-sm text-muted-foreground">Ya la tenés: no la sumamos al total.</span>
+            <button type="button" onClick={onYaTengo} className="text-[13px] font-bold underline">
+              Deshacer
+            </button>
+          </div>
+        )}
+
+        {!producto && !tenida && (
+          <div className="flex min-w-0 flex-[1_1_320px] flex-wrap items-center justify-between gap-2.5 rounded-xl border border-dashed border-border px-3.5 py-3">
+            <span className="text-sm text-muted-foreground">{abierta ? "Elegí una en las opciones." : textoVacio}</span>
+            <span className="flex gap-2">
+              <button type="button" onClick={onYaTengo} className="h-[38px] rounded-xl border border-input px-3 text-[13px] font-bold hover:bg-background">
+                Ya la tengo
+              </button>
+              <button
+                type="button"
+                onClick={onAbrir}
+                className={cn("h-[38px] rounded-xl px-4 text-[13px] font-bold", abierta ? "bg-foreground text-background" : "bg-primary text-primary-foreground hover:bg-primary/90")}
+              >
+                {abierta ? "Abierta" : "Elegir"}
+              </button>
+            </span>
+          </div>
+        )}
       </div>
-      <div className="flex items-center gap-3">
-        <div className="flex min-w-[110px] flex-col items-end">
-          <span className="font-bold tabular-nums">{producto.precio_final_ars !== null ? formatearPesos(producto.precio_final_ars) : "A confirmar"}</span>
-          {precioMp !== null && precioMp !== producto.precio_final_ars && (
-            <span className="text-xs tabular-nums text-muted-foreground">{formatearPesos(precioMp)} con Mercado Pago</span>
-          )}
-          {!producto.hay_stock && <span className="text-xs text-muted-foreground">Sin stock</span>}
-        </div>
-        <button
-          type="button"
-          onClick={onElegir}
-          disabled={!producto.hay_stock || producto.precio_final_ars === null}
-          aria-pressed={elegido}
-          className={cn(
-            "h-10 min-w-[84px] rounded-xl px-3 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground",
-            elegido ? "bg-foreground text-background" : "bg-primary text-primary-foreground hover:bg-primary/90",
-          )}
-        >
-          {elegido ? "Elegido" : "Elegir"}
-        </button>
-      </div>
+      {children}
     </li>
   );
 }
 
-function PasoDelArmado({
+function PanelDeOpciones({
   paso,
-  numero,
-  abierto,
-  onAlternar,
   opciones,
-  seleccion,
-  cantidad,
-  yaTengo,
+  verTodas,
+  onVerTodas,
+  elegidoId,
+  aviso,
+  ayuda,
+  onElegir,
+  onYaTengo,
+  onSaltar,
+  onCerrar,
 }: {
   paso: Paso;
-  numero: number;
-  abierto: boolean;
-  onAlternar: () => void;
-  opciones: ProductoPublico[];
-  seleccion: Seleccion;
-  cantidad: number;
-  yaTengo: boolean;
+  opciones: Array<{ producto: ProductoPublico; evaluacion: Evaluacion }>;
+  verTodas: boolean;
+  onVerTodas: (valor: boolean) => void;
+  elegidoId: number | null;
+  aviso: string | null;
+  ayuda: string;
+  onElegir: (producto: ProductoPublico) => void;
+  onYaTengo: () => void;
+  onSaltar: () => void;
+  onCerrar: () => void;
 }) {
-  const [verIncompatibles, setVerIncompatibles] = useState(false);
-  const elegido = seleccion[paso.id] ?? null;
-  const evaluadas = useMemo(
-    () =>
-      opciones
-        .map((p) => ({ producto: p, evaluacion: evaluar(paso.id, p, seleccion) }))
-        .sort(
-          (a, b) =>
-            ORDEN_DE_ESTADO[a.evaluacion.estado] - ORDEN_DE_ESTADO[b.evaluacion.estado] ||
-            Number(b.producto.hay_stock) - Number(a.producto.hay_stock) ||
-            (a.producto.precio_final_ars ?? Infinity) - (b.producto.precio_final_ars ?? Infinity),
-        ),
-    [opciones, paso.id, seleccion],
-  );
-  const visibles = evaluadas.filter((o) => o.evaluacion.estado !== "incompatible");
-  const incompatibles = evaluadas.filter((o) => o.evaluacion.estado === "incompatible");
-  const evaluacionDelElegido = elegido ? evaluar(paso.id, elegido, seleccion) : null;
-  const slots = seleccion.motherboard ? datosDeCompatibilidad(seleccion.motherboard).slotsDeMemoria : null;
-  const maximoDeUnidades = paso.id === "memoria" ? Math.max(1, slots ?? 4) : paso.id === "almacenamiento" ? 4 : 1;
-
+  const compatibles = opciones.filter((o) => o.evaluacion.estado !== "incompatible");
+  const visibles = verTodas ? opciones : compatibles;
   return (
-    <section aria-label={paso.nombre} className={cn("rounded-2xl border bg-card", abierto ? "border-input" : "border-border")}>
-      <button type="button" onClick={onAlternar} aria-expanded={abierto} className="flex w-full items-center gap-3.5 p-4 text-left">
-        <span
-          className={cn(
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold",
-            elegido || yaTengo ? "bg-foreground text-background" : "border border-input",
-          )}
-        >
-          {elegido || yaTengo ? <Check className="h-4 w-4" aria-hidden /> : numero}
+    <div className="flex flex-col gap-3.5">
+      {aviso && (
+        <p role="status" className="flex items-center gap-2 rounded-xl bg-background px-3 py-2.5 text-[13px]">
+          <Check className="h-4 w-4 shrink-0 text-success" aria-hidden />
+          {aviso}
+        </p>
+      )}
+      <div className="flex items-start justify-between gap-3">
+        <span className="flex flex-col gap-1">
+          <span className="font-display text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">Elegí</span>
+          <span className="font-display text-2xl font-bold uppercase leading-none">{paso.nombre}</span>
         </span>
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="flex items-center gap-2 font-display text-[15px] font-bold uppercase tracking-[0.06em]">
-            {paso.nombre}
-            {!paso.necesaria && <span className="font-sans text-xs font-medium normal-case tracking-normal text-muted-foreground">opcional</span>}
-          </span>
-          <span className="truncate text-sm text-muted-foreground">
-            {elegido ? `${cantidad > 1 ? `${cantidad} × ` : ""}${elegido.nombre}` : yaTengo ? "Ya la tenés" : paso.ayuda}
-          </span>
-          {evaluacionDelElegido && evaluacionDelElegido.estado !== "compatible" && <Insignia evaluacion={evaluacionDelElegido} />}
-        </span>
-        {elegido?.precio_final_ars != null && <span className="hidden font-bold tabular-nums sm:block">{formatearPesos(elegido.precio_final_ars * cantidad)}</span>}
-        <ChevronDown className={cn("h-5 w-5 shrink-0 transition-transform", abierto && "rotate-180")} aria-hidden />
-      </button>
-
-      {abierto && (
-        <div className="flex flex-col gap-3 border-t border-border p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">{paso.ayuda}</p>
-            <div className="flex flex-wrap items-center gap-2">
-              {elegido && maximoDeUnidades > 1 && (
-                <div className="flex h-9 items-center overflow-hidden rounded-xl border border-input" aria-label="Cantidad">
-                  <button type="button" aria-label="Una menos" onClick={() => cambiarCantidadDePieza(paso.id, cantidad - 1)} className="flex h-9 w-9 items-center justify-center hover:bg-secondary">
-                    <Minus className="h-4 w-4" aria-hidden />
-                  </button>
-                  <span className="w-7 text-center text-sm font-bold tabular-nums">{cantidad}</span>
-                  <button
-                    type="button"
-                    aria-label="Una más"
-                    onClick={() => cambiarCantidadDePieza(paso.id, Math.min(maximoDeUnidades, cantidad + 1))}
-                    className="flex h-9 w-9 items-center justify-center hover:bg-secondary"
-                  >
-                    <Plus className="h-4 w-4" aria-hidden />
-                  </button>
-                </div>
-              )}
-              {elegido && (
-                <button type="button" onClick={() => quitarPieza(paso.id)} className="h-9 rounded-xl border border-input px-3 text-sm font-bold hover:bg-secondary">
-                  Quitar
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => alternarYaTengo(paso.id)}
-                aria-pressed={yaTengo}
-                className={cn("h-9 rounded-xl border border-input px-3 text-sm font-bold", yaTengo ? "bg-accent" : "hover:bg-secondary")}
-              >
-                {yaTengo ? "La voy a comprar" : "Ya tengo esta pieza"}
-              </button>
-            </div>
-          </div>
-
-          {!yaTengo &&
-            (opciones.length === 0 ? (
-              <p className="rounded-xl bg-background p-4 text-sm text-muted-foreground">Todavía no hay productos en esta categoría.</p>
-            ) : (
-              <>
-                {visibles.length === 0 && <p className="rounded-xl bg-background p-4 text-sm text-muted-foreground">Con lo que elegiste no hay opciones compatibles. Cambiá una pieza anterior o mirá las no compatibles.</p>}
-                <ul className="flex flex-col gap-2">
-                  {visibles.map(({ producto, evaluacion }) => (
-                    <FilaDeOpcion
-                      key={producto.id}
-                      producto={producto}
-                      evaluacion={evaluacion}
-                      elegido={elegido?.id === producto.id}
-                      onElegir={() => elegirPieza(paso.id, producto.id, 1)}
-                    />
-                  ))}
-                </ul>
-                {incompatibles.length > 0 && (
-                  <div className="flex flex-col gap-2">
-                    <button type="button" onClick={() => setVerIncompatibles((v) => !v)} className="self-start text-sm font-bold underline">
-                      {verIncompatibles ? "Ocultar las no compatibles" : `Ver las ${incompatibles.length} no compatibles`}
-                    </button>
-                    {verIncompatibles && (
-                      <ul className="flex flex-col gap-2 opacity-70">
-                        {incompatibles.map(({ producto, evaluacion }) => (
-                          <FilaDeOpcion
-                            key={producto.id}
-                            producto={producto}
-                            evaluacion={evaluacion}
-                            elegido={elegido?.id === producto.id}
-                            onElegir={() => elegirPieza(paso.id, producto.id, 1)}
-                          />
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </>
-            ))}
+        <button type="button" onClick={onCerrar} aria-label="Cerrar las opciones" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border hover:bg-secondary">
+          <X className="h-4 w-4" aria-hidden />
+        </button>
+      </div>
+      <p className="text-sm leading-relaxed text-muted-foreground">{ayuda}</p>
+      {opciones.length > 0 && (
+        <div className="flex gap-1.5">
+          {[false, true].map((todas) => (
+            <button
+              key={String(todas)}
+              type="button"
+              onClick={() => onVerTodas(todas)}
+              aria-pressed={verTodas === todas}
+              className={cn("h-8 rounded-chip border px-3 text-[13px] font-bold", verTodas === todas ? "border-foreground bg-foreground text-background" : "border-input")}
+            >
+              {todas ? `Todas · ${opciones.length}` : `Compatibles · ${compatibles.length}`}
+            </button>
+          ))}
         </div>
       )}
-    </section>
+      {opciones.length === 0 ? (
+        <p className="rounded-xl bg-background p-3.5 text-sm text-muted-foreground">Todavía no hay productos con stock en esta categoría.</p>
+      ) : visibles.length === 0 ? (
+        <p className="rounded-xl bg-background p-3.5 text-sm text-muted-foreground">Ninguna es compatible con lo que ya elegiste. Tocá Todas para ver por qué.</p>
+      ) : (
+        <ul className="flex max-h-[640px] flex-col gap-2 overflow-y-auto pr-1">
+          {visibles.map(({ producto, evaluacion }) => (
+            <FilaDeOpcion key={producto.id} producto={producto} evaluacion={evaluacion} elegido={elegidoId === producto.id} onElegir={() => onElegir(producto)} />
+          ))}
+        </ul>
+      )}
+      <div className="flex gap-2 border-t border-border pt-3">
+        <button type="button" onClick={onYaTengo} className="h-10 flex-1 rounded-xl border border-input text-[13px] font-bold hover:bg-secondary">
+          Ya la tengo
+        </button>
+        <button type="button" onClick={onSaltar} className="h-10 flex-1 rounded-xl border border-input text-[13px] font-bold hover:bg-secondary">
+          Saltear →
+        </button>
+      </div>
+    </div>
   );
 }
 
 export default function ArmaTuPc() {
-  usarSeo("Armá tu PC", "Elegí procesador, motherboard, memoria, disco, placa de video, fuente y gabinete, y te mostramos solo lo compatible.");
+  usarSeo("Armá tu PC", "Arrancá de una PC armada o elegí pieza por pieza: te mostramos solo lo compatible, con el precio de cada medio de pago.");
   const navigate = useNavigate();
   const [parametros, setParametros] = useSearchParams();
   const armado = useArmado();
+  const servicios = useServicios();
   const [productos, setProductos] = useState<ProductoPublico[]>([]);
+  const [armadas, setArmadas] = useState<PcArmadaPublica[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [abierto, setAbierto] = useState<IdDePaso | null>(null);
+  const [verTodas, setVerTodas] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelado = false;
-    listarCategorias()
-      .then((raices) => {
-        const nodo = encontrarCategoria(raices, "pc-y-componentes");
-        if (!nodo) return { productos: [] as ProductoPublico[], total: 0 };
-        return listarProductos({ categoriaIds: idsConDescendientes(nodo), porPagina: 1000 });
-      })
-      .then((r) => {
-        if (!cancelado) setProductos(r.productos);
+    Promise.all([listarComponentes(), listarPcArmadas().catch(() => [] as PcArmadaPublica[])])
+      .then(([componentes, lista]) => {
+        if (cancelado) return;
+        setProductos(componentes);
+        setArmadas(lista);
       })
       .catch((e: unknown) => {
         if (!cancelado) setError(e instanceof Error ? e.message : "No se pudieron cargar los componentes.");
@@ -292,35 +291,38 @@ export default function ArmaTuPc() {
     };
   }, []);
 
-  const porPaso = useMemo(() => {
-    const grupos: Record<IdDePaso, ProductoPublico[]> = {
-      procesador: [],
-      motherboard: [],
-      memoria: [],
-      almacenamiento: [],
-      video: [],
-      fuente: [],
-      gabinete: [],
-      cooler: [],
-    };
-    for (const p of productos) {
-      const paso = pasoDeCategoria(p.categoria_slug);
-      if (paso) grupos[paso].push(p);
-    }
-    return grupos;
-  }, [productos]);
-
+  const porPaso = useMemo(() => agruparPorPaso(productos), [productos]);
   const porId = useMemo(() => new Map(productos.map((p) => [p.id, p])), [productos]);
+  const seleccion = useMemo<Seleccion>(() => seleccionDe(armado.piezas, porId), [armado, porId]);
 
-  const seleccion = useMemo<Seleccion>(() => {
-    const s: Seleccion = {};
-    for (const paso of PASOS) {
-      const pieza = armado.piezas[paso.id];
-      const producto = pieza ? porId.get(pieza.id) : undefined;
-      if (producto) s[paso.id] = producto;
-    }
-    return s;
-  }, [armado, porId]);
+  function abrir(paso: IdDePaso | null, texto: string | null = null) {
+    setAbierto(paso);
+    setVerTodas(false);
+    setAviso(texto);
+  }
+
+  function avanzar(desde: IdDePaso, siguiente: Armado, texto: (proximo: IdDePaso) => string) {
+    const proximo = siguientePaso(desde, siguiente, seleccionDe(siguiente.piezas, porId));
+    abrir(proximo, proximo ? texto(proximo) : null);
+  }
+
+  function elegir(paso: IdDePaso, producto: ProductoPublico) {
+    const cantidad = armado.piezas[paso]?.cantidad ?? 1;
+    elegirPieza(paso, producto.id, cantidad);
+    const piezas = { ...armado.piezas, [paso]: { id: producto.id, cantidad } };
+    avanzar(paso, { ...armado, piezas, yaTengo: armado.yaTengo.filter((p) => p !== paso) }, (p) => `Elegiste ${nombreCorto(producto)}. Seguimos con ${nombreDePaso(p).toLowerCase()}.`);
+  }
+
+  function tenerla(paso: IdDePaso) {
+    if (!armado.yaTengo.includes(paso)) alternarYaTengo(paso);
+    const piezas = Object.fromEntries(Object.entries(armado.piezas).filter(([id]) => id !== paso)) as Armado["piezas"];
+    avanzar(paso, { ...armado, piezas, yaTengo: [...armado.yaTengo, paso] }, (p) => `Anotamos que ya tenés ${nombreDePaso(paso).toLowerCase()}. Seguimos con ${nombreDePaso(p).toLowerCase()}.`);
+  }
+
+  function saltar(paso: IdDePaso) {
+    // Para la recorrida cuenta como resuelto; la pieza sigue faltando en el resumen.
+    avanzar(paso, { ...armado, yaTengo: [...armado.yaTengo, paso] }, (p) => `Seguimos con ${nombreDePaso(p).toLowerCase()}.`);
+  }
 
   // "Sumalo a Armá tu PC" desde la ficha: /arma-tu-pc?agregar=<id>
   useEffect(() => {
@@ -328,163 +330,346 @@ export default function ArmaTuPc() {
     if (!agregar || productos.length === 0) return;
     const producto = porId.get(agregar);
     const paso = producto ? pasoDeCategoria(producto.categoria_slug) : null;
-    if (producto && paso) {
-      elegirPieza(paso, producto.id, 1);
-      setAbierto(PASOS.find((p) => !armado.piezas[p.id] && p.id !== paso && !armado.yaTengo.includes(p.id))?.id ?? null);
-    }
+    if (producto && paso) elegir(paso, producto);
     const siguientes = new URLSearchParams(parametros);
     siguientes.delete("agregar");
     setParametros(siguientes, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parametros, productos.length]);
 
-  // Abre el primer paso sin resolver al llegar.
+  // Al llegar con un armado a medias, abre la primera pieza sin resolver.
   useEffect(() => {
-    if (cargando || abierto !== null) return;
-    setAbierto(PASOS.find((p) => !armado.piezas[p.id] && !armado.yaTengo.includes(p.id))?.id ?? "procesador");
+    if (cargando) return;
+    const resuelto = (p: Paso) => Boolean(armado.piezas[p.id]) || armado.yaTengo.includes(p.id);
+    const vacio = PASOS.every((p) => !resuelto(p));
+    if (!vacio && !armado.origen) setAbierto(PASOS.find((p) => p.necesaria && !resuelto(p))?.id ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cargando]);
 
+  const cpu = seleccion.procesador ? datosDeCompatibilidad(seleccion.procesador) : null;
   const chequeos = chequeosDelArmado(seleccion, armado.yaTengo);
-  const hayIncompatibles = chequeos.some((c) => c.estado === "incompatible");
+  const problemas = chequeos.filter((c) => c.estado === "incompatible");
+  const faltan = chequeos.filter((c) => c.estado === "falta");
   const elegidos = PASOS.filter((p) => seleccion[p.id]);
   const cantidadDe = (paso: IdDePaso) => armado.piezas[paso]?.cantidad ?? 1;
+  const necesarias = PASOS.filter((p) => p.necesaria || (p.id === "video" && cpu?.graficosIntegrados === false) || (p.id === "cooler" && cpu?.coolerIncluido === false));
+  const resueltas = necesarias.filter((p) => seleccion[p.id] || armado.yaTengo.includes(p.id)).length;
+  const recomendada = potenciaRecomendada(seleccion);
+  const potenciaDeLaFuente = seleccion.fuente ? datosDeCompatibilidad(seleccion.fuente).potencia : null;
+  const serviciosElegidos = servicios.filter((s) => armado.servicios.includes(s.id));
+  const completa = elegidos.length > 0 && faltan.length === 0 && problemas.length === 0;
+
   const medios = elegidos.length > 0 ? preciosDe(seleccion[elegidos[0].id] as ProductoPublico) : [];
   const totales = medios.map((m) => ({
     medio: m,
-    total: elegidos.reduce((suma, paso) => suma + (precioConMedio(seleccion[paso.id] as ProductoPublico, m.id) ?? 0) * cantidadDe(paso.id), 0),
+    total:
+      elegidos.reduce((suma, paso) => suma + (precioConMedio(seleccion[paso.id] as ProductoPublico, m.id) ?? 0) * cantidadDe(paso.id), 0) +
+      serviciosElegidos.reduce((suma, s) => suma + (precioConMedio(s, m.id) ?? 0), 0),
   }));
-  const recomendada = potenciaRecomendada(seleccion);
+
+  const origen = armadas.find((a) => a.id === armado.origen) ?? null;
+  const modificada = Boolean(origen) && (!mismasPiezas(armado.piezas, (origen as PcArmadaPublica).piezas) || armado.yaTengo.length > 0);
+  const armadasConPiezas = armadas.filter((a) => PASOS.every((p) => !a.piezas[p.id] || porId.has((a.piezas[p.id] as { id: number }).id)));
+
+  const pasoAbierto = abierto ? (PASOS.find((p) => p.id === abierto) ?? null) : null;
+  const opciones = pasoAbierto
+    ? porPaso[pasoAbierto.id]
+        .map((producto) => ({ producto, evaluacion: evaluar(pasoAbierto.id, producto, seleccion) }))
+        .sort(
+          (a, b) =>
+            ORDEN_DE_ESTADO[a.evaluacion.estado] - ORDEN_DE_ESTADO[b.evaluacion.estado] ||
+            Number(b.producto.hay_stock) - Number(a.producto.hay_stock) ||
+            (a.producto.precio_final_ars ?? Infinity) - (b.producto.precio_final_ars ?? Infinity),
+        )
+    : [];
+  const ayudaDe = (paso: Paso): string => {
+    if (paso.id === "fuente") return `Para lo que elegiste recomendamos ${recomendada} W o más.`;
+    if (paso.id === "video" && cpu?.graficosIntegrados) return "El procesador tiene gráficos integrados: la placa de video es para jugar o editar video.";
+    if (paso.id === "cooler" && cpu?.coolerIncluido) return "El procesador ya trae cooler: este paso es opcional.";
+    return paso.ayuda;
+  };
+  const textoVacioDe = (paso: Paso): string => {
+    if (paso.id === "video" && cpu?.graficosIntegrados) return "Opcional: el procesador tiene gráficos integrados.";
+    if (paso.id === "cooler" && cpu?.coolerIncluido) return "Opcional: el procesador trae cooler.";
+    return `Todavía no elegiste ${paso.nombre.toLowerCase()}.`;
+  };
+
+  const panel = pasoAbierto ? (
+    <PanelDeOpciones
+      paso={pasoAbierto}
+      opciones={opciones}
+      verTodas={verTodas}
+      onVerTodas={setVerTodas}
+      elegidoId={armado.piezas[pasoAbierto.id]?.id ?? null}
+      aviso={aviso}
+      ayuda={ayudaDe(pasoAbierto)}
+      onElegir={(producto) => elegir(pasoAbierto.id, producto)}
+      onYaTengo={() => tenerla(pasoAbierto.id)}
+      onSaltar={() => saltar(pasoAbierto.id)}
+      onCerrar={() => abrir(null)}
+    />
+  ) : null;
 
   function agregarTodo() {
     for (const paso of elegidos) {
       const p = seleccion[paso.id] as ProductoPublico;
       agregarAlCarrito(p.id, p.slug, cantidadDe(paso.id));
     }
+    if (serviciosElegidos.length > 0) sumarServicios(serviciosElegidos.map((s) => s.id));
     toast.success("Tu PC está en el carrito", { description: `${elegidos.length} ${elegidos.length === 1 ? "pieza" : "piezas"} agregadas.` });
     navigate("/carrito");
   }
 
+  const botonAgregar = (
+    <button
+      type="button"
+      onClick={agregarTodo}
+      disabled={elegidos.length === 0 || problemas.length > 0}
+      className="h-[50px] rounded-xl bg-primary px-6 text-[15px] font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground"
+    >
+      Agregar todo al carrito
+    </button>
+  );
+
   return (
     <Tienda>
-      <div className="container mx-auto flex flex-col gap-6 px-4 pb-6 pt-5">
+      <div className="container mx-auto flex flex-col gap-5 px-4 pb-6 pt-5">
         <MigasDePan migas={[{ nombre: "PC y componentes", ruta: "/pc-y-componentes" }, { nombre: "Armá tu PC" }]} />
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="flex max-w-[760px] flex-col gap-2">
-            <h1 className="flex items-center gap-3 font-display text-[36px] font-bold uppercase leading-none md:text-[44px]">
-              <Cpu className="h-9 w-9 text-primary" aria-hidden />
-              Armá tu PC
-            </h1>
-            <p className="text-base leading-relaxed text-muted-foreground">
-              Elegí pieza por pieza. Te mostramos primero lo que es compatible con lo que ya elegiste: socket, memoria, formato de la motherboard y potencia
-              de la fuente. Si ya tenés una pieza, marcala y seguimos.
-            </p>
-          </div>
-          {elegidos.length + armado.yaTengo.length > 0 && (
-            <button type="button" onClick={vaciarArmado} className="h-11 rounded-xl border border-input px-4 text-sm font-bold hover:bg-secondary">
-              Empezar de nuevo
-            </button>
-          )}
+        <div className="flex max-w-[760px] flex-col gap-2">
+          <h1 className="font-display text-[36px] font-bold uppercase leading-none md:text-[44px]">Armá tu PC</h1>
+          <p className="text-base leading-relaxed text-muted-foreground">
+            Arrancá de una PC armada o elegí pieza por pieza. Tocá una fila, elegí en las opciones y pasamos solos a la que falta.
+          </p>
         </div>
 
-        {error ? (
-          <p className="rounded-xl bg-error-fondo p-4 text-sm text-danger">{error}</p>
-        ) : (
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-            <div className="flex min-w-0 flex-1 flex-col gap-3">
-              {cargando && <p className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">Cargando los componentes</p>}
-              {!cargando &&
-                PASOS.map((paso, i) => (
-                  <PasoDelArmado
-                    key={paso.id}
-                    paso={paso}
-                    numero={i + 1}
-                    abierto={abierto === paso.id}
-                    onAlternar={() => setAbierto((a) => (a === paso.id ? null : paso.id))}
-                    opciones={porPaso[paso.id]}
-                    seleccion={seleccion}
-                    cantidad={cantidadDe(paso.id)}
-                    yaTengo={armado.yaTengo.includes(paso.id)}
-                  />
-                ))}
-            </div>
+        {error && <p className="rounded-xl bg-error-fondo p-4 text-sm text-danger">{error}</p>}
+        {cargando && <p className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">Cargando los componentes</p>}
 
-            <aside aria-label="Tu PC" className="flex w-full flex-col gap-4 rounded-2xl border border-border bg-card p-5 lg:sticky lg:top-6 lg:w-[380px] lg:shrink-0">
-              <p className="font-display text-lg font-bold uppercase tracking-[0.06em]">Tu PC</p>
-              {elegidos.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Todavía no elegiste piezas. Empezá por el procesador.</p>
-              ) : (
-                <ul className="flex flex-col gap-2 text-sm">
-                  {elegidos.map((paso) => {
-                    const p = seleccion[paso.id] as ProductoPublico;
+        {!cargando && !error && (
+          <>
+            {armadasConPiezas.length > 0 && (
+              <section aria-labelledby="titulo-armadas" className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                  <h2 id="titulo-armadas" className="font-display text-[22px] font-bold uppercase">
+                    Arrancá de una armada
+                  </h2>
+                  <span className="text-sm text-muted-foreground">Ya son compatibles. La cargás en la lista y cambiás lo que quieras.</span>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {armadasConPiezas.map((a) => {
+                    const sel = seleccionDe(a.piezas, porId);
+                    const conPiezas = PASOS.filter((p) => sel[p.id]);
+                    const lista = conPiezas.length > 0 ? preciosDe(sel[conPiezas[0].id] as ProductoPublico) : [];
+                    const totalesDeArmada = lista.map((m) => ({
+                      id: m.id,
+                      nombre: nombreCortoDeMedio(m),
+                      total: conPiezas.reduce((suma, p) => suma + (precioConMedio(sel[p.id] as ProductoPublico, m.id) ?? 0) * (a.piezas[p.id]?.cantidad ?? 1), 0),
+                    }));
+                    const resumen = (["procesador", "video", "memoria", "almacenamiento"] as IdDePaso[])
+                      .filter((p) => sel[p])
+                      .map((p) => `${(a.piezas[p]?.cantidad ?? 1) > 1 ? `${a.piezas[p]?.cantidad} × ` : ""}${nombreCorto(sel[p] as ProductoPublico)}`)
+                      .join(" · ");
+                    const estado: EstadoDeArmada = armado.origen !== a.id ? "libre" : modificada ? "modificada" : "cargada";
                     return (
-                      <li key={paso.id} className="flex items-start justify-between gap-3">
-                        <span className="min-w-0">
-                          <span className="block text-xs text-muted-foreground">{paso.nombre}</span>
-                          <span className="line-clamp-2">
-                            {cantidadDe(paso.id) > 1 ? `${cantidadDe(paso.id)} × ` : ""}
-                            {p.nombre}
-                          </span>
-                        </span>
-                        <span className="shrink-0 font-bold tabular-nums">{p.precio_final_ars !== null ? formatearPesos(p.precio_final_ars * cantidadDe(paso.id)) : ""}</span>
-                      </li>
+                      <TarjetaDeArmada
+                        key={a.id}
+                        nombre={a.nombre}
+                        resumen={a.texto ? `${a.texto} ${resumen}` : resumen}
+                        foto={sel.gabinete ? imagenPrincipal(sel.gabinete) : null}
+                        totales={totalesDeArmada}
+                        estado={estado}
+                        onCargar={() => {
+                          cargarArmada(a.id, a.piezas);
+                          abrir(null);
+                        }}
+                      />
                     );
                   })}
-                </ul>
-              )}
-
-              {(seleccion.procesador || seleccion.video) && (
-                <p className="rounded-xl bg-background px-3.5 py-3 text-sm">
-                  Potencia de fuente recomendada: <strong>{recomendada} W</strong>
-                  <span className="block text-xs text-muted-foreground">Estimada con el consumo del procesador y la placa de video, con margen.</span>
-                </p>
-              )}
-
-              {chequeos.length > 0 && (
-                <ul className="flex flex-col gap-1.5 text-sm" aria-label="Compatibilidad">
-                  {chequeos.map((c) => (
-                    <li key={c.id} className="flex items-start gap-2">
-                      {c.estado === "compatible" ? (
-                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />
-                      ) : c.estado === "incompatible" ? (
-                        <X className="mt-0.5 h-4 w-4 shrink-0 text-danger" aria-hidden />
-                      ) : (
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
-                      )}
-                      <span className={cn(c.estado === "incompatible" && "text-danger")}>{c.texto}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {totales.length > 0 && (
-                <div className="flex flex-col gap-2 border-t border-border pt-3.5">
-                  {totales.map(({ medio, total }, i) => (
-                    <div key={medio.id} className="flex items-baseline justify-between gap-3">
-                      <span className={cn(i === 0 ? "font-bold" : "text-sm text-muted-foreground")}>
-                        {totales.length > 1 ? `Con ${nombreCortoDeMedio(medio).toLowerCase()}` : "Total"}
-                      </span>
-                      <span className={cn("tabular-nums", i === 0 ? "text-[26px] font-bold tracking-[-0.02em]" : "text-base font-bold")}>{formatearPesos(total)}</span>
-                    </div>
-                  ))}
-                  <span className="text-xs text-muted-foreground">Precios finales con IVA incluido. El envío se calcula en el carrito.</span>
+                  <article className="flex flex-col justify-between gap-2.5 rounded-2xl border border-dashed border-input p-3.5">
+                    <span className="flex flex-col gap-1.5">
+                      <span className="font-display text-[17px] font-bold uppercase">Desde cero</span>
+                      <span className="text-xs leading-snug text-muted-foreground">Elegís cada pieza y te mostramos solo lo compatible con lo que ya elegiste.</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        vaciarArmado();
+                        abrir("procesador");
+                      }}
+                      className="h-9 self-start rounded-xl border border-input px-3.5 text-[13px] font-bold hover:bg-secondary"
+                    >
+                      Empezar de cero
+                    </button>
+                  </article>
                 </div>
-              )}
+              </section>
+            )}
 
-              <button
-                type="button"
-                onClick={agregarTodo}
-                disabled={elegidos.length === 0 || hayIncompatibles}
-                className="h-[52px] rounded-xl bg-primary text-base font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground"
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <Dato
+                titulo="Compatibilidad"
+                valor={elegidos.length === 0 ? "Sin piezas" : problemas.length === 0 ? "Todo compatible" : problemas.length === 1 ? "1 problema" : `${problemas.length} problemas`}
+                detalle={problemas[0]?.texto ?? "Revisamos socket, memoria, formato y potencia"}
+                tono={elegidos.length === 0 ? undefined : problemas.length === 0 ? "bien" : "mal"}
+              />
+              <Dato
+                titulo="Potencia"
+                valor={`${recomendada} W recomendados`}
+                detalle={
+                  potenciaDeLaFuente
+                    ? `Tu fuente: ${potenciaDeLaFuente} W${potenciaDeLaFuente >= recomendada ? ", alcanza" : ", queda corta"}`
+                    : seleccion.fuente
+                      ? "Confirmá la potencia en la ficha"
+                      : "Falta elegir la fuente"
+                }
+                tono={potenciaDeLaFuente !== null && potenciaDeLaFuente < recomendada ? "mal" : undefined}
+              />
+              <Dato
+                titulo="Piezas"
+                valor={`${resueltas} de ${necesarias.length}`}
+                detalle={faltan.length === 0 ? "No falta ninguna" : `Faltan: ${necesarias.filter((p) => !seleccion[p.id] && !armado.yaTengo.includes(p.id)).map((p) => p.nombre.toLowerCase()).join(", ")}`}
+              />
+              <div className="flex flex-col gap-1 rounded-2xl border border-input bg-card px-4 py-3.5">
+                <span className="font-display text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                  {totales[0] ? `Con ${nombreCortoDeMedio(totales[0].medio).toLowerCase()}` : "Total"}
+                </span>
+                <span className="text-2xl font-bold tabular-nums">{formatearPesos(totales[0]?.total ?? 0)}</span>
+                <span className="text-[13px] tabular-nums text-muted-foreground">
+                  {totales[1] ? `${formatearPesos(totales[1].total)} con ${nombreCortoDeMedio(totales[1].medio)}` : "Precios finales con IVA"}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+              <section aria-label="Piezas" className="flex min-w-0 flex-1 flex-col gap-2.5">
+                <ul className="flex flex-col gap-2.5">
+                  {PASOS.map((paso) => (
+                    <FilaDePieza
+                      key={paso.id}
+                      paso={paso}
+                      producto={seleccion[paso.id] ?? null}
+                      cantidad={cantidadDe(paso.id)}
+                      tenida={armado.yaTengo.includes(paso.id)}
+                      abierta={abierto === paso.id}
+                      textoVacio={textoVacioDe(paso)}
+                      onAbrir={() => abrir(paso.id)}
+                      onQuitar={() => {
+                        quitarPieza(paso.id);
+                        abrir(paso.id);
+                      }}
+                      onYaTengo={() => (armado.yaTengo.includes(paso.id) ? alternarYaTengo(paso.id) : tenerla(paso.id))}
+                      onCantidad={(n) => cambiarCantidadDePieza(paso.id, Math.max(1, Math.min(4, n)))}
+                    >
+                      {abierto === paso.id && <div className="mt-3 border-t border-border pt-3 lg:hidden">{panel}</div>}
+                    </FilaDePieza>
+                  ))}
+                </ul>
+
+                {servicios.length > 0 && (
+                  <>
+                    <div className="mt-2.5 flex flex-col gap-1">
+                      <h2 className="font-display text-[22px] font-bold uppercase">Servicios</h2>
+                      <p className="text-sm text-muted-foreground">Sumalos si querés que la PC te llegue armada y lista para usar.</p>
+                    </div>
+                    <ul className="flex flex-col gap-2.5">
+                      {servicios.map((s) => (
+                        <FilaDeServicio key={s.id} servicio={s} elegido={armado.servicios.includes(s.id)} onAlternar={() => alternarServicioDelArmado(s.id)} />
+                      ))}
+                    </ul>
+                  </>
+                )}
+
+                <div className="mt-1.5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-4">
+                  <span className="flex flex-col gap-0.5">
+                    <span className="text-[13px] text-muted-foreground">{totales[0] ? `Total con ${nombreCortoDeMedio(totales[0].medio).toLowerCase()}` : "Total"}</span>
+                    <span className="text-[26px] font-bold tabular-nums">{formatearPesos(totales[0]?.total ?? 0)}</span>
+                    <span className="text-[13px] text-muted-foreground">
+                      {totales[1] ? `${formatearPesos(totales[1].total)} con ${nombreCortoDeMedio(totales[1].medio)} · ` : ""}
+                      Precios finales con IVA; el envío se calcula en el carrito.
+                    </span>
+                  </span>
+                  {botonAgregar}
+                </div>
+                {problemas.length > 0 && <p className="text-xs text-danger">Hay piezas que no son compatibles entre sí. Cambiá las que están marcadas para seguir.</p>}
+              </section>
+
+              <aside
+                aria-label="Opciones de la pieza"
+                className={cn(
+                  "w-full flex-col gap-4 rounded-2xl border bg-card p-5 lg:sticky lg:top-6 lg:w-[400px] lg:shrink-0",
+                  pasoAbierto ? "hidden border-foreground lg:flex" : "flex border-border",
+                )}
               >
-                Agregar todo al carrito
-              </button>
-              {hayIncompatibles && <p className="text-xs text-danger">Hay piezas que no son compatibles entre sí. Cambiá las que están marcadas para seguir.</p>}
-              <p className="text-xs text-muted-foreground">
-                Cada pieza es de fábrica y tiene su garantía. ¿Dudas con una combinación? <Link to="/ayuda" className="underline">Escribinos</Link>.
-              </p>
-            </aside>
-          </div>
+                {panel}
+                {!pasoAbierto && completa && (
+                  <>
+                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-success text-background">
+                      <Check className="h-6 w-6" aria-hidden />
+                    </span>
+                    <span className="font-display text-2xl font-bold uppercase leading-none">Tu PC está completa</span>
+                    {origen && (
+                      <span className="text-[13px] leading-relaxed text-muted-foreground">
+                        {modificada ? `Partiste de la ${origen.nombre} y le cambiaste piezas: volvimos a revisar la compatibilidad.` : `Es la ${origen.nombre}, tal como la armamos.`}
+                      </span>
+                    )}
+                    <ul className="flex flex-col gap-1.5 text-[13px]" aria-label="Compatibilidad">
+                      {chequeos.map((c) => (
+                        <li key={c.id} className="flex items-start gap-2">
+                          {c.estado === "compatible" ? (
+                            <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />
+                          ) : (
+                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+                          )}
+                          <span>{c.texto}</span>
+                        </li>
+                      ))}
+                      {serviciosElegidos.map((s) => (
+                        <li key={s.id} className="flex items-start gap-2">
+                          <Plus className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                          <span>{s.nombre}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="flex flex-col gap-1 border-t border-border pt-3">
+                      {totales.map(({ medio, total }, i) => (
+                        <div key={medio.id} className="flex items-baseline justify-between gap-3">
+                          <span className={cn(i === 0 ? "font-bold" : "text-sm text-muted-foreground")}>Con {nombreCortoDeMedio(medio).toLowerCase()}</span>
+                          <span className={cn("font-bold tabular-nums", i === 0 ? "text-2xl" : "text-sm")}>{formatearPesos(total)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {botonAgregar}
+                  </>
+                )}
+                {!pasoAbierto && !completa && (
+                  <>
+                    <span className="font-display text-[22px] font-bold uppercase leading-none">
+                      {elegidos.length === 0 ? "Elegí por dónde empezar" : faltan.length === 1 ? "Te falta 1 pieza" : `Te faltan ${faltan.length} piezas`}
+                    </span>
+                    <span className="text-sm leading-relaxed text-muted-foreground">
+                      {problemas.length > 0 ? "Hay piezas incompatibles: cambiá las marcadas en la lista." : "Tocá una fila para ver las opciones compatibles con lo que ya elegiste."}
+                    </span>
+                    {necesarias
+                      .filter((p) => !seleccion[p.id] && !armado.yaTengo.includes(p.id))
+                      .map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => abrir(p.id)}
+                          className="flex h-11 items-center justify-between rounded-xl border border-border bg-background px-3.5 text-sm font-bold hover:border-input"
+                        >
+                          {p.nombre}
+                          <span aria-hidden>→</span>
+                        </button>
+                      ))}
+                  </>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Cada pieza es de fábrica y tiene su garantía. ¿Dudas con una combinación? <Link to="/ayuda" className="underline">Escribinos</Link>.
+                </p>
+              </aside>
+            </div>
+          </>
         )}
       </div>
     </Tienda>

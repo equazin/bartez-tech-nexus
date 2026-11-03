@@ -22,6 +22,8 @@ const EnviosTab = lazy(() => import("@/components/admin/EnviosTab").then((m) => 
 const PagosTab = lazy(() => import("@/components/admin/PagosTab").then((m) => ({ default: m.PagosTab })));
 const TransferenciaTab = lazy(() => import("@/components/admin/TransferenciaTab").then((m) => ({ default: m.TransferenciaTab })));
 const ArrepentimientosTab = lazy(() => import("@/components/admin/ArrepentimientosTab").then((m) => ({ default: m.ArrepentimientosTab })));
+const PcArmadasTab = lazy(() => import("@/components/admin/PcArmadasTab").then((m) => ({ default: m.PcArmadasTab })));
+const ServiciosTiendaTab = lazy(() => import("@/components/admin/ServiciosTiendaTab").then((m) => ({ default: m.ServiciosTiendaTab })));
 const TextosLegalesTab = lazy(() => import("@/components/admin/TextosLegalesTab").then((m) => ({ default: m.TextosLegalesTab })));
 const ReportsTab = lazy(() => import("@/components/admin/ReportsTab").then((m) => ({ default: m.ReportsTab })));
 const ActivityLogTab = lazy(() => import("@/components/admin/ActivityLogTab").then((m) => ({ default: m.ActivityLogTab })));
@@ -187,6 +189,14 @@ export function AdminCommercialTabs({
 
       <KeepAliveTab active={activeTab === "arrepentimientos"} id="arrepentimientos">
         <ArrepentimientosTab />
+      </KeepAliveTab>
+
+      <KeepAliveTab active={activeTab === "pc_armadas"} id="pc_armadas">
+        <PcArmadasTab />
+      </KeepAliveTab>
+
+      <KeepAliveTab active={activeTab === "servicios_tienda"} id="servicios_tienda">
+        <ServiciosTiendaTab />
       </KeepAliveTab>
 
       <KeepAliveTab active={activeTab === "textos_legales"} id="textos_legales">

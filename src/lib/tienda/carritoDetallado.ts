@@ -2,15 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { listarProductosPorIds, type PrecioPorMedio, type ProductoPublico } from "./catalogo";
 import { precioConMedio, preciosDe } from "./precios";
 import { useCarrito, type LineaDelCarrito } from "./carrito";
+import { esPcCompleta, servicioDisponible, useServicios, type ServicioPublico } from "./servicios";
 
 export interface LineaDetallada {
   linea: LineaDelCarrito;
   producto: ProductoPublico | null;
 }
 
-/** El carrito con sus productos cargados desde la vista pública: subtotal y peso para cotizar el envío. */
+/** El carrito con sus productos y servicios cargados desde la vista pública: subtotal y peso para cotizar el envío. */
 export function useCarritoDetallado() {
   const { carrito, unidades } = useCarrito();
+  const servicios = useServicios();
   const [productos, setProductos] = useState<Map<number, ProductoPublico>>(new Map());
   const [cargando, setCargando] = useState(false);
   const ids = carrito.lineas.map((l) => l.productoId);
@@ -46,9 +48,19 @@ export function useCarritoDetallado() {
     [carrito.lineas, productos],
   );
 
+  const pcCompleta = useMemo(() => esPcCompleta(lineas.map(({ producto }) => producto?.categoria_slug)), [lineas]);
+  /** Los servicios que se pueden sumar a este carrito: los "solo con PC" piden una PC completa. */
+  const serviciosOfrecidos = useMemo<ServicioPublico[]>(() => servicios.filter((s) => servicioDisponible(s, pcCompleta)), [servicios, pcCompleta]);
+  const serviciosElegidos = useMemo<ServicioPublico[]>(
+    () => serviciosOfrecidos.filter((s) => carrito.servicios.includes(s.id)),
+    [serviciosOfrecidos, carrito.servicios],
+  );
+
   const subtotal = useMemo(
-    () => lineas.reduce((suma, { linea, producto }) => suma + (producto?.precio_final_ars ?? 0) * linea.cantidad, 0),
-    [lineas],
+    () =>
+      lineas.reduce((suma, { linea, producto }) => suma + (producto?.precio_final_ars ?? 0) * linea.cantidad, 0) +
+      serviciosElegidos.reduce((suma, s) => suma + (s.precio_final_ars ?? 0), 0),
+    [lineas, serviciosElegidos],
   );
 
   /** Los medios activos según los productos cargados, del más barato al más caro. */
@@ -61,10 +73,12 @@ export function useCarritoDetallado() {
   const subtotalPorMedio = useMemo<Record<string, number>>(() => {
     const totales: Record<string, number> = {};
     for (const medio of medios) {
-      totales[medio.id] = lineas.reduce((suma, { linea, producto }) => suma + (producto ? (precioConMedio(producto, medio.id) ?? 0) : 0) * linea.cantidad, 0);
+      totales[medio.id] =
+        lineas.reduce((suma, { linea, producto }) => suma + (producto ? (precioConMedio(producto, medio.id) ?? 0) : 0) * linea.cantidad, 0) +
+        serviciosElegidos.reduce((suma, s) => suma + (precioConMedio(s, medio.id) ?? 0), 0);
     }
     return totales;
-  }, [lineas, medios]);
+  }, [lineas, medios, serviciosElegidos]);
 
   const pesoKg = useMemo(() => lineas.reduce((suma, { linea, producto }) => suma + (producto?.peso_kg ?? 1) * linea.cantidad, 0), [lineas]);
 
@@ -86,6 +100,9 @@ export function useCarritoDetallado() {
     subtotal,
     medios,
     subtotalPorMedio,
+    pcCompleta,
+    serviciosOfrecidos,
+    serviciosElegidos,
     pesoKg,
     cargando,
     problemas,

@@ -216,3 +216,16 @@ gráficos o cooler. Si falta un dato, pide confirmarlo en la ficha en lugar de b
 por transferencia y Mercado Pago y agrega todo al carrito. Se llega desde el menú, el desplegable de PC y
 componentes, el inicio, las categorías de componentes, la ficha de cada componente ("Sumalo a Armá tu PC") y el pie.
 Los coolers no traen socket en la ficha: el armador pide confirmarlo hasta que se cargue ese dato.
+
+Rediseño aprobado el 3/11/2026 (maqueta "B con PC armadas"): todas las piezas en una lista y un panel de opciones al
+costado; al elegir una pieza pasa sola a la siguiente que falta (Saltear y "Ya la tengo" también avanzan). Arriba,
+"Arrancá de una armada": las PC armadas del panel se cargan en la lista y se pueden cambiar pieza por pieza. Debajo,
+los servicios. En el panel, el menú Armá tu PC tiene dos pantallas:
+- PC armadas (tabla pc_armadas): nombre, para qué sirve, estado y piezas, con el mismo armador. El precio es la suma
+  de las piezas; solo se publica completa y compatible, y la vista tienda_pc_armadas la oculta si una pieza se queda
+  sin stock.
+- Servicios (tabla servicios_tienda): precio final con IVA por medio de pago, activo o no, y si se ofrece solo con
+  una PC completa (procesador, motherboard, memoria, almacenamiento y gabinete) o siempre. Sin precio para cada medio
+  activo no se muestra. Se ofrecen en el armador y en el carrito, y el checkout los cobra como líneas del pedido
+  (order_items.servicio_id, sin stock). Los dos servicios iniciales (Armado y prueba; Sistema operativo y drivers)
+  quedan inactivos hasta cargarles el precio.
