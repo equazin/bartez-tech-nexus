@@ -1,8 +1,11 @@
 export type AppTheme = "dark" | "light";
 
-export const APP_THEME_STORAGE_KEY = "teqo-tema";
+/** Cambió el 3/11/2026 al pasar la tienda y el panel al tema claro: así todos arrancan en claro. */
+export const APP_THEME_STORAGE_KEY = "teqo-tema-claro";
 
 const LEGACY_THEME_STORAGE_KEYS = ["theme", "admin_theme", "b2b_theme"] as const;
+/** Claves anteriores que se borran sin copiar su valor (guardaban el oscuro de antes). */
+const CLAVES_DESCARTADAS = ["teqo-tema"] as const;
 
 export function isAppTheme(value: unknown): value is AppTheme {
   return value === "dark" || value === "light";
@@ -14,7 +17,7 @@ export function readStoredTheme(storage: Storage, key = APP_THEME_STORAGE_KEY): 
 }
 
 export function clearLegacyThemePreferences(storage: Storage) {
-  for (const legacyKey of LEGACY_THEME_STORAGE_KEYS) {
+  for (const legacyKey of [...LEGACY_THEME_STORAGE_KEYS, ...CLAVES_DESCARTADAS]) {
     storage.removeItem(legacyKey);
   }
 }

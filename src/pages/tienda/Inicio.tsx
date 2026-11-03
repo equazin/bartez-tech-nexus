@@ -17,7 +17,6 @@ import {
   listarDestacados,
   listarMarcasDeCategoria,
   listarProductos,
-  listarProductosPorIds,
   precioDesde,
   rutaDelProducto,
   type CategoriaPublica,
@@ -27,12 +26,7 @@ import { formatearPesos } from "@/lib/tienda/dinero";
 import { datosClaveConEtiqueta, paresDeFicha } from "@/lib/tienda/ficha";
 import { useContenidoLegal } from "@/lib/tienda/legal";
 import { usarSeo } from "@/lib/tienda/seo";
-import { chipsDeArmada } from "@/components/tienda/ArmadorPartes";
-import { seleccionDe } from "@/lib/tienda/componentes";
-import { listarPcArmadas } from "@/lib/tienda/pcArmadas";
-import { nombreCortoDeMedio, precioConMedio, preciosDe } from "@/lib/tienda/precios";
-import { useServicios } from "@/lib/tienda/servicios";
-import { PASOS } from "@/lib/tienda/armador";
+import { PortadaDelInicio } from "@/components/tienda/PortadaDestacada";
 import { cn } from "@/lib/utils";
 
 /** Carga asíncrona con cancelación: el valor queda en null mientras carga o si falla. */
@@ -85,89 +79,6 @@ function idsDe(raices: CategoriaPublica[] | null, slug: string): number[] {
   return nodo ? idsConDescendientes(nodo) : [];
 }
 
-/** La primera PC armada del panel con sus piezas: la portada la muestra en lugar de una foto de ambiente. */
-function usePcDePortada() {
-  return useCarga(async () => {
-    const [primera] = await listarPcArmadas();
-    if (!primera) return null;
-    const ids = PASOS.map((p) => primera.piezas[p.id]?.id).filter((id): id is number => typeof id === "number");
-    const productos = await listarProductosPorIds(ids);
-    const seleccion = seleccionDe(primera.piezas, new Map(productos.map((p) => [p.id, p])));
-    const conPiezas = PASOS.filter((p) => seleccion[p.id]);
-    if (conPiezas.length === 0) return null;
-    const medios = preciosDe(seleccion[conPiezas[0].id] as ProductoPublico);
-    const totales = medios.map((m) => ({
-      medio: m,
-      total: conPiezas.reduce((suma, p) => suma + (precioConMedio(seleccion[p.id] as ProductoPublico, m.id) ?? 0) * (primera.piezas[p.id]?.cantidad ?? 1), 0),
-    }));
-    return { armada: primera, seleccion, chips: chipsDeArmada(seleccion, primera.piezas), totales };
-  }, []);
-}
-
-function PortadaDeProducto() {
-  const pc = usePcDePortada();
-  const servicios = useServicios();
-  const conArmado = servicios.some((s) => /armado/i.test(s.nombre));
-
-  if (!pc) {
-    return (
-      <div className="flex min-h-[460px] min-w-0 flex-[2_1_560px] flex-col justify-center gap-4 rounded-2xl bg-placa-foto p-7 text-texto-placa md:p-12">
-        <p className="text-[13px] font-bold uppercase tracking-[0.12em] text-primary">Notebooks · Gaming · Monitores · Componentes</p>
-        <h1 className="font-display text-[48px] font-extrabold uppercase leading-[0.95] md:text-[68px]">Subí tu mundo.</h1>
-        <p className="max-w-[520px] text-lg leading-relaxed">Equipos de fábrica, elegidos y explicados, con el precio final a la vista y envío al mismo precio en todo el país.</p>
-      </div>
-    );
-  }
-
-  const { armada, seleccion, chips, totales } = pc;
-  const gabinete = seleccion.gabinete ? imagenPrincipal(seleccion.gabinete) : null;
-  const miniaturas = [seleccion.video, seleccion.procesador].filter((p): p is ProductoPublico => Boolean(p)).map(imagenPrincipal).filter((f): f is string => Boolean(f));
-  return (
-    <div className="grid min-h-[460px] min-w-0 flex-[2_1_560px] overflow-hidden rounded-2xl bg-placa-foto text-texto-placa md:grid-cols-[1.05fr_1fr]">
-      <div className="flex flex-col justify-center gap-4 p-7 md:p-11">
-        <p className="text-[13px] font-bold uppercase tracking-[0.12em] text-primary">PC armadas</p>
-        <h1 className="font-display text-[44px] font-extrabold uppercase leading-[0.95] md:text-[58px]">{armada.nombre}, compatible pieza por pieza</h1>
-        <p className="text-base leading-relaxed opacity-80">
-          {chips.join(" · ")}.{conArmado ? " La armamos, la probamos y te llega lista para enchufar." : " Todas las piezas compatibles entre sí."}
-        </p>
-        {totales[0] && (
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[34px] font-extrabold tabular-nums tracking-[-0.02em]">
-              {formatearPesos(totales[0].total)}{" "}
-              <span className="text-[15px] font-medium tracking-normal opacity-80">con {nombreCortoDeMedio(totales[0].medio).toLowerCase()}</span>
-            </span>
-            {totales[1] && (
-              <span className="text-sm tabular-nums opacity-80">
-                {formatearPesos(totales[1].total)} con {nombreCortoDeMedio(totales[1].medio)}
-              </span>
-            )}
-          </div>
-        )}
-        <div className="flex flex-wrap gap-2.5 pt-1">
-          <Link to={`/arma-tu-pc?armada=${armada.id}`} className="flex h-12 items-center rounded-xl bg-primary px-6 font-bold text-primary-foreground hover:bg-primary/90">
-            Ver la PC
-          </Link>
-          <Link to="/arma-tu-pc" className="flex h-12 items-center rounded-xl border border-texto-placa px-6 font-bold hover:bg-white/40">
-            Armá la tuya
-          </Link>
-        </div>
-      </div>
-      <div className="relative flex min-h-[300px] items-center justify-center bg-placa-foto-2">
-        {gabinete && <img src={gabinete} alt="" className="max-h-[340px] max-w-[62%] object-contain mix-blend-multiply" />}
-        {miniaturas.length > 0 && (
-          <span className="absolute bottom-6 left-6 flex gap-2.5">
-            {miniaturas.map((foto) => (
-              <span key={foto} className="flex h-[84px] w-[84px] items-center justify-center rounded-2xl bg-white shadow-[0_6px_20px_-12px_rgba(0,0,0,0.4)]">
-                <img src={foto} alt="" className="max-h-[66px] max-w-[66px] object-contain" />
-              </span>
-            ))}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function Portada({ raices, fotos }: { raices: CategoriaPublica[] | null; fotos: Map<number, string> | null }) {
   const jugar = raices ? encontrarCategoria(raices, "monitores-para-jugar") : null;
   const componentes = raices ? encontrarCategoria(raices, "pc-y-componentes") : null;
@@ -201,7 +112,7 @@ function Portada({ raices, fotos }: { raices: CategoriaPublica[] | null; fotos: 
   return (
     <Bloque className="pt-6" etiqueta="Portada">
       <div className="flex flex-wrap gap-4">
-        <PortadaDeProducto />
+        <PortadaDelInicio />
         {accesos.length > 0 && (
           <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-4">
             {accesos.map((a) => (

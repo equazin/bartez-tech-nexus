@@ -113,9 +113,10 @@ function paleta(tema) {
   };
 }
 
-function bloque(selector, tema) {
-  const colores = paleta(tema);
-  const oscuro = tokens.temas.lista.find((t) => t.id === tema).colorScheme === "dark";
+/** `tema` pone las fuentes y los pesos; `temaDeColores` (por defecto el mismo) pone los colores. */
+function bloque(selector, tema, temaDeColores = tema) {
+  const colores = paleta(temaDeColores);
+  const oscuro = tokens.temas.lista.find((t) => t.id === temaDeColores).colorScheme === "dark";
   const lineas = [
     `${selector} {`,
     `  color-scheme: ${oscuro ? "dark" : "light"};`,
@@ -144,8 +145,10 @@ const salida = [
   "/* Nocturno × Prisma: el oscuro anterior. Queda para bloques sobre grafito (el pie) con data-tema=\"nocturno\". */",
   bloque('[data-tema="nocturno"]', "nocturno"),
   "",
-  "/* Panel: los colores de Nocturno con DM Sans en todo. */",
-  bloque('[data-tema="panel"]', "panel"),
+  "/* Panel: los colores de la tienda (claro) con DM Sans en todo. Con el modo oscuro del panel, los de Nocturno. */",
+  bloque('[data-tema="panel"]', "panel", "claro"),
+  "",
+  bloque('.dark[data-tema="panel"], .dark [data-tema="panel"]', "panel"),
   "",
   ":root {",
   `  --radius: ${radios["radius-md"]};`,
