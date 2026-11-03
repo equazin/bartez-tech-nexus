@@ -128,7 +128,38 @@ function registroDeNewBytes(p: ProductoNewBytes): SupplierCatalogRecord {
   };
 }
 
-/** Importa los elegidos: los nuevos entran sin publicar; los que ya estaban, solo con costo y stock. */
+const clave = (valor: unknown) => String(valor ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+/** SKU y part number de todos los productos, normalizados, para vincular solo por código exacto. */
+async function codigosDelCatalogo(): Promise<Set<string>> {
+  const codigos = new Set<string>();
+  for (let desde = 0; ; desde += 1000) {
+    const { data, error } = await supabase.from("products").select("sku, specs").range(desde, desde + 999);
+    if (error) throw new Error(`No se pudo leer el catálogo: ${error.message}`);
+    for (const fila of (data ?? []) as Array<{ sku: string | null; specs: Record<string, unknown> | null }>) {
+      for (const valor of [fila.sku, fila.specs?.manufacturer_part_number, fila.specs?.supplier_sku]) {
+        const k = clave(valor);
+        if (k.length >= 4) codigos.add(k);
+      }
+    }
+    if (!data || data.length < 1000) break;
+  }
+  return codigos;
+}
+
+/**
+ * Importa los elegidos: los nuevos entran sin publicar; los que ya estaban, solo con costo y stock.
+ * Un producto de New Bytes se vincula a uno existente solo si su código coincide exacto con el SKU o el
+ * part number de ese producto. Sin coincidencia exacta entra como producto nuevo: el parecido por nombre
+ * mezclaba modelos distintos (una RX 9070 XT con una RX 9070, un Ryzen con otro). Si ya estaba vinculado
+ * a un producto con otro código, ese vínculo se deshace y queda como producto propio.
+ */
 export async function importarDeNewBytes(productos: ProductoNewBytes[], userId?: string): Promise<SupplierSyncResult> {
-  return syncSupplierCatalogRecords(productos.map(registroDeNewBytes), userId, { existingProductsMode: "price_only" });
+  const codigos = await codigosDelCatalogo();
+  const registros = productos.map((p) => {
+    const registro = registroDeNewBytes(p);
+    const k = clave(registro.supplierSku);
+    return { ...registro, forceCreate: !(k.length >= 4 && codigos.has(k)) };
+  });
+  return syncSupplierCatalogRecords(registros, userId, { existingProductsMode: "price_only" });
 }
