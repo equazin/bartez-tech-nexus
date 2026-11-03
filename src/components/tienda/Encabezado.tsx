@@ -288,7 +288,6 @@ export function Encabezado() {
         </div>
       </div>
       <NavegacionPorCategoria categorias={categorias} />
-      <div className="h-[3px] bg-primary" aria-hidden />
     </header>
   );
 }
