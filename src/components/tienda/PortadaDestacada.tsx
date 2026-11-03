@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { chipsDeArmada } from "@/components/tienda/ArmadorPartes";
 import { PASOS, type Seleccion } from "@/lib/tienda/armador";
@@ -222,25 +223,121 @@ export function PcDePortada({ armadaId = null, enlazar = true }: { armadaId?: st
   );
 }
 
-/** La portada vigente del inicio. */
-export function PortadaDelInicio() {
-  const [portada, setPortada] = useState<PortadaPublica | null | undefined>(undefined);
+/** Un banner diseñado completo: la imagen ya trae el texto. En el celular usa su versión cuadrada. */
+export function BannerSoloImagen({ portada, enlazar = true }: { portada: Pick<PortadaPublica, "titulo" | "enlace" | "imagen_url" | "imagen_movil_url">; enlazar?: boolean }) {
+  if (!portada.imagen_url) return null;
+  const imagen = (
+    <picture>
+      <source media="(min-width: 768px)" srcSet={portada.imagen_url} />
+      <img src={portada.imagen_movil_url ?? portada.imagen_url} alt={portada.titulo} className="block h-auto w-full" />
+    </picture>
+  );
+  return enlazar ? (
+    <Link to={portada.enlace} className="block overflow-hidden rounded-2xl">
+      {imagen}
+    </Link>
+  ) : (
+    <div className="overflow-hidden rounded-2xl">{imagen}</div>
+  );
+}
 
-  useEffect(() => {
-    let cancelado = false;
+export function DiapositivaDePortada({ portada, enlazar = true }: { portada: PortadaPublica; enlazar?: boolean }) {
+  if (portada.tipo === "imagen") return <BannerSoloImagen portada={portada} enlazar={enlazar} />;
+  if (portada.tipo === "banner") return <BannerDePortada banner={portada} enlazar={enlazar} />;
+  return <PcDePortada armadaId={portada.pc_armada_id} enlazar={enlazar} />;
+}
+
+const SEGUNDOS_POR_PORTADA = 7;
+
+/**
+ * Las portadas vigentes del inicio en carrusel, en el orden del panel. Se vuelven a leer cuando la
+ * pestaña recupera el foco, así un cambio del panel se ve sin recargar la tienda.
+ */
+export function PortadaDelInicio() {
+  const [portadas, setPortadas] = useState<PortadaPublica[] | undefined>(undefined);
+  const [indice, setIndice] = useState(0);
+  const [pausa, setPausa] = useState(false);
+
+  const cargar = useCallback(() => {
     listarPortadasVigentes()
-      .then((lista) => {
-        if (!cancelado) setPortada(lista[0] ?? null);
-      })
-      .catch(() => {
-        if (!cancelado) setPortada(null);
-      });
-    return () => {
-      cancelado = true;
-    };
+      .then((lista) => setPortadas(lista))
+      .catch(() => setPortadas((actual) => actual ?? []));
   }, []);
 
-  if (portada === undefined) return <div className="min-h-[460px] min-w-0 flex-[2_1_560px] animate-pulse rounded-2xl bg-placa-foto" aria-hidden />;
-  if (portada?.tipo === "banner") return <BannerDePortada banner={portada} />;
-  return <PcDePortada armadaId={portada?.pc_armada_id ?? null} />;
+  useEffect(() => {
+    cargar();
+    const alVolver = () => {
+      if (document.visibilityState === "visible") cargar();
+    };
+    window.addEventListener("focus", cargar);
+    document.addEventListener("visibilitychange", alVolver);
+    return () => {
+      window.removeEventListener("focus", cargar);
+      document.removeEventListener("visibilitychange", alVolver);
+    };
+  }, [cargar]);
+
+  const total = portadas?.length ?? 0;
+  useEffect(() => {
+    if (indice >= total && total > 0) setIndice(0);
+  }, [indice, total]);
+
+  useEffect(() => {
+    if (total < 2 || pausa) return;
+    const reloj = window.setInterval(() => setIndice((i) => (i + 1) % total), SEGUNDOS_POR_PORTADA * 1000);
+    return () => window.clearInterval(reloj);
+  }, [total, pausa]);
+
+  if (portadas === undefined) return <div className="min-h-[420px] w-full animate-pulse rounded-2xl bg-placa-foto" aria-hidden />;
+  if (total === 0) return <PcDePortada />;
+
+  const actual = portadas[Math.min(indice, total - 1)];
+  const mover = (paso: number) => setIndice((i) => (i + paso + total) % total);
+  return (
+    <section
+      aria-roledescription="carrusel"
+      aria-label="Portadas"
+      className="relative flex w-full"
+      onMouseEnter={() => setPausa(true)}
+      onMouseLeave={() => setPausa(false)}
+      onFocus={() => setPausa(true)}
+      onBlur={() => setPausa(false)}
+    >
+      <div key={actual.id} className="flex w-full animate-in fade-in duration-500">
+        <DiapositivaDePortada portada={actual} />
+      </div>
+      {total > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={() => mover(-1)}
+            aria-label="Portada anterior"
+            className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 text-foreground shadow-md hover:bg-card"
+          >
+            <ChevronLeft className="h-5 w-5" aria-hidden />
+          </button>
+          <button
+            type="button"
+            onClick={() => mover(1)}
+            aria-label="Portada siguiente"
+            className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 text-foreground shadow-md hover:bg-card"
+          >
+            <ChevronRight className="h-5 w-5" aria-hidden />
+          </button>
+          <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5 rounded-chip bg-card/80 px-2.5 py-1.5">
+            {portadas.map((p, i) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setIndice(i)}
+                aria-label={`Ver la portada ${i + 1} de ${total}`}
+                aria-current={i === indice}
+                className={cn("h-2 rounded-full transition-all", i === indice ? "w-6 bg-primary" : "w-2 bg-input")}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
 }

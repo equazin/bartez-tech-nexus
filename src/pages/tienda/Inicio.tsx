@@ -111,15 +111,15 @@ function Portada({ raices, fotos }: { raices: CategoriaPublica[] | null; fotos: 
 
   return (
     <Bloque className="pt-6" etiqueta="Portada">
-      <div className="flex flex-wrap gap-4">
+      <div className="flex flex-col gap-4">
         <PortadaDelInicio />
         {accesos.length > 0 && (
-          <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-4">
+          <div className="grid min-w-0 gap-4 md:grid-cols-2">
             {accesos.map((a) => (
               <Link
                 key={a.clave}
                 to={a.ruta}
-                className="flex min-h-[200px] flex-1 items-center gap-4 rounded-2xl border border-border bg-card p-6 transition-colors hover:border-input"
+                className="flex min-h-[170px] items-center gap-4 rounded-2xl border border-border bg-card p-6 transition-colors hover:border-input"
               >
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
                   <span className="font-display text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{a.rotulo}</span>

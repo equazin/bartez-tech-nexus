@@ -5,7 +5,8 @@ import { supabase } from "@/lib/supabase";
  * activas y dentro de sus fechas, en orden; la tienda muestra la primera.
  */
 
-export type TipoDePortada = "banner" | "pc";
+/** banner: texto e imagen; pc: una PC armada; imagen: un banner diseñado completo, con el texto adentro. */
+export type TipoDePortada = "banner" | "pc" | "imagen";
 /** Gris, grafito y rojo: texto a la izquierda y la imagen a la derecha. Los "imagen-*": una portada diseñada de fondo con el texto encima. */
 export type FondoDePortada = "gris" | "grafito" | "rojo" | "imagen-oscura" | "imagen-clara" | "imagen-roja";
 
@@ -20,6 +21,8 @@ export interface PortadaPublica {
   imagen_url: string | null;
   fondo: FondoDePortada;
   pc_armada_id: string | null;
+  /** Solo para las de tipo imagen: la versión para celular. */
+  imagen_movil_url: string | null;
 }
 
 export const FONDOS_DE_PORTADA: Array<{ id: FondoDePortada; nombre: string }> = [
@@ -41,7 +44,7 @@ export function esImagenSubida(url: string | null): boolean {
 export async function listarPortadasVigentes(): Promise<PortadaPublica[]> {
   const { data, error } = await supabase
     .from("tienda_portadas")
-    .select("id, tipo, etiqueta, titulo, texto, boton, enlace, imagen_url, fondo, pc_armada_id")
+    .select("id, tipo, etiqueta, titulo, texto, boton, enlace, imagen_url, fondo, pc_armada_id, imagen_movil_url")
     .order("orden");
   if (error) throw new Error(`No se pudo cargar la portada: ${error.message}`);
   return (data ?? []) as PortadaPublica[];

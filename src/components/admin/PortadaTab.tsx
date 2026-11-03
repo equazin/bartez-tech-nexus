@@ -6,18 +6,20 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { SurfaceCard } from "@/components/ui/surface-card";
-import { BannerDePortada, PcDePortada } from "@/components/tienda/PortadaDestacada";
+import { BannerDePortada, BannerSoloImagen, PcDePortada } from "@/components/tienda/PortadaDestacada";
+import { DISENOS_DE_BANNERS, type DisenoDeBanner } from "@/lib/tienda/disenosDeBanners";
 import { supabase } from "@/lib/supabase";
 import { buscarProductos, categoriasPlanas, imagenPrincipal, listarCategorias, rutaDelProducto, type ProductoPublico } from "@/lib/tienda/catalogo";
 import { FONDOS_DE_PORTADA, type FondoDePortada, type TipoDePortada } from "@/lib/tienda/portadas";
 import { cn } from "@/lib/utils";
 
 /**
- * Marketing › Portada del inicio: banners con texto o una PC armada, con fechas. La tienda muestra la
- * primera activa y dentro de sus fechas (vista tienda_portadas); sin ninguna, la primera PC armada.
+ * Marketing › Portada del inicio: banners con texto, banners diseñados (solo imagen) o una PC armada,
+ * con fechas. La tienda muestra en carrusel las activas y dentro de sus fechas (vista tienda_portadas),
+ * en el orden de la lista; sin ninguna, la primera PC armada.
  */
 
-type Destino = "ofertas" | "categoria" | "producto" | "armador";
+type Destino = "ofertas" | "categoria" | "producto" | "armador" | "busqueda";
 
 interface Portada {
   id: string | null;
@@ -30,6 +32,7 @@ interface Portada {
   destino_tipo: Destino;
   enlace: string;
   imagen_url: string | null;
+  imagen_movil_url: string | null;
   foto_producto_id: number | null;
   fondo: FondoDePortada;
   pc_armada_id: string | null;
@@ -50,7 +53,17 @@ const DESTINOS: Array<{ id: Destino; nombre: string }> = [
   { id: "categoria", nombre: "Una categoría" },
   { id: "producto", nombre: "Un producto" },
   { id: "armador", nombre: "Armá tu PC" },
+  { id: "busqueda", nombre: "Una búsqueda" },
 ];
+
+const GRUPOS_DE_DISENOS: Array<DisenoDeBanner["grupo"]> = ["Teqo", "Eventos", "Marcas"];
+
+function destinoDe(enlace: string): Destino {
+  if (enlace.startsWith("/buscar")) return "busqueda";
+  if (enlace.startsWith("/arma-tu-pc")) return "armador";
+  if (enlace === "/ofertas") return "ofertas";
+  return "categoria";
+}
 
 const COLOR_DE_FONDO: Record<FondoDePortada, { clase: string; tema?: string }> = {
   gris: { clase: "bg-placa-foto" },
@@ -75,6 +88,7 @@ function nueva(orden: number): Portada {
     destino_tipo: "ofertas",
     enlace: "/ofertas",
     imagen_url: null,
+    imagen_movil_url: null,
     foto_producto_id: null,
     fondo: "gris",
     pc_armada_id: null,
@@ -88,7 +102,7 @@ function nueva(orden: number): Portada {
 async function leerPortadas(): Promise<Portada[]> {
   const { data, error } = await supabase
     .from("portadas")
-    .select("id, nombre, tipo, etiqueta, titulo, texto, boton, destino_tipo, enlace, imagen_url, foto_producto_id, fondo, pc_armada_id, desde, hasta, activa, orden")
+    .select("id, nombre, tipo, etiqueta, titulo, texto, boton, destino_tipo, enlace, imagen_url, imagen_movil_url, foto_producto_id, fondo, pc_armada_id, desde, hasta, activa, orden")
     .order("orden")
     .order("creada_en");
   if (error) throw new Error(`No se pudieron leer las portadas: ${error.message}`);
@@ -98,7 +112,7 @@ async function leerPortadas(): Promise<Portada[]> {
 function vigente(p: Portada, armadas: ArmadaDelPanel[]): boolean {
   const dia = hoy();
   if (!p.activa || (p.desde && p.desde > dia) || (p.hasta && p.hasta < dia)) return false;
-  return p.tipo === "banner" || armadas.some((a) => a.id === p.pc_armada_id && a.publicada);
+  return p.tipo !== "pc" || armadas.some((a) => a.id === p.pc_armada_id && a.publicada);
 }
 
 const formatoDeFecha = (iso: string) => (iso ? iso.split("-").reverse().join("/") : "");
@@ -157,7 +171,8 @@ export function PortadaTab() {
     };
   }, [busqueda, buscandoPara]);
 
-  const visible = useMemo(() => (portadas ?? []).find((p) => vigente(p, armadas)) ?? null, [portadas, armadas]);
+  const enCarrusel = useMemo(() => (portadas ?? []).filter((p) => vigente(p, armadas)), [portadas, armadas]);
+  const [busquedaDestino, setBusquedaDestino] = useState("");
   const maximoOrden = Math.max(0, ...(portadas ?? []).map((p) => p.orden));
 
   if (error) return <p className="p-6 text-sm text-danger">{error}</p>;
@@ -173,6 +188,7 @@ export function PortadaTab() {
     if (destino === "ofertas") cambiar({ destino_tipo: destino, enlace: "/ofertas" });
     else if (destino === "armador") cambiar({ destino_tipo: destino, enlace: "/arma-tu-pc" });
     else if (destino === "categoria") cambiar({ destino_tipo: destino, enlace: categorias[0] ? `/${categorias[0].slug}` : "/ofertas" });
+    else if (destino === "busqueda") cambiar({ destino_tipo: destino, enlace: `/buscar?q=${encodeURIComponent(busquedaDestino.trim() || "ofertas")}` });
     else cambiar({ destino_tipo: destino });
   }
 
@@ -183,7 +199,19 @@ export function PortadaTab() {
     setBusqueda("");
   }
 
-  async function subirImagen(evento: ChangeEvent<HTMLInputElement>) {
+  function elegirDiseno(d: DisenoDeBanner) {
+    cambiar({ imagen_url: d.escritorio, imagen_movil_url: d.movil, enlace: d.enlace, destino_tipo: destinoDe(d.enlace), titulo: borrador?.titulo || d.nombre, foto_producto_id: null });
+  }
+
+  async function alternarMostrar(p: Portada) {
+    if (!p.id) return;
+    const { error: e } = await supabase.from("portadas").update({ activa: !p.activa, actualizada_en: new Date().toISOString() }).eq("id", p.id);
+    if (e) return void toast.error(e.message);
+    toast.success(p.activa ? `"${p.nombre}" ya no se muestra` : `"${p.nombre}" se muestra en el carrusel`);
+    await recargar(borrador?.id);
+  }
+
+  async function subirImagen(evento: ChangeEvent<HTMLInputElement>, campo: "imagen_url" | "imagen_movil_url" = "imagen_url") {
     const archivo = evento.target.files?.[0];
     evento.target.value = "";
     if (!archivo) return;
@@ -196,7 +224,7 @@ export function PortadaTab() {
       const { error: e } = await supabase.storage.from("portadas").upload(ruta, archivo, { contentType: archivo.type, upsert: false });
       if (e) throw new Error(e.message);
       const { data } = supabase.storage.from("portadas").getPublicUrl(ruta);
-      cambiar({ imagen_url: data.publicUrl, foto_producto_id: null });
+      cambiar({ [campo]: data.publicUrl, foto_producto_id: null });
       toast.success("Imagen subida");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "No se pudo subir la imagen.");
@@ -208,6 +236,8 @@ export function PortadaTab() {
   async function guardar() {
     if (!borrador) return;
     const nombre = (borrador.tipo === "pc" ? armadas.find((a) => a.id === borrador.pc_armada_id)?.nombre : borrador.titulo) || borrador.nombre;
+    if (borrador.tipo === "imagen" && !borrador.imagen_url) return void toast.error("Elegí un diseño o subí la imagen para computadora.");
+    if (borrador.tipo === "imagen" && !borrador.titulo.trim()) return void toast.error("Escribí qué dice el banner: lo leen los lectores de pantalla.");
     if (borrador.tipo === "banner" && !borrador.titulo.trim()) return void toast.error("Poné un título para el banner.");
     if (borrador.tipo === "pc" && !borrador.pc_armada_id) return void toast.error("Elegí qué PC armada mostrar.");
     if (borrador.desde && borrador.hasta && borrador.hasta < borrador.desde) return void toast.error("La fecha de fin tiene que ser posterior a la de inicio.");
@@ -223,6 +253,7 @@ export function PortadaTab() {
         destino_tipo: borrador.destino_tipo,
         enlace: borrador.enlace,
         imagen_url: borrador.imagen_url,
+        imagen_movil_url: borrador.tipo === "imagen" ? borrador.imagen_movil_url : null,
         foto_producto_id: borrador.foto_producto_id,
         fondo: borrador.fondo,
         pc_armada_id: borrador.tipo === "pc" ? borrador.pc_armada_id : null,
@@ -272,7 +303,8 @@ export function PortadaTab() {
   }
 
   const estadoDe = (p: Portada) =>
-    visible?.id === p.id && p.id ? { texto: "Se ve ahora", clase: "bg-success text-background" } : p.activa ? { texto: "Activa, en espera", clase: "bg-accent text-foreground" } : { texto: "Inactiva", clase: "bg-secondary text-muted-foreground" };
+    enCarrusel.some((x) => x.id === p.id) ? { texto: "En el carrusel", clase: "bg-success text-background" } : p.activa ? { texto: "Activa, fuera de fecha", clase: "bg-accent text-foreground" } : { texto: "No se muestra", clase: "bg-secondary text-muted-foreground" };
+  const tipoDe = (p: Portada) => (p.tipo === "banner" ? "Banner" : p.tipo === "imagen" ? "Banner diseñado" : "PC armada");
 
   return (
     <div className="flex max-w-6xl flex-col gap-5">
@@ -280,7 +312,7 @@ export function PortadaTab() {
         <div className="max-w-2xl">
           <h2 className="text-2xl font-bold">Portada del inicio</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Lo primero que se ve en la tienda. Se muestra la primera portada activa y dentro de sus fechas; si no hay ninguna, la primera PC armada.
+            Lo primero que se ve en la tienda. Las portadas con "Mostrar" encendido y dentro de sus fechas pasan en carrusel, en el orden de la lista; si no hay ninguna, se ve la primera PC armada.
           </p>
         </div>
         <Button type="button" onClick={() => setBorrador(nueva(maximoOrden + 1))}>
@@ -295,13 +327,24 @@ export function PortadaTab() {
             const estado = estadoDe(p);
             return (
               <div key={p.id} className={cn("flex items-center gap-2.5 rounded-2xl border bg-card p-3", borrador?.id === p.id ? "border-foreground" : "border-border")}>
-                <button type="button" onClick={() => setBorrador({ ...p })} className="flex min-w-0 flex-1 flex-col gap-1 text-left">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBorrador({ ...p });
+                    setBusquedaDestino("");
+                  }}
+                  className="flex min-w-0 flex-1 flex-col gap-1 text-left"
+                >
                   <span className="truncate text-sm font-bold">{p.nombre}</span>
                   <span className="text-xs text-muted-foreground">
-                    {p.tipo === "banner" ? "Banner" : "PC armada"} · {p.hasta ? `hasta el ${formatoDeFecha(p.hasta)}` : "sin fecha de fin"}
+                    {tipoDe(p)} · {p.hasta ? `hasta el ${formatoDeFecha(p.hasta)}` : "sin fecha de fin"}
                   </span>
                   <span className={cn("self-start rounded-chip px-2 py-0.5 text-[11px] font-bold", estado.clase)}>{estado.texto}</span>
                 </button>
+                <label className="flex flex-col items-center gap-1 text-[10px] font-bold text-muted-foreground">
+                  <Switch checked={p.activa} onCheckedChange={() => alternarMostrar(p)} aria-label={`Mostrar ${p.nombre}`} />
+                  Mostrar
+                </label>
                 <span className="flex flex-col gap-1">
                   <button type="button" onClick={() => mover(i, -1)} disabled={i === 0} aria-label="Subir" className="rounded-md border border-border p-1 hover:bg-secondary disabled:opacity-40">
                     <ArrowUp className="h-3.5 w-3.5" aria-hidden />
@@ -314,7 +357,7 @@ export function PortadaTab() {
             );
           })}
           <p className="px-1 text-xs leading-relaxed text-muted-foreground">
-            Ahora se ve: <strong className="text-foreground">{visible?.nombre ?? "la primera PC armada"}</strong>. Una portada con fecha de fin vuelve sola a la siguiente cuando termina.
+            En el carrusel ahora: <strong className="text-foreground">{enCarrusel.length === 0 ? "ninguna, se ve la primera PC armada" : enCarrusel.map((p) => p.nombre).join(", ")}</strong>. Conviene no pasar de cinco. Una portada con fecha de fin sale sola del carrusel cuando termina.
           </p>
         </div>
 
@@ -324,18 +367,110 @@ export function PortadaTab() {
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <span className="font-medium">Qué muestra</span>
                 <span className="flex rounded-chip border border-border p-0.5">
-                  {(["banner", "pc"] as TipoDePortada[]).map((tipo) => (
+                  {(["imagen", "banner", "pc"] as TipoDePortada[]).map((tipo) => (
                     <button
                       key={tipo}
                       type="button"
                       onClick={() => cambiar({ tipo, pc_armada_id: tipo === "pc" ? (borrador.pc_armada_id ?? armadas.find((a) => a.publicada)?.id ?? null) : borrador.pc_armada_id })}
                       className={cn("h-8 rounded-chip px-3.5 text-[13px] font-bold", borrador.tipo === tipo && "bg-foreground text-background")}
                     >
-                      {tipo === "banner" ? "Banner con texto" : "Una PC armada"}
+                      {tipo === "banner" ? "Banner con texto" : tipo === "imagen" ? "Banner diseñado" : "Una PC armada"}
                     </button>
                   ))}
                 </span>
               </div>
+
+              {borrador.tipo === "imagen" && (
+                <div className="space-y-4">
+                  <label className="block space-y-1 text-sm">
+                    <span className="font-medium">Qué dice el banner (para los lectores de pantalla)</span>
+                    <Input value={borrador.titulo} maxLength={80} onChange={(e) => cambiar({ titulo: e.target.value })} placeholder="Por ejemplo: Cyber Monday, ofertas en tecnología" />
+                  </label>
+                  <div className="space-y-2 text-sm">
+                    <span className="font-medium">Diseños de Teqo</span>
+                    {GRUPOS_DE_DISENOS.map((grupo) => (
+                      <div key={grupo} className="space-y-1.5">
+                        <p className="text-xs font-bold text-muted-foreground">{grupo}</p>
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+                          {DISENOS_DE_BANNERS.filter((d) => d.grupo === grupo).map((d) => (
+                            <button
+                              key={d.id}
+                              type="button"
+                              onClick={() => elegirDiseno(d)}
+                              title={d.nombre}
+                              className={cn("overflow-hidden rounded-lg border-2", borrador.imagen_url === d.escritorio ? "border-foreground" : "border-transparent hover:border-input")}
+                            >
+                              <img src={d.escritorio} alt={d.nombre} loading="lazy" className="block aspect-[2400/830] w-full object-cover" />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2.5 text-sm">
+                    <span className="font-medium">O subí los tuyos:</span>
+                    {(["imagen_url", "imagen_movil_url"] as const).map((campo) => (
+                      <label key={campo} className={cn("inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-input px-3 text-sm font-medium hover:bg-secondary", subiendo && "opacity-60")}>
+                        <ImageUp className="h-4 w-4" aria-hidden />
+                        {campo === "imagen_url" ? "Para computadora (2400 × 830)" : "Para celular (1080 × 1080)"}
+                        <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => subirImagen(e, campo)} disabled={subiendo} />
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Sin imagen para celular, en el teléfono se ve la de computadora.</p>
+                  <div className="space-y-1 text-sm">
+                    <span className="font-medium">Al tocarlo lleva a</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {DESTINOS.map((d) => (
+                        <button
+                          key={d.id}
+                          type="button"
+                          onClick={() => elegirDestino(d.id)}
+                          className={cn("h-8 rounded-chip border px-3 text-xs font-bold", borrador.destino_tipo === d.id ? "border-foreground bg-foreground text-background" : "border-border")}
+                        >
+                          {d.nombre}
+                        </button>
+                      ))}
+                    </div>
+                    {borrador.destino_tipo === "categoria" && (
+                      <select value={borrador.enlace.slice(1)} onChange={(e) => cambiar({ enlace: `/${e.target.value}` })} className="mt-1.5 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm">
+                        {categorias.map((c) => (
+                          <option key={c.slug} value={c.slug}>
+                            {c.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {borrador.destino_tipo === "busqueda" && (
+                      <Input
+                        className="mt-1.5"
+                        value={busquedaDestino || decodeURIComponent(borrador.enlace.split("q=")[1] ?? "")}
+                        onChange={(e) => {
+                          setBusquedaDestino(e.target.value);
+                          cambiar({ enlace: `/buscar?q=${encodeURIComponent(e.target.value.trim())}` });
+                        }}
+                        placeholder="Qué buscar, por ejemplo: Logitech"
+                      />
+                    )}
+                    {borrador.destino_tipo === "producto" && (
+                      <button type="button" onClick={() => setBuscandoPara("destino")} className="mt-1.5 text-xs font-bold underline">
+                        Elegir el producto
+                      </button>
+                    )}
+                    <p className="text-xs text-muted-foreground">Dirección: {borrador.enlace}</p>
+                  </div>
+                  {buscandoPara === "destino" && (
+                    <div className="space-y-1.5 rounded-xl border border-border p-3">
+                      <Input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscá el producto por nombre, marca o modelo" autoFocus />
+                      {resultados.map((p) => (
+                        <button key={p.id} type="button" onClick={() => elegirProducto(p)} className="flex w-full items-center gap-2.5 rounded-lg border border-border px-2.5 py-2 text-left text-[13px] hover:border-input">
+                          {p.nombre}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {borrador.tipo === "banner" ? (
                 <>
@@ -387,6 +522,17 @@ export function PortadaTab() {
                         <button type="button" onClick={() => setBuscandoPara("destino")} className="mt-1.5 text-xs font-bold underline">
                           {borrador.enlace === "/ofertas" ? "Elegir el producto" : "Cambiar el producto"}
                         </button>
+                      )}
+                      {borrador.destino_tipo === "busqueda" && (
+                        <Input
+                          className="mt-1.5"
+                          value={busquedaDestino || decodeURIComponent(borrador.enlace.split("q=")[1] ?? "")}
+                          onChange={(e) => {
+                            setBusquedaDestino(e.target.value);
+                            cambiar({ enlace: `/buscar?q=${encodeURIComponent(e.target.value.trim())}` });
+                          }}
+                          placeholder="Qué buscar, por ejemplo: Logitech"
+                        />
                       )}
                       <p className="text-xs text-muted-foreground">Dirección: {borrador.enlace}</p>
                     </div>
@@ -452,7 +598,7 @@ export function PortadaTab() {
                     ))}
                   </div>
                 </>
-              ) : (
+              ) : borrador.tipo === "pc" ? (
                 <div className="space-y-2">
                   <div className="grid gap-2.5 sm:grid-cols-3">
                     {armadas.map((a) => (
@@ -469,7 +615,7 @@ export function PortadaTab() {
                   </div>
                   <p className="text-xs text-muted-foreground">El título, las piezas y el precio salen de la PC armada y se actualizan solos con el costo y el dólar.</p>
                 </div>
-              )}
+              ) : null}
 
               <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-border pt-4 text-sm">
                 <label className="flex items-center gap-2">
@@ -498,7 +644,13 @@ export function PortadaTab() {
             <div className="space-y-2">
               <p className="text-[13px] font-bold text-muted-foreground">Vista previa en la tienda</p>
               <div data-tema="claro" className="flex rounded-2xl bg-background p-2 font-sans text-foreground">
-                {borrador.tipo === "banner" ? (
+                {borrador.tipo === "imagen" ? (
+                  borrador.imagen_url ? (
+                    <BannerSoloImagen portada={borrador} enlazar={false} />
+                  ) : (
+                    <p className="p-6 text-sm text-muted-foreground">Elegí un diseño o subí una imagen.</p>
+                  )
+                ) : borrador.tipo === "banner" ? (
                   <BannerDePortada banner={{ ...borrador, titulo: borrador.titulo || "Título del banner" }} enlazar={false} />
                 ) : (
                   <PcDePortada armadaId={borrador.pc_armada_id} enlazar={false} />
