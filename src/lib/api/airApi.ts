@@ -1,3 +1,4 @@
+import { encabezadosDelPanel } from "@/lib/api/encabezadosDelPanel";
 import { extractAirJsonPayload } from "@/lib/suppliers/air/response";
 
 /**
@@ -25,6 +26,7 @@ async function airFetch<T>(query: string, body?: Record<string, unknown>): Promi
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(await encabezadosDelPanel()),
     },
     body: bodyStr,
   });

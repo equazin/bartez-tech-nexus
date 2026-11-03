@@ -987,12 +987,12 @@ async function reconcileCatalogProducts(
         let writeOk = true;
 
         if (priceOnlyMode) {
+          // products.stock_reserved lo manejan los pedidos de la tienda (reserva al crear el
+          // pedido, libera al vencer o cancelar): la sincronización no lo toca.
           const nextStock = Math.max(0, summary?.net_available ?? 0);
-          const nextReserved = Math.max(0, summary?.total_reserved ?? 0);
           const shouldUpdateProduct =
             currentProduct.cost_price !== nextPrice ||
-            (currentProduct.stock ?? 0) !== nextStock ||
-            (currentProduct.stock_reserved ?? 0) !== nextReserved;
+            (currentProduct.stock ?? 0) !== nextStock;
 
           if (shouldUpdateProduct) {
             const priceUpdate = await supabase
@@ -1000,7 +1000,6 @@ async function reconcileCatalogProducts(
               .update({
                 cost_price: nextPrice,
                 stock: nextStock,
-                stock_reserved: nextReserved,
                 updated_at: new Date().toISOString(),
               })
               .eq("id", productId);
@@ -1027,8 +1026,8 @@ async function reconcileCatalogProducts(
             if (setPreferred.error) writeOk = false;
           }
 
+          // products.stock_reserved lo manejan los pedidos de la tienda: la sincronización no lo toca.
           const nextStock = Math.max(0, summary?.net_available ?? 0);
-          const nextReserved = Math.max(0, summary?.total_reserved ?? 0);
           const hasActiveSource = rows.some((row) => row.active);
           const nextExternalId = preferred.external_id ?? currentProduct.external_id ?? null;
           const nextSpecs = {
@@ -1045,7 +1044,6 @@ async function reconcileCatalogProducts(
           const shouldUpdateProduct =
             currentProduct.cost_price !== nextPrice ||
             (currentProduct.stock ?? 0) !== nextStock ||
-            (currentProduct.stock_reserved ?? 0) !== nextReserved ||
             Boolean(currentProduct.active) !== hasActiveSource ||
             (currentProduct.external_id ?? null) !== nextExternalId ||
             JSON.stringify(currentProduct.specs ?? {}) !== JSON.stringify(nextSpecs);
@@ -1056,7 +1054,6 @@ async function reconcileCatalogProducts(
               .update({
                 cost_price: nextPrice,
                 stock: nextStock,
-                stock_reserved: nextReserved,
                 active: hasActiveSource,
                 external_id: nextExternalId,
                 specs: nextSpecs,

@@ -8,7 +8,7 @@ import { isValidImageMime } from "@/lib/validateImageMime";
 interface Category { id: number; name: string; parent_id: number | null; }
 interface BrandOption { id: string; name: string; }
 interface Props {
-  product: Product & { featured?: boolean; tags?: string[]; active?: boolean };
+  product: Product & { featured?: boolean; tags?: string[]; active?: boolean; publicado?: boolean };
   categories: Category[];
   brands?: BrandOption[];
   onSave: (updated: Product) => void;
@@ -29,6 +29,7 @@ type FormState = {
   image: string;
   featured: boolean;
   active: boolean;
+  publicado: boolean;
   tags: string;
   supplier_id: string;
   supplier_multiplier: string;
@@ -51,6 +52,7 @@ export default function ProductEditModal({ product, categories, brands = [], onS
     image:              product.image || "",
     featured:           product.featured ?? false,
     active:             product.active !== false,
+    publicado:          product.publicado === true,
     tags:               (product.tags ?? []).join(", "),
     supplier_id:        String(product.supplier_id || ""),
     supplier_multiplier: String(product.supplier_multiplier || ""),
@@ -173,6 +175,7 @@ export default function ProductEditModal({ product, categories, brands = [], onS
       image:              imageUrl || "/placeholder.png",
       featured:           form.featured,
       active:             form.active,
+      publicado:          form.publicado,
       tags:               form.tags.split(",").map((t) => t.trim()).filter(Boolean),
       supplier_id:        form.supplier_id ? Number(form.supplier_id) : null,
       supplier_multiplier: form.supplier_multiplier ? Number(form.supplier_multiplier) : null,
@@ -403,6 +406,13 @@ export default function ProductEditModal({ product, categories, brands = [], onS
                 <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${form.active ? "left-4" : "left-0.5"}`} />
               </div>
               <span className="text-xs text-gray-400">Activo</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <div onClick={() => set("publicado", !form.publicado)}
+                className={`w-9 h-5 rounded-full transition ${form.publicado ? "bg-green-500" : "bg-[#333]"} relative`}>
+                <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${form.publicado ? "left-4" : "left-0.5"}`} />
+              </div>
+              <span className="text-xs text-gray-400">Publicado en la tienda</span>
             </label>
           </div>
         </div>

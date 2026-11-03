@@ -19,6 +19,8 @@ export interface Product {
   external_id?: string;
   active?: boolean;
   featured?: boolean;
+  /** Visible en la tienda. Lo que entra de los mayoristas llega sin publicar. */
+  publicado?: boolean;
   specs?: Record<string, string>;
   tags?: string[];
   iva_rate?: number;

@@ -44,7 +44,7 @@ interface ProductoParaVender {
   weight_kg: number | null;
   cost_price: number | null;
   supplier_multiplier: number | null;
-  primary_supplier_id: string | null;
+  publicado: boolean;
 }
 
 interface Cupon {
@@ -122,26 +122,20 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
 
   const { data: productosCrudos, error: errorProductos } = await supabase
     .from("products")
-    .select("id, name, name_custom, name_original, sku, active, stock, stock_reserved, precio_final_ars, iva_rate, weight_kg, cost_price, supplier_multiplier, primary_supplier_id")
+    .select("id, name, name_custom, name_original, sku, active, publicado, stock, stock_reserved, precio_final_ars, iva_rate, weight_kg, cost_price, supplier_multiplier")
     .in("id", ids);
   if (errorProductos) throw new Error(`No se pudieron leer los productos: ${errorProductos.message}`);
   const productos = new Map<number, ProductoParaVender>();
   for (const p of (productosCrudos ?? []) as ProductoParaVender[]) productos.set(p.id, p);
 
-  const [{ data: dolarCrudo }, { data: configuracion }, { data: proveedores }] = await Promise.all([
+  const [{ data: dolarCrudo }, { data: configuracion }] = await Promise.all([
     supabase.rpc("dolar_vigente"),
     supabase.from("tienda_configuracion").select("clave, valor").in("clave", ["peso_por_defecto_kg"]),
-    supabase.from("product_suppliers").select("product_id, supplier_id, source_currency, is_preferred").in("product_id", ids),
   ]);
   const dolar = typeof dolarCrudo === "number" ? dolarCrudo : Number(dolarCrudo ?? 0) || null;
   const pesoPorDefecto = Number((configuracion ?? []).find((c: { clave: string; valor: unknown }) => c.clave === "peso_por_defecto_kg")?.valor ?? 1) || 1;
-  // La moneda del costo vive en product_suppliers: la fila del proveedor principal del producto, o la preferida.
-  const monedaDe = new Map<number, string>();
-  for (const fila of (proveedores ?? []) as Array<{ product_id: number; supplier_id: string; source_currency: string | null; is_preferred: boolean }>) {
-    const producto = productos.get(fila.product_id);
-    const esPrincipal = producto?.primary_supplier_id === fila.supplier_id;
-    if (!monedaDe.has(fila.product_id) || esPrincipal || fila.is_preferred) monedaDe.set(fila.product_id, fila.source_currency ?? "USD");
-  }
+  // El costo (cost_price) siempre está en dólares: la sincronización con los mayoristas lo
+  // normaliza. Se pasa a pesos con el dólar vigente.
 
   const items: Array<Record<string, unknown>> = [];
   const lineasDelEmail: Array<{ nombre: string; cantidad: number; precioFinal: number }> = [];
@@ -150,7 +144,7 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
 
   for (const [productoId, cantidad] of cantidades) {
     const p = productos.get(productoId);
-    if (!p || !p.active) throw new Error("Un producto del carrito ya no está en la tienda.");
+    if (!p || !p.active || !p.publicado) throw new Error("Un producto del carrito ya no está en la tienda.");
     if (p.precio_final_ars === null) throw new Error(`"${nombreDe(p)}" no tiene precio todavía. Sacalo del carrito para seguir.`);
     const disponible = p.stock - (p.stock_reserved ?? 0);
     if (cantidad > disponible) throw new Error(`No queda stock suficiente de "${nombreDe(p)}": quedan ${Math.max(disponible, 0)} unidades.`);
@@ -158,9 +152,7 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
     const precioFinal = Number(p.precio_final_ars);
     const iva = p.iva_rate ?? 21;
     const neto = aDosDecimales(precioFinal / (1 + iva / 100));
-    const moneda = monedaDe.get(p.id) ?? "USD";
-    const factor = moneda === "USD" ? (dolar ?? 0) : 1;
-    const costoPesos = aDosDecimales((p.cost_price ?? 0) * (p.supplier_multiplier ?? 1) * factor);
+    const costoPesos = aDosDecimales((p.cost_price ?? 0) * (p.supplier_multiplier ?? 1) * (dolar ?? 0));
 
     subtotal += precioFinal * cantidad;
     pesoKg += (p.weight_kg && p.weight_kg > 0 ? p.weight_kg : pesoPorDefecto) * cantidad;
@@ -176,8 +168,8 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
       iva_rate: iva,
       precio_final: precioFinal,
       costo_pesos: costoPesos,
-      dolar: moneda === "USD" ? dolar : null,
-      costo_moneda: moneda,
+      dolar,
+      costo_moneda: "USD",
     });
     lineasDelEmail.push({ nombre: nombreDe(p), cantidad, precioFinal });
   }

@@ -9,7 +9,7 @@ import { Product } from "@/models/products";
 import ProductEditModal from "./ProductEditModal";
 import {
   Search, ArrowUpDown, ArrowUp, ArrowDown,
-  Pencil, Copy, Trash2, Star, AlertTriangle, ChevronDown, RefreshCw,
+  Pencil, Copy, Trash2, Star, AlertTriangle, ChevronDown, RefreshCw, Globe,
   X,
 } from "lucide-react";
 
@@ -26,7 +26,7 @@ interface Props {
 
 type SortField = "name" | "cost_price" | "stock" | "category";
 type SortDir   = "asc" | "desc";
-type Filter    = "all" | "active" | "inactive" | "low_stock" | "featured";
+type Filter    = "all" | "active" | "inactive" | "low_stock" | "featured" | "publicados" | "sin_publicar";
 type DuplicateGroupType = "sku" | "name" | "similar";
 const POS_FILTER_VALUE = "__pos__";
 
@@ -333,6 +333,8 @@ export default function ProductTable({
         if (filterStatus === "inactive"  && active)                        return false;
         if (filterStatus === "low_stock" && p.stock > 3)                   return false;
         if (filterStatus === "featured"  && !p.featured)                   return false;
+        if (filterStatus === "publicados"   && p.publicado !== true)        return false;
+        if (filterStatus === "sin_publicar" && p.publicado === true)        return false;
         return true;
       })
       .sort((a, b) => {
@@ -449,6 +451,15 @@ export default function ProductTable({
       await backend.products.update(p.id, { active: !p.active });
     } else {
       await supabase.from("products").update({ active: !p.active }).eq("id", p.id);
+    }
+    onRefresh();
+  }
+
+  async function togglePublicado(p: Product) {
+    const { error } = await supabase.from("products").update({ publicado: !p.publicado }).eq("id", p.id);
+    if (error) {
+      window.alert(`No se pudo cambiar la publicación: ${error.message}`);
+      return;
     }
     onRefresh();
   }
@@ -595,6 +606,8 @@ export default function ProductTable({
           <option value="inactive">Inactivos</option>
           <option value="low_stock">Stock bajo (≤3)</option>
           <option value="featured">Destacados</option>
+          <option value="publicados">En la tienda</option>
+          <option value="sin_publicar">Sin publicar</option>
         </select>
 
         <div className="ml-auto flex items-center gap-2">
@@ -732,6 +745,7 @@ export default function ProductTable({
               ) : paginated.map((p) => {
                 const active   = p.active !== false;
                 const featured = p.featured === true;
+                const publicado = p.publicado === true;
                 const lowStock = p.stock <= 3 && p.stock > 0;
                 const noStock  = p.stock === 0;
                 const isSelected = selected.has(p.id);
@@ -756,6 +770,7 @@ export default function ProductTable({
                     {/* Name */}
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-1.5">
+                        {publicado && <Globe size={11} className="text-green-400 shrink-0" aria-label="En la tienda" />}
                         {featured && <Star size={11} className="text-yellow-400 shrink-0" fill="currentColor" />}
                         <span className={`font-medium line-clamp-1 ${dk("text-white", "text-[#171717]")}`}>
                           {p.name_custom?.trim() || p.name}
@@ -878,6 +893,10 @@ export default function ProductTable({
                     {/* Actions */}
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-1">
+                        <button onClick={() => togglePublicado(p)} title={publicado ? "Sacar de la tienda" : "Publicar en la tienda"}
+                          className={`p-1.5 rounded-lg transition ${publicado ? "text-green-400 hover:bg-green-500/10" : "text-gray-600 hover:text-green-400 hover:bg-green-500/10"}`}>
+                          <Globe size={13} />
+                        </button>
                         <button onClick={() => toggleFeatured(p)} title={featured ? "Quitar destacado" : "Destacar"}
                           className={`p-1.5 rounded-lg transition ${featured ? "text-yellow-400 hover:bg-yellow-500/10" : "text-gray-600 hover:text-yellow-400 hover:bg-yellow-500/10"}`}>
                           <Star size={13} fill={featured ? "currentColor" : "none"} />
