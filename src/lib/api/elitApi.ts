@@ -9,6 +9,8 @@ export class ElitApiError extends Error {
 }
 
 export interface ElitAttribute {
+  /** ELIT manda el nombre del atributo en `atributo`; `nombre` queda por compatibilidad. */
+  atributo?: string;
   nombre?: string;
   valor?: string;
   [key: string]: unknown;

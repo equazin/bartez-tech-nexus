@@ -134,9 +134,10 @@ function normalizeAttributes(attributes: ElitProduct["atributos"]): Record<strin
     return {};
   }
 
-  return attributes.reduce<Record<string, unknown>>((acc, attribute, index) => {
-    const label = String(attribute.nombre ?? `atributo_${index + 1}`).trim();
+  return attributes.reduce<Record<string, unknown>>((acc, attribute) => {
+    const label = String(attribute.atributo ?? attribute.nombre ?? "").trim();
     const value = attribute.valor ?? "";
+    // Sin nombre, el dato no se puede mostrar en la ficha: se descarta.
     if (label) {
       acc[label] = value;
     }
