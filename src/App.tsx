@@ -20,6 +20,14 @@ const Admin = lazy(() => import("./pages/Admin"));
 const CustomerView = lazy(() => import("./pages/CustomerView"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const SistemaDeDiseno = lazy(() => import("./pages/SistemaDeDiseno"));
+const Inicio = lazy(() => import("./pages/tienda/Inicio"));
+const Categoria = lazy(() => import("./pages/tienda/Categoria"));
+const Producto = lazy(() => import("./pages/tienda/Producto"));
+const Buscar = lazy(() => import("./pages/tienda/Buscar"));
+
+// Direcciones del sitio corporativo de Bartez: van al inicio. vercel.json las redirige con 301 antes de llegar acá.
+const RUTAS_VIEJAS = ["/tecnologia", "/productos", "/soluciones-corporativas", "/servicios-it", "/partnership", "/empresas", "/soluciones-por-industria", "/puntos-de-venta", "/nosotros", "/contacto", "/evaluacion-tecnologica", "/cotizacion"];
 const StyleguidePage = lazy(() => import("./pages/portal/StyleguidePage"));
 const PortalRoot = lazy(() => import("./pages/portal/PortalRoot"));
 const PortalHomePage = lazy(() => import("./pages/portal/HomePage"));
@@ -222,6 +230,9 @@ const App = () => (
                     <Route path="/cart" element={<RequireAuth><CartPage /></RequireAuth>} />
                     <Route path="/admin" element={<RequireAdmin><AdminRoutePlaceholder /></RequireAdmin>} />
                     <Route path="/clientes/:id" element={<RequireAdmin><CustomerView /></RequireAdmin>} />
+                    <Route path="/:categoria" element={<Categoria />} />
+                    <Route path="/:categoria/:producto" element={<Producto />} />
+                    <Route path="/sistema-de-diseno" element={<SistemaDeDiseno />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                   <PersistentAdminShell />

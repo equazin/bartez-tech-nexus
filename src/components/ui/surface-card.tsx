@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-const surfaceCardVariants = cva("rounded-[24px] border shadow-sm transition-[border-color,box-shadow,background-color,transform]", {
+const surfaceCardVariants = cva("rounded-2xl border shadow-sm transition-[border-color,box-shadow,background-color,transform]", {
   variants: {
     tone: {
       default: "border-border/80 bg-card text-card-foreground shadow-[0_10px_30px_-24px_rgba(15,23,42,0.2)]",

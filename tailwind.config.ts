@@ -15,8 +15,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Inter", "system-ui", "-apple-system", "sans-serif"],
-        display: ["Outfit", "system-ui", "sans-serif"],
+        sans: ["var(--fuente-texto)", "system-ui", "sans-serif"],
+        display: ["var(--fuente-titular)", "system-ui", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -91,6 +91,11 @@ export default {
           soft: "hsl(var(--info) / 0.12)",
         },
         glow: "hsl(var(--glow))",
+        "placa-foto": "hsl(var(--placa-foto))",
+        "placa-foto-2": "hsl(var(--placa-foto-2))",
+        "texto-placa": "hsl(var(--texto-placa))",
+        "exito-fondo": "hsl(var(--exito-fondo))",
+        "error-fondo": "hsl(var(--error-fondo))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -106,6 +111,8 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        tarjeta: "var(--radius-tarjeta)",
+        chip: "var(--radius-chip)",
       },
       keyframes: {
         "accordion-down": {

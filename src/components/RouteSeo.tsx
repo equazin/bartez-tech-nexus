@@ -9,7 +9,7 @@ type RouteSeoConfig = {
   schema?: "website" | "service" | "catalog" | "contact";
 };
 
-const SITE_URL = ((import.meta.env.VITE_SITE_URL as string | undefined) ?? "https://DOMINIO-DE-TEQO-A-CONFIRMAR").replace(//$/, "");
+const SITE_URL = ((import.meta.env.VITE_SITE_URL as string | undefined) ?? "https://DOMINIO-DE-TEQO-A-CONFIRMAR").replace(/\/$/, "");
 const DEFAULT_SEO: RouteSeoConfig = {
   title: "Teqo | Notebooks, gaming, monitores y periféricos",
   description: "Tecnología para trabajar, crear y jugar, con envío a todo el país y precios finales con IVA incluido.",

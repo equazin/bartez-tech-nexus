@@ -56,13 +56,11 @@ export function AdminSidebar({
     <div className="flex h-full flex-col bg-card/65">
       <div className="border-b border-border/70 px-3 py-4">
         <div className={`flex items-center gap-3 ${collapsed && !mobile ? "justify-center" : ""}`}>
-          <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-gradient-primary shadow-lg shadow-primary/15">
-            <img src="/icon.png" alt="Teqo" className="h-6 w-6 object-contain" />
-          </div>
+          <img src="/marca/teqo-isotipo-sin-fondo.svg" alt="" className="h-9 w-9 shrink-0" />
           {(!collapsed || mobile) && (
             <div className="min-w-0">
               <p className="text-sm font-bold text-foreground">Panel de Teqo</p>
-              <p className="text-[11px] text-muted-foreground">Centro operativo comercial</p>
+              <p className="text-[11px] text-muted-foreground">Panel de la tienda</p>
             </div>
           )}
         </div>

@@ -1,158 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600&display=swap');
+/* Tema de Teqo: los colores, fuentes, radios y espacios salen de src/tema (generado desde tokens.json). */
+@import "./tema/fuentes.css";
+@import "./tema/variables.css";
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@layer base {
-  :root {
-    color-scheme: dark;
-
-    --background: 222 25% 4%;
-    --foreground: 210 20% 95%;
-
-    --card: 222 20% 7%;
-    --card-foreground: 210 20% 95%;
-
-    --popover: 222 20% 7%;
-    --popover-foreground: 210 20% 95%;
-
-    --primary: 152 56% 40%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 222 16% 12%;
-    --secondary-foreground: 210 15% 80%;
-
-    --muted: 222 14% 14%;
-    --muted-foreground: 215 12% 50%;
-
-    --accent: 152 40% 35%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 222 14% 14%;
-    --input: 222 14% 14%;
-    --ring: 152 56% 40%;
-
-    --radius: 0.75rem;
-
-    --sidebar-background: 222 20% 5%;
-    --sidebar-foreground: 210 15% 80%;
-    --sidebar-primary: 152 56% 40%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 16% 12%;
-    --sidebar-accent-foreground: 210 15% 80%;
-    --sidebar-border: 222 14% 14%;
-    --sidebar-ring: 152 56% 40%;
-
-    --glow: 152 56% 40%;
-    --surface: 222 20% 5.5%;
-    --surface-elevated: 222 18% 9%;
-    --surface-1: 222 20% 6.5%;
-    --surface-2: 222 18% 9%;
-    --surface-3: 222 16% 12%;
-    --gradient-start: 152 56% 40%;
-    --gradient-end: 188 78% 46%;
-    --glass: 222 20% 8%;
-    --glass-border: 222 14% 18%;
-
-    --brand: 152 56% 40%;
-    --brand-foreground: 0 0% 100%;
-    --brand-50: 152 50% 92%;
-    --brand-100: 152 50% 84%;
-    --brand-200: 152 50% 70%;
-    --brand-500: 152 56% 40%;
-    --brand-600: 152 60% 33%;
-    --brand-700: 152 62% 26%;
-    --brand-900: 152 60% 14%;
-
-    --success: 152 60% 45%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 55%;
-    --warning-foreground: 24 30% 12%;
-    --danger: 0 84% 60%;
-    --danger-foreground: 0 0% 100%;
-    --info: 199 89% 55%;
-    --info-foreground: 0 0% 100%;
-  }
-
-  .light {
-    color-scheme: light;
-
-    --background: 220 30% 96%;
-    --foreground: 224 30% 16%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 224 30% 16%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 224 30% 16%;
-
-    --primary: 159 55% 42%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 225 35% 95%;
-    --secondary-foreground: 224 22% 26%;
-
-    --muted: 222 30% 95%;
-    --muted-foreground: 220 12% 45%;
-
-    --accent: 164 42% 93%;
-    --accent-foreground: 160 52% 24%;
-
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 220 20% 87%;
-    --input: 220 20% 87%;
-    --ring: 159 55% 42%;
-
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 224 22% 26%;
-    --sidebar-primary: 159 55% 42%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 223 33% 96%;
-    --sidebar-accent-foreground: 224 22% 26%;
-    --sidebar-border: 220 20% 87%;
-    --sidebar-ring: 159 55% 42%;
-
-    --glow: 159 55% 42%;
-    --surface: 224 45% 98%;
-    --surface-elevated: 0 0% 100%;
-    --surface-1: 224 40% 99%;
-    --surface-2: 224 35% 97%;
-    --surface-3: 222 30% 95%;
-    --gradient-start: 170 68% 66%;
-    --gradient-end: 250 78% 72%;
-    --glass: 0 0% 100%;
-    --glass-border: 220 20% 84%;
-
-    --brand: 159 55% 42%;
-    --brand-foreground: 0 0% 100%;
-    --brand-50: 159 60% 95%;
-    --brand-100: 159 60% 88%;
-    --brand-200: 159 55% 76%;
-    --brand-500: 159 55% 42%;
-    --brand-600: 159 60% 34%;
-    --brand-700: 159 62% 26%;
-    --brand-900: 159 60% 14%;
-
-    --success: 159 55% 42%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 46%;
-    --warning-foreground: 24 30% 16%;
-    --danger: 0 72% 51%;
-    --danger-foreground: 0 0% 100%;
-    --info: 199 89% 48%;
-    --info-foreground: 0 0% 100%;
-  }
-
-  .dark {
-    color-scheme: dark;
-  }
-}
 
 @layer base {
   * {
@@ -161,13 +13,15 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: var(--fuente-texto);
+    font-weight: var(--peso-regular);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Outfit', system-ui, sans-serif;
+    font-family: var(--fuente-texto);
+    font-weight: var(--peso-destacado);
     letter-spacing: -0.02em;
   }
 
@@ -298,7 +152,7 @@
     box-shadow:
       0 24px 56px -34px hsl(230 35% 24% / 0.16),
       0 4px 10px hsl(220 20% 20% / 0.04);
-    border-radius: 30px;
+    border-radius: var(--radius-tarjeta);
   }
 
   .dashboard-pill {
@@ -310,7 +164,7 @@
   }
 
   .dashboard-nav-link {
-    @apply inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-[13px] font-medium transition;
+    @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-medium transition;
     color: hsl(var(--muted-foreground));
   }
 
@@ -328,7 +182,7 @@
   .dashboard-panel {
     background: hsl(var(--card) / 0.92);
     border: 1px solid hsl(var(--border) / 0.8);
-    border-radius: 22px;
+    border-radius: var(--radius-tarjeta);
     box-shadow: 0 10px 26px -22px hsl(220 30% 20% / 0.16);
   }
 

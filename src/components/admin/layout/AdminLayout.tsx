@@ -65,7 +65,7 @@ export function AdminLayout({
   onSetCurrency,
 }: AdminLayoutProps) {
   return (
-    <div className="dashboard-stage min-h-screen bg-background px-3 py-3 md:px-4 md:py-4">
+    <div data-tema="panel" className="dashboard-stage min-h-screen bg-background px-3 py-3 font-sans md:px-4 md:py-4">
       <div className="dashboard-canvas flex min-h-[calc(100vh-1.5rem)] flex-col overflow-hidden">
         <div className="sticky top-0 z-30">
           <AdminTopbar

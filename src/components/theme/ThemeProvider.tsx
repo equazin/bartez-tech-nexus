@@ -20,7 +20,7 @@ export function ThemeProvider({ children }: PropsWithChildren) {
   return (
     <NextThemesProvider
       attribute="class"
-      defaultTheme="light"
+      defaultTheme="dark"
       disableTransitionOnChange
       enableSystem={false}
       storageKey={APP_THEME_STORAGE_KEY}
