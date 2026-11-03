@@ -285,3 +285,30 @@ export const updateQuoteSchema = z.object({
 export const deleteQuoteSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
+
+// ── Pedido de la tienda (checkout de invitado) ───────────────────────────────
+export const pedidoDeLaTiendaSchema = z.object({
+  items: z
+    .array(z.object({ product_id: z.coerce.number().int().positive(), quantity: z.coerce.number().int().min(1).max(99) }))
+    .min(1)
+    .max(50),
+  comprador: z.object({
+    nombre: z.string().trim().min(3).max(120),
+    email: z.string().trim().email().max(320),
+    telefono: z.string().trim().min(8).max(40),
+    documento: optionalTrimmedString(20),
+  }),
+  envio: z.object({
+    calle: z.string().trim().min(2).max(120),
+    numero: z.string().trim().min(1).max(20),
+    piso: optionalTrimmedString(60),
+    codigo_postal: z.string().trim().regex(/^\d{4}$/, "tiene que tener cuatro números"),
+    localidad: z.string().trim().min(2).max(120),
+    provincia: z.string().trim().min(2).max(60),
+  }),
+  medio_pago: z.enum(["mercadopago", "transferencia"]),
+  cupon: optionalTrimmedString(40),
+  notas: optionalTrimmedString(300),
+});
+
+export type PedidoDeLaTienda = z.infer<typeof pedidoDeLaTiendaSchema>;

@@ -130,6 +130,13 @@ export async function listarMarcasDeCategoria(categoriaIds: number[]): Promise<A
   return [...vistas.entries()].map(([id, nombre]) => ({ id, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
 
+export async function listarProductosPorIds(ids: number[]): Promise<ProductoPublico[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await supabase.from("tienda_productos").select(COLUMNAS).in("id", ids);
+  if (error) throw new Error(`No se pudieron cargar los productos del carrito: ${error.message}`);
+  return (data ?? []) as unknown as ProductoPublico[];
+}
+
 export async function obtenerProducto(slug: string): Promise<ProductoPublico | null> {
   const { data, error } = await supabase.from("tienda_productos").select(COLUMNAS).eq("slug", slug).maybeSingle();
   if (error) throw new Error(`No se pudo cargar el producto: ${error.message}`);

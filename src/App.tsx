@@ -25,6 +25,10 @@ const Inicio = lazy(() => import("./pages/tienda/Inicio"));
 const Categoria = lazy(() => import("./pages/tienda/Categoria"));
 const Producto = lazy(() => import("./pages/tienda/Producto"));
 const Buscar = lazy(() => import("./pages/tienda/Buscar"));
+const Carrito = lazy(() => import("./pages/tienda/Carrito"));
+const Checkout = lazy(() => import("./pages/tienda/Checkout"));
+const Compra = lazy(() => import("./pages/tienda/Compra"));
+const Seguimiento = lazy(() => import("./pages/tienda/Seguimiento"));
 
 // Direcciones del sitio corporativo de Bartez: van al inicio. vercel.json las redirige con 301 antes de llegar acá.
 const RUTAS_VIEJAS = ["/tecnologia", "/productos", "/soluciones-corporativas", "/servicios-it", "/partnership", "/empresas", "/soluciones-por-industria", "/puntos-de-venta", "/nosotros", "/contacto", "/evaluacion-tecnologica", "/cotizacion"];
@@ -183,6 +187,10 @@ const App = () => (
                   <Routes>
                     <Route path="/" element={<Inicio />} />
                     <Route path="/buscar" element={<Buscar />} />
+                    <Route path="/carrito" element={<Carrito />} />
+                    <Route path="/checkout" element={<Checkout />} />
+                    <Route path="/compra/:id" element={<Compra />} />
+                    <Route path="/seguimiento" element={<Seguimiento />} />
                     {RUTAS_VIEJAS.map((ruta) => (
                       <Route key={ruta} path={ruta} element={<Navigate to="/" replace />} />
                     ))}

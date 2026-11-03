@@ -103,17 +103,6 @@ function devApiProxyPlugin(env: Record<string, string>): PluginOption {
         const requestUrl = req.url ? new URL(req.url, "http://localhost") : null;
         const pathname = requestUrl?.pathname ?? "";
 
-        if (requestUrl && pathname === "/api/checkout") {
-          try {
-            await invokeFetchHandler(req, res, requestUrl, checkoutHandler);
-            return;
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            sendJson(res, 500, { ok: false, error: message });
-            return;
-          }
-        }
-
         if (requestUrl && pathname === "/api/air-proxy") {
           try {
             await invokeFetchHandler(req, res, requestUrl, airProxyHandler);
@@ -135,6 +124,7 @@ function devApiProxyPlugin(env: Record<string, string>): PluginOption {
           "/api/rma":         { handler: commerceHandler, resource: "rma" },
           "/api/pricing":     { handler: pricingHandler },
           "/api/precios":     { handler: preciosHandler },
+          "/api/checkout":    { handler: checkoutHandler },
           "/api/coupons":     { handler: pricingHandler }, // vercel.json has /api/coupons -> /api/pricing/coupons but local handler checks subpath
           "/api/products":    { handler: productsHandler },
           "/api/pos-products": { handler: posProductsHandler },

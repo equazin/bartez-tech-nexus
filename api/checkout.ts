@@ -1,235 +1,250 @@
-import { createClient } from "@supabase/supabase-js";
-import { resolveMarginWithContext } from "../src/lib/pricingEngine.js";
-import { getEffectiveCostPrice } from "../src/lib/pricing.js";
-import type { Product } from "../src/models/products.js";
-import type { PricingRule } from "../src/models/pricingRule.js";
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-export const config = { runtime: "edge", maxDuration: 60 };
+import { fail, methodNotAllowed, ok } from "./_shared/http.js";
+import { createMailerTransport, getDefaultFromEmail, sanitizeHeaderText } from "./_shared/mailer.js";
+import { compraRecibidaHTML } from "./_shared/plantillas.js";
+import { pedidoDeLaTiendaSchema, type PedidoDeLaTienda } from "./_shared/schemas.js";
+import { getSupabaseAdmin } from "./_shared/supabaseServer.js";
 
-interface CheckoutPayload {
-  products: { id: number; quantity: number }[];
-  status?: string;
-  payment_method?: string;
-  payment_surcharge_pct?: number;
-  shipping_type?: string;
-  shipping_address?: string;
-  shipping_transport?: string;
-  shipping_cost?: number;
-  notes?: string;
-  coupon_code?: string;
+/**
+ * POST /api/checkout · crea el pedido de un invitado.
+ * Los precios, el envío, el cupón y el stock se resuelven acá, nunca con lo que manda el navegador.
+ * El pedido nace pendiente de pago; solo la función de pagos lo marca pagado.
+ */
+
+export const config = { maxDuration: 30 };
+
+const INTENTOS_POR_MINUTO = 10;
+const intentos = new Map<string, number[]>();
+
+function excedeLaTasa(clave: string): boolean {
+  const ahora = Date.now();
+  const recientes = (intentos.get(clave) ?? []).filter((t) => ahora - t < 60_000);
+  recientes.push(ahora);
+  intentos.set(clave, recientes);
+  if (intentos.size > 5_000) {
+    const masVieja = intentos.keys().next().value;
+    if (masVieja !== undefined) intentos.delete(masVieja);
+  }
+  return recientes.length > INTENTOS_POR_MINUTO;
 }
 
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-    },
-  });
+interface ProductoParaVender {
+  id: number;
+  name: string;
+  name_custom: string | null;
+  name_original: string | null;
+  sku: string | null;
+  active: boolean;
+  stock: number;
+  stock_reserved: number | null;
+  precio_final_ars: number | null;
+  iva_rate: number | null;
+  weight_kg: number | null;
+  cost_price: number | null;
+  supplier_multiplier: number | null;
+  primary_supplier_id: string | null;
 }
 
-function getSupabaseServiceRole() {
-  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-  if (!url || !serviceKey) throw new Error("Server configuration error: Missing Supabase Service Key.");
-  return createClient(url, serviceKey);
+interface Cupon {
+  id: string;
+  code: string;
+  discount_type: "percentage" | "fixed";
+  discount_value: number;
+  min_purchase: number | null;
+  max_discount: number | null;
+  max_uses: number | null;
+  used_count: number | null;
+  expires_at: string | null;
+  client_id: string | null;
+  is_active: boolean | null;
 }
 
-export default async function handler(request: Request): Promise<Response> {
-  // CORS
-  if (request.method === "OPTIONS") {
-    return new Response(null, {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      },
-    });
+const aDosDecimales = (n: number): number => Math.round(n * 100) / 100;
+const nombreDe = (p: ProductoParaVender): string => p.name_custom?.trim() || p.name_original?.trim() || p.name;
+
+function origenPermitido(req: VercelRequest, res: VercelResponse): boolean {
+  const permitido = process.env.API_ALLOWED_ORIGIN?.trim();
+  const origen = req.headers.origin;
+  if (permitido && origen && origen !== permitido) return false;
+  if (origen) {
+    res.setHeader("Access-Control-Allow-Origin", origen);
+    res.setHeader("Vary", "Origin");
+  }
+  return true;
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === "OPTIONS") {
+    origenPermitido(req, res);
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    return res.status(204).end();
+  }
+  if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
+  if (!origenPermitido(req, res)) return fail(res, "Origen no permitido", 403);
+
+  const parseado = pedidoDeLaTiendaSchema.safeParse(req.body ?? {});
+  if (!parseado.success) {
+    const primero = parseado.error.issues[0];
+    return fail(res, primero ? `Revisá ${primero.path.join(".") || "los datos"}: ${primero.message}` : "Datos incompletos", 400);
+  }
+  const pedido = parseado.data;
+
+  const ip = String(req.headers["x-forwarded-for"] ?? req.socket?.remoteAddress ?? "").split(",")[0].trim();
+  if (excedeLaTasa(`${ip}|${pedido.comprador.email.toLowerCase()}`)) {
+    return fail(res, "Demasiados intentos seguidos. Esperá un minuto y volvé a probar.", 429);
   }
 
-  if (request.method !== "POST") return json({ ok: false, error: "Method not allowed. Use POST." }, 405);
-
-  const authHeader = request.headers.get("Authorization") || "";
-  if (!authHeader.startsWith("Bearer ")) {
-    return json({ ok: false, error: "Missing or invalid Authorization header." }, 401);
-  }
-
-  // 1. Authenticate user
-  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
-  const anonKey = process.env.VITE_SUPABASE_ANON_KEY || "";
-  const sbUser = createClient(url, anonKey, { global: { headers: { Authorization: authHeader } } });
-
-  const { data: { user }, error: authError } = await sbUser.auth.getUser();
-  if (authError || !user) {
-    return json({ ok: false, error: "Unauthorized access." }, 401);
-  }
-
-  // 2. Parse body
-  let payload: CheckoutPayload;
   try {
-    payload = await request.json() as CheckoutPayload;
-  } catch {
-    return json({ ok: false, error: "Invalid JSON body." }, 400);
+    const resultado = await crearPedido(pedido);
+    return ok(res, resultado, 201);
+  } catch (e: unknown) {
+    const mensaje = e instanceof Error ? e.message : "No se pudo crear el pedido.";
+    const esDelCliente = /stock|carrito|cupón|cupon|envío|envio|precio/i.test(mensaje);
+    console.error("[checkout]", mensaje);
+    return fail(res, esDelCliente ? mensaje : "No se pudo crear el pedido. Probá de nuevo en un momento.", esDelCliente ? 409 : 500);
   }
+}
 
-  if (!payload.products || payload.products.length === 0) {
-    return json({ ok: false, error: "Cart is empty." }, 400);
-  }
+async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; numero: string; token: string }> {
+  const supabase = getSupabaseAdmin();
 
-  const sbAdmin = getSupabaseServiceRole();
+  // Un producto por línea, sumando cantidades repetidas.
+  const cantidades = new Map<number, number>();
+  for (const item of pedido.items) cantidades.set(item.product_id, (cantidades.get(item.product_id) ?? 0) + item.quantity);
+  const ids = [...cantidades.keys()];
 
-  // 3. Fetch Client Profile (for default_margin)
-  const { data: profile, error: profileError } = await sbAdmin
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
-  if (profileError || !profile) {
-    return json({ ok: false, error: "Client profile not found." }, 404);
-  }
-
-  const defaultMargin = Number(profile.default_margin) || 0;
-
-  // 4. Fetch Pricing Rules
-  const { data: pricingRulesRaw, error: rulesError } = await sbAdmin
-    .from("pricing_rules")
-    .select("*")
-    .eq("active", true);
-
-  if (rulesError) {
-    return json({ ok: false, error: "Failed to fetch pricing rules." }, 500);
-  }
-  const pricingRules = pricingRulesRaw as PricingRule[];
-
-  // 5. Fetch Products
-  const productIds = payload.products.map(p => Number(p.id));
-  const { data: dbProducts, error: productsError } = await sbAdmin
+  const { data: productosCrudos, error: errorProductos } = await supabase
     .from("products")
-    .select("*")
-    .in("id", productIds);
+    .select("id, name, name_custom, name_original, sku, active, stock, stock_reserved, precio_final_ars, iva_rate, weight_kg, cost_price, supplier_multiplier, primary_supplier_id")
+    .in("id", ids);
+  if (errorProductos) throw new Error(`No se pudieron leer los productos: ${errorProductos.message}`);
+  const productos = new Map<number, ProductoParaVender>();
+  for (const p of (productosCrudos ?? []) as ProductoParaVender[]) productos.set(p.id, p);
 
-  if (productsError || !dbProducts) {
-    return json({ ok: false, error: "Failed to fetch products data." }, 500);
-  }
+  const [{ data: dolarCrudo }, { data: configuracion }, { data: proveedores }] = await Promise.all([
+    supabase.rpc("dolar_vigente"),
+    supabase.from("tienda_configuracion").select("clave, valor").in("clave", ["peso_por_defecto_kg"]),
+    supabase.from("suppliers").select("id, source_currency").in("id", [...new Set([...productos.values()].map((p) => p.primary_supplier_id).filter((x): x is string => Boolean(x)))]),
+  ]);
+  const dolar = typeof dolarCrudo === "number" ? dolarCrudo : Number(dolarCrudo ?? 0) || null;
+  const pesoPorDefecto = Number((configuracion ?? []).find((c: { clave: string; valor: unknown }) => c.clave === "peso_por_defecto_kg")?.valor ?? 1) || 1;
+  const monedaDe = new Map<string, string>();
+  for (const s of (proveedores ?? []) as Array<{ id: string; source_currency: string | null }>) monedaDe.set(s.id, s.source_currency ?? "USD");
 
-  const dbProductMap = new Map<number, Product>();
-  for (const p of dbProducts) {
-    dbProductMap.set(p.id, p as Product);
-  }
+  const items: Array<Record<string, unknown>> = [];
+  const lineasDelEmail: Array<{ nombre: string; cantidad: number; precioFinal: number }> = [];
+  let subtotal = 0;
+  let pesoKg = 0;
 
-  // 6. Compute Server-Side Pricing Securely
-  let secureTotal = 0;
-  let secureSubtotal = 0;
-  const secureProductsList = [];
+  for (const [productoId, cantidad] of cantidades) {
+    const p = productos.get(productoId);
+    if (!p || !p.active) throw new Error("Un producto del carrito ya no está en la tienda.");
+    if (p.precio_final_ars === null) throw new Error(`"${nombreDe(p)}" no tiene precio todavía. Sacalo del carrito para seguir.`);
+    const disponible = p.stock - (p.stock_reserved ?? 0);
+    if (cantidad > disponible) throw new Error(`No queda stock suficiente de "${nombreDe(p)}": quedan ${Math.max(disponible, 0)} unidades.`);
 
-  for (const item of payload.products) {
-    const p = dbProductMap.get(Number(item.id));
-    if (!p) {
-      return json({ ok: false, error: `Product ID ${item.id} no longer exists.` }, 400);
-    }
-    if (item.quantity <= 0) {
-      return json({ ok: false, error: `Invalid quantity for Product ID ${item.id}.` }, 400);
-    }
+    const precioFinal = Number(p.precio_final_ars);
+    const iva = p.iva_rate ?? 21;
+    const neto = aDosDecimales(precioFinal / (1 + iva / 100));
+    const moneda = p.primary_supplier_id ? (monedaDe.get(p.primary_supplier_id) ?? "USD") : "USD";
+    const factor = moneda === "USD" ? (dolar ?? 0) : 1;
+    const costoPesos = aDosDecimales((p.cost_price ?? 0) * (p.supplier_multiplier ?? 1) * factor);
 
-    // Calcular el coste interno y margen usando la logica reusada del front
-    const cost = getEffectiveCostPrice(p, item.quantity);
-    const { margin } = resolveMarginWithContext(p, pricingRules, defaultMargin, user.id, item.quantity);
-    
-    const unitPrice = cost * (1 + margin / 100);
-    const totalPrice = unitPrice * item.quantity;
-    
-    const ivaRate = p.iva_rate ?? 21;
-    const ivaAmount = totalPrice * (ivaRate / 100);
-
-    secureSubtotal += totalPrice;
-    secureTotal += totalPrice + ivaAmount;
-
-    // Generar el JSONB tal cual como el front lo mandaba pero SIN que el front intervenga en precios, previene forjado.
-    secureProductsList.push({
+    subtotal += precioFinal * cantidad;
+    pesoKg += (p.weight_kg && p.weight_kg > 0 ? p.weight_kg : pesoPorDefecto) * cantidad;
+    items.push({
       product_id: p.id,
-      name: p.name_custom?.trim() || p.name_original?.trim() || p.name,
-      sku: p.sku || "",
-      quantity: item.quantity,
-      cost_price: cost,
-      unit_price: unitPrice,
-      total_price: totalPrice,
-      margin: margin,
-      // Extras por si B2B usa otras cositas de orden 
-      category: p.category,
-      supplier_id: p.supplier_id,
-      iva_rate: p.iva_rate ?? 21
+      name: nombreDe(p),
+      sku: p.sku ?? "",
+      quantity: cantidad,
+      cost_price: costoPesos,
+      unit_price: neto,
+      total_price: aDosDecimales(neto * cantidad),
+      margin: costoPesos > 0 ? aDosDecimales((neto / costoPesos - 1) * 100) : null,
+      iva_rate: iva,
+      precio_final: precioFinal,
+      costo_pesos: costoPesos,
+      dolar: moneda === "USD" ? dolar : null,
+      costo_moneda: moneda,
     });
+    lineasDelEmail.push({ nombre: nombreDe(p), cantidad, precioFinal });
+  }
+  subtotal = aDosDecimales(subtotal);
+
+  const { data: cotizacion, error: errorEnvio } = await supabase.rpc("tienda_cotizar_envio", { p_peso_kg: aDosDecimales(pesoKg), p_subtotal: subtotal });
+  if (errorEnvio) throw new Error(`No se pudo cotizar el envío: ${errorEnvio.message}`);
+  const envio = (Array.isArray(cotizacion) ? cotizacion[0] : cotizacion) as { precio: number | null; demora_dias_min: number | null; demora_dias_max: number | null; disponible: boolean } | null;
+  if (!envio || !envio.disponible || envio.precio === null) throw new Error("Todavía no podemos cotizar el envío. Probá más tarde.");
+  const costoEnvio = Number(envio.precio);
+
+  let cuponId: string | null = null;
+  let descuento = 0;
+  if (pedido.cupon) {
+    const { data: cupon } = await supabase.from("coupons").select("*").eq("code", pedido.cupon.trim().toUpperCase()).maybeSingle();
+    const c = cupon as Cupon | null;
+    const vigente = c && c.is_active !== false && (!c.expires_at || new Date(c.expires_at) > new Date());
+    const conUsos = c && (!c.max_uses || (c.used_count ?? 0) < c.max_uses);
+    const paraTodos = c && !c.client_id;
+    const alcanza = c && subtotal >= (c.min_purchase ?? 0);
+    if (!c || !vigente || !conUsos || !paraTodos) throw new Error("El cupón no es válido o ya venció.");
+    if (!alcanza) throw new Error(`El cupón vale para compras desde ${new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(c.min_purchase ?? 0)}.`);
+    descuento = c.discount_type === "fixed" ? Number(c.discount_value) : (subtotal * Number(c.discount_value)) / 100;
+    if (c.max_discount && descuento > Number(c.max_discount)) descuento = Number(c.max_discount);
+    descuento = aDosDecimales(Math.min(descuento, subtotal));
+    cuponId = c.id;
   }
 
-  // --- Marketing / Coupons (Phase 5.4) ---
-  let couponId = null;
-  let discountAmount = 0;
+  const total = aDosDecimales(subtotal + costoEnvio - descuento);
 
-  if (payload.coupon_code) {
-    const { data: coupon, error: couponError } = await sbAdmin
-      .from("coupons")
-      .select("*")
-      .eq("code", payload.coupon_code.trim().toUpperCase())
-      .eq("is_active", true)
-      .single();
+  const { data: creado, error: errorCreacion } = await supabase.rpc("tienda_crear_pedido", {
+    p_items: items,
+    p_comprador: pedido.comprador,
+    p_direccion: pedido.envio,
+    p_medio_pago: pedido.medio_pago,
+    p_subtotal: subtotal,
+    p_envio_costo: costoEnvio,
+    p_envio_demora_min: envio.demora_dias_min,
+    p_envio_demora_max: envio.demora_dias_max,
+    p_descuento: descuento,
+    p_cupon_id: cuponId,
+    p_total: total,
+    p_notas: pedido.notas ?? null,
+  });
+  if (errorCreacion) throw new Error(errorCreacion.message);
+  const resultado = creado as { id: number; numero: string; token: string };
 
-    if (!couponError && coupon) {
-      const now = new Date();
-      const validDate = !coupon.expires_at || new Date(coupon.expires_at) > now;
-      const validPurchase = secureSubtotal >= (coupon.min_purchase || 0);
-      const validUses = !coupon.max_uses || coupon.used_count < coupon.max_uses;
-      const validClient = !coupon.client_id || coupon.client_id === user.id;
+  void avisarAlComprador(pedido, resultado, { lineasDelEmail, subtotal, envio: costoEnvio, descuento, total });
+  return resultado;
+}
 
-      if (validDate && validPurchase && validUses && validClient) {
-        couponId = coupon.id;
-        if (coupon.discount_type === "fixed") {
-          discountAmount = coupon.discount_value;
-        } else {
-          discountAmount = (secureSubtotal * coupon.discount_value) / 100;
-        }
-      }
-    }
-  }
-
-  // Adicionar recargos de envío, etc al Total General de la Orden.
-  let orderTotal = secureTotal - discountAmount;
-  const shipCost = payload.shipping_cost || 0;
-  if (shipCost > 0) orderTotal += shipCost;
-
-  const paymentSurcharge = payload.payment_surcharge_pct || 0;
-  if (paymentSurcharge > 0) {
-    orderTotal += orderTotal * (paymentSurcharge / 100);
-  }
-
-  // 7. Invoke updated RPC!
+async function avisarAlComprador(
+  pedido: PedidoDeLaTienda,
+  creado: { id: number; numero: string; token: string },
+  montos: { lineasDelEmail: Array<{ nombre: string; cantidad: number; precioFinal: number }>; subtotal: number; envio: number; descuento: number; total: number },
+): Promise<void> {
   try {
-    const { data: rpcData, error: rpcError } = await sbAdmin.rpc("reserve_stock_and_create_order", {
-      p_client_id: user.id,
-      p_products: secureProductsList,
-      p_total: orderTotal,
-      p_status: payload.status ?? "pending",
-      p_payment_method: payload.payment_method ?? null,
-      p_payment_surcharge_pct: payload.payment_surcharge_pct ?? null,
-      p_shipping_type: payload.shipping_type ?? null,
-      p_shipping_address: payload.shipping_address ?? null,
-      p_shipping_transport: payload.shipping_transport ?? null,
-      p_shipping_cost: payload.shipping_cost ?? null,
-      p_notes: payload.notes ?? null,
-      p_coupon_id: couponId,
-      p_discount_amount: discountAmount
+    const base = (process.env.VITE_SITE_URL?.trim() || process.env.API_ALLOWED_ORIGIN?.trim() || "").replace(/\/$/, "");
+    const enlace = `${base}/compra/${creado.id}?t=${creado.token}`;
+    const transporte = createMailerTransport();
+    await transporte.sendMail({
+      from: `"Teqo" <${getDefaultFromEmail()}>`,
+      to: pedido.comprador.email,
+      subject: sanitizeHeaderText(`Recibimos tu compra ${creado.numero}`, "Recibimos tu compra"),
+      html: compraRecibidaHTML({
+        numero: creado.numero,
+        nombre: pedido.comprador.nombre,
+        lineas: montos.lineasDelEmail,
+        subtotal: montos.subtotal,
+        envio: montos.envio,
+        descuento: montos.descuento,
+        total: montos.total,
+        medioPago: pedido.medio_pago,
+        enlace,
+      }),
     });
-
-    if (rpcError) {
-      console.error("[checkout] RPC Error:", rpcError);
-      return json({ ok: false, error: rpcError.message }, 500);
-    }
-
-    return json({ ok: true, data: rpcData });
-  } catch (err: unknown) {
-    console.error("[checkout] Exception calling RPC:", err);
-    const message = err instanceof Error ? err.message : String(err);
-    return json({ ok: false, error: message }, 500);
+  } catch (e: unknown) {
+    console.error("[checkout] No se pudo mandar el email de compra recibida:", e instanceof Error ? e.message : e);
   }
 }

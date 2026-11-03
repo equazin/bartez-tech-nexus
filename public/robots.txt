@@ -6,5 +6,9 @@ Disallow: /clientes
 Disallow: /login
 Disallow: /reset-password
 Disallow: /cart
+Disallow: /carrito
+Disallow: /checkout
+Disallow: /compra
+Disallow: /seguimiento
 
 Sitemap: https://DOMINIO-DE-TEQO-A-CONFIRMAR/sitemap.xml
