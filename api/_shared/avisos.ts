@@ -33,7 +33,7 @@ const ASUNTOS: Record<TipoDeAviso, string> = {
 };
 
 export function sitioPublico(): string {
-  return (process.env.VITE_SITE_URL?.trim() || process.env.API_ALLOWED_ORIGIN?.trim() || "").replace(/\/$/, "");
+  return (process.env.VITE_SITE_URL?.trim() || process.env.API_ALLOWED_ORIGIN?.split(",")[0]?.trim() || "").replace(/\/$/, "");
 }
 
 function textoDeDemora(min: number | null, max: number | null): string | null {

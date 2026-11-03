@@ -67,7 +67,7 @@ function excedeLaTasa(clave: string, porMinuto: number): boolean {
 const ipDe = (req: VercelRequest): string => String(req.headers["x-forwarded-for"] ?? req.socket?.remoteAddress ?? "").split(",")[0].trim();
 
 function sitio(): string {
-  const base = (process.env.VITE_SITE_URL?.trim() || process.env.API_ALLOWED_ORIGIN?.trim() || "").replace(/\/$/, "");
+  const base = (process.env.VITE_SITE_URL?.trim() || process.env.API_ALLOWED_ORIGIN?.split(",")[0]?.trim() || "").replace(/\/$/, "");
   if (!base) throw new Error("Falta VITE_SITE_URL: la tienda no sabe su propia dirección para volver de Mercado Pago.");
   return base;
 }

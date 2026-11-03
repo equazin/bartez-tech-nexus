@@ -84,10 +84,14 @@ interface Cupon {
 const aDosDecimales = (n: number): number => Math.round(n * 100) / 100;
 const nombreDe = (p: ProductoParaVender): string => p.name_custom?.trim() || p.name_original?.trim() || p.name;
 
+/** API_ALLOWED_ORIGIN admite varios orígenes separados por coma (el dominio propio y el de vercel.app). */
 function origenPermitido(req: VercelRequest, res: VercelResponse): boolean {
-  const permitido = process.env.API_ALLOWED_ORIGIN?.trim();
+  const permitidos = (process.env.API_ALLOWED_ORIGIN ?? "")
+    .split(",")
+    .map((o) => o.trim().replace(/\/$/, ""))
+    .filter(Boolean);
   const origen = req.headers.origin;
-  if (permitido && origen && origen !== permitido) return false;
+  if (permitidos.length > 0 && origen && !permitidos.includes(origen)) return false;
   if (origen) {
     res.setHeader("Access-Control-Allow-Origin", origen);
     res.setHeader("Vary", "Origin");
@@ -295,7 +299,7 @@ async function avisarAlComprador(
   montos: { lineasDelEmail: Array<{ nombre: string; cantidad: number; precioFinal: number }>; subtotal: number; envio: number; descuento: number; total: number },
 ): Promise<void> {
   try {
-    const base = (process.env.VITE_SITE_URL?.trim() || process.env.API_ALLOWED_ORIGIN?.trim() || "").replace(/\/$/, "");
+    const base = (process.env.VITE_SITE_URL?.trim() || process.env.API_ALLOWED_ORIGIN?.split(",")[0]?.trim() || "").replace(/\/$/, "");
     const enlace = `${base}/compra/${creado.id}?t=${creado.token}`;
     const transporte = createMailerTransport();
     await transporte.sendMail({
