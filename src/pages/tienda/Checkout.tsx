@@ -9,7 +9,7 @@ import { formatearPesos } from "@/lib/tienda/dinero";
 import { PROVINCIAS, cotizarEnvio, textoDeDemora, type CotizacionDeEnvio } from "@/lib/tienda/envios";
 import { MEDIOS_DE_PAGO, crearPedido, type MedioDePago, type MedioDisponible } from "@/lib/tienda/pedidos";
 import { listarMedios } from "@/lib/tienda/pagos";
-import { usarSeo } from "@/lib/tienda/seo";
+import { useSeo } from "@/lib/tienda/seo";
 import { cn } from "@/lib/utils";
 
 const CLASE_SELECT =
@@ -73,7 +73,7 @@ function Campo({ etiqueta, error, children }: { etiqueta: string; error?: string
 }
 
 export default function Checkout() {
-  usarSeo("Finalizar la compra");
+  useSeo("Finalizar la compra");
   const navigate = useNavigate();
   const { lineas, subtotal, pesoKg, cargando, listoParaComprar } = useCarritoDetallado();
   const [f, setF] = useState<Formulario>(VACIO);

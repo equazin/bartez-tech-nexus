@@ -1,6 +1,6 @@
 import { Tienda } from "@/components/tienda/Tienda";
 import { parrafosDe, useContenidoLegal, type ContenidoLegal } from "@/lib/tienda/legal";
-import { usarSeo } from "@/lib/tienda/seo";
+import { useSeo } from "@/lib/tienda/seo";
 
 type Tipo = "terminos" | "privacidad" | "garantias";
 
@@ -12,7 +12,7 @@ const PAGINAS: Record<Tipo, { titulo: string; clave: keyof ContenidoLegal; marca
 
 export default function TextoLegal({ tipo }: { tipo: Tipo }) {
   const pagina = PAGINAS[tipo];
-  usarSeo(pagina.titulo);
+  useSeo(pagina.titulo);
   const contenido = useContenidoLegal();
   const texto = contenido[pagina.clave];
   const parrafos = parrafosDe(typeof texto === "string" ? texto : null);

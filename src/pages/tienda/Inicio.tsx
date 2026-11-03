@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Tienda } from "@/components/tienda/Tienda";
 import { GrillaProductos } from "@/components/tienda/TarjetaProducto";
 import { listarCategorias, listarDestacados, type CategoriaPublica, type ProductoPublico } from "@/lib/tienda/catalogo";
-import { usarSeo } from "@/lib/tienda/seo";
+import { useSeo } from "@/lib/tienda/seo";
 
 const CONFIANZA = [
   {
@@ -30,7 +30,7 @@ function buscarPorNombre(categorias: CategoriaPublica[], patron: RegExp): Catego
 }
 
 export default function Inicio() {
-  usarSeo("Notebooks, gaming, monitores y periféricos", "Tecnología para trabajar, crear y jugar, con envío a todo el país y precios finales con IVA incluido.");
+  useSeo("Notebooks, gaming, monitores y periféricos", "Tecnología para trabajar, crear y jugar, con envío a todo el país y precios finales con IVA incluido.");
 
   const [categorias, setCategorias] = useState<CategoriaPublica[]>([]);
   const [destacados, setDestacados] = useState<ProductoPublico[]>([]);

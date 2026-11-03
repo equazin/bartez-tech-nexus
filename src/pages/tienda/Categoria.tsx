@@ -8,8 +8,10 @@ import { GrillaProductos } from "@/components/tienda/TarjetaProducto";
 import {
   ORDENES,
   POR_PAGINA,
+  chipsDeCategoria,
+  contarPorCategoria,
   encontrarCategoria,
-  idsConDescendientes,
+  filtroDeCategoria,
   listarCategorias,
   listarMarcasDeCategoria,
   listarProductos,
@@ -18,7 +20,11 @@ import {
   type OrdenDelCatalogo,
   type ProductoPublico,
 } from "@/lib/tienda/catalogo";
-import { usarSeo } from "@/lib/tienda/seo";
+import { useSeo } from "@/lib/tienda/seo";
+import { cn } from "@/lib/utils";
+
+const CLASE_CHIP =
+  "inline-flex h-9 items-center rounded-chip px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 const CLASE_SELECT =
   "h-11 rounded-xl border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -38,10 +44,12 @@ export default function Categoria() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [marcas, setMarcas] = useState<Array<{ id: string; nombre: string }>>([]);
+  const [conteoDeVista, setConteoDeVista] = useState<Map<number, number> | undefined>(undefined);
 
   const ordenParametro = parametros.get("orden");
   const orden: OrdenDelCatalogo = esOrden(ordenParametro) ? ordenParametro : "destacados";
   const marcaId = parametros.get("marca");
+  const subSlug = parametros.get("sub");
 
   useEffect(() => {
     let cancelado = false;
@@ -58,22 +66,26 @@ export default function Categoria() {
   }, []);
 
   const nodo = useMemo(() => (raices ? encontrarCategoria(raices, slug) : null), [raices, slug]);
-  const ids = useMemo(() => (nodo ? idsConDescendientes(nodo) : []), [nodo]);
+  // En una vista transversal (Gaming), ?sub= filtra por una categoría de cualquier rama.
+  const sub = useMemo(() => (raices && nodo?.incluye_etiqueta && subSlug ? encontrarCategoria(raices, subSlug) : null), [raices, nodo, subSlug]);
+  const filtro = useMemo(() => (nodo ? filtroDeCategoria(nodo, sub) : null), [nodo, sub]);
+  const filtroDeLaVista = useMemo(() => (nodo?.incluye_etiqueta ? filtroDeCategoria(nodo) : null), [nodo]);
   const migas = useMemo(() => (raices && nodo ? rutaDeCategoria(raices, nodo.id) : []), [raices, nodo]);
-  const claveIds = ids.join(",");
+  const claveIds = filtro ? `${filtro.categoriaIds.join(",")}|${filtro.etiqueta ?? ""}|${filtro.unirConEtiqueta}` : "";
+  const chips = useMemo(() => (raices && nodo ? chipsDeCategoria(raices, nodo, conteoDeVista) : []), [raices, nodo, conteoDeVista]);
 
-  usarSeo(nodo ? nodo.nombre : null, nodo ? `${nodo.nombre} con envío a todo el país y precios finales con IVA incluido.` : null);
+  useSeo(nodo ? nodo.nombre : null, nodo ? `${nodo.nombre} con envío a todo el país y precios finales con IVA incluido.` : null);
 
   useEffect(() => {
     setPagina(0);
   }, [claveIds, orden, marcaId]);
 
   useEffect(() => {
-    if (!nodo) return;
+    if (!nodo || !filtro) return;
     let cancelado = false;
     setCargando(true);
     setError(null);
-    listarProductos({ categoriaIds: ids, marcaId, orden, pagina })
+    listarProductos({ filtro, marcaId, orden, pagina })
       .then((resultado) => {
         if (cancelado) return;
         setTotal(resultado.total);
@@ -92,9 +104,9 @@ export default function Categoria() {
   }, [nodo, claveIds, marcaId, orden, pagina]);
 
   useEffect(() => {
-    if (ids.length === 0) return;
+    if (!filtro) return;
     let cancelado = false;
-    listarMarcasDeCategoria(ids)
+    listarMarcasDeCategoria(filtro)
       .then((lista) => {
         if (!cancelado) setMarcas(lista);
       })
@@ -106,6 +118,24 @@ export default function Categoria() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [claveIds]);
+
+  useEffect(() => {
+    if (!filtroDeLaVista) {
+      setConteoDeVista(undefined);
+      return;
+    }
+    let cancelado = false;
+    contarPorCategoria(filtroDeLaVista)
+      .then((conteo) => {
+        if (!cancelado) setConteoDeVista(conteo);
+      })
+      .catch(() => {
+        if (!cancelado) setConteoDeVista(new Map());
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [filtroDeLaVista]);
 
   function cambiarParametro(clave: string, valor: string) {
     const siguientes = new URLSearchParams(parametros);
@@ -161,17 +191,26 @@ export default function Categoria() {
           </div>
         </div>
 
-        {nodo && nodo.hijas.length > 0 && (
+        {nodo && chips.length > 0 && (
           <ul className="flex flex-wrap gap-2" aria-label="Subcategorías">
-            {nodo.hijas
-              .filter((h) => h.cantidad > 0)
-              .map((hija) => (
-                <li key={hija.id}>
-                  <Link to={`/${hija.slug}`} className="inline-flex h-9 items-center rounded-chip bg-secondary px-3 text-sm font-medium hover:bg-accent">
-                    {hija.nombre} <span className="ml-1.5 tabular-nums text-muted-foreground">{hija.cantidad}</span>
+            {nodo.incluye_etiqueta && (
+              <li>
+                <Link to={`/${nodo.slug}`} aria-current={!sub ? "page" : undefined} className={cn(CLASE_CHIP, !sub ? "bg-accent text-foreground" : "bg-secondary hover:bg-accent")}>
+                  Todo <span className="ml-1.5 tabular-nums text-muted-foreground">{nodo.cantidad}</span>
+                </Link>
+              </li>
+            )}
+            {chips.map(({ categoria, cantidad, etiqueta }) => {
+              const activo = sub?.id === categoria.id;
+              const destino = nodo.incluye_etiqueta ? `/${nodo.slug}?sub=${encodeURIComponent(categoria.slug)}` : `/${categoria.slug}`;
+              return (
+                <li key={categoria.id}>
+                  <Link to={destino} aria-current={activo ? "page" : undefined} className={cn(CLASE_CHIP, activo ? "bg-accent text-foreground" : "bg-secondary hover:bg-accent")}>
+                    {etiqueta} <span className="ml-1.5 tabular-nums text-muted-foreground">{cantidad}</span>
                   </Link>
                 </li>
-              ))}
+              );
+            })}
           </ul>
         )}
 

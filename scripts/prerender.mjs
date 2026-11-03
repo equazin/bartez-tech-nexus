@@ -25,6 +25,7 @@ const RESERVADOS = new Set([
   "api", "assets", "fonts", "marca", "portada", "email", "admin", "login", "reset-password", "registrarse", "buscar", "carrito",
   "checkout", "compra", "seguimiento", "arrepentimiento", "ayuda", "terminos", "privacidad", "garantias", "sistema-de-diseno",
   "clientes", "portal", "cart", "sitemap.xml", "robots.txt", "favicon.ico", "favicon.svg", "site.webmanifest",
+  "ofertas", "nuevos-ingresos", "marcas",
 ]);
 
 function escapar(texto) {
@@ -84,7 +85,7 @@ async function main() {
   for (let desde = 0; desde < MAXIMO_DE_PRODUCTOS; desde += 1000) {
     const { data, error } = await supabase
       .from("tienda_productos")
-      .select("id, slug, nombre, descripcion_corta, imagenes, imagen, categoria_slug, categoria_nombre, marca, hay_stock, precio_final_ars, precio_lista_ars, sku, specs")
+      .select("id, slug, nombre, descripcion_corta, imagenes, imagen, categoria_id, categoria_slug, categoria_nombre, marca, hay_stock, precio_final_ars, precio_lista_ars, sku, specs, etiquetas")
       .order("id")
       .range(desde, desde + 999);
     if (error) throw new Error(`No se pudieron leer los productos: ${error.message}`);
@@ -109,12 +110,23 @@ async function main() {
   );
   writeFileSync(indice, inicio);
 
-  // Categorías
+  // Categorías: los productos de su rama y, en una vista transversal (Gaming), los de su etiqueta.
+  const hijasDe = new Map();
+  for (const c of categoriasCrudas ?? []) {
+    if (c.padre_id === null) continue;
+    hijasDe.set(c.padre_id, [...(hijasDe.get(c.padre_id) ?? []), c.id]);
+  }
+  const rama = (id) => [id, ...(hijasDe.get(id) ?? []).flatMap(rama)];
+  const porId = new Map((categoriasCrudas ?? []).map((c) => [c.id, c]));
   for (const categoria of categorias) {
-    const suyos = publicables.filter((p) => p.categoria_slug === categoria.slug).slice(0, 60);
+    const ids = new Set(rama(categoria.id));
+    const etiqueta = categoria.incluye_etiqueta ?? null;
+    const suyos = publicables
+      .filter((p) => ids.has(p.categoria_id) || (etiqueta && Array.isArray(p.etiquetas) && p.etiquetas.includes(etiqueta)))
+      .slice(0, 60);
     const ruta = `/${categoria.slug}`;
     const cuerpo = `<main><h1>${escapar(categoria.nombre)}</h1><p>${escapar(categoria.cantidad)} productos con envío a todo el país y precio final con IVA incluido.</p><ul>${suyos
-      .map((p) => `<li><a href="${escapar(`${ruta}/${p.slug}`)}">${escapar(p.nombre)}</a>${p.precio_final_ars !== null ? ` · ${escapar(formatoPesos.format(p.precio_final_ars))}` : ""}</li>`)
+      .map((p) => `<li><a href="${escapar(`/${p.categoria_slug ?? SEGMENTO_SIN_CATEGORIA}/${p.slug}`)}">${escapar(p.nombre)}</a>${p.precio_final_ars !== null ? ` · ${escapar(formatoPesos.format(p.precio_final_ars))}` : ""}</li>`)
       .join("")}</ul></main>`;
     const extraHead = jsonLd({ "@context": "https://schema.org", "@type": "CollectionPage", name: categoria.nombre, url: sitio + ruta, isPartOf: { "@id": `${sitio}/#website` } });
     escribirPagina(ruta, armarPagina(plantilla, { titulo: categoria.nombre, descripcion: `${categoria.nombre} con envío a todo el país y precios finales con IVA incluido.`, ruta, extraHead, cuerpo }));
@@ -152,14 +164,17 @@ async function main() {
           }
         : {}),
     };
+    const cadena = [];
+    for (let c = porId.get(p.categoria_id); c && cadena.length < 10; c = c.padre_id === null ? undefined : porId.get(c.padre_id)) cadena.unshift(c);
+    const pasos = [
+      { name: "Inicio", item: `${sitio}/` },
+      ...cadena.map((c) => ({ name: c.nombre, item: `${sitio}/${c.slug}` })),
+      { name: p.nombre, item: sitio + ruta },
+    ];
     const migas = {
       "@context": "https://schema.org",
       "@type": "BreadcrumbList",
-      itemListElement: [
-        { "@type": "ListItem", position: 1, name: "Inicio", item: `${sitio}/` },
-        ...(p.categoria_slug && p.categoria_nombre ? [{ "@type": "ListItem", position: 2, name: p.categoria_nombre, item: `${sitio}/${p.categoria_slug}` }] : []),
-        { "@type": "ListItem", position: p.categoria_slug ? 3 : 2, name: p.nombre, item: sitio + ruta },
-      ],
+      itemListElement: pasos.map((paso, i) => ({ "@type": "ListItem", position: i + 1, ...paso })),
     };
     const extraHead = (imagen ? `    <meta property="og:image" content="${escapar(imagen)}" />\n` : "") + `    <meta property="og:type" content="product" />\n` + jsonLd(producto) + jsonLd(migas);
     const cuerpo = `<main><h1>${escapar(p.nombre)}</h1>${p.marca ? `<p>${escapar(p.marca)}</p>` : ""}<p>${

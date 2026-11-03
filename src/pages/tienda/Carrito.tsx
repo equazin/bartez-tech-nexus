@@ -9,10 +9,10 @@ import { useCarritoDetallado } from "@/lib/tienda/carritoDetallado";
 import { imagenPrincipal, rutaDelProducto } from "@/lib/tienda/catalogo";
 import { formatearPesos } from "@/lib/tienda/dinero";
 import { cotizarEnvio, textoDeDemora, type CotizacionDeEnvio } from "@/lib/tienda/envios";
-import { usarSeo } from "@/lib/tienda/seo";
+import { useSeo } from "@/lib/tienda/seo";
 
 export default function Carrito() {
-  usarSeo("Carrito");
+  useSeo("Carrito");
   const { lineas, subtotal, pesoKg, cargando, problemas, listoParaComprar } = useCarritoDetallado();
   const [envio, setEnvio] = useState<CotizacionDeEnvio | null>(null);
 

@@ -11,14 +11,29 @@ import { Galeria } from "@/components/tienda/Galeria";
 import { FichaTecnica } from "@/components/tienda/FichaTecnica";
 import { Precio } from "@/components/tienda/Precio";
 import { EstadoDeStock, agregarYAvisar } from "@/components/tienda/TarjetaProducto";
-import { imagenesDe, obtenerProducto, type ProductoPublico } from "@/lib/tienda/catalogo";
-import { usarSeo } from "@/lib/tienda/seo";
+import { imagenesDe, listarCategorias, obtenerProducto, rutaDeCategoria, type CategoriaPublica, type ProductoPublico } from "@/lib/tienda/catalogo";
+import { useSeo } from "@/lib/tienda/seo";
 
 export default function Producto() {
   const { producto: slug = "" } = useParams<{ producto: string }>();
   const [producto, setProducto] = useState<ProductoPublico | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [raices, setRaices] = useState<CategoriaPublica[]>([]);
+
+  useEffect(() => {
+    let cancelado = false;
+    listarCategorias()
+      .then((lista) => {
+        if (!cancelado) setRaices(lista);
+      })
+      .catch(() => {
+        if (!cancelado) setRaices([]);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelado = false;
@@ -39,7 +54,7 @@ export default function Producto() {
     };
   }, [slug]);
 
-  usarSeo(producto?.nombre ?? null, producto?.descripcion_corta ?? (producto ? `${producto.nombre} con envío a todo el país y precio final con IVA incluido.` : null));
+  useSeo(producto?.nombre ?? null, producto?.descripcion_corta ?? (producto ? `${producto.nombre} con envío a todo el país y precio final con IVA incluido.` : null));
 
   if (cargando) {
     return (
@@ -73,8 +88,14 @@ export default function Producto() {
     );
   }
 
+  // La cadena completa (Notebooks › Notebooks gamer) cuando el árbol ya cargó; si no, la categoría del producto.
+  const cadena = producto.categoria_id !== null ? rutaDeCategoria(raices, producto.categoria_id) : [];
   const migas: Miga[] = [
-    ...(producto.categoria_nombre && producto.categoria_slug ? [{ nombre: producto.categoria_nombre, ruta: `/${producto.categoria_slug}` }] : []),
+    ...(cadena.length > 0
+      ? cadena.map((c) => ({ nombre: c.nombre, ruta: `/${c.slug}` }))
+      : producto.categoria_nombre && producto.categoria_slug
+        ? [{ nombre: producto.categoria_nombre, ruta: `/${producto.categoria_slug}` }]
+        : []),
     { nombre: producto.nombre },
   ];
 

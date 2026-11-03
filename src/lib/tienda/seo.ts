@@ -16,7 +16,7 @@ function fijarMeta(selector: string, atributo: "name" | "property", valor: strin
  * Título y descripción de una página de la tienda. Corre después de que la página
  * tiene sus datos, así que pisa los valores genéricos de RouteSeo.
  */
-export function usarSeo(titulo: string | null | undefined, descripcion?: string | null) {
+export function useSeo(titulo: string | null | undefined, descripcion?: string | null) {
   useEffect(() => {
     if (!titulo) return;
     const completo = `${titulo} | ${NOMBRE}`;

@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Tienda } from "@/components/tienda/Tienda";
 import { GrillaProductos } from "@/components/tienda/TarjetaProducto";
 import { buscarProductos, type ProductoPublico } from "@/lib/tienda/catalogo";
-import { usarSeo } from "@/lib/tienda/seo";
+import { useSeo } from "@/lib/tienda/seo";
 
 export default function Buscar() {
   const [parametros] = useSearchParams();
@@ -12,7 +12,7 @@ export default function Buscar() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  usarSeo(q ? `Resultados para "${q}"` : "Buscar");
+  useSeo(q ? `Resultados para "${q}"` : "Buscar");
 
   useEffect(() => {
     if (q.length < 2) {

@@ -4,10 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Tienda } from "@/components/tienda/Tienda";
 import { ResumenDeCompra } from "@/components/tienda/ResumenDeCompra";
 import { buscarPedido, type PedidoPublico } from "@/lib/tienda/pedidos";
-import { usarSeo } from "@/lib/tienda/seo";
+import { useSeo } from "@/lib/tienda/seo";
 
 export default function Seguimiento() {
-  usarSeo("Seguir mi compra");
+  useSeo("Seguir mi compra");
   const [email, setEmail] = useState("");
   const [numero, setNumero] = useState("");
   const [pedido, setPedido] = useState<PedidoPublico | null>(null);

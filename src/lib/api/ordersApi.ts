@@ -24,7 +24,16 @@ export type OrderStatus =
   | "processing"
   | "shipped"
   | "delivered"
-  | "cancelled";
+  | "cancelled"
+  // Estados de la tienda (fase 8): los que mueve el panel en modo consumidor.
+  | "pendiente_pago"
+  | "pagado"
+  | "preparando"
+  | "enviado"
+  | "entregado"
+  | "cancelado"
+  | "reintegrado"
+  | "vencido";
 
 export interface Order {
   id: string;

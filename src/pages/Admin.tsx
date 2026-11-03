@@ -35,6 +35,7 @@ import { ErrorBoundary } from "@/components/admin/ErrorBoundary";
 import { CreateOrderModal } from "@/components/admin/CreateOrderModal";
 import { NotificationBell } from "@/components/admin/NotificationBell";
 import { AdminSearch } from "@/components/admin/AdminSearch";
+import { MapeoDeCategorias } from "@/components/admin/MapeoDeCategorias";
 import { logActivity } from "@/lib/api/activityLog";
 import { whatsappNotifications } from "@/lib/api/whatsappNotifications";
 import type { KanbanStatus, KanbanOrder } from "../components/admin/OrderKanban";
@@ -2228,6 +2229,7 @@ async function handleCreateSeller() {
                 ))}
               </div>
             </div>
+            <MapeoDeCategorias onCambio={() => { void fetchCategories(); void fetchProducts(); }} />
           </div>
         </KeepAliveTab>
 

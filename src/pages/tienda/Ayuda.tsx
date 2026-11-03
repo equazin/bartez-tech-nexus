@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Tienda } from "@/components/tienda/Tienda";
 import { parrafosDe, useContenidoLegal } from "@/lib/tienda/legal";
-import { usarSeo } from "@/lib/tienda/seo";
+import { useSeo } from "@/lib/tienda/seo";
 
 function Seccion({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
   return (
@@ -13,7 +13,7 @@ function Seccion({ id, titulo, children }: { id: string; titulo: string; childre
 }
 
 export default function Ayuda() {
-  usarSeo("Ayuda", "Envíos, pagos, garantías, cambios y devoluciones en Teqo.");
+  useSeo("Ayuda", "Envíos, pagos, garantías, cambios y devoluciones en Teqo.");
   const { datos_legales: datos, texto_garantias } = useContenidoLegal();
   const garantias = parrafosDe(texto_garantias);
 

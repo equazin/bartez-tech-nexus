@@ -4,12 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tienda } from "@/components/tienda/Tienda";
 import { crearArrepentimiento } from "@/lib/tienda/legal";
-import { usarSeo } from "@/lib/tienda/seo";
+import { useSeo } from "@/lib/tienda/seo";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export default function Arrepentimiento() {
-  usarSeo("Botón de arrepentimiento", "Revocá tu compra dentro de los 10 días corridos de recibirla, sin registro y con un código al instante.");
+  useSeo("Botón de arrepentimiento", "Revocá tu compra dentro de los 10 días corridos de recibirla, sin registro y con un código al instante.");
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
   const [numero, setNumero] = useState("");

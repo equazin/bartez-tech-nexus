@@ -7,7 +7,7 @@ import { ResumenDeCompra } from "@/components/tienda/ResumenDeCompra";
 import { formatearPesos } from "@/lib/tienda/dinero";
 import { crearPreferencia, datosDeTransferencia, type DatosDeTransferencia } from "@/lib/tienda/pagos";
 import { obtenerPedido, type PedidoPublico } from "@/lib/tienda/pedidos";
-import { usarSeo } from "@/lib/tienda/seo";
+import { useSeo } from "@/lib/tienda/seo";
 
 const formatoFechaHora = new Intl.DateTimeFormat("es-AR", { dateStyle: "long", timeStyle: "short" });
 
@@ -105,7 +105,7 @@ export default function Compra() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  usarSeo(pedido ? `Compra ${pedido.numero}` : "Tu compra");
+  useSeo(pedido ? `Compra ${pedido.numero}` : "Tu compra");
 
   useEffect(() => {
     const numero = Number(id);

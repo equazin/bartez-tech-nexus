@@ -29,9 +29,8 @@ let enMemoria: Promise<ContenidoLegal> | null = null;
 /** Los datos del vendedor y los textos legales, una sola vez por visita. */
 export function contenidoLegal(): Promise<ContenidoLegal> {
   if (!enMemoria) {
-    enMemoria = supabase
-      .rpc("tienda_contenido_legal")
-      .then(({ data, error }) => {
+    enMemoria = Promise.resolve(
+      supabase.rpc("tienda_contenido_legal").then(({ data, error }) => {
         if (error) throw new Error(error.message);
         const crudo = (data ?? {}) as Partial<ContenidoLegal>;
         return {
@@ -40,11 +39,11 @@ export function contenidoLegal(): Promise<ContenidoLegal> {
           texto_privacidad: typeof crudo.texto_privacidad === "string" ? crudo.texto_privacidad : null,
           texto_garantias: typeof crudo.texto_garantias === "string" ? crudo.texto_garantias : null,
         };
-      })
-      .catch(() => {
-        enMemoria = null;
-        return VACIO;
-      });
+      }),
+    ).catch(() => {
+      enMemoria = null;
+      return VACIO;
+    });
   }
   return enMemoria;
 }
