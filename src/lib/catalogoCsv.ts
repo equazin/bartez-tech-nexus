@@ -60,7 +60,7 @@ const CONOCIDAS = new Set([...COLUMNAS_CSV.map((c) => c.columna), ...SOLO_IMPORT
 /** Claves de specs que son del mayorista o de uso interno: no se exportan ni se muestran. */
 const SPECS_INTERNAS = [
   /cost/i, /costo/i, /markup/i, /margen/i, /pvp/i, /exchange/i, /cotizacion/i, /precio/i,
-  /^elit_/i, /^air_/i, /^invid_/i, /^supplier_/i, /^preferred_supplier_/i, /^sync_/i, /^internal_/i,
+  /^elit_/i, /^air_/i, /^invid_/i, /^nb_/i, /^supplier_/i, /^preferred_supplier_/i, /^sync_/i, /^internal_/i,
   /^provider_/i, /token/i, /uuid/i, /external_id/i, /source/i, /last_update/i, /^images$/i, /^gallery$/i,
   /^ean$/i, /^manufacturer_part_number$/i, /^weight_kg$/i,
 ];

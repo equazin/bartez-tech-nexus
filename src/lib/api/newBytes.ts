@@ -119,9 +119,10 @@ function registroDeNewBytes(p: ProductoNewBytes): SupplierCatalogRecord {
     ivaRate: numero(p.price?.iva) || 21,
     leadTimeDays: 0,
     priceMultiplier: 1,
+    // Claves internas con prefijos que la tienda no muestra (supplier_, cotizacion, weight_kg): la vista
+    // tienda_productos las filtra y la ficha y las tarjetas no las ven.
     metadata: {
-      nb_id: p.id,
-      nb_categoria: categoriaDe(p) || null,
+      supplier_category: categoriaDe(p) || null,
       nb_cotizacion: numero(p.cotizacion) || null,
       weight_kg: peso > 0 ? Number((peso / 1000).toFixed(3)) : null,
     },
