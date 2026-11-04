@@ -1,4 +1,4 @@
-import { createMailerTransport, getDefaultFromEmail, sanitizeHeaderText } from "./mailer.js";
+import { createMailerTransport, getDefaultFromEmail, registroDelEnvio, sanitizeHeaderText } from "./mailer.js";
 import { pagoAcreditadoHTML, pedidoCanceladoHTML, pedidoEntregadoHTML, pedidoEnviadoHTML } from "./plantillas.js";
 import { getSupabaseAdmin } from "./supabaseServer.js";
 
@@ -124,12 +124,13 @@ export async function avisarAlComprador(orderId: number, tipo: TipoDeAviso, extr
     }
     try {
       const transporte = createMailerTransport();
-      await transporte.sendMail({
+      const enviado = await transporte.sendMail({
         from: `"Teqo" <${getDefaultFromEmail()}>`,
         to: pedido.comprador_email,
         subject: sanitizeHeaderText(ASUNTOS[tipo].replace("{numero}", pedido.order_number), "Novedades de tu compra"),
         html,
       });
+      console.info("[avisos]", tipo, pedido.order_number, registroDelEnvio(enviado));
     } catch (e: unknown) {
       // No salió: se borra la anotación para que el mismo aviso se pueda volver a mandar.
       await supabase.from("avisos_al_comprador").delete().eq("order_id", pedido.id).eq("tipo", tipo);

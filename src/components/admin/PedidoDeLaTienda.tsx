@@ -89,7 +89,7 @@ export function PedidoDeLaTienda({ pedido }: { pedido: PedidoDeLaTiendaFila }) {
     Promise.all([
       supabase.from("pagos").select("proveedor, estado, cuotas, detalle").eq("order_id", Number(pedido.id)).order("id", { ascending: false }).limit(1),
       ids.length
-        ? supabase.from("product_suppliers").select("product_id, suppliers(name)").in("product_id", ids).eq("is_preferred", true)
+        ? supabase.from("product_suppliers").select("product_id, is_preferred, active, cost_price, suppliers(name)").in("product_id", ids)
         : Promise.resolve({ data: [], error: null }),
     ])
       .then(([pagos, sup]) => {
@@ -97,10 +97,20 @@ export function PedidoDeLaTienda({ pedido }: { pedido: PedidoDeLaTiendaFila }) {
         if (pagos.error) throw new Error(pagos.error.message);
         if (sup.error) throw new Error(sup.error.message);
         setPago(((pagos.data ?? [])[0] as PagoDelPedido | undefined) ?? null);
+        // El preferido; si ninguno está marcado, el activo más barato (muchos productos tienen un solo mayorista).
+        type Fila = { product_id: number; is_preferred: boolean | null; active: boolean | null; cost_price: number | null; suppliers: { name: string } | Array<{ name: string }> | null };
+        const puntaje = (f: Fila) => (f.is_preferred ? 0 : f.active !== false ? 1 : 2);
+        const mejor = new Map<number, Fila>();
+        for (const f of (sup.data ?? []) as Fila[]) {
+          const actual = mejor.get(f.product_id);
+          if (!actual || puntaje(f) < puntaje(actual) || (puntaje(f) === puntaje(actual) && Number(f.cost_price ?? Infinity) < Number(actual.cost_price ?? Infinity))) {
+            mejor.set(f.product_id, f);
+          }
+        }
         const mapa = new Map<number, string>();
-        for (const fila of (sup.data ?? []) as Array<{ product_id: number; suppliers: { name: string } | Array<{ name: string }> | null }>) {
-          const s = Array.isArray(fila.suppliers) ? fila.suppliers[0] : fila.suppliers;
-          if (s?.name && !mapa.has(fila.product_id)) mapa.set(fila.product_id, s.name);
+        for (const [productoId, f] of mejor) {
+          const s = Array.isArray(f.suppliers) ? f.suppliers[0] : f.suppliers;
+          if (s?.name) mapa.set(productoId, s.name);
         }
         setProveedores(mapa);
       })

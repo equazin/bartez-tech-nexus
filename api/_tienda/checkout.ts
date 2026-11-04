@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 import { fail, methodNotAllowed, ok } from "../_shared/http.js";
-import { createMailerTransport, getDefaultFromEmail, sanitizeHeaderText } from "../_shared/mailer.js";
+import { createMailerTransport, getDefaultFromEmail, registroDelEnvio, sanitizeHeaderText } from "../_shared/mailer.js";
 import { compraRecibidaHTML } from "../_shared/plantillas.js";
 import { pedidoDeLaTiendaSchema, type PedidoDeLaTienda } from "../_shared/schemas.js";
 import { getSupabaseAdmin } from "../_shared/supabaseServer.js";
@@ -192,13 +192,11 @@ async function crearPedido(pedido: PedidoDeLaTienda, usuario: UsuarioDeLaSesion 
     supabase.rpc("dolar_vigente"),
     supabase.from("tienda_configuracion").select("clave, valor").in("clave", ["peso_por_defecto_kg", "redondeo_pesos"]),
     // El proveedor de cada producto (el preferido) queda en la línea del pedido: el panel muestra a quién comprarle.
-    supabase.from("product_suppliers").select("product_id, supplier_id, suppliers(name)").in("product_id", ids).eq("is_preferred", true).eq("active", true),
+    supabase.from("product_suppliers").select("product_id, supplier_id, is_preferred, active, cost_price, suppliers(name)").in("product_id", ids),
   ]);
-  const proveedorDe = new Map<number, { id: string; nombre: string | null }>();
-  for (const fila of (proveedoresCrudos ?? []) as Array<{ product_id: number; supplier_id: string; suppliers: { name: string | null } | Array<{ name: string | null }> | null }>) {
-    const proveedor = Array.isArray(fila.suppliers) ? fila.suppliers[0] : fila.suppliers;
-    if (!proveedorDe.has(fila.product_id)) proveedorDe.set(fila.product_id, { id: fila.supplier_id, nombre: proveedor?.name ?? null });
-  }
+  const proveedorDe = elegirProveedores(
+    (proveedoresCrudos ?? []) as Array<FilaDeProveedor>,
+  );
   const dolar = typeof dolarCrudo === "number" ? dolarCrudo : Number(dolarCrudo ?? 0) || null;
   // Mismo redondeo que tienda_redondear en la base, para que el precio cobrado sea el que se mostró.
   const redondeo = Math.max(Number((configuracion ?? []).find((c: { clave: string; valor: unknown }) => c.clave === "redondeo_pesos")?.valor ?? 10) || 10, 1);
@@ -380,6 +378,40 @@ async function crearPedido(pedido: PedidoDeLaTienda, usuario: UsuarioDeLaSesion 
   return resultado;
 }
 
+interface FilaDeProveedor {
+  product_id: number;
+  supplier_id: string;
+  is_preferred: boolean | null;
+  active: boolean | null;
+  cost_price: number | null;
+  suppliers: { name: string | null } | Array<{ name: string | null }> | null;
+}
+
+/**
+ * El proveedor de cada producto: el preferido; si ninguno está marcado, el activo más barato; si no hay activos,
+ * cualquiera. Muchos productos tienen un solo mayorista sin marcar como preferido.
+ */
+function elegirProveedores(filas: FilaDeProveedor[]): Map<number, { id: string; nombre: string | null }> {
+  const puntaje = (f: FilaDeProveedor) => (f.is_preferred ? 0 : f.active !== false ? 1 : 2);
+  const mejor = new Map<number, FilaDeProveedor>();
+  for (const f of filas) {
+    const actual = mejor.get(f.product_id);
+    if (
+      !actual ||
+      puntaje(f) < puntaje(actual) ||
+      (puntaje(f) === puntaje(actual) && Number(f.cost_price ?? Infinity) < Number(actual.cost_price ?? Infinity))
+    ) {
+      mejor.set(f.product_id, f);
+    }
+  }
+  const resultado = new Map<number, { id: string; nombre: string | null }>();
+  for (const [productoId, f] of mejor) {
+    const proveedor = Array.isArray(f.suppliers) ? f.suppliers[0] : f.suppliers;
+    resultado.set(productoId, { id: f.supplier_id, nombre: proveedor?.name ?? null });
+  }
+  return resultado;
+}
+
 async function avisarAlComprador(
   pedido: PedidoDeLaTienda,
   creado: { id: number; numero: string; token: string },
@@ -389,7 +421,7 @@ async function avisarAlComprador(
     const base = (process.env.VITE_SITE_URL?.trim() || process.env.API_ALLOWED_ORIGIN?.split(",")[0]?.trim() || "").replace(/\/$/, "");
     const enlace = `${base}/compra/${creado.id}?t=${creado.token}`;
     const transporte = createMailerTransport();
-    await transporte.sendMail({
+    const enviado = await transporte.sendMail({
       from: `"Teqo" <${getDefaultFromEmail()}>`,
       to: pedido.comprador.email,
       subject: sanitizeHeaderText(`Recibimos tu compra ${creado.numero}`, "Recibimos tu compra"),
@@ -405,6 +437,7 @@ async function avisarAlComprador(
         enlace,
       }),
     });
+    console.info("[checkout] Email de compra recibida:", creado.numero, registroDelEnvio(enviado));
   } catch (e: unknown) {
     console.error("[checkout] No se pudo mandar el email de compra recibida:", e instanceof Error ? e.message : e);
   }

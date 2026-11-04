@@ -44,3 +44,20 @@ export function sanitizeHeaderText(value: string, fallback: string, maxLength = 
   if (!sanitized) return fallback;
   return sanitized.slice(0, maxLength);
 }
+
+/**
+ * Lo que respondió el servidor de correo al aceptar un email, para los logs: el id del mensaje, a quién aceptó y a
+ * quién rechazó, y la respuesta SMTP. Sin el contenido del email.
+ */
+export function registroDelEnvio(info: unknown): string {
+  const i = (info ?? {}) as { messageId?: unknown; accepted?: unknown; rejected?: unknown; response?: unknown; envelope?: { from?: unknown } };
+  // Solo cuántas direcciones: el email del comprador no queda en los logs.
+  const lista = (v: unknown) => (Array.isArray(v) ? String(v.length) : "0");
+  return [
+    `id=${String(i.messageId ?? "")}`,
+    `desde=${String(i.envelope?.from ?? "")}`,
+    `aceptados=${lista(i.accepted)}`,
+    `rechazados=${lista(i.rejected)}`,
+    `respuesta=${String(i.response ?? "").slice(0, 160)}`,
+  ].join(" ");
+}
