@@ -4,6 +4,8 @@ import { listarCategorias, type CategoriaPublica } from "@/lib/tienda/catalogo";
 import { useContenidoLegal } from "@/lib/tienda/legal";
 
 const DEFENSA_DEL_CONSUMIDOR = "https://www.argentina.gob.ar/defensadelconsumidor";
+/** El logo del formulario 960/D que da ARCA, pedido por https para que el navegador no lo bloquee en la tienda. */
+const DATA_FISCAL_LOGO = "https://www.afip.gob.ar/images/f960/DATAWEB.jpg";
 
 function Columna({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
@@ -93,8 +95,8 @@ export function Pie() {
               Defensa del consumidor
             </a>
             {datos.data_fiscal_url && (
-              <a href={datos.data_fiscal_url} target="_blank" rel="noopener noreferrer" className={ENLACE}>
-                Data Fiscal
+              <a href={datos.data_fiscal_url} target="_blank" rel="noopener noreferrer" className="mt-1 self-start" aria-label="Data Fiscal de ARCA">
+                <img src={DATA_FISCAL_LOGO} alt="Data Fiscal" width={239} height={327} loading="lazy" className="h-20 w-auto rounded-md" />
               </a>
             )}
           </Columna>
@@ -111,10 +113,6 @@ export function Pie() {
         </div>
 
         <div className="flex flex-wrap justify-between gap-x-6 gap-y-2 border-t border-border pt-5 text-[13px] text-muted-foreground">
-          <p>
-            {datos.razon_social ?? "[RAZÓN SOCIAL]"} · CUIT {datos.cuit ?? "[CUIT]"} · {datos.domicilio ?? "[DOMICILIO LEGAL]"}
-            {datos.email ? ` · ${datos.email}` : ""}
-          </p>
           <p>
             Defensa de las y los consumidores: para reclamos{" "}
             <a href={DEFENSA_DEL_CONSUMIDOR} target="_blank" rel="noopener noreferrer" className="text-foreground underline">
