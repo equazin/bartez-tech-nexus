@@ -70,7 +70,7 @@ export function MisCupones({ cuponInicial }: { cuponInicial: string | null }) {
           Todavía no tenés cupones. Cuando te llegue uno en el email de una compra, lo activás acá.
         </p>
       ) : (
-        <ul className="grid gap-3 md:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {cupones.map((c) => {
             const estado = estadoDe(c);
             const vence = fechaDeVencimiento(c.vence_en);

@@ -91,7 +91,7 @@ export function FormularioDeMisDatos({ userId }: { userId: string }) {
     <div className="space-y-8">
       <form onSubmit={guardarDatos} className="space-y-4 rounded-2xl border border-border bg-card p-6">
         <h2 className="text-[20px] font-bold leading-[26px]">Tus datos</h2>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <label className="block space-y-1 text-sm">
             <span className="font-medium">Nombre y apellido</span>
             <Input value={datos.nombre} onChange={(e) => setDatos({ ...datos, nombre: e.target.value })} autoComplete="name" maxLength={120} />
@@ -147,7 +147,7 @@ export function FormularioDeMisDatos({ userId }: { userId: string }) {
         </ul>
 
         {sumando && (
-          <form onSubmit={sumarDireccion} className="grid gap-4 rounded-2xl border border-border bg-card p-6 sm:grid-cols-6">
+          <form onSubmit={sumarDireccion} className="grid grid-cols-1 gap-4 rounded-2xl border border-border bg-card p-6 sm:grid-cols-6">
             <label className="block space-y-1 text-sm sm:col-span-4">
               <span className="font-medium">Calle</span>
               <Input value={nueva.calle} onChange={(e) => setNueva({ ...nueva, calle: e.target.value })} autoComplete="address-line1" />

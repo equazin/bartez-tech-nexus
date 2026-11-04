@@ -41,7 +41,7 @@ export default function Seguimiento() {
           <h1 className="text-[28px] font-bold leading-[34px] tracking-[-0.5px]">Seguir mi compra</h1>
           <p className="text-muted-foreground">Sin cuenta: con el email que usaste y el número de pedido que te mandamos.</p>
         </div>
-        <form onSubmit={buscar} className="grid max-w-xl gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+        <form onSubmit={buscar} className="grid grid-cols-1 max-w-xl gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
           <label className="block space-y-1 text-sm">
             <span className="font-medium">Email</span>
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />

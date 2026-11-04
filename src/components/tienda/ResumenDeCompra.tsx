@@ -13,7 +13,7 @@ export function ResumenDeCompra({ pedido }: { pedido: PedidoPublico }) {
   const demora = textoDeDemora({ demora_dias_min: pedido.envio_demora_dias_min, demora_dias_max: pedido.envio_demora_dias_max });
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       <section className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="text-[20px] font-bold leading-[26px]">Compra {pedido.numero}</h2>

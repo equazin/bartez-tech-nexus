@@ -28,12 +28,12 @@ function useCategoriasConProductos(): CategoriaPublica[] {
 function FranjaDeServicio() {
   return (
     <div className="border-b border-border bg-background">
-      <div className="container mx-auto flex flex-wrap items-center justify-between gap-x-6 gap-y-1 px-4 py-1.5 text-[13px]">
-        <p className="flex flex-wrap gap-x-5 gap-y-0.5 text-muted-foreground">
+      <div className="container mx-auto flex flex-wrap items-center justify-between gap-x-6 gap-y-1 px-4 py-1.5 text-xs sm:text-[13px]">
+        <p className="hidden flex-wrap gap-x-5 gap-y-0.5 text-muted-foreground sm:flex">
           <span>Envío a todo el país, al mismo precio en cualquier provincia</span>
           <span className="hidden sm:inline">Precio final con IVA incluido</span>
         </p>
-        <nav aria-label="Ayuda" className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <nav aria-label="Ayuda" className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-1 sm:w-auto sm:justify-start">
           <Link to="/ayuda" className="hover:underline">
             Ayuda
           </Link>
@@ -150,7 +150,7 @@ function MenuDeCategorias({ categorias }: { categorias: CategoriaPublica[] }) {
       </button>
       {abierto && (
         <div id="menu-de-categorias" className="absolute inset-x-0 top-full z-50 border-b border-border bg-card shadow-[0_24px_48px_rgba(0,0,0,0.5)]">
-          <div className="container mx-auto grid gap-7 px-4 py-7 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+          <div className="container mx-auto grid grid-cols-1 gap-7 px-4 py-7 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
             {categorias.map((raiz) => {
               const hijas = raiz.hijas.filter((h) => h.cantidad > 0);
               return (

@@ -19,7 +19,7 @@ export default function Ayuda() {
 
   return (
     <Tienda>
-      <div className="container mx-auto grid gap-10 px-4 py-8 lg:grid-cols-[220px_minmax(0,1fr)]">
+      <div className="container mx-auto grid grid-cols-1 gap-10 px-4 py-8 lg:grid-cols-[220px_minmax(0,1fr)]">
         <nav aria-label="Temas" className="lg:sticky lg:top-24 lg:self-start">
           <ul className="flex flex-wrap gap-2 text-sm lg:flex-col">
             {[

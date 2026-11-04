@@ -77,7 +77,7 @@ function PagarPorTransferencia({ pedido, token }: { pedido: PedidoPublico; token
       ) : sinDatos ? (
         <p className="text-sm text-muted-foreground">Los datos de la cuenta están a confirmar: te los mandamos por email apenas estén.</p>
       ) : (
-        <dl className="grid gap-1 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-6">
+        <dl className="grid grid-cols-1 gap-1 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-6">
           <dt className="text-muted-foreground">Titular</dt>
           <dd>{cuenta.titular ?? "[A CONFIRMAR]"}</dd>
           <dt className="text-muted-foreground">CUIT</dt>

@@ -118,7 +118,7 @@ export function Portada({ raices, fotos }: { raices: CategoriaPublica[] | null; 
       <div className="flex flex-col gap-4">
         <PortadaDelInicio />
         {accesos.length > 0 && (
-          <div className="grid min-w-0 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 min-w-0 gap-4 md:grid-cols-2">
             {accesos.map((a) => (
               <Link
                 key={a.clave}
@@ -141,7 +141,7 @@ export function Portada({ raices, fotos }: { raices: CategoriaPublica[] | null; 
           </div>
         )}
       </div>
-      <ul className="grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 xl:grid-cols-4">
+      <ul className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 xl:grid-cols-4">
         {PROMESAS.map(({ icono: Icono, titulo, texto }) => (
           <li key={titulo} className="flex items-center gap-3.5 bg-card px-5 py-[18px]">
             <Icono className="h-7 w-7 shrink-0" strokeWidth={1.8} aria-hidden />

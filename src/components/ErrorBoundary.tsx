@@ -1,4 +1,5 @@
 import { logger } from "@/lib/logger";
+import { esErrorDeVersionVieja, recargarPorVersionNueva } from "@/lib/versionNueva";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
 interface Props {
@@ -19,6 +20,8 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
+    // Una pestaña con la versión anterior: se recarga sola y no llega a mostrar el error.
+    if (esErrorDeVersionVieja(error) && recargarPorVersionNueva()) return;
     logger.error("[ErrorBoundary]", error, info.componentStack);
   }
 
@@ -43,6 +46,22 @@ export class ErrorBoundary extends Component<Props, State> {
     if (!this.state.hasError) return this.props.children;
 
     if (this.props.fallback) return this.props.fallback;
+
+    if (esErrorDeVersionVieja(this.state.error)) {
+      return (
+        <div className="min-h-[50vh] flex items-center justify-center p-8">
+          <div className="max-w-md w-full text-center space-y-4">
+            <p className="text-sm text-muted-foreground">Hay una versión nueva de la página. Si no se actualiza sola, tocá el botón.</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90"
+            >
+              Actualizar
+            </button>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="min-h-[50vh] flex items-center justify-center p-8">

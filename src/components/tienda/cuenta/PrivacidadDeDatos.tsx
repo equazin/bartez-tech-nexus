@@ -57,7 +57,7 @@ export function PrivacidadDeDatos() {
           Recibimos tu pedido{listo === "borrado" ? " de borrado" : listo === "copia" ? " de copia" : " de corrección"}. Te escribimos por email.
         </p>
       )}
-      <ul className="grid gap-3 md:grid-cols-3">
+      <ul className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {OPCIONES.map((o) => (
           <li key={o.id} className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5">
             <p className="font-bold">{o.titulo}</p>

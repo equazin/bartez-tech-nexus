@@ -470,7 +470,7 @@ export default function ArmaTuPc() {
                   </h2>
                   <span className="text-sm text-muted-foreground">Ya son compatibles. La cargás en la lista y cambiás lo que quieras.</span>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   {armadasConPiezas.map((a) => {
                     const sel = seleccionDe(a.piezas, porId);
                     const conPiezas = PASOS.filter((p) => sel[p.id]);
@@ -517,7 +517,7 @@ export default function ArmaTuPc() {
               </section>
             )}
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <Dato
                 titulo="Compatibilidad"
                 valor={elegidos.length === 0 ? "Sin piezas" : problemas.length === 0 ? "Todo compatible" : problemas.length === 1 ? "1 problema" : `${problemas.length} problemas`}

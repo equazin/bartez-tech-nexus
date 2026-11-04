@@ -24,7 +24,7 @@ export function FichaTecnica({ producto }: { producto: ProductoPublico }) {
         <h2 className="font-display text-[26px] font-bold uppercase">Especificaciones</h2>
         <p className="text-[13px] text-muted-foreground">Datos del fabricante, informados por el mayorista.</p>
       </div>
-      <div className="grid items-start gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
         {grupos.map((grupo) => (
           <div key={grupo.titulo} className="rounded-2xl border border-border bg-card px-[18px] pb-2.5 pt-1.5">
             <h3 className="pb-2 pt-3.5 font-display text-[15px] font-bold uppercase tracking-[0.08em]">{grupo.titulo}</h3>

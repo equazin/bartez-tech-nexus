@@ -15,7 +15,7 @@ export function ExtrasDeLaCompra({ pedido, token }: { pedido: PedidoPublico; tok
   if (!pedido.factura && !pedido.cupon && !enCamino) return null;
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       {pedido.cupon && (
         <section className="space-y-3 rounded-2xl border border-dashed border-foreground/40 bg-card p-6 md:col-span-2">
           <p className="font-display text-xs font-semibold uppercase tracking-[1px] text-muted-foreground">Para tu próxima compra</p>

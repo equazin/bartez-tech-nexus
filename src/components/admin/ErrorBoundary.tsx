@@ -1,5 +1,6 @@
 import { logger } from "@/lib/logger";
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { recargarPorVersionNueva } from "@/lib/versionNueva";
 
 interface Props {
   children: ReactNode;
@@ -40,6 +41,8 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
+    // Una pestaña con la versión anterior del panel: se recarga sola.
+    if (isDynamicImportError(error) && recargarPorVersionNueva()) return;
     logger.error("[ErrorBoundary]", this.props.section ?? "Admin", error, info);
   }
 

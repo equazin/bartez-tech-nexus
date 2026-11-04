@@ -21,25 +21,25 @@ const PASOS = ["Carrito", "Tus datos", "Envío", "Pago"];
 
 function Pasos() {
   return (
-    <ol aria-label="Pasos de la compra" className="grid grid-cols-2 gap-2 md:grid-cols-4">
+    <ol aria-label="Pasos de la compra" className="grid grid-cols-4 gap-1.5 sm:gap-2">
       {PASOS.map((paso, i) => (
         <li
           key={paso}
           aria-current={i === 0 ? "step" : undefined}
           className={cn(
-            "flex h-[52px] items-center gap-2.5 rounded-xl border bg-card px-3.5 text-[15px]",
+            "flex h-10 min-w-0 items-center gap-1.5 rounded-xl border bg-card px-2 text-xs sm:h-[52px] sm:gap-2.5 sm:px-3.5 sm:text-[15px]",
             i === 0 ? "border-foreground font-bold" : "border-border text-muted-foreground",
           )}
         >
           <span
             className={cn(
-              "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm",
+              "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs sm:h-7 sm:w-7 sm:text-sm",
               i === 0 ? "bg-primary text-primary-foreground" : "border border-input",
             )}
           >
             {i + 1}
           </span>
-          {paso}
+          <span className="truncate">{paso}</span>
         </li>
       ))}
     </ol>

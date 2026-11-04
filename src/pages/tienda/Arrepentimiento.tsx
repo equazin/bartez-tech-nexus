@@ -39,7 +39,7 @@ export default function Arrepentimiento() {
 
   return (
     <Tienda>
-      <div className="container mx-auto grid gap-10 px-4 py-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <div className="container mx-auto grid grid-cols-1 gap-10 px-4 py-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <section className="space-y-4">
           <h1 className="text-[40px] font-bold leading-[44px] tracking-[-1px]">Botón de arrepentimiento</h1>
           <p className="text-muted-foreground">

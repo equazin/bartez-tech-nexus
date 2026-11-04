@@ -283,7 +283,7 @@ export default function Checkout() {
 
   return (
     <Tienda>
-      <form onSubmit={confirmar} noValidate className="container mx-auto grid gap-8 px-4 py-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <form onSubmit={confirmar} noValidate className="container mx-auto grid grid-cols-1 gap-8 px-4 py-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="space-y-10">
           <h1 className="text-[28px] font-bold leading-[34px] tracking-[-0.5px]">Finalizar la compra</h1>
 
@@ -302,7 +302,7 @@ export default function Checkout() {
                 y completamos tus datos y tus cupones.
               </p>
             )}
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Campo etiqueta="Nombre y apellido" error={errores.nombre}>
                 <Input value={f.nombre} onChange={(e) => cambiar("nombre", e.target.value)} autoComplete="name" />
               </Campo>
@@ -340,7 +340,7 @@ export default function Checkout() {
                 </select>
               </Campo>
             )}
-            <div className="grid gap-4 sm:grid-cols-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
               <div className="sm:col-span-4">
                 <Campo etiqueta="Calle" error={errores.calle}>
                   <Input value={f.calle} onChange={(e) => cambiar("calle", e.target.value)} autoComplete="address-line1" />
@@ -461,7 +461,7 @@ export default function Checkout() {
                 </label>
               ))}
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Campo etiqueta="Cupón (opcional)">
                 <Input value={f.cupon} onChange={(e) => cambiar("cupon", e.target.value.toUpperCase())} autoComplete="off" />
                 {cuponesPropios.length > 0 && (

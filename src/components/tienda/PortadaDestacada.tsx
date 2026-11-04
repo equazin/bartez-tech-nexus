@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { chipsDeArmada } from "@/components/tienda/ArmadorPartes";
@@ -288,6 +288,9 @@ export function PortadaDelInicio() {
     return () => window.clearInterval(reloj);
   }, [total, pausa]);
 
+  // En el celular se pasa de portada deslizando el dedo; las flechas quedan abajo, junto a los puntos.
+  const inicioDelToque = useRef<number | null>(null);
+
   if (portadas === undefined) return <div className="min-h-[420px] w-full animate-pulse rounded-2xl bg-placa-foto" aria-hidden />;
   if (total === 0) return <PcDePortada />;
 
@@ -302,6 +305,17 @@ export function PortadaDelInicio() {
       onMouseLeave={() => setPausa(false)}
       onFocus={() => setPausa(true)}
       onBlur={() => setPausa(false)}
+      onTouchStart={(e) => {
+        inicioDelToque.current = e.touches[0]?.clientX ?? null;
+      }}
+      onTouchEnd={(e) => {
+        const inicio = inicioDelToque.current;
+        inicioDelToque.current = null;
+        const fin = e.changedTouches[0]?.clientX;
+        if (inicio === null || fin === undefined || total < 2) return;
+        const distancia = fin - inicio;
+        if (Math.abs(distancia) > 40) mover(distancia < 0 ? 1 : -1);
+      }}
     >
       <div key={actual.id} className="flex w-full animate-in fade-in duration-500">
         <DiapositivaDePortada portada={actual} />
@@ -312,7 +326,7 @@ export function PortadaDelInicio() {
             type="button"
             onClick={() => mover(-1)}
             aria-label="Portada anterior"
-            className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 text-foreground shadow-md hover:bg-card"
+            className="absolute bottom-1.5 left-3 flex h-9 w-9 items-center justify-center rounded-full bg-card/90 text-foreground shadow-md hover:bg-card sm:bottom-auto sm:top-1/2 sm:h-11 sm:w-11 sm:-translate-y-1/2"
           >
             <ChevronLeft className="h-5 w-5" aria-hidden />
           </button>
@@ -320,7 +334,7 @@ export function PortadaDelInicio() {
             type="button"
             onClick={() => mover(1)}
             aria-label="Portada siguiente"
-            className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 text-foreground shadow-md hover:bg-card"
+            className="absolute bottom-1.5 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-card/90 text-foreground shadow-md hover:bg-card sm:bottom-auto sm:top-1/2 sm:h-11 sm:w-11 sm:-translate-y-1/2"
           >
             <ChevronRight className="h-5 w-5" aria-hidden />
           </button>

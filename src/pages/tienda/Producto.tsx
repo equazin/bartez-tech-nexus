@@ -354,7 +354,7 @@ export default function Producto() {
           </section>
         )}
 
-        <section id="envio-y-garantia" className="grid scroll-mt-6 gap-4 md:grid-cols-3">
+        <section id="envio-y-garantia" className="grid grid-cols-1 scroll-mt-6 gap-4 md:grid-cols-3">
           <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-5">
             <p className="font-display text-[15px] font-bold uppercase tracking-[0.08em]">Envío a todo el país</p>
             <p className="text-sm leading-relaxed text-muted-foreground">
