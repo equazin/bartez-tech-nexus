@@ -25,6 +25,50 @@ export async function cotizarEnvio(items: ItemDeEnvio[], subtotal: number): Prom
   return fila ?? { precio: null, demora_dias_min: null, demora_dias_max: null, gratis: false, disponible: false };
 }
 
+export interface SucursalDeEnvio {
+  id: number;
+  nombre: string;
+  direccion: string;
+  horario: string | null;
+}
+
+/** Una forma de entrega cotizada para un destino: a domicilio o retiro en una sucursal del transporte. */
+export interface OpcionDeEnvio {
+  id: "domicilio" | "sucursal";
+  precio: number;
+  gratis: boolean;
+  demora_dias_min: number | null;
+  demora_dias_max: number | null;
+  entrega_estimada: string | null;
+  transporte: string | null;
+  sucursales?: SucursalDeEnvio[];
+}
+
+export interface DestinoDeEnvio {
+  codigo_postal: string;
+  localidad: string;
+  provincia: string;
+}
+
+/**
+ * Cotiza el envío a un destino con el servidor (Zipnova para lo que despacha Teqo, la tarifa plana para lo que
+ * despacha un mayorista directo). El servidor vuelve a cotizar al confirmar la compra.
+ */
+export async function cotizarEnvioADestino(
+  items: ItemDeEnvio[],
+  subtotal: number,
+  destino: DestinoDeEnvio,
+): Promise<{ opciones: OpcionDeEnvio[]; error: string | null }> {
+  const respuesta = await fetch("/api/envios?recurso=cotizar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items, subtotal, destino }),
+  });
+  const json = (await respuesta.json().catch(() => ({}))) as { data?: { opciones?: OpcionDeEnvio[]; error?: string }; error?: string };
+  if (!respuesta.ok) return { opciones: [], error: json.error ?? "No pudimos cotizar el envío. Probá en un rato." };
+  return { opciones: json.data?.opciones ?? [], error: json.data?.error ?? null };
+}
+
 export function textoDeDemora(cotizacion: Pick<CotizacionDeEnvio, "demora_dias_min" | "demora_dias_max">): string {
   const { demora_dias_min: min, demora_dias_max: max } = cotizacion;
   if (min === null || max === null) return "";

@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 import checkout from "./_tienda/checkout.js";
+import envios from "./_tienda/envios.js";
 import legal from "./_tienda/legal.js";
 import orders from "./_tienda/orders.js";
 import pagos from "./_tienda/pagos.js";
@@ -19,7 +20,7 @@ export const config = { maxDuration: 60 };
 
 type Manejador = (req: VercelRequest, res: VercelResponse) => Promise<unknown> | unknown;
 
-const MODULOS: Record<string, Manejador> = { checkout, legal, orders, pagos, precios, sincronizacion };
+const MODULOS: Record<string, Manejador> = { checkout, envios, legal, orders, pagos, precios, sincronizacion };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const modulo = typeof req.query.modulo === "string" ? req.query.modulo : "";

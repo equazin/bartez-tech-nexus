@@ -99,16 +99,31 @@ export function pagoAcreditadoHTML(params: { numero: string; nombre: string; tot
   return base("Pago acreditado", cuerpo);
 }
 
-export function pedidoEnviadoHTML(params: { numero: string; nombre: string; transporte: string | null; seguimiento: string | null; demora: string | null; enlace: string }): string {
+export function pedidoEnviadoHTML(params: {
+  numero: string;
+  nombre: string;
+  transporte: string | null;
+  seguimiento: string | null;
+  demora: string | null;
+  enlace: string;
+  /** Link de seguimiento del envío (Zipnova o el transporte). */
+  enlaceSeguimiento?: string | null;
+  /** Si retira en una sucursal del transporte: cuál. */
+  sucursal?: string | null;
+}): string {
   const seguimiento = params.seguimiento
     ? parrafo(`Número de seguimiento${params.transporte ? ` de ${escapar(params.transporte)}` : ""}: <strong>${escapar(params.seguimiento)}</strong>`)
     : params.transporte
       ? parrafo(`Lo lleva ${escapar(params.transporte)}.`)
       : "";
+  const destino = params.sucursal
+    ? `ya está en camino a la sucursal donde lo retirás: ${escapar(params.sucursal)}. Te avisan cuando esté listo para retirar.`
+    : "ya salió hacia tu domicilio.";
   const cuerpo = `
-    ${parrafo(`Hola ${escapar(params.nombre)}, tu compra <strong>${escapar(params.numero)}</strong> ya salió hacia tu domicilio.`)}
+    ${parrafo(`Hola ${escapar(params.nombre)}, tu compra <strong>${escapar(params.numero)}</strong> ${destino}`)}
     ${seguimiento}
     ${params.demora ? parrafo(escapar(params.demora)) : ""}
+    ${params.enlaceSeguimiento ? boton(params.enlaceSeguimiento, "Seguir el envío") : ""}
     ${boton(params.enlace, "Ver mi compra")}`;
   return base("Tu pedido está en camino", cuerpo);
 }

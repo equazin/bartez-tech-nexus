@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { cancelarPedido, listarPagos, reintegrarPago, validarTransferencia, type LineaDeDespachoDirecto, type PagoDelPanel, type PedidoDeLaTienda } from "@/lib/api/pagos";
 import { DespachoDirecto } from "./DespachoDirecto";
+import { EnviosZipnova } from "./EnviosZipnova";
 import { useAuth } from "@/context/AuthContext";
 
 const formatoPesos = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
@@ -94,6 +95,7 @@ export function PagosTab() {
 
   return (
     <div className="max-w-6xl space-y-4">
+      <EnviosZipnova />
       <div className="flex flex-wrap items-center gap-2">
         <Input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar por número, nombre o email" className="max-w-xs" />
         <select

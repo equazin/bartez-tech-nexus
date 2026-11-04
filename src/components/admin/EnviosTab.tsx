@@ -7,6 +7,7 @@ import { SurfaceCard } from "@/components/ui/surface-card";
 import { supabase } from "@/lib/supabase";
 import { guardarConfiguracionDePrecios, obtenerEstadoDelDolar } from "@/lib/api/precios";
 import { EnvioDeMayoristas } from "./EnvioDeMayoristas";
+import { ZipnovaConfiguracion } from "./ZipnovaConfiguracion";
 
 interface Tarifa {
   id: number;
@@ -190,6 +191,8 @@ export function EnviosTab() {
       </SurfaceCard>
 
       <EnvioDeMayoristas />
+
+      <ZipnovaConfiguracion />
     </div>
   );
 }

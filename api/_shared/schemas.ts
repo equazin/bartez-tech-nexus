@@ -307,7 +307,8 @@ export const pedidoDeLaTiendaSchema = z.object({
     nombre: z.string().trim().min(3).max(120),
     email: z.string().trim().email().max(320),
     telefono: z.string().trim().min(8).max(40),
-    documento: optionalTrimmedString(20),
+    // El transporte lo pide para entregar y es el dato de la factura.
+    documento: z.string().trim().regex(/^[\d.\- ]{7,15}$/, "tiene que ser un DNI o CUIT"),
   }),
   envio: z.object({
     calle: z.string().trim().min(2).max(120),
@@ -316,6 +317,9 @@ export const pedidoDeLaTiendaSchema = z.object({
     codigo_postal: z.string().trim().regex(/^\d{4}$/, "tiene que tener cuatro números"),
     localidad: z.string().trim().min(2).max(120),
     provincia: z.string().trim().min(2).max(60),
+    // A domicilio o retiro en una sucursal del transporte (con el id de la sucursal elegida).
+    opcion: z.enum(["domicilio", "sucursal"]).default("domicilio"),
+    sucursal_id: z.coerce.number().int().positive().optional(),
   }),
   medio_pago: z.enum(["mercadopago", "transferencia"]),
   cupon: optionalTrimmedString(40),

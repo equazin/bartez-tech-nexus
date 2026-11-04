@@ -6,7 +6,7 @@ import { Tienda } from "@/components/tienda/Tienda";
 import { useCarritoDetallado } from "@/lib/tienda/carritoDetallado";
 import { vaciarCarrito } from "@/lib/tienda/carrito";
 import { formatearPesos } from "@/lib/tienda/dinero";
-import { PROVINCIAS, cotizarEnvio, textoDeDemora, type CotizacionDeEnvio } from "@/lib/tienda/envios";
+import { PROVINCIAS, cotizarEnvioADestino, textoDeDemora, type OpcionDeEnvio } from "@/lib/tienda/envios";
 import { MEDIOS_DE_PAGO, crearPedido, type MedioDePago, type MedioDisponible } from "@/lib/tienda/pedidos";
 import { listarMedios } from "@/lib/tienda/pagos";
 import { precioConMedio } from "@/lib/tienda/precios";
@@ -27,6 +27,8 @@ interface Formulario {
   codigo_postal: string;
   localidad: string;
   provincia: string;
+  opcion_envio: OpcionDeEnvio["id"];
+  sucursal_id: string;
   medio_pago: MedioDePago;
   cupon: string;
   notas: string;
@@ -43,6 +45,8 @@ const VACIO: Formulario = {
   codigo_postal: "",
   localidad: "",
   provincia: "",
+  opcion_envio: "domicilio",
+  sucursal_id: "",
   medio_pago: "mercadopago",
   cupon: "",
   notas: "",
@@ -55,6 +59,7 @@ function validar(f: Formulario): Partial<Record<keyof Formulario, string>> {
   if (f.nombre.trim().length < 3) errores.nombre = "Escribí tu nombre y apellido.";
   if (!EMAIL.test(f.email.trim())) errores.email = "Revisá el email: ahí te mandamos la compra.";
   if (f.telefono.replace(/\D/g, "").length < 8) errores.telefono = "Escribí un teléfono con código de área.";
+  if (!/^\d{7,11}$/.test(f.documento.replace(/[.\- ]/g, ""))) errores.documento = "Escribí tu DNI o CUIT, sin puntos.";
   if (f.calle.trim().length < 2) errores.calle = "Falta la calle.";
   if (f.numero.trim().length < 1) errores.numero = "Falta el número.";
   if (!/^\d{4}$/.test(f.codigo_postal.trim())) errores.codigo_postal = "El código postal tiene cuatro números.";
@@ -84,7 +89,9 @@ export default function Checkout() {
     medioDelCarrito === "transferencia" || medioDelCarrito === "mercadopago" ? { ...VACIO, medio_pago: medioDelCarrito as MedioDePago } : VACIO,
   );
   const [errores, setErrores] = useState<Partial<Record<keyof Formulario, string>>>({});
-  const [envio, setEnvio] = useState<CotizacionDeEnvio | null>(null);
+  const [opciones, setOpciones] = useState<OpcionDeEnvio[] | null>(null);
+  const [cotizando, setCotizando] = useState(false);
+  const [errorDeEnvio, setErrorDeEnvio] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [errorDelServidor, setErrorDelServidor] = useState<string | null>(null);
   const [medios, setMedios] = useState<MedioDisponible[]>(MEDIOS_DE_PAGO);
@@ -105,20 +112,45 @@ export default function Checkout() {
     };
   }, []);
 
+  // El envío depende del destino: se cotiza cuando están el código postal, la localidad y la provincia.
+  const destinoCompleto =
+    /^\d{4}$/.test(f.codigo_postal.trim()) && f.localidad.trim().length >= 2 && PROVINCIAS.includes(f.provincia as (typeof PROVINCIAS)[number]);
   useEffect(() => {
-    if (lineas.length === 0 || cargando) return;
+    if (lineas.length === 0 || cargando || !destinoCompleto) {
+      setOpciones(null);
+      setErrorDeEnvio(null);
+      return;
+    }
     let cancelado = false;
-    cotizarEnvio(itemsDeEnvio, subtotalDelMedio)
-      .then((c) => {
-        if (!cancelado) setEnvio(c);
-      })
-      .catch(() => {
-        if (!cancelado) setEnvio(null);
-      });
+    setCotizando(true);
+    const espera = window.setTimeout(() => {
+      cotizarEnvioADestino(itemsDeEnvio, subtotalDelMedio, { codigo_postal: f.codigo_postal.trim(), localidad: f.localidad.trim(), provincia: f.provincia })
+        .then(({ opciones: lista, error }) => {
+          if (cancelado) return;
+          setOpciones(lista);
+          setErrorDeEnvio(lista.length === 0 ? (error ?? "No pudimos cotizar el envío a ese destino. Revisá el código postal.") : null);
+          setF((previo) =>
+            lista.some((o) => o.id === previo.opcion_envio) ? previo : { ...previo, opcion_envio: lista[0]?.id ?? "domicilio", sucursal_id: "" },
+          );
+        })
+        .catch(() => {
+          if (!cancelado) {
+            setOpciones([]);
+            setErrorDeEnvio("No pudimos cotizar el envío. Probá en un rato.");
+          }
+        })
+        .finally(() => {
+          if (!cancelado) setCotizando(false);
+        });
+    }, 500);
     return () => {
       cancelado = true;
+      window.clearTimeout(espera);
     };
-  }, [lineas.length, cargando, claveDeEnvio, subtotalDelMedio]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lineas.length, cargando, claveDeEnvio, subtotalDelMedio, destinoCompleto, f.codigo_postal, f.localidad, f.provincia]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const elegida = opciones?.find((o) => o.id === f.opcion_envio) ?? null;
+  const faltaSucursal = elegida?.id === "sucursal" && !f.sucursal_id;
 
   function cambiar<K extends keyof Formulario>(clave: K, valor: Formulario[K]) {
     setF((previo) => ({ ...previo, [clave]: valor }));
@@ -129,14 +161,14 @@ export default function Checkout() {
     evento.preventDefault();
     const nuevosErrores = validar(f);
     setErrores(nuevosErrores);
-    if (Object.keys(nuevosErrores).length > 0 || !listoParaComprar) return;
+    if (Object.keys(nuevosErrores).length > 0 || !listoParaComprar || !elegida || faltaSucursal) return;
     setEnviando(true);
     setErrorDelServidor(null);
     try {
       const creado = await crearPedido({
         items: lineas.map(({ linea }) => ({ product_id: linea.productoId, quantity: linea.cantidad })),
         servicios: serviciosElegidos.length > 0 ? serviciosElegidos.map((s) => s.id) : undefined,
-        comprador: { nombre: f.nombre.trim(), email: f.email.trim(), telefono: f.telefono.trim(), documento: f.documento.trim() || undefined },
+        comprador: { nombre: f.nombre.trim(), email: f.email.trim(), telefono: f.telefono.trim(), documento: f.documento.replace(/[.\- ]/g, "") },
         envio: {
           calle: f.calle.trim(),
           numero: f.numero.trim(),
@@ -144,6 +176,8 @@ export default function Checkout() {
           codigo_postal: f.codigo_postal.trim(),
           localidad: f.localidad.trim(),
           provincia: f.provincia,
+          opcion: elegida.id,
+          sucursal_id: elegida.id === "sucursal" ? Number(f.sucursal_id) : undefined,
         },
         medio_pago: f.medio_pago,
         cupon: f.cupon.trim() || undefined,
@@ -171,7 +205,7 @@ export default function Checkout() {
     );
   }
 
-  const costoEnvio = envio?.disponible ? (envio.precio ?? 0) : 0;
+  const costoEnvio = elegida?.precio ?? 0;
   const total = subtotalDelMedio + costoEnvio;
 
   return (
@@ -192,15 +226,15 @@ export default function Checkout() {
               <Campo etiqueta="Teléfono" error={errores.telefono}>
                 <Input type="tel" value={f.telefono} onChange={(e) => cambiar("telefono", e.target.value)} autoComplete="tel" placeholder="Con código de área" />
               </Campo>
-              <Campo etiqueta="DNI o CUIT (opcional, para la factura)">
+              <Campo etiqueta="DNI o CUIT (para el envío y la factura)" error={errores.documento}>
                 <Input value={f.documento} onChange={(e) => cambiar("documento", e.target.value)} inputMode="numeric" />
               </Campo>
             </div>
           </section>
 
           <section className="space-y-4">
-            <h2 className="text-[20px] font-bold leading-[26px]">2. Envío a domicilio</h2>
-            <p className="text-sm text-muted-foreground">Mandamos a todo el país, al mismo precio en cualquier provincia.</p>
+            <h2 className="text-[20px] font-bold leading-[26px]">2. Envío</h2>
+            <p className="text-sm text-muted-foreground">Mandamos a todo el país. El costo depende del código postal y del tamaño del paquete.</p>
             <div className="grid gap-4 sm:grid-cols-6">
               <div className="sm:col-span-4">
                 <Campo etiqueta="Calle" error={errores.calle}>
@@ -239,6 +273,59 @@ export default function Checkout() {
                   </select>
                 </Campo>
               </div>
+            </div>
+
+            <div className="space-y-3">
+              {!destinoCompleto ? (
+                <p className="rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+                  Completá el código postal, la localidad y la provincia para ver cuánto sale el envío.
+                </p>
+              ) : cotizando && opciones === null ? (
+                <p className="rounded-2xl border border-border p-4 text-sm text-muted-foreground">Cotizando el envío</p>
+              ) : errorDeEnvio ? (
+                <p className="rounded-xl bg-error-fondo p-3 text-sm text-danger">{errorDeEnvio}</p>
+              ) : (
+                (opciones ?? []).map((opcion) => (
+                  <label
+                    key={opcion.id}
+                    className={cn(
+                      "flex cursor-pointer gap-3 rounded-2xl border p-4 transition-colors",
+                      f.opcion_envio === opcion.id ? "border-foreground bg-secondary" : "border-border bg-card hover:bg-secondary",
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="opcion_envio"
+                      value={opcion.id}
+                      checked={f.opcion_envio === opcion.id}
+                      onChange={() => setF((previo) => ({ ...previo, opcion_envio: opcion.id, sucursal_id: "" }))}
+                      className="mt-1"
+                    />
+                    <span className="flex-1 space-y-1">
+                      <span className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span className="font-bold">{opcion.id === "domicilio" ? "A domicilio" : "Retiro en sucursal del transporte"}</span>
+                        <span className="font-bold tabular-nums">{opcion.gratis ? "Sin cargo" : formatearPesos(opcion.precio)}</span>
+                      </span>
+                      <span className="block text-sm text-muted-foreground">
+                        {[textoDeDemora(opcion), opcion.transporte ? `con ${opcion.transporte}` : ""].filter(Boolean).join(", ")}
+                        {textoDeDemora(opcion) ? " desde que se acredita el pago." : ""}
+                      </span>
+                    </span>
+                  </label>
+                ))
+              )}
+              {elegida?.id === "sucursal" && (
+                <Campo etiqueta="Sucursal donde retirás">
+                  <select value={f.sucursal_id} onChange={(e) => setF((previo) => ({ ...previo, sucursal_id: e.target.value }))} className={CLASE_SELECT}>
+                    <option value="">Elegí la sucursal</option>
+                    {(elegida.sucursales ?? []).map((s) => (
+                      <option key={s.id} value={String(s.id)}>
+                        {`${s.nombre} · ${s.direccion}${s.horario ? ` · ${s.horario}` : ""}`}
+                      </option>
+                    ))}
+                  </select>
+                </Campo>
+              )}
             </div>
           </section>
 
@@ -300,16 +387,16 @@ export default function Checkout() {
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Envío</span>
-              <span className="tabular-nums">{envio === null ? "Cotizando" : !envio.disponible ? "A confirmar" : envio.gratis ? "Sin cargo" : formatearPesos(envio.precio ?? 0)}</span>
+              <span className="tabular-nums">{!elegida ? (cotizando ? "Cotizando" : "A calcular") : elegida.gratis ? "Sin cargo" : formatearPesos(elegida.precio)}</span>
             </div>
-            {envio?.disponible && <p className="text-xs text-muted-foreground">{textoDeDemora(envio)} desde que se acredita el pago.</p>}
+            {elegida && textoDeDemora(elegida) && <p className="text-xs text-muted-foreground">{textoDeDemora(elegida)} desde que se acredita el pago.</p>}
             <div className="flex justify-between border-t border-border pt-3 text-base font-bold">
               <span>Total</span>
               <span className="tabular-nums">{formatearPesos(total)}</span>
             </div>
             <p className="text-xs text-muted-foreground">Precios finales con IVA incluido. Si cargaste un cupón, el descuento se aplica al confirmar.</p>
             {errorDelServidor && <p className="rounded-xl bg-error-fondo p-3 text-sm text-danger">{errorDelServidor}</p>}
-            <Button type="submit" size="lg" className="w-full" disabled={enviando || !listoParaComprar || !envio?.disponible}>
+            <Button type="submit" size="lg" className="w-full" disabled={enviando || !listoParaComprar || !elegida || faltaSucursal}>
               {enviando ? "Creando tu pedido" : "Confirmar la compra"}
             </Button>
             <p className="text-xs text-muted-foreground">

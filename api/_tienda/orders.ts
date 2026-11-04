@@ -105,7 +105,7 @@ async function createOrder(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-interface PedidoActual {
+export interface PedidoActual {
   id: number;
   client_id: string | null;
   status: string;
@@ -113,7 +113,8 @@ interface PedidoActual {
   pagado_en: string | null;
 }
 
-async function cambiarEstadoDeLaTienda(
+/** También lo usan los avisos de Zipnova (api/_tienda/envios.ts) para pasar un pedido a enviado o entregado. */
+export async function cambiarEstadoDeLaTienda(
   pedido: PedidoActual,
   nuevo: EstadoDeLaTienda,
   resto: Record<string, unknown>,

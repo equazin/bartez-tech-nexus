@@ -23,6 +23,9 @@ interface PedidoParaAvisar {
   envio_demora_dias_min: number | null;
   envio_demora_dias_max: number | null;
   pagado_en: string | null;
+  shipping_transport: string | null;
+  envio_seguimiento_url: string | null;
+  envio_detalle: { opcion?: string; sucursal?: string | null } | null;
 }
 
 const ASUNTOS: Record<TipoDeAviso, string> = {
@@ -47,7 +50,7 @@ export async function avisarAlComprador(orderId: number, tipo: TipoDeAviso, extr
     const supabase = getSupabaseAdmin();
     const { data } = await supabase
       .from("orders")
-      .select("id, order_number, status, origen, total, comprador_email, comprador_nombre, token_acceso, tracking_number, shipping_provider, envio_demora_dias_min, envio_demora_dias_max, pagado_en")
+      .select("id, order_number, status, origen, total, comprador_email, comprador_nombre, token_acceso, tracking_number, shipping_provider, envio_demora_dias_min, envio_demora_dias_max, pagado_en, shipping_transport, envio_seguimiento_url, envio_detalle")
       .eq("id", orderId)
       .maybeSingle();
     const pedido = data as PedidoParaAvisar | null;
@@ -66,7 +69,17 @@ export async function avisarAlComprador(orderId: number, tipo: TipoDeAviso, extr
         html = pagoAcreditadoHTML({ numero: pedido.order_number, nombre, total: Number(pedido.total), demora, enlace });
         break;
       case "enviado":
-        html = pedidoEnviadoHTML({ numero: pedido.order_number, nombre, transporte: pedido.shipping_provider, seguimiento: pedido.tracking_number, demora, enlace });
+        html = pedidoEnviadoHTML({
+          numero: pedido.order_number,
+          nombre,
+          // Con Zipnova, shipping_provider dice "zipnova": al cliente le sirve el nombre del transporte.
+          transporte: pedido.shipping_transport ?? (pedido.shipping_provider === "zipnova" ? null : pedido.shipping_provider),
+          seguimiento: pedido.tracking_number,
+          demora,
+          enlace,
+          enlaceSeguimiento: pedido.envio_seguimiento_url,
+          sucursal: pedido.envio_detalle?.opcion === "sucursal" ? (pedido.envio_detalle.sucursal ?? null) : null,
+        });
         break;
       case "entregado":
         html = pedidoEntregadoHTML({ numero: pedido.order_number, nombre, enlace, enlaceArrepentimiento: `${base}/arrepentimiento` });

@@ -18,7 +18,8 @@ export interface DatosDelComprador {
   nombre: string;
   email: string;
   telefono: string;
-  documento?: string;
+  /** DNI o CUIT: el transporte lo pide para entregar y es el dato de la factura. */
+  documento: string;
 }
 
 export interface DireccionDeEnvio {
@@ -28,6 +29,9 @@ export interface DireccionDeEnvio {
   codigo_postal: string;
   localidad: string;
   provincia: string;
+  /** A domicilio o retiro en una sucursal del transporte. */
+  opcion: "domicilio" | "sucursal";
+  sucursal_id?: number;
 }
 
 export interface PedidoNuevo {

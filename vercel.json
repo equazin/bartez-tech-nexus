@@ -139,6 +139,10 @@
       "destination": "/api/tienda?modulo=pagos"
     },
     {
+      "source": "/api/envios",
+      "destination": "/api/tienda?modulo=envios"
+    },
+    {
       "source": "/api/precios",
       "destination": "/api/tienda?modulo=precios"
     },

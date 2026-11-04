@@ -6,6 +6,7 @@ import { compraRecibidaHTML } from "../_shared/plantillas.js";
 import { pedidoDeLaTiendaSchema, type PedidoDeLaTienda } from "../_shared/schemas.js";
 import { getSupabaseAdmin } from "../_shared/supabaseServer.js";
 import { configuracionDeMercadoPago } from "../_shared/mercadopago.js";
+import { opcionesDeEnvio } from "./envios.js";
 
 /**
  * POST /api/checkout · crea el pedido de un invitado.
@@ -244,13 +245,22 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
   }
   subtotal = aDosDecimales(subtotal);
 
-  // Lo que despacha Teqo va por peso y lo que despacha un mayorista directo paga su tarifa plana;
-  // si se mezclan, se cobra solo el envío más alto (tienda_cotizar_envio_carrito).
+  // Lo que despacha Teqo se cotiza con Zipnova (o por peso, si Zipnova no está activo) y lo que despacha un
+  // mayorista directo paga su tarifa plana; si se mezclan, se cobra solo el envío más alto. Se vuelve a cotizar
+  // acá con el destino real: el precio del envío nunca sale del navegador.
   const itemsDeEnvio = [...cantidades].map(([productoId, cantidad]) => ({ product_id: productoId, cantidad }));
-  const { data: cotizacion, error: errorEnvio } = await supabase.rpc("tienda_cotizar_envio_carrito", { p_items: itemsDeEnvio, p_subtotal: subtotal });
-  if (errorEnvio) throw new Error(`No se pudo cotizar el envío: ${errorEnvio.message}`);
-  const envio = (Array.isArray(cotizacion) ? cotizacion[0] : cotizacion) as { precio: number | null; demora_dias_min: number | null; demora_dias_max: number | null; disponible: boolean } | null;
-  if (!envio || !envio.disponible || envio.precio === null) throw new Error("Todavía no podemos cotizar el envío. Probá más tarde.");
+  const opciones = await opcionesDeEnvio(supabase, itemsDeEnvio, subtotal, {
+    codigo_postal: pedido.envio.codigo_postal,
+    localidad: pedido.envio.localidad,
+    provincia: pedido.envio.provincia,
+  }).catch((e: unknown) => {
+    console.error("[checkout] cotización del envío:", e instanceof Error ? e.message : e);
+    return [];
+  });
+  const envio = opciones.find((o) => o.id === pedido.envio.opcion);
+  if (!envio) throw new Error("No pudimos cotizar el envío a ese destino. Revisá el código postal o elegí otra forma de entrega.");
+  const sucursal = envio.id === "sucursal" ? envio.sucursales?.find((s) => s.id === pedido.envio.sucursal_id) : undefined;
+  if (envio.id === "sucursal" && !sucursal) throw new Error("Elegí la sucursal del envío donde vas a retirar.");
   const costoEnvio = Number(envio.precio);
 
   let cuponId: string | null = null;
@@ -288,6 +298,24 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
   });
   if (errorCreacion) throw new Error(errorCreacion.message);
   const resultado = creado as { id: number; numero: string; token: string };
+
+  // Lo que se eligió y lo que hace falta para crear el envío en Zipnova desde el panel.
+  const { error: errorDetalle } = await supabase
+    .from("orders")
+    .update({
+      envio_detalle: {
+        opcion: envio.id,
+        sucursal_id: sucursal?.id ?? null,
+        sucursal: sucursal ? `${sucursal.nombre} · ${sucursal.direccion}` : null,
+        transporte: envio.transporte,
+        entrega_estimada: envio.entrega_estimada,
+        zipnova: envio.zipnova,
+        cotizado_en: new Date().toISOString(),
+      },
+      shipping_transport: envio.transporte,
+    })
+    .eq("id", resultado.id);
+  if (errorDetalle) console.error("[checkout] No se pudo guardar el detalle del envío:", errorDetalle.message);
 
   void avisarAlComprador(pedido, resultado, { lineasDelEmail, subtotal, envio: costoEnvio, descuento, total });
   return resultado;
