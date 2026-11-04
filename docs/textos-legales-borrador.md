@@ -100,7 +100,7 @@ Tenés 10 días corridos para arrepentirte de la compra, contados desde que reci
 
 Podés hacerlo desde el botón de arrepentimiento, visible en todas las páginas, sin registrarte. Te damos un código al instante y te respondemos dentro de las 24 horas.
 
-El producto se devuelve en las mismas condiciones en que lo recibiste. Los gastos de devolución corren por nuestra cuenta. [CONFIRMAR: cómo se coordina el retiro o el envío de vuelta.] Te devolvemos el total pagado por el mismo medio de pago, [CONFIRMAR: plazo de la devolución].
+El producto se devuelve en las mismas condiciones en que lo recibiste. Te mandamos por email una etiqueta de envío para dejar el paquete en una sucursal del correo; los gastos de devolución corren por nuestra cuenta, como dice el artículo 34 de la Ley 24.240. [CONFIRMAR: correo y forma de la devolución.] Te devolvemos el total pagado por el mismo medio de pago, [CONFIRMAR: plazo de la devolución].
 
 9. Garantía
 
@@ -246,7 +246,7 @@ Podés arrepentirte de la compra dentro de los 10 días corridos desde que la re
 
 6. Cambios sin falla
 
-Fuera del plazo de arrepentimiento, cambiamos solo productos con falla, dentro de la garantía. [CONFIRMAR: si se quieren aceptar cambios sin falla, por ejemplo por modelo, con plazo, producto sin uso y en su caja, y quién paga el envío.]
+Fuera del plazo de arrepentimiento, cambiamos solo productos con falla, dentro de la garantía. Si en algún caso aceptamos un cambio sin falla, el envío de ida y vuelta corre por tu cuenta. [CONFIRMAR: condiciones, si se aceptan: plazo, producto sin uso y en su caja.]
 ```
 
 ---
@@ -285,7 +285,7 @@ Uso indebido. Si detectamos compras o cuentas creadas solo para sumar puntos, o 
 2. **Email de atención:** cuál es. También se carga en el panel, en los datos del vendedor, para que Ayuda › Contacto lo muestre.
 3. **Jurisdicción:** redacción final.
 4. **Producto sin stock después de la compra:** plazo de la devolución.
-5. **Arrepentimiento:** cómo se coordina la devolución del producto y en qué plazo se reintegra el dinero.
+5. **Arrepentimiento:** cómo se coordina la devolución del producto y en qué plazo se reintegra el dinero. El costo del envío de vuelta lo pone la ley a cargo del vendedor (art. 34 de la Ley 24.240; art. 1115 del Código Civil y Comercial) y una cláusula que se lo pase al cliente no vale (art. 37). Lo que se puede hacer es abaratarlo: etiqueta para dejar el paquete en sucursal en vez de retiro a domicilio, y en garantía, derivar al servicio técnico de la marca, que también responde por el traslado (arts. 11 y 13).
 6. **Envíos demorados:** si pasado cierto plazo se puede cancelar con devolución total.
 7. **Exclusiones de la garantía:** revisarlas contra las condiciones de cada fabricante.
 8. **Cambios sin falla:** confirmar que no se aceptan, o definir las condiciones.
