@@ -60,16 +60,17 @@ function FiltroDePrecio({ seleccion, onCambiar }: { seleccion: SeleccionDeFiltro
     onCambiar({ ...seleccion, min: leer(desde), max: leer(hasta) });
   }
 
-  const campo = "h-10 min-w-0 rounded-xl border border-input bg-background px-2.5 text-sm text-foreground";
+  // Los campos ocupan su mitad sin pasarse del recuadro (un input tiene un ancho mínimo propio si no se lo limita).
+  const campo = "h-10 w-full min-w-0 rounded-xl border border-input bg-background px-2.5 text-sm text-foreground";
   return (
     <form onSubmit={aplicar} className="flex flex-col gap-2.5 pt-3.5">
       <p className="font-display text-sm font-bold uppercase tracking-[0.08em]">Precio</p>
-      <div className="flex gap-2">
-        <label className="flex flex-1 flex-col gap-1 text-xs text-muted-foreground">
+      <div className="grid grid-cols-2 gap-2">
+        <label className="flex min-w-0 flex-col gap-1 text-xs text-muted-foreground">
           Desde
           <input inputMode="numeric" value={desde} onChange={(e) => setDesde(e.target.value)} placeholder="$" className={campo} />
         </label>
-        <label className="flex flex-1 flex-col gap-1 text-xs text-muted-foreground">
+        <label className="flex min-w-0 flex-col gap-1 text-xs text-muted-foreground">
           Hasta
           <input inputMode="numeric" value={hasta} onChange={(e) => setHasta(e.target.value)} placeholder="$" className={campo} />
         </label>

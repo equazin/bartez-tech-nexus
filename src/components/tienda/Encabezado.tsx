@@ -109,11 +109,13 @@ function Buscador({ categorias, className }: { categorias: CategoriaPublica[]; c
 
 function MenuDeCategorias({ categorias }: { categorias: CategoriaPublica[] }) {
   const [abierto, setAbierto] = useState(false);
+  const [desplegadaEnCelular, setDesplegadaEnCelular] = useState<CategoriaPublica["id"] | null>(null);
   const contenedor = useRef<HTMLDivElement>(null);
   const { pathname } = useLocation();
 
   useEffect(() => {
     setAbierto(false);
+    setDesplegadaEnCelular(null);
   }, [pathname]);
 
   useEffect(() => {
@@ -149,8 +151,64 @@ function MenuDeCategorias({ categorias }: { categorias: CategoriaPublica[] }) {
         <ChevronDown className={cn("h-4 w-4 transition-transform", abierto && "rotate-180")} aria-hidden />
       </button>
       {abierto && (
-        <div id="menu-de-categorias" className="absolute inset-x-0 top-full z-50 border-b border-border bg-card shadow-[0_24px_48px_rgba(0,0,0,0.5)]">
-          <div className="container mx-auto grid grid-cols-1 gap-7 px-4 py-7 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+        <div
+          id="menu-de-categorias"
+          className="absolute inset-x-0 top-full z-50 max-h-[calc(100dvh-7rem)] overflow-y-auto overscroll-contain border-b border-border bg-card shadow-[0_24px_48px_rgba(0,0,0,0.5)]"
+        >
+          {/* En el celular: una fila grande por categoría, que se despliega para ver sus subcategorías. */}
+          <ul className="container mx-auto flex flex-col px-4 py-2 sm:hidden">
+            {categorias.map((raiz) => {
+              const hijas = raiz.hijas.filter((h) => h.cantidad > 0);
+              const desplegada = desplegadaEnCelular === raiz.id;
+              return (
+                <li key={raiz.id} className="border-b border-border">
+                  <div className="flex items-center">
+                    <Link to={`/${raiz.slug}`} className="flex min-h-[52px] flex-1 items-center text-base font-bold">
+                      {raiz.nombre}
+                    </Link>
+                    {hijas.length > 0 && (
+                      <button
+                        type="button"
+                        aria-expanded={desplegada}
+                        aria-label={desplegada ? `Cerrar ${raiz.nombre}` : `Ver las subcategorías de ${raiz.nombre}`}
+                        onClick={() => setDesplegadaEnCelular(desplegada ? null : raiz.id)}
+                        className="flex h-[52px] w-12 items-center justify-center text-muted-foreground"
+                      >
+                        <ChevronDown className={cn("h-5 w-5 transition-transform", desplegada && "rotate-180")} aria-hidden />
+                      </button>
+                    )}
+                  </div>
+                  {desplegada && (
+                    <div className="flex flex-col pb-2 pl-3">
+                      {hijas.map((hija) => (
+                        <Link key={hija.id} to={`/${hija.slug}`} className="flex min-h-11 items-center justify-between gap-3 text-[15px] text-muted-foreground">
+                          <span>{hija.nombre}</span>
+                          <span className="text-sm tabular-nums">{hija.cantidad}</span>
+                        </Link>
+                      ))}
+                      <Link to={`/${raiz.slug}`} className="flex min-h-11 items-center text-[15px] font-bold">
+                        Ver todo {raiz.nombre.toLowerCase()}
+                      </Link>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+            <li className="flex flex-wrap gap-2 py-4">
+              <Link to="/arma-tu-pc" className="flex h-10 items-center gap-2 rounded-chip border border-border px-4 text-sm font-bold">
+                <Cpu className="h-4 w-4 text-primary" aria-hidden />
+                Armá tu PC
+              </Link>
+              <Link to="/ofertas" className="flex h-10 items-center gap-2 rounded-chip border border-border px-4 text-sm font-bold">
+                <span className="h-2 w-2 rounded-full bg-primary" aria-hidden />
+                Ofertas
+              </Link>
+              <Link to="/nuevos-ingresos" className="flex h-10 items-center rounded-chip border border-border px-4 text-sm">
+                Nuevos ingresos
+              </Link>
+            </li>
+          </ul>
+          <div className="container mx-auto hidden grid-cols-1 gap-7 px-4 py-7 sm:grid sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
             {categorias.map((raiz) => {
               const hijas = raiz.hijas.filter((h) => h.cantidad > 0);
               return (

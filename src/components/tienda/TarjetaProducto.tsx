@@ -124,13 +124,14 @@ export function TarjetaProducto({ producto, conComparar = false }: PropsDeTarjet
           </div>
         </div>
       ) : (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        // El stock arriba y el botón a todo el ancho: en tarjetas angostas no se aprietan uno contra el otro.
+        <div className="flex flex-col gap-2">
           <EstadoDeStock producto={producto} className="whitespace-nowrap" />
           <button
             type="button"
             disabled={!producto.hay_stock || producto.precio_final_ars === null}
             onClick={() => agregarYAvisar(producto)}
-            className="h-10 w-full rounded-xl bg-primary px-3.5 text-sm font-bold sm:w-auto text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground"
+            className="h-10 w-full rounded-xl bg-primary px-3.5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground"
           >
             Agregar
           </button>

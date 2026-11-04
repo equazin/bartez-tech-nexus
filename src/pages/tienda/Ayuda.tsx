@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Tienda } from "@/components/tienda/Tienda";
-import { parrafosDe, useContenidoLegal } from "@/lib/tienda/legal";
+import { GARANTIAS_POR_DEFECTO, parrafosDe, useContenidoLegal } from "@/lib/tienda/legal";
 import { usarSeo } from "@/lib/tienda/seo";
 
 function Seccion({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
@@ -59,14 +59,9 @@ export default function Ayuda() {
           </Seccion>
 
           <Seccion id="garantias" titulo="Garantías">
-            {garantias.length > 0 ? (
-              garantias.map((p, i) => <p key={i}>{p}</p>)
-            ) : (
-              <>
-                <p>Todos los productos son nuevos, con configuración de fábrica y la garantía legal mínima de 6 meses.</p>
-                <p>[PLAZO Y RESPONSABLE DE LA GARANTÍA POR MARCA: A DEFINIR]</p>
-              </>
-            )}
+            {(garantias.length > 0 ? garantias : GARANTIAS_POR_DEFECTO).map((p, i) => (
+              <p key={i}>{p}</p>
+            ))}
             <p>
               El texto completo está en <Link to="/garantias" className="underline">Garantías y cambios</Link>.
             </p>
@@ -88,10 +83,6 @@ export default function Ayuda() {
 
           <Seccion id="contacto" titulo="Contacto">
             <p>Respondé cualquier email que te mandamos, o escribinos a {datos.email ?? "[EMAIL A CONFIRMAR]"}.</p>
-            {datos.telefono && <p>Teléfono: {datos.telefono}</p>}
-            <p>
-              {datos.razon_social ?? "[RAZÓN SOCIAL]"} · CUIT {datos.cuit ?? "[CUIT]"} · {datos.domicilio ?? "[DOMICILIO LEGAL]"}
-            </p>
           </Seccion>
         </div>
       </div>

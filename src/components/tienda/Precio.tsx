@@ -21,11 +21,14 @@ export function Cuotas({ monto, conDetalle = true }: { monto: number; conDetalle
   );
 }
 
-/** "3 cuotas sin interés de $ 55.390", en una línea y en verde, para las tarjetas de producto. */
+/** "3 × $ 55.390 sin interés", corto para que entre en una línea de las tarjetas angostas, en verde. */
 export function CuotasBreves({ monto }: { monto: number }) {
   return (
     <span className="text-[13px] font-semibold leading-snug text-success">
-      {CUOTAS_SIN_INTERES} cuotas sin interés de <span className="tabular-nums">{formatearPesos(valorDeLaCuota(monto))}</span>
+      <span className="whitespace-nowrap tabular-nums">
+        {CUOTAS_SIN_INTERES} × {formatearPesos(valorDeLaCuota(monto))}
+      </span>{" "}
+      sin interés
     </span>
   );
 }

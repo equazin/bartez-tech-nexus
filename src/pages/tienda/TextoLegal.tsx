@@ -1,5 +1,5 @@
 import { Tienda } from "@/components/tienda/Tienda";
-import { parrafosDe, useContenidoLegal, type ContenidoLegal } from "@/lib/tienda/legal";
+import { CAMBIOS_POR_DEFECTO, GARANTIAS_POR_DEFECTO, parrafosDe, useContenidoLegal, type ContenidoLegal } from "@/lib/tienda/legal";
 import { usarSeo } from "@/lib/tienda/seo";
 
 type Tipo = "terminos" | "privacidad" | "garantias";
@@ -15,8 +15,9 @@ export default function TextoLegal({ tipo }: { tipo: Tipo }) {
   usarSeo(pagina.titulo);
   const contenido = useContenidoLegal();
   const texto = contenido[pagina.clave];
-  const parrafos = parrafosDe(typeof texto === "string" ? texto : null);
-  const { datos_legales: datos } = contenido;
+  const cargados = parrafosDe(typeof texto === "string" ? texto : null);
+  // Garantías tiene un texto propio mientras el panel no cargue otro; los demás muestran el marcador.
+  const parrafos = cargados.length === 0 && tipo === "garantias" ? [...GARANTIAS_POR_DEFECTO, ...CAMBIOS_POR_DEFECTO] : cargados;
 
   return (
     <Tienda>
@@ -31,9 +32,6 @@ export default function TextoLegal({ tipo }: { tipo: Tipo }) {
         ) : (
           <p className="rounded-2xl border border-border bg-card p-6 text-muted-foreground">{pagina.marcador}</p>
         )}
-        <p className="text-sm text-muted-foreground">
-          {datos.razon_social ?? "[RAZÓN SOCIAL]"} · CUIT {datos.cuit ?? "[CUIT]"} · {datos.domicilio ?? "[DOMICILIO LEGAL]"}
-        </p>
       </article>
     </Tienda>
   );

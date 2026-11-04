@@ -81,6 +81,25 @@ export async function crearArrepentimiento(datos: ArrepentimientoNuevo): Promise
   return json.data;
 }
 
+/**
+ * Garantías mientras el panel no tenga un texto propio. Se apoya en la Ley 24.240: mínimo de 6 meses en productos
+ * nuevos, el traslado a cargo del responsable de la garantía, el tiempo en reparación suma al plazo (art. 16) y, si
+ * la reparación no queda bien, cambio, devolución o rebaja (art. 17).
+ */
+export const GARANTIAS_POR_DEFECTO: string[] = [
+  "Todos los productos son nuevos, en su caja original y con la configuración de fábrica.",
+  "Cada producto tiene la garantía oficial de su marca. El plazo figura en la ficha del producto y nunca es menor a 6 meses, el mínimo que fija la Ley de Defensa del Consumidor para productos nuevos.",
+  "Si un producto falla dentro de la garantía, escribinos con el número de pedido y una descripción de la falla; si podés, sumá fotos o un video. Te decimos cómo seguir: según la marca, lo gestionamos nosotros o te derivamos al servicio técnico oficial, y te acompañamos hasta que se resuelva.",
+  "Si hace falta mandar el producto a revisar, el envío y el seguro no corren por tu cuenta. El tiempo que el producto esté en reparación se suma al plazo de la garantía.",
+  "Si la reparación no queda bien, podés elegir el cambio por otro producto igual, la devolución de lo que pagaste o una rebaja del precio.",
+  "La garantía no cubre golpes, líquidos, sobretensiones, mal uso ni equipos abiertos o modificados fuera del servicio técnico oficial.",
+];
+
+/** Lo que se agrega en la página de Garantías y cambios: el arrepentimiento. */
+export const CAMBIOS_POR_DEFECTO: string[] = [
+  "Podés arrepentirte de la compra dentro de los 10 días corridos desde que la recibiste, sin dar motivos y sin costo para vos, con el botón de arrepentimiento: te damos un código al instante y te respondemos dentro de las 24 horas. El producto tiene que volver como lo recibiste.",
+];
+
 /** Un texto legal cargado en el panel, en párrafos; o nada si falta. */
 export function parrafosDe(texto: string | null): string[] {
   if (!texto) return [];
