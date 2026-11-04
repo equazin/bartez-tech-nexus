@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Minus, Plus } from "lucide-react";
+import { SumasPuntos } from "@/components/tienda/SumasPuntos";
 import { Tienda } from "@/components/tienda/Tienda";
 import { Cuotas } from "@/components/tienda/Precio";
 import { Bloque, EncabezadoDeSeccion } from "@/components/tienda/Seccion";
@@ -274,6 +275,7 @@ export default function Carrito() {
             ) : (
               <p className="text-[13px] leading-relaxed text-muted-foreground">Al confirmar te damos los datos de la cuenta. El pedido se prepara cuando se acredita la transferencia.</p>
             )}
+            <SumasPuntos monto={subtotalDelMedio} />
             {problemas.length > 0 && (
               <ul className="flex flex-col gap-1 rounded-xl bg-error-fondo p-3 text-sm text-danger">
                 {problemas.map((p) => (

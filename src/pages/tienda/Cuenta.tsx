@@ -7,6 +7,7 @@ import { CambiarClave } from "@/components/tienda/cuenta/CambiarClave";
 import { IngresoALaCuenta } from "@/components/tienda/cuenta/IngresoALaCuenta";
 import { MisCompras } from "@/components/tienda/cuenta/MisCompras";
 import { MisCupones } from "@/components/tienda/cuenta/MisCupones";
+import { MisPuntos } from "@/components/tienda/cuenta/MisPuntos";
 import { PrivacidadDeDatos } from "@/components/tienda/cuenta/PrivacidadDeDatos";
 import { useAuth } from "@/context/AuthContext";
 import { usarSeo } from "@/lib/tienda/seo";
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils";
 
 const SECCIONES = [
   { id: "compras", nombre: "Mis compras" },
+  { id: "puntos", nombre: "Puntos" },
   { id: "cupones", nombre: "Cupones" },
   { id: "datos", nombre: "Mis datos" },
   { id: "clave", nombre: "Contraseña" },
@@ -28,7 +30,7 @@ function destinoSeguro(valor: string | null): string | null {
 }
 
 export default function Cuenta() {
-  usarSeo("Mi cuenta", "Tus compras, facturas, cupones y datos en Teqo. Entrás con Google o con tu email y contraseña.");
+  usarSeo("Mi cuenta", "Tus compras, puntos, facturas, cupones y datos en Teqo. Entrás con Google o con tu email y contraseña.");
   const { user, loading, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
   const [parametros, setParametros] = useSearchParams();
@@ -109,6 +111,7 @@ export default function Cuenta() {
         </nav>
 
         {seccion === "compras" && <MisCompras />}
+        {seccion === "puntos" && <MisPuntos alVerCupones={() => elegir("cupones")} />}
         {seccion === "cupones" && <MisCupones cuponInicial={cupon} />}
         {seccion === "datos" && <FormularioDeMisDatos userId={user.id} />}
         {seccion === "clave" && <CambiarClave recuperando={recuperando} />}

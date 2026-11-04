@@ -85,6 +85,7 @@ export function MisCupones({ cuponInicial }: { cuponInicial: string | null }) {
                 <p className="text-xs text-muted-foreground">
                   {vence ? `Vence el ${vence}.` : ""}
                   {c.compra ? ` Llegó con la compra ${c.compra}.` : ""}
+                  {c.puntos ? ` Canje de ${new Intl.NumberFormat("es-AR").format(c.puntos)} puntos.` : ""}
                 </p>
                 {!c.activado && !c.vencido && (
                   <Button size="sm" variant="outline" onClick={() => void activar(c.codigo)} disabled={activando !== null}>

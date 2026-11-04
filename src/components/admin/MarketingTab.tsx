@@ -1,12 +1,13 @@
 import { useEffect, useState, useMemo } from "react";
 import { CuponDeCompra } from "./CuponDeCompra";
+import { ProgramaDePuntos } from "./ProgramaDePuntos";
 import {
   Ticket, Plus, Trash2, Calendar, Percent, DollarSign,
   CheckCircle2, XCircle, TrendingUp, Users, MousePointerClick,
   ShoppingCart, Activity, RefreshCw, BarChart3,
   Megaphone, Lightbulb, ArrowRight, Wand2, Copy, ThumbsUp, ThumbsDown,
   Zap, AlertCircle, TrendingDown, PauseCircle, Sparkles, Rocket,
-  ChevronDown, ChevronUp, Eye,
+  ChevronDown, ChevronUp, Eye, Gift,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { createCoupon, updateCoupon, deleteCoupon } from "@/lib/api/ordersApi";
@@ -41,7 +42,7 @@ interface CampaignStat {
   orders: number;
 }
 
-type SubTab = "funnel" | "campaigns" | "copies" | "insights" | "coupons";
+type SubTab = "funnel" | "campaigns" | "copies" | "insights" | "coupons" | "puntos";
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -150,6 +151,7 @@ export function MarketingTab({ isDark = true }: MarketingTabProps) {
           { id: "copies",    label: "Copy AI",    icon: Wand2      },
           { id: "insights",  label: "Insights",   icon: Lightbulb  },
           { id: "coupons",   label: "Cupones",    icon: Ticket     },
+          { id: "puntos",    label: "Puntos",     icon: Gift       },
         ] as { id: SubTab; label: string; icon: React.ElementType }[]).map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -170,6 +172,7 @@ export function MarketingTab({ isDark = true }: MarketingTabProps) {
       {subTab === "copies"    && <CopiesSection    isDark={isDark} />}
       {subTab === "insights"  && <InsightsSection  isDark={isDark} />}
       {subTab === "coupons"   && <CouponsSection   isDark={isDark} />}
+      {subTab === "puntos"    && <ProgramaDePuntos />}
     </div>
   );
 }

@@ -49,6 +49,8 @@ export interface CuponDeLaCuenta {
   vencido: boolean;
   categorias: string[];
   compra: string | null;
+  /** Si salió de un canje: cuántos puntos se usaron. */
+  puntos?: number | null;
 }
 
 export const MAXIMO_DE_DIRECCIONES = 5;

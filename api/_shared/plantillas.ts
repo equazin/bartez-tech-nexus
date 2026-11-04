@@ -169,12 +169,22 @@ export function pedidoEntregadoHTML(params: {
   cupon?: CuponDelEmail | null;
   email?: string;
   enlaceCuenta?: string;
+  /** Puntos Teqo que sumó la compra, si el programa está activo. */
+  puntos?: { cantidad: number; desde: string | null; enlace: string } | null;
 }): string {
+  const puntos = params.puntos
+    ? nota(
+        `Sumaste <strong>${new Intl.NumberFormat("es-AR").format(params.puntos.cantidad)} puntos Teqo</strong> con esta compra.${
+          params.puntos.desde ? ` Los podés usar desde el ${escapar(formatoFecha.format(new Date(params.puntos.desde)))},` : " Los ves"
+        } en <a href="${escapar(params.puntos.enlace)}" style="color:#17191D;">Mi cuenta</a>.`,
+      )
+    : "";
   const cuerpo = `
     ${parrafo(`Hola ${escapar(params.nombre)}, tu compra <strong>${escapar(params.numero)}</strong> figura como entregada.`)}
     ${parrafo("Si algo no está bien, respondé este email y lo resolvemos.")}
     ${nota(`Podés arrepentirte de la compra dentro de los 10 días corridos desde hoy, sin dar motivos, con el <a href="${escapar(params.enlaceArrepentimiento)}" style="color:#17191D;">botón de arrepentimiento</a>.`)}
     ${boton(params.enlace, "Ver mi compra")}
+    ${puntos}
     ${params.cupon && params.email && params.enlaceCuenta ? bloqueDeCupon(params.cupon, params.email, params.enlaceCuenta) : ""}`;
   return base("Entregamos tu pedido", cuerpo);
 }

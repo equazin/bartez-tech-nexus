@@ -99,6 +99,14 @@ export async function avisarAlComprador(orderId: number, tipo: TipoDeAviso, extr
           max_discount: number | null;
           expires_at: string | null;
         } | null;
+        // Los puntos los acredita la base al pasar a entregado, antes de este aviso.
+        const { data: movimientos } = await supabase
+          .from("puntos_movimientos")
+          .select("puntos, disponible_desde")
+          .eq("order_id", pedido.id)
+          .in("tipo", ["compra", "bono"]);
+        const listaDePuntos = (movimientos ?? []) as Array<{ puntos: number; disponible_desde: string }>;
+        const sumados = listaDePuntos.reduce((suma, m) => suma + Number(m.puntos), 0);
         html = pedidoEntregadoHTML({
           numero: pedido.order_number,
           nombre,
@@ -116,6 +124,7 @@ export async function avisarAlComprador(orderId: number, tipo: TipoDeAviso, extr
             : null,
           email: pedido.comprador_email ?? undefined,
           enlaceCuenta: `${base}/cuenta?cupon=${c ? encodeURIComponent(c.code) : ""}`,
+          puntos: sumados > 0 ? { cantidad: sumados, desde: listaDePuntos[0]?.disponible_desde ?? null, enlace: `${base}/cuenta?seccion=puntos` } : null,
         });
         break;
       }

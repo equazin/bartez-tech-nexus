@@ -1,7 +1,10 @@
 # Plan: Puntos Teqo
 
 Programa de puntos por compras y por eventos, visible en Mi cuenta y administrado desde el panel.
-Estado: propuesta, sin programar. Cada número marcado [A DEFINIR] lo decide Nico; nada se inventa.
+Estado (5/11/2026): programado y prendido con 1 punto cada $ 1.000 y $ 10 por punto (vuelve el 1 %), 10 días de
+espera, 12 meses de vencimiento, canje desde 100 puntos, cupón de hasta el 30 % de la compra y 60 días para usarlo.
+Bonos en 0. Todo se cambia en Panel › Marketing › Puntos. Base: supabase/migrations/140_programa_de_puntos.sql.
+Falta: bases y condiciones, canje por envío gratis y por armado de PC, y aviso por email antes de que venzan.
 
 ## Qué hay hoy y se reutiliza
 
