@@ -25,6 +25,14 @@ const ESTILOS = {
   rojo: { tema: undefined, fondo: "bg-primary text-primary-foreground", placa: "bg-card", etiqueta: "opacity-85", boton: "bg-card text-foreground hover:bg-secondary" },
 } as const;
 
+/**
+ * Todas las portadas ocupan la misma caja: desde pantallas grandes, la proporción de los banners diseñados (2400 × 830),
+ * así ninguna queda más alta que otra al pasar. Si un texto largo no entra, la caja crece en lugar de cortarlo.
+ */
+export function MarcoDePortada({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cn("flex w-full lg:aspect-[2400/830]", className)}>{children}</div>;
+}
+
 // Portadas diseñadas: la imagen ocupa todo el fondo (en el celular va arriba) y el texto va encima, a la izquierda.
 const MODOS_DE_IMAGEN = {
   "imagen-oscura": { tema: "nocturno", fondo: "bg-background text-foreground", etiqueta: "text-muted-foreground", boton: "bg-primary text-primary-foreground hover:bg-primary/90" },
@@ -36,9 +44,13 @@ function BannerConImagen({ banner, enlazar }: { banner: DatosDeBanner; enlazar: 
   const modo = MODOS_DE_IMAGEN[banner.fondo as keyof typeof MODOS_DE_IMAGEN] ?? MODOS_DE_IMAGEN["imagen-oscura"];
   const claseBoton = cn("inline-flex h-12 items-center rounded-xl px-6 font-bold", modo.boton);
   return (
-    <div data-tema={modo.tema} className={cn("relative flex min-h-[460px] min-w-0 flex-[2_1_560px] flex-col overflow-hidden rounded-2xl", modo.fondo)}>
+    <div data-tema={modo.tema} className={cn("relative flex min-h-[460px] min-w-0 flex-[2_1_560px] flex-col overflow-hidden rounded-2xl lg:min-h-0", modo.fondo)}>
       {banner.imagen_url && (
-        <img src={banner.imagen_url} alt="" className="aspect-[16/10] w-full object-cover object-right md:absolute md:inset-0 md:aspect-auto md:h-full" />
+        <img
+          src={banner.imagen_url}
+          alt=""
+          className="aspect-[16/10] w-full object-cover object-right md:absolute md:inset-y-0 md:right-0 md:aspect-auto md:h-full lg:w-auto lg:max-w-none lg:object-contain lg:[mask-image:linear-gradient(to_right,transparent,#000_30%)]"
+        />
       )}
       <div className="relative flex flex-1 flex-col justify-center gap-4 p-7 md:max-w-[50%] md:p-11">
         {banner.etiqueta && <p className={cn("text-[13px] font-bold uppercase tracking-[0.12em]", modo.etiqueta)}>{banner.etiqueta}</p>}
@@ -63,7 +75,7 @@ function BannerConImagen({ banner, enlazar }: { banner: DatosDeBanner; enlazar: 
 function Contenedor({ fondo, children }: { fondo: DatosDeBanner["fondo"]; children: ReactNode }) {
   const estilo = ESTILOS[fondo as keyof typeof ESTILOS] ?? ESTILOS.gris;
   return (
-    <div data-tema={estilo.tema} className={cn("grid min-h-[460px] min-w-0 flex-[2_1_560px] overflow-hidden rounded-2xl md:grid-cols-[1.05fr_1fr]", estilo.fondo)}>
+    <div data-tema={estilo.tema} className={cn("grid min-h-[460px] min-w-0 flex-[2_1_560px] overflow-hidden rounded-2xl md:grid-cols-[1.05fr_1fr] lg:min-h-0", estilo.fondo)}>
       {children}
     </div>
   );
@@ -97,7 +109,7 @@ export function BannerDePortada({ banner, enlazar = true }: { banner: DatosDeBan
           (subida ? (
             <img src={banner.imagen_url} alt="" className="absolute inset-0 h-full w-full object-cover" />
           ) : (
-            <img src={banner.imagen_url} alt="" className="max-h-[340px] max-w-[66%] object-contain mix-blend-multiply" />
+            <img src={banner.imagen_url} alt="" className="max-h-[340px] max-w-[66%] object-contain mix-blend-multiply lg:max-h-[78%]" />
           ))}
       </div>
     </Contenedor>
@@ -129,7 +141,7 @@ async function cargarPc(armadaId: string | null): Promise<PcLista | null> {
 
 function Lema() {
   return (
-    <div className="flex min-h-[460px] min-w-0 flex-[2_1_560px] flex-col justify-center gap-4 rounded-2xl bg-placa-foto p-7 text-texto-placa md:p-12">
+    <div className="flex min-h-[460px] min-w-0 flex-[2_1_560px] flex-col justify-center gap-4 rounded-2xl bg-placa-foto p-7 text-texto-placa md:p-12 lg:min-h-0">
       <p className="text-[13px] font-bold uppercase tracking-[0.12em] text-primary">Notebooks · Gaming · Monitores · Componentes</p>
       <h1 className="font-display text-[48px] font-extrabold uppercase leading-[0.95] md:text-[68px]">Subí tu mundo.</h1>
       <p className="max-w-[520px] text-lg leading-relaxed">Equipos de fábrica, elegidos y explicados, con el precio final a la vista y envío al mismo precio en todo el país.</p>
@@ -157,7 +169,7 @@ export function PcDePortada({ armadaId = null, enlazar = true }: { armadaId?: st
     };
   }, [armadaId]);
 
-  if (pc === undefined) return <div className="min-h-[460px] min-w-0 flex-[2_1_560px] animate-pulse rounded-2xl bg-placa-foto" aria-hidden />;
+  if (pc === undefined) return <div className="min-h-[460px] min-w-0 flex-[2_1_560px] animate-pulse rounded-2xl bg-placa-foto lg:min-h-0" aria-hidden />;
   if (pc === null) return <Lema />;
 
   const { armada, seleccion, chips, totales } = pc;
@@ -208,7 +220,7 @@ export function PcDePortada({ armadaId = null, enlazar = true }: { armadaId?: st
         </div>
       </div>
       <div className="relative flex min-h-[300px] items-center justify-center bg-placa-foto-2">
-        {gabinete && <img src={gabinete} alt="" className="max-h-[340px] max-w-[62%] object-contain mix-blend-multiply" />}
+        {gabinete && <img src={gabinete} alt="" className="max-h-[340px] max-w-[62%] object-contain mix-blend-multiply lg:max-h-[78%]" />}
         {miniaturas.length > 0 && (
           <span className="absolute bottom-6 left-6 flex gap-2.5">
             {miniaturas.map((foto) => (
@@ -229,15 +241,15 @@ export function BannerSoloImagen({ portada, enlazar = true }: { portada: Pick<Po
   const imagen = (
     <picture>
       <source media="(min-width: 768px)" srcSet={portada.imagen_url} />
-      <img src={portada.imagen_movil_url ?? portada.imagen_url} alt={portada.titulo} className="block h-auto w-full" />
+      <img src={portada.imagen_movil_url ?? portada.imagen_url} alt={portada.titulo} className="block h-auto w-full lg:h-full lg:object-cover" />
     </picture>
   );
   return enlazar ? (
-    <Link to={portada.enlace} className="block overflow-hidden rounded-2xl">
+    <Link to={portada.enlace} className="block w-full overflow-hidden rounded-2xl [&>picture]:contents">
       {imagen}
     </Link>
   ) : (
-    <div className="overflow-hidden rounded-2xl">{imagen}</div>
+    <div className="w-full overflow-hidden rounded-2xl [&>picture]:contents">{imagen}</div>
   );
 }
 
@@ -291,8 +303,13 @@ export function PortadaDelInicio() {
   // En el celular se pasa de portada deslizando el dedo; las flechas quedan abajo, junto a los puntos.
   const inicioDelToque = useRef<number | null>(null);
 
-  if (portadas === undefined) return <div className="min-h-[420px] w-full animate-pulse rounded-2xl bg-placa-foto" aria-hidden />;
-  if (total === 0) return <PcDePortada />;
+  if (portadas === undefined) return <div className="min-h-[420px] w-full animate-pulse rounded-2xl bg-placa-foto lg:aspect-[2400/830] lg:min-h-0" aria-hidden />;
+  if (total === 0)
+    return (
+      <MarcoDePortada>
+        <PcDePortada />
+      </MarcoDePortada>
+    );
 
   const actual = portadas[Math.min(indice, total - 1)];
   const mover = (paso: number) => setIndice((i) => (i + paso + total) % total);
@@ -317,9 +334,9 @@ export function PortadaDelInicio() {
         if (Math.abs(distancia) > 40) mover(distancia < 0 ? 1 : -1);
       }}
     >
-      <div key={actual.id} className="flex w-full animate-in fade-in duration-500">
+      <MarcoDePortada key={actual.id} className="animate-in fade-in duration-500">
         <DiapositivaDePortada portada={actual} />
-      </div>
+      </MarcoDePortada>
       {total > 1 && (
         <>
           <button

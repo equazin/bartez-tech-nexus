@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { SurfaceCard } from "@/components/ui/surface-card";
-import { BannerDePortada, BannerSoloImagen, PcDePortada } from "@/components/tienda/PortadaDestacada";
+import { BannerDePortada, BannerSoloImagen, MarcoDePortada, PcDePortada } from "@/components/tienda/PortadaDestacada";
 import { DISENOS_DE_BANNERS, type DisenoDeBanner } from "@/lib/tienda/disenosDeBanners";
 import { supabase } from "@/lib/supabase";
 import { buscarProductos, categoriasPlanas, imagenPrincipal, listarCategorias, rutaDelProducto, type ProductoPublico } from "@/lib/tienda/catalogo";
@@ -644,6 +644,7 @@ export function PortadaTab() {
             <div className="space-y-2">
               <p className="text-[13px] font-bold text-muted-foreground">Vista previa en la tienda</p>
               <div data-tema="claro" className="flex rounded-2xl bg-background p-2 font-sans text-foreground">
+                <MarcoDePortada>
                 {borrador.tipo === "imagen" ? (
                   borrador.imagen_url ? (
                     <BannerSoloImagen portada={borrador} enlazar={false} />
@@ -655,6 +656,7 @@ export function PortadaTab() {
                 ) : (
                   <PcDePortada armadaId={borrador.pc_armada_id} enlazar={false} />
                 )}
+                </MarcoDePortada>
               </div>
             </div>
           </div>
