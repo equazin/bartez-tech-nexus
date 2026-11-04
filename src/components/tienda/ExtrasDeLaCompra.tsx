@@ -28,7 +28,7 @@ export function ExtrasDeLaCompra({ pedido, token }: { pedido: PedidoPublico; tok
           ) : (
             <>
               <p className="text-sm text-muted-foreground">
-                Para usarlo, activalo en Mi cuenta: entrás con {pedido.comprador.email ?? "el email de la compra"} y un código que te mandamos, sin contraseña.
+                Para usarlo, activalo en Mi cuenta: entrás con Google o con {pedido.comprador.email ?? "el email de la compra"} y una contraseña.
               </p>
               <Button asChild>
                 <Link to={`/cuenta?cupon=${encodeURIComponent(pedido.cupon.codigo)}`}>Activar mi cupón</Link>

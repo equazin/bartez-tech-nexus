@@ -155,7 +155,7 @@ function bloqueDeCupon(cupon: CuponDelEmail, email: string, enlaceCuenta: string
       <p style="margin:0 0 8px;font-size:14px;line-height:20px;color:#676B73;">Para tu próxima compra</p>
       <p style="margin:0 0 8px;font-size:26px;line-height:32px;font-weight:bold;letter-spacing:2px;">${escapar(cupon.codigo)}</p>
       <p style="margin:0 0 12px;font-size:15px;line-height:22px;">${escapar(describirCupon(cupon))}.${escapar(vence)}</p>
-      <p style="margin:0;font-size:14px;line-height:21px;color:#676B73;">Para usarlo, activalo en Mi cuenta: entrás con este email (${escapar(email)}) y un código que te mandamos, sin contraseña. Después lo cargás al finalizar la compra, con la sesión abierta.</p>
+      <p style="margin:0;font-size:14px;line-height:21px;color:#676B73;">Para usarlo, activalo en Mi cuenta: entrás con este email (${escapar(email)}), con Google o con una contraseña. Después lo cargás al finalizar la compra, con la sesión abierta.</p>
       ${boton(enlaceCuenta, "Activar mi cupón")}
     </div>`;
 }

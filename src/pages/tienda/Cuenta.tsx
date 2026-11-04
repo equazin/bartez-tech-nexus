@@ -3,7 +3,8 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tienda } from "@/components/tienda/Tienda";
 import { FormularioDeMisDatos } from "@/components/tienda/cuenta/FormularioDeMisDatos";
-import { IngresoConCodigo } from "@/components/tienda/cuenta/IngresoConCodigo";
+import { CambiarClave } from "@/components/tienda/cuenta/CambiarClave";
+import { IngresoALaCuenta } from "@/components/tienda/cuenta/IngresoALaCuenta";
 import { MisCompras } from "@/components/tienda/cuenta/MisCompras";
 import { MisCupones } from "@/components/tienda/cuenta/MisCupones";
 import { PrivacidadDeDatos } from "@/components/tienda/cuenta/PrivacidadDeDatos";
@@ -15,6 +16,7 @@ const SECCIONES = [
   { id: "compras", nombre: "Mis compras" },
   { id: "cupones", nombre: "Cupones" },
   { id: "datos", nombre: "Mis datos" },
+  { id: "clave", nombre: "Contraseña" },
   { id: "privacidad", nombre: "Privacidad" },
 ] as const;
 
@@ -26,13 +28,15 @@ function destinoSeguro(valor: string | null): string | null {
 }
 
 export default function Cuenta() {
-  usarSeo("Mi cuenta", "Tus compras, facturas, cupones y datos en Teqo. Entrás con tu email y un código, sin contraseña.");
+  usarSeo("Mi cuenta", "Tus compras, facturas, cupones y datos en Teqo. Entrás con Google o con tu email y contraseña.");
   const { user, loading, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
   const [parametros, setParametros] = useSearchParams();
   const cupon = parametros.get("cupon")?.trim().toUpperCase() || null;
   const volver = destinoSeguro(parametros.get("volver"));
   const pedida = parametros.get("seccion") as Seccion | null;
+  // Llegó desde el enlace de "Olvidé mi contraseña": la sesión ya está abierta y falta elegir la contraseña.
+  const recuperando = parametros.get("recuperar") === "1";
   const [seccion, setSeccion] = useState<Seccion>(cupon ? "cupones" : pedida && SECCIONES.some((s) => s.id === pedida) ? pedida : "compras");
 
   // Si llegó desde el checkout, vuelve ahí apenas entra.
@@ -45,6 +49,7 @@ export default function Cuenta() {
     const siguientes = new URLSearchParams(parametros);
     siguientes.set("seccion", id);
     siguientes.delete("cupon");
+    siguientes.delete("recuperar");
     setParametros(siguientes, { replace: true });
   }
 
@@ -60,7 +65,7 @@ export default function Cuenta() {
     return (
       <Tienda>
         <div className="container mx-auto px-4 py-8">
-          <IngresoConCodigo cupon={cupon} />
+          <IngresoALaCuenta cupon={cupon} volver={volver} />
         </div>
       </Tienda>
     );
@@ -106,6 +111,7 @@ export default function Cuenta() {
         {seccion === "compras" && <MisCompras />}
         {seccion === "cupones" && <MisCupones cuponInicial={cupon} />}
         {seccion === "datos" && <FormularioDeMisDatos userId={user.id} />}
+        {seccion === "clave" && <CambiarClave recuperando={recuperando} />}
         {seccion === "privacidad" && <PrivacidadDeDatos />}
       </div>
     </Tienda>

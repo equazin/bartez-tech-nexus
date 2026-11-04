@@ -2,8 +2,9 @@ import { supabase } from "@/lib/supabase";
 import { formatearPesos } from "@/lib/tienda/dinero";
 
 /**
- * Mi cuenta: se entra con un código que llega por email (sin contraseña). Las compras se reconocen por el
- * email confirmado de la sesión, así aparecen también las que se hicieron sin cuenta.
+ * Mi cuenta: se entra con email y contraseña o con Google. Una cuenta nueva con contraseña confirma el email antes
+ * de abrir la sesión (Supabase no autoconfirma), y las compras se reconocen por el email confirmado de la sesión, así
+ * aparecen también las que se hicieron sin cuenta.
  */
 
 export interface DireccionGuardada {
@@ -53,25 +54,83 @@ export interface CuponDeLaCuenta {
 export const MAXIMO_DE_DIRECCIONES = 5;
 
 function errorDeIngreso(mensaje: string): string {
-  if (/rate|seconds|too many|security purposes/i.test(mensaje)) return "Pediste varios códigos seguidos. Esperá un minuto y probá de nuevo.";
-  if (/expired|invalid|token/i.test(mensaje)) return "El código no es válido o venció. Pedí uno nuevo.";
-  if (/signups? not allowed|not allowed for otp/i.test(mensaje)) return "Por ahora no se pueden crear cuentas nuevas. Escribinos y lo resolvemos.";
+  if (/invalid login credentials/i.test(mensaje)) return "El email o la contraseña no coinciden.";
+  if (/email not confirmed/i.test(mensaje)) return "Todavía no confirmaste el email. Buscá el mensaje que te mandamos y tocá el enlace.";
+  if (/weak|pwned|known to be/i.test(mensaje)) return "Esa contraseña es muy fácil de adivinar. Elegí otra.";
+  if (/password should be at least|password.*(short|length)/i.test(mensaje)) return `La contraseña tiene que tener al menos ${CLAVE_MINIMA} caracteres.`;
+  if (/should be different/i.test(mensaje)) return "La contraseña nueva tiene que ser distinta de la anterior.";
+  if (/rate|seconds|too many|security purposes/i.test(mensaje)) return "Hiciste varios intentos seguidos. Esperá un minuto y probá de nuevo.";
+  if (/provider is not enabled|unsupported provider/i.test(mensaje)) return "El ingreso con Google todavía no está activado. Entrá con tu email y contraseña.";
+  if (/signups? not allowed/i.test(mensaje)) return "Por ahora no se pueden crear cuentas nuevas. Escribinos y lo resolvemos.";
   if (/email/i.test(mensaje) && /invalid|format/i.test(mensaje)) return "Revisá el email.";
   return "No pudimos completar el ingreso. Probá de nuevo en un momento.";
 }
 
-/** Manda el código de ingreso. Si el email no tiene cuenta, la crea: no hay registro aparte. */
-export async function enviarCodigo(email: string): Promise<void> {
-  const { error } = await supabase.auth.signInWithOtp({
+export const CLAVE_MINIMA = 8;
+
+/** A dónde vuelve el navegador después de Google o de un enlace del email: siempre a Mi cuenta de esta tienda. */
+function vueltaACuenta(parametros: Record<string, string | null | undefined> = {}): string {
+  const consulta = new URLSearchParams();
+  for (const [clave, valor] of Object.entries(parametros)) if (valor) consulta.set(clave, valor);
+  const texto = consulta.toString();
+  return `${window.location.origin}/cuenta${texto ? `?${texto}` : ""}`;
+}
+
+export async function entrarConClave(email: string, clave: string): Promise<void> {
+  const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password: clave });
+  if (error) throw new Error(errorDeIngreso(error.message));
+}
+
+/**
+ * Crea la cuenta con contraseña. Supabase manda el email de confirmación y la sesión se abre al tocar el enlace.
+ * Si el email ya tenía cuenta (por ejemplo, de cuando se entraba con código), Supabase no lo dice para no revelar
+ * qué emails existen: devuelve un usuario sin identidades, y ahí se sugiere "Olvidé mi contraseña".
+ */
+export async function crearCuenta(email: string, clave: string, volver: string | null): Promise<"confirmar" | "ya_existe" | "lista"> {
+  const { data, error } = await supabase.auth.signUp({
     email: email.trim().toLowerCase(),
-    options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}/cuenta` },
+    password: clave,
+    options: { emailRedirectTo: vueltaACuenta({ volver }) },
+  });
+  if (error) {
+    if (/already registered|already exists/i.test(error.message)) return "ya_existe";
+    throw new Error(errorDeIngreso(error.message));
+  }
+  if (data.user && (data.user.identities?.length ?? 0) === 0) return "ya_existe";
+  return data.session ? "lista" : "confirmar";
+}
+
+export async function entrarConGoogle(volver: string | null): Promise<void> {
+  const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: vueltaACuenta({ volver }) } });
+  if (error) throw new Error(errorDeIngreso(error.message));
+}
+
+/** Manda el enlace para elegir una contraseña nueva (sirve también para crear la primera en una cuenta vieja). */
+export async function pedirNuevaClave(email: string): Promise<void> {
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+    redirectTo: vueltaACuenta({ seccion: "clave", recuperar: "1" }),
   });
   if (error) throw new Error(errorDeIngreso(error.message));
 }
 
-export async function verificarCodigo(email: string, codigo: string): Promise<void> {
-  const { error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token: codigo.replace(/\D/g, ""), type: "email" });
+export async function cambiarClave(clave: string): Promise<void> {
+  const { error } = await supabase.auth.updateUser({ password: clave });
   if (error) throw new Error(errorDeIngreso(error.message));
+}
+
+/** Si Google está activado en Supabase. Sin respuesta, el botón no se muestra: nunca queda un botón que falla. */
+export async function googleDisponible(): Promise<boolean> {
+  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const clave = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+  if (!url || !clave) return false;
+  try {
+    const respuesta = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: clave } });
+    if (!respuesta.ok) return false;
+    const ajustes = (await respuesta.json()) as { external?: { google?: boolean } };
+    return ajustes.external?.google === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function tokenDeLaSesion(): Promise<string | null> {
