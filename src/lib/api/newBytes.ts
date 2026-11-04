@@ -89,16 +89,44 @@ export interface ResultadoDeDescripciones {
   sin_descripcion: number;
   completadas: number;
   sin_texto_en_new_bytes: number;
+  restantes: number;
+  recibidas_juntas: number;
   error?: string;
 }
 
-/** Completa la descripción de los productos de New Bytes que no tienen, con el texto que genera New Bytes. */
-export async function completarDescripcionesDeNewBytes(): Promise<ResultadoDeDescripciones> {
-  const respuesta = await fetch("/api/tienda?modulo=sincronizacion&recurso=descripciones", { method: "POST", headers: { ...(await encabezadosDelPanel()) } });
+async function pedirDescripciones(juntas: boolean): Promise<ResultadoDeDescripciones> {
+  const respuesta = await fetch(`/api/tienda?modulo=sincronizacion&recurso=descripciones${juntas ? "" : "&juntas=no"}`, {
+    method: "POST",
+    headers: { ...(await encabezadosDelPanel()) },
+  });
   const json = (await respuesta.json().catch(() => ({}))) as { ok?: boolean; data?: ResultadoDeDescripciones; error?: string };
   if (!respuesta.ok || json.ok === false || !json.data) throw new Error(json.error ?? `Error ${respuesta.status}`);
   if (json.data.estado !== "ok") throw new Error(json.data.error ?? "No se pudieron traer las descripciones.");
   return json.data;
+}
+
+/**
+ * Completa la descripción de los productos de New Bytes que no tienen, con el texto que genera New Bytes.
+ * Cada pedido trabaja unos 40 segundos; se repite mientras queden productos y haya avance.
+ */
+export async function completarDescripcionesDeNewBytes(alAvanzar?: (total: ResultadoDeDescripciones) => void): Promise<ResultadoDeDescripciones> {
+  const total: ResultadoDeDescripciones = { estado: "ok", sin_descripcion: 0, completadas: 0, sin_texto_en_new_bytes: 0, restantes: 0, recibidas_juntas: 0 };
+  let juntas = true;
+  for (let vuelta = 0; vuelta < 15; vuelta += 1) {
+    const r = await pedirDescripciones(juntas);
+    if (vuelta === 0) {
+      total.sin_descripcion = r.sin_descripcion;
+      total.recibidas_juntas = r.recibidas_juntas;
+    }
+    total.completadas += r.completadas;
+    total.sin_texto_en_new_bytes += r.sin_texto_en_new_bytes;
+    total.restantes = r.restantes;
+    alAvanzar?.({ ...total });
+    // Si la consulta de todas juntas no trajo nada, las vueltas siguientes van directo de a una.
+    if (r.recibidas_juntas === 0) juntas = false;
+    if (r.restantes === 0 || r.completadas + r.sin_texto_en_new_bytes === 0) break;
+  }
+  return total;
 }
 
 /** Los ids de New Bytes que ya están vinculados a un producto de la tienda. */

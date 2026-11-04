@@ -3,7 +3,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { consultarDolarBna, type TipoDeDolar } from "../_shared/dolarBna.js";
 import { camposDeElit, hayCredencialesDeElit, productoPorId, productosCambiadosDesde, type ProductoElit } from "../_shared/elitServidor.js";
 import { fail, methodNotAllowed, ok } from "../_shared/http.js";
-import { camposDeNewBytes, catalogoDeNewBytes, descripcionesDeNewBytes, hayCredencialesDeNewBytes, textoDeDescripcion } from "../_shared/newBytesServidor.js";
+import { camposDeNewBytes, catalogoDeNewBytes, descripcionDeNewBytes, descripcionesDeNewBytes, hayCredencialesDeNewBytes, textoDeDescripcion } from "../_shared/newBytesServidor.js";
 import { getRoleFromRequest } from "../_shared/roles.js";
 import { getSupabaseAdmin, getSupabaseClient } from "../_shared/supabaseServer.js";
 
@@ -221,7 +221,7 @@ async function correr(req: VercelRequest, res: VercelResponse) {
 
   // Lo que entró de New Bytes sin descripción la toma acá, si queda tiempo.
   const descripcionesNuevas =
-    config.newbytes.activa && hayCredencialesDeNewBytes() && Date.now() - inicio < 25_000 ? await completarDescripcionesNewBytes() : undefined;
+    config.newbytes.activa && hayCredencialesDeNewBytes() && Date.now() - inicio < 25_000 ? await completarDescripcionesNewBytes(50_000 - (Date.now() - inicio)) : undefined;
 
   const corrida: Corrida = {
     empezo: new Date(inicio).toISOString(),
@@ -462,6 +462,10 @@ interface ResultadoDeDescripciones {
   sin_descripcion: number;
   completadas: number;
   sin_texto_en_new_bytes: number;
+  /** Las que quedan por pedir: el panel vuelve a llamar hasta que lleguen a cero. */
+  restantes: number;
+  /** Cuántas descripciones trajo la consulta de todas juntas (diagnóstico). */
+  recibidas_juntas: number;
   error?: string;
 }
 
@@ -472,10 +476,13 @@ const sinTexto = (valor: unknown) => {
 
 /**
  * Completa la descripción de los productos vinculados a New Bytes que no tienen, con el texto que
- * New Bytes genera para las tiendas de sus clientes. No pisa una descripción cargada a mano.
+ * New Bytes genera para las tiendas de sus clientes. Primero pide todas juntas; lo que no aparece ahí
+ * lo pide de a uno, como el plugin oficial, mientras quede tiempo. No pisa una descripción cargada a
+ * mano, y un producto sin texto en New Bytes queda marcado para no pedirlo en cada vuelta.
  */
-async function completarDescripcionesNewBytes(): Promise<ResultadoDeDescripciones> {
-  const vacio = { sin_descripcion: 0, completadas: 0, sin_texto_en_new_bytes: 0 };
+async function completarDescripcionesNewBytes(tiempoMs = 40_000, pedirJuntas = true): Promise<ResultadoDeDescripciones> {
+  const hasta = Date.now() + tiempoMs;
+  const vacio = { sin_descripcion: 0, completadas: 0, sin_texto_en_new_bytes: 0, restantes: 0, recibidas_juntas: 0 };
   if (!hayCredencialesDeNewBytes()) return { estado: "sin_credenciales", ...vacio, error: "Faltan NB_API_USER y NB_API_PASSWORD en Vercel." };
   try {
     const vinculadas = (await filasDelProveedor("newbytes")).filter((f) => f.external_id);
@@ -488,29 +495,56 @@ async function completarDescripcionesNewBytes(): Promise<ResultadoDeDescripcione
       if (error) throw new Error(error.message);
       const externoDe = new Map(tanda.map((f) => [f.product_id, String(f.external_id)]));
       for (const p of (data ?? []) as Array<{ id: number; description: string | null; description_full: string | null; specs: Record<string, unknown> | null }>) {
-        if (sinTexto(p.description_full) && sinTexto(p.description)) pendientes.push({ id: p.id, externo: externoDe.get(p.id)!, specs: p.specs });
+        if (sinTexto(p.description_full) && sinTexto(p.description) && !p.specs?.supplier_sin_descripcion) {
+          pendientes.push({ id: p.id, externo: externoDe.get(p.id)!, specs: p.specs });
+        }
       }
     }
     if (pendientes.length === 0) return { estado: "ok", ...vacio };
 
-    const textos = await descripcionesDeNewBytes();
+    let textos = new Map<string, string>();
+    try {
+      if (pedirJuntas) textos = await descripcionesDeNewBytes();
+    } catch (e: unknown) {
+      console.error("[sincronizacion] Descripciones juntas de New Bytes:", mensaje(e));
+    }
+    console.info("[sincronizacion] Descripciones juntas de New Bytes:", textos.size, "pendientes:", pendientes.length);
+
     let completadas = 0;
     let sinTextoEnNewBytes = 0;
-    await enTandas(pendientes, 8, async (p) => {
-      const crudo = textos.get(p.externo);
+    let restantes = 0;
+    await enTandas(pendientes, 6, async (p) => {
+      let crudo = textos.get(p.externo) ?? null;
+      if (!crudo) {
+        if (Date.now() > hasta) {
+          restantes += 1;
+          return;
+        }
+        try {
+          crudo = await descripcionDeNewBytes(p.externo);
+        } catch (e: unknown) {
+          console.error("[sincronizacion] Descripción de New Bytes", p.externo, mensaje(e));
+          restantes += 1;
+          return;
+        }
+      }
       const texto = crudo ? textoDeDescripcion(crudo) : "";
+      const ahora = new Date().toISOString();
       if (!texto) {
         sinTextoEnNewBytes += 1;
+        await supabase.from("products").update({ specs: { ...(p.specs ?? {}), supplier_sin_descripcion: ahora } }).eq("id", p.id);
         return;
       }
       const { error } = await supabase
         .from("products")
-        .update({ description_full: texto, specs: { ...(p.specs ?? {}), supplier_description: crudo }, updated_at: new Date().toISOString() })
+        .update({ description_full: texto, specs: { ...(p.specs ?? {}), supplier_description: crudo }, updated_at: ahora })
         .eq("id", p.id);
-      if (error) console.error("[sincronizacion] Descripción de", p.id, error.message);
-      else completadas += 1;
+      if (error) {
+        console.error("[sincronizacion] Descripción de", p.id, error.message);
+        restantes += 1;
+      } else completadas += 1;
     });
-    return { estado: "ok", sin_descripcion: pendientes.length, completadas, sin_texto_en_new_bytes: sinTextoEnNewBytes };
+    return { estado: "ok", sin_descripcion: pendientes.length, completadas, sin_texto_en_new_bytes: sinTextoEnNewBytes, restantes, recibidas_juntas: textos.size };
   } catch (e: unknown) {
     console.error("[sincronizacion] Descripciones de New Bytes:", mensaje(e));
     return { estado: "error", ...vacio, error: mensaje(e) };
@@ -520,5 +554,5 @@ async function completarDescripcionesNewBytes(): Promise<ResultadoDeDescripcione
 async function descripciones(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET" && req.method !== "POST") return methodNotAllowed(res, ["GET", "POST"]);
   if (!esElCron(req) && !(await esAdmin(req)).admin) return fail(res, "Solo para administradores", 403);
-  return ok(res, await completarDescripcionesNewBytes());
+  return ok(res, await completarDescripcionesNewBytes(40_000, req.query.juntas !== "no"));
 }

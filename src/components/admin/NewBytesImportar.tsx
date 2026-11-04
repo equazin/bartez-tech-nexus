@@ -45,14 +45,23 @@ export function NewBytesImportar({ userId, alImportar }: { userId?: string; alIm
 
   async function completarDescripciones() {
     setDescribiendo(true);
+    const aviso = toast.loading("Trayendo descripciones de New Bytes");
     try {
-      const r = await completarDescripcionesDeNewBytes();
+      const r = await completarDescripcionesDeNewBytes((parcial) =>
+        toast.loading(`Descripciones: ${parcial.completadas} cargadas de ${parcial.sin_descripcion}`, { id: aviso }),
+      );
+      toast.dismiss(aviso);
       if (r.sin_descripcion === 0) toast.success("Todos los productos de New Bytes ya tienen descripción");
       else
-        toast.success("Descripciones de New Bytes cargadas", {
-          description: `${r.completadas} de ${r.sin_descripcion} productos sin descripción${r.sin_texto_en_new_bytes ? `; ${r.sin_texto_en_new_bytes} no tienen texto en New Bytes` : ""}.`,
+        toast.success("Descripciones de New Bytes", {
+          description:
+            `${r.completadas} cargadas de ${r.sin_descripcion} productos sin descripción` +
+            (r.sin_texto_en_new_bytes ? `; ${r.sin_texto_en_new_bytes} no tienen texto en New Bytes` : "") +
+            (r.restantes ? `; faltan ${r.restantes}, volvé a apretar` : "") +
+            ".",
         });
     } catch (e: unknown) {
+      toast.dismiss(aviso);
       toast.error(e instanceof Error ? e.message : "No se pudieron traer las descripciones.");
     } finally {
       setDescribiendo(false);
