@@ -7,7 +7,6 @@ import { SurfaceCard } from "@/components/ui/surface-card";
 import { cn } from "@/lib/utils";
 import {
   categoriaDe,
-  completarDescripcionesDeNewBytes,
   costoEnDolares,
   fotoDe,
   idsYaVinculados,
@@ -41,33 +40,6 @@ export function NewBytesImportar({ userId, alImportar }: { userId?: string; alIm
   const [categoria, setCategoria] = useState("");
   const [soloConStock, setSoloConStock] = useState(true);
   const [elegidos, setElegidos] = useState<Set<string>>(new Set());
-  const [describiendo, setDescribiendo] = useState(false);
-
-  async function completarDescripciones() {
-    setDescribiendo(true);
-    const aviso = toast.loading("Trayendo descripciones de New Bytes");
-    try {
-      const r = await completarDescripcionesDeNewBytes((parcial) =>
-        toast.loading(`Descripciones: ${parcial.completadas} cargadas de ${parcial.sin_descripcion}`, { id: aviso }),
-      );
-      toast.dismiss(aviso);
-      if (r.sin_descripcion === 0) toast.success("Todos los productos de New Bytes ya tienen descripción");
-      else
-        toast.success("Descripciones de New Bytes", {
-          description:
-            `${r.completadas} cargadas de ${r.sin_descripcion} productos sin descripción` +
-            (r.sin_texto_en_new_bytes ? `; ${r.sin_texto_en_new_bytes} no tienen texto en New Bytes` : "") +
-            (r.restantes ? `; faltan ${r.restantes}, volvé a apretar` : "") +
-            ".",
-        });
-    } catch (e: unknown) {
-      toast.dismiss(aviso);
-      toast.error(e instanceof Error ? e.message : "No se pudieron traer las descripciones.");
-    } finally {
-      setDescribiendo(false);
-    }
-  }
-
   async function traer() {
     setCargando(true);
     setError(null);
@@ -150,15 +122,10 @@ export function NewBytesImportar({ userId, alImportar }: { userId?: string; alIm
             desde Productos. El envío de estos productos es la tarifa plana de Configuración › Envíos.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" disabled={describiendo} onClick={completarDescripciones} title="Carga el texto de New Bytes en los productos que no tienen descripción">
-            {describiendo ? "Trayendo descripciones" : "Completar descripciones"}
-          </Button>
-          <Button type="button" variant="outline" disabled={cargando} onClick={traer} className="gap-2">
-            <Download className="h-4 w-4" aria-hidden />
-            {catalogo ? "Volver a traer el catálogo" : cargando ? "Trayendo el catálogo" : "Traer el catálogo"}
-          </Button>
-        </div>
+        <Button type="button" variant="outline" disabled={cargando} onClick={traer} className="gap-2">
+          <Download className="h-4 w-4" aria-hidden />
+          {catalogo ? "Volver a traer el catálogo" : cargando ? "Trayendo el catálogo" : "Traer el catálogo"}
+        </Button>
       </div>
 
       {error && <p className="text-sm text-danger">{error}</p>}

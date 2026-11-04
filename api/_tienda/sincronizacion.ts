@@ -495,7 +495,7 @@ async function completarDescripcionesNewBytes(tiempoMs = 40_000, pedirJuntas = t
       if (error) throw new Error(error.message);
       const externoDe = new Map(tanda.map((f) => [f.product_id, String(f.external_id)]));
       for (const p of (data ?? []) as Array<{ id: number; description: string | null; description_full: string | null; specs: Record<string, unknown> | null }>) {
-        if (sinTexto(p.description_full) && sinTexto(p.description) && !p.specs?.supplier_sin_descripcion) {
+        if (sinTexto(p.description_full) && sinTexto(p.description) && !p.specs?.supplier_sin_descripcion && !p.specs?.supplier_description) {
           pendientes.push({ id: p.id, externo: externoDe.get(p.id)!, specs: p.specs });
         }
       }
@@ -535,9 +535,11 @@ async function completarDescripcionesNewBytes(tiempoMs = 40_000, pedirJuntas = t
         await supabase.from("products").update({ specs: { ...(p.specs ?? {}), supplier_sin_descripcion: ahora } }).eq("id", p.id);
         return;
       }
+      // El texto de New Bytes queda oculto, como referencia: lo generan con un modelo de lenguaje, en tuteo,
+      // con superlativos y a veces con datos que no coinciden con el producto. No se publica (3/11/2026).
       const { error } = await supabase
         .from("products")
-        .update({ description_full: texto, specs: { ...(p.specs ?? {}), supplier_description: crudo }, updated_at: ahora })
+        .update({ specs: { ...(p.specs ?? {}), supplier_description: crudo } })
         .eq("id", p.id);
       if (error) {
         console.error("[sincronizacion] Descripción de", p.id, error.message);
