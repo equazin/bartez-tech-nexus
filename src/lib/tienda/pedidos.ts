@@ -76,16 +76,38 @@ export interface PedidoPublico {
   descuento: number | null;
   medio_pago: string | null;
   seguimiento: string | null;
+  seguimiento_url?: string | null;
   transporte: string | null;
+  entregado_en?: string | null;
+  envio_opcion?: "domicilio" | "sucursal";
+  sucursal?: string | null;
+  /** Hay factura en PDF para bajar. */
+  factura?: boolean;
+  /** Cupón para la próxima compra que generó esta compra al entregarse. */
+  cupon?: CuponDeLaCompra | null;
   comprador: { nombre: string | null; email: string | null };
   direccion: DireccionDeEnvio | null;
   items: ItemDelPedido[];
 }
 
+export interface CuponDeLaCompra {
+  codigo: string;
+  tipo: "percentage" | "fixed";
+  valor: number;
+  minimo: number | null;
+  tope: number | null;
+  vence_en: string | null;
+  activado: boolean;
+}
+
 export async function crearPedido(pedido: PedidoNuevo): Promise<PedidoCreado> {
+  // Con la sesión abierta, el servidor reconoce la cuenta: la necesitan los cupones personales.
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
   const respuesta = await fetch("/api/checkout", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
     body: JSON.stringify(pedido),
   });
   const json = (await respuesta.json().catch(() => ({}))) as { ok?: boolean; data?: PedidoCreado; error?: string };

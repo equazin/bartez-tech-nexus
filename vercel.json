@@ -143,6 +143,10 @@
       "destination": "/api/tienda?modulo=envios"
     },
     {
+      "source": "/api/cuenta",
+      "destination": "/api/tienda?modulo=cuenta"
+    },
+    {
       "source": "/api/precios",
       "destination": "/api/tienda?modulo=precios"
     },

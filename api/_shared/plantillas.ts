@@ -128,13 +128,61 @@ export function pedidoEnviadoHTML(params: {
   return base("Tu pedido está en camino", cuerpo);
 }
 
-export function pedidoEntregadoHTML(params: { numero: string; nombre: string; enlace: string; enlaceArrepentimiento: string }): string {
+export interface CuponDelEmail {
+  codigo: string;
+  tipo: "percentage" | "fixed";
+  valor: number;
+  minimo: number | null;
+  tope: number | null;
+  venceEn: string | null;
+}
+
+const formatoFecha = new Intl.DateTimeFormat("es-AR", { dateStyle: "long", timeZone: "America/Argentina/Buenos_Aires" });
+
+/** "10% de descuento en compras desde $ 100.000, hasta $ 20.000": lo mismo que muestra Mi cuenta. */
+export function describirCupon(c: { tipo: string; valor: number; minimo: number | null; tope: number | null }): string {
+  const descuento = c.tipo === "fixed" ? `${pesos(c.valor)} de descuento` : `${Number(c.valor)}% de descuento`;
+  const desde = c.minimo && c.minimo > 0 ? ` en compras desde ${pesos(c.minimo)}` : "";
+  const hasta = c.tipo !== "fixed" && c.tope && c.tope > 0 ? `, hasta ${pesos(c.tope)}` : "";
+  return `${descuento}${desde}${hasta}`;
+}
+
+function bloqueDeCupon(cupon: CuponDelEmail, email: string, enlaceCuenta: string): string {
+  const vence = cupon.venceEn ? ` Vence el ${formatoFecha.format(new Date(cupon.venceEn))}.` : "";
+  return `<div style="margin:24px 0 0;padding:20px;border:1px dashed #17191D;border-radius:16px;">
+      <p style="margin:0 0 8px;font-size:14px;line-height:20px;color:#676B73;">Para tu próxima compra</p>
+      <p style="margin:0 0 8px;font-size:26px;line-height:32px;font-weight:bold;letter-spacing:2px;">${escapar(cupon.codigo)}</p>
+      <p style="margin:0 0 12px;font-size:15px;line-height:22px;">${escapar(describirCupon(cupon))}.${escapar(vence)}</p>
+      <p style="margin:0;font-size:14px;line-height:21px;color:#676B73;">Para usarlo, activalo en Mi cuenta: entrás con este email (${escapar(email)}) y un código que te mandamos, sin contraseña. Después lo cargás al finalizar la compra, con la sesión abierta.</p>
+      ${boton(enlaceCuenta, "Activar mi cupón")}
+    </div>`;
+}
+
+export function pedidoEntregadoHTML(params: {
+  numero: string;
+  nombre: string;
+  enlace: string;
+  enlaceArrepentimiento: string;
+  /** Cupón para la próxima compra, si está activo en el panel. */
+  cupon?: CuponDelEmail | null;
+  email?: string;
+  enlaceCuenta?: string;
+}): string {
   const cuerpo = `
     ${parrafo(`Hola ${escapar(params.nombre)}, tu compra <strong>${escapar(params.numero)}</strong> figura como entregada.`)}
     ${parrafo("Si algo no está bien, respondé este email y lo resolvemos.")}
     ${nota(`Podés arrepentirte de la compra dentro de los 10 días corridos desde hoy, sin dar motivos, con el <a href="${escapar(params.enlaceArrepentimiento)}" style="color:#17191D;">botón de arrepentimiento</a>.`)}
-    ${boton(params.enlace, "Ver mi compra")}`;
+    ${boton(params.enlace, "Ver mi compra")}
+    ${params.cupon && params.email && params.enlaceCuenta ? bloqueDeCupon(params.cupon, params.email, params.enlaceCuenta) : ""}`;
   return base("Entregamos tu pedido", cuerpo);
+}
+
+export function facturaDisponibleHTML(params: { numero: string; nombre: string; enlace: string; enlaceFactura: string }): string {
+  const cuerpo = `
+    ${parrafo(`Hola ${escapar(params.nombre)}, te mandamos la factura de tu compra <strong>${escapar(params.numero)}</strong>. Va adjunta en PDF.`)}
+    ${boton(params.enlaceFactura, "Bajar la factura")}
+    ${nota(`También la tenés en <a href="${escapar(params.enlace)}" style="color:#17191D;">tu compra</a> y en Mi cuenta. Si ves un dato mal, respondé este email.`)}`;
+  return base("Tu factura", cuerpo);
 }
 
 export function pedidoCanceladoHTML(params: { numero: string; nombre: string; motivo: string | null; pagado: boolean; enlace: string }): string {

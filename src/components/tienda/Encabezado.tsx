@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronDown, Cpu, LayoutGrid, Package, Search, ShoppingCart } from "lucide-react";
+import { ChevronDown, Cpu, LayoutGrid, Package, Search, ShoppingCart, UserRound } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 import { useCarritoDetallado } from "@/lib/tienda/carritoDetallado";
 import { encontrarCategoria, listarCategorias, rutaDeCategoria, type CategoriaPublica } from "@/lib/tienda/catalogo";
 import { formatearPesos } from "@/lib/tienda/dinero";
@@ -185,6 +186,21 @@ function MenuDeCategorias({ categorias }: { categorias: CategoriaPublica[] }) {
   );
 }
 
+/** Mi cuenta: con la sesión abierta muestra el nombre del email; sin sesión invita a entrar. */
+function AccesoACuenta() {
+  const { user } = useAuth();
+  const nombre = user?.email?.split("@")[0] ?? null;
+  return (
+    <Link to="/cuenta" className="flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl px-1.5 hover:bg-secondary" aria-label={user ? "Mi cuenta" : "Entrar a mi cuenta"}>
+      <UserRound className="h-6 w-6" aria-hidden />
+      <span className="hidden flex-col leading-tight lg:flex">
+        <span className="text-xs text-muted-foreground">{user ? "Mi cuenta" : "Tu cuenta"}</span>
+        <span className="max-w-[120px] truncate text-sm font-bold">{nombre ?? "Entrá"}</span>
+      </span>
+    </Link>
+  );
+}
+
 function AccesoAlCarrito() {
   const { unidades, subtotal } = useCarritoDetallado();
   return (
@@ -284,6 +300,7 @@ export function Encabezado() {
               <span className="text-sm font-bold">Seguila</span>
             </span>
           </Link>
+          <AccesoACuenta />
           <AccesoAlCarrito />
         </div>
       </div>

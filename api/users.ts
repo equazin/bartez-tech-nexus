@@ -802,6 +802,8 @@ async function approveRegistration(
       tax_status: request.tax_status,
       default_margin: config?.default_margin ?? 20,
     },
+    // El rol, el margen y el tipo de cliente los lee la base desde app_metadata: el navegador no puede tocarlos.
+    app_metadata: { role: "client", client_type: config?.client_type ?? "mayorista", default_margin: config?.default_margin ?? 20 },
   });
 
   if (authError || !authData?.user) {
@@ -929,6 +931,7 @@ async function handleCreateUser(req: VercelRequest, res: VercelResponse) {
     password: password as string,
     email_confirm: true,
     user_metadata: { company_name, contact_name, client_type, default_margin: Number(default_margin) || 20, role: normalizedRole, phone, email },
+    app_metadata: { role: normalizedRole, client_type, default_margin: Number(default_margin) || 20 },
   });
 
   if (authError || !authData?.user) {

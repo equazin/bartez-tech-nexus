@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { CuponDeCompra } from "./CuponDeCompra";
 import {
   Ticket, Plus, Trash2, Calendar, Percent, DollarSign,
   CheckCircle2, XCircle, TrendingUp, Users, MousePointerClick,
@@ -1496,6 +1497,7 @@ function CouponsSection({ isDark }: { isDark: boolean }) {
 
   return (
     <div className="space-y-4">
+      <CuponDeCompra />
       <div className="flex items-center justify-between">
         <p className={`text-xs ${d("text-[#525252]","text-[#a3a3a3]")}`}>
           {coupons.filter(c => c.is_active).length} activos · {coupons.reduce((a,c)=>a+c.used_count,0)} usos totales

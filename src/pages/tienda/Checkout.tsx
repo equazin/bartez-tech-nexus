@@ -1,9 +1,22 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tienda } from "@/components/tienda/Tienda";
+import { useAuth } from "@/context/AuthContext";
 import { useCarritoDetallado } from "@/lib/tienda/carritoDetallado";
+import {
+  conDireccionPrincipal,
+  cuponUsable,
+  describirCupon,
+  guardarMisDatos,
+  leerMisDatos,
+  misCupones,
+  textoDeDireccion,
+  type CuponDeLaCuenta,
+  type DireccionGuardada,
+  type MisDatos,
+} from "@/lib/tienda/cuenta";
 import { vaciarCarrito } from "@/lib/tienda/carrito";
 import { formatearPesos } from "@/lib/tienda/dinero";
 import { PROVINCIAS, cotizarEnvioADestino, textoDeDemora, type OpcionDeEnvio } from "@/lib/tienda/envios";
@@ -68,6 +81,10 @@ function validar(f: Formulario): Partial<Record<keyof Formulario, string>> {
   return errores;
 }
 
+function direccionAlFormulario(d: DireccionGuardada): Pick<Formulario, "calle" | "numero" | "piso" | "codigo_postal" | "localidad" | "provincia"> {
+  return { calle: d.calle, numero: d.numero, piso: d.piso ?? "", codigo_postal: d.codigo_postal, localidad: d.localidad, provincia: d.provincia };
+}
+
 function Campo({ etiqueta, error, children }: { etiqueta: string; error?: string; children: React.ReactNode }) {
   return (
     <label className="block space-y-1 text-sm">
@@ -81,6 +98,8 @@ function Campo({ etiqueta, error, children }: { etiqueta: string; error?: string
 export default function Checkout() {
   usarSeo("Finalizar la compra");
   const navigate = useNavigate();
+  const { pathname, search } = useLocation();
+  const { user } = useAuth();
   const [parametros] = useSearchParams();
   const { lineas, subtotal, subtotalPorMedio, serviciosElegidos, itemsDeEnvio, claveDeEnvio, cargando, listoParaComprar } = useCarritoDetallado();
   // El carrito deja elegir el medio antes de llegar acá; si viene en la URL, arranca elegido.
@@ -95,6 +114,10 @@ export default function Checkout() {
   const [enviando, setEnviando] = useState(false);
   const [errorDelServidor, setErrorDelServidor] = useState<string | null>(null);
   const [medios, setMedios] = useState<MedioDisponible[]>(MEDIOS_DE_PAGO);
+  // Con la sesión abierta: datos guardados, cupones activos y la opción de guardar lo de esta compra.
+  const [misDatos, setMisDatos] = useState<MisDatos | null>(null);
+  const [cuponesPropios, setCuponesPropios] = useState<CuponDeLaCuenta[]>([]);
+  const [guardarEnLaCuenta, setGuardarEnLaCuenta] = useState(true);
   // Cada medio tiene su precio (recargo configurable); el servidor vuelve a calcularlo al confirmar.
   const subtotalDelMedio = subtotalPorMedio[f.medio_pago] ?? subtotal;
 
@@ -111,6 +134,39 @@ export default function Checkout() {
       cancelado = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setMisDatos(null);
+      setCuponesPropios([]);
+      return;
+    }
+    let cancelado = false;
+    setF((previo) => ({ ...previo, email: user.email ?? previo.email }));
+    leerMisDatos()
+      .then((datos) => {
+        if (cancelado || !datos) return;
+        setMisDatos(datos);
+        const principal = datos.direcciones[0];
+        // Solo completa lo que está vacío: nunca pisa lo que la persona ya escribió.
+        setF((previo) => ({
+          ...previo,
+          nombre: previo.nombre || datos.nombre,
+          telefono: previo.telefono || datos.telefono,
+          documento: previo.documento || datos.documento,
+          ...(principal && !previo.calle && !previo.codigo_postal ? direccionAlFormulario(principal) : {}),
+        }));
+      })
+      .catch(() => undefined);
+    misCupones()
+      .then((lista) => {
+        if (!cancelado) setCuponesPropios(lista.filter(cuponUsable));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelado = true;
+    };
+  }, [user]);
 
   // El envío depende del destino: se cotiza cuando están el código postal, la localidad y la provincia.
   const destinoCompleto =
@@ -183,6 +239,23 @@ export default function Checkout() {
         cupon: f.cupon.trim() || undefined,
         notas: f.notas.trim() || undefined,
       });
+      if (user && guardarEnLaCuenta) {
+        const direccion: DireccionGuardada = {
+          calle: f.calle.trim(),
+          numero: f.numero.trim(),
+          piso: f.piso.trim() || undefined,
+          codigo_postal: f.codigo_postal.trim(),
+          localidad: f.localidad.trim(),
+          provincia: f.provincia,
+        };
+        // Si no se puede guardar, la compra igual sigue: es una comodidad, no parte del pedido.
+        await guardarMisDatos(user.id, {
+          nombre: f.nombre.trim(),
+          telefono: f.telefono.trim(),
+          documento: f.documento.replace(/[.\- ]/g, ""),
+          direcciones: conDireccionPrincipal(misDatos?.direcciones ?? [], direccion),
+        }).catch(() => undefined);
+      }
       vaciarCarrito();
       navigate(`/compra/${creado.id}?t=${creado.token}`, { replace: true });
     } catch (e: unknown) {
@@ -216,12 +289,25 @@ export default function Checkout() {
 
           <section className="space-y-4">
             <h2 className="text-[20px] font-bold leading-[26px]">1. Tus datos</h2>
+            {user ? (
+              <p className="text-sm text-muted-foreground">
+                Comprás con tu cuenta ({user.email}): la compra queda en <Link to="/cuenta" className="underline">Mi cuenta</Link>.
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Podés comprar sin cuenta. Si ya tenés una,{" "}
+                <Link to={`/cuenta?volver=${encodeURIComponent(pathname + search)}`} className="underline">
+                  entrá con tu email
+                </Link>{" "}
+                y completamos tus datos y tus cupones.
+              </p>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <Campo etiqueta="Nombre y apellido" error={errores.nombre}>
                 <Input value={f.nombre} onChange={(e) => cambiar("nombre", e.target.value)} autoComplete="name" />
               </Campo>
               <Campo etiqueta="Email" error={errores.email}>
-                <Input type="email" value={f.email} onChange={(e) => cambiar("email", e.target.value)} autoComplete="email" />
+                <Input type="email" value={f.email} onChange={(e) => cambiar("email", e.target.value)} autoComplete="email" readOnly={Boolean(user)} />
               </Campo>
               <Campo etiqueta="Teléfono" error={errores.telefono}>
                 <Input type="tel" value={f.telefono} onChange={(e) => cambiar("telefono", e.target.value)} autoComplete="tel" placeholder="Con código de área" />
@@ -235,6 +321,25 @@ export default function Checkout() {
           <section className="space-y-4">
             <h2 className="text-[20px] font-bold leading-[26px]">2. Envío</h2>
             <p className="text-sm text-muted-foreground">Mandamos a todo el país. El costo depende del código postal y del tamaño del paquete.</p>
+            {misDatos && misDatos.direcciones.length > 0 && (
+              <Campo etiqueta="Tus direcciones guardadas">
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const elegida = misDatos.direcciones[Number(e.target.value)];
+                    if (elegida) setF((previo) => ({ ...previo, ...direccionAlFormulario(elegida) }));
+                  }}
+                  className={CLASE_SELECT}
+                >
+                  <option value="">Elegí una para completar la dirección</option>
+                  {misDatos.direcciones.map((d, i) => (
+                    <option key={`${textoDeDireccion(d)}-${i}`} value={String(i)}>
+                      {textoDeDireccion(d)}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+            )}
             <div className="grid gap-4 sm:grid-cols-6">
               <div className="sm:col-span-4">
                 <Campo etiqueta="Calle" error={errores.calle}>
@@ -354,6 +459,23 @@ export default function Checkout() {
             <div className="grid gap-4 sm:grid-cols-2">
               <Campo etiqueta="Cupón (opcional)">
                 <Input value={f.cupon} onChange={(e) => cambiar("cupon", e.target.value.toUpperCase())} autoComplete="off" />
+                {cuponesPropios.length > 0 && (
+                  <span className="flex flex-wrap gap-2 pt-1">
+                    {cuponesPropios.map((c) => (
+                      <button
+                        key={c.codigo}
+                        type="button"
+                        onClick={() => cambiar("cupon", c.codigo)}
+                        className={cn(
+                          "rounded-chip border px-3 py-1 text-xs font-bold transition-colors",
+                          f.cupon === c.codigo ? "border-foreground bg-foreground text-background" : "border-input bg-card hover:bg-secondary",
+                        )}
+                      >
+                        Usar {c.codigo} · {describirCupon(c)}
+                      </button>
+                    ))}
+                  </span>
+                )}
               </Campo>
               <Campo etiqueta="Nota para el envío (opcional)">
                 <Input value={f.notas} onChange={(e) => cambiar("notas", e.target.value)} maxLength={300} placeholder="Horarios, referencias, portero" />
@@ -395,6 +517,12 @@ export default function Checkout() {
               <span className="tabular-nums">{formatearPesos(total)}</span>
             </div>
             <p className="text-xs text-muted-foreground">Precios finales con IVA incluido. Si cargaste un cupón, el descuento se aplica al confirmar.</p>
+            {user && (
+              <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" checked={guardarEnLaCuenta} onChange={(e) => setGuardarEnLaCuenta(e.target.checked)} className="mt-1" />
+                <span>Guardar mis datos y esta dirección en mi cuenta para la próxima compra</span>
+              </label>
+            )}
             {errorDelServidor && <p className="rounded-xl bg-error-fondo p-3 text-sm text-danger">{errorDelServidor}</p>}
             <Button type="submit" size="lg" className="w-full" disabled={enviando || !listoParaComprar || !elegida || faltaSucursal}>
               {enviando ? "Creando tu pedido" : "Confirmar la compra"}

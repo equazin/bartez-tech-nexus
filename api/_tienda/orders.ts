@@ -156,7 +156,12 @@ export async function cambiarEstadoDeLaTienda(
     const { error } = await admin.from("orders").update(patch).eq("id", pedido.id);
     if (error) return { error: error.message, estado: 500 };
     if (nuevo === "enviado") void avisarAlComprador(pedido.id, "enviado");
-    if (nuevo === "entregado") void avisarAlComprador(pedido.id, "entregado");
+    if (nuevo === "entregado") {
+      // Cupón para la próxima compra (si está activo en Marketing › Cupones): va en el email de entrega.
+      const { error: errorCupon } = await admin.rpc("tienda_emitir_cupon_de_compra", { p_order_id: pedido.id });
+      if (errorCupon) console.error("[orders] No se pudo emitir el cupón de la compra:", pedido.id, errorCupon.message);
+      void avisarAlComprador(pedido.id, "entregado");
+    }
   }
 
   await admin.from("activity_logs").insert({ user_id: userId, action: "cambiar_estado_pedido", entity_type: "order", entity_id: String(pedido.id), metadata: { de: actual, a: nuevo } });

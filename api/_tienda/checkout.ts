@@ -46,6 +46,7 @@ interface ProductoParaVender {
   cost_price: number | null;
   supplier_multiplier: number | null;
   publicado: boolean;
+  category_id: number | null;
 }
 
 interface ServicioParaVender {
@@ -80,6 +81,36 @@ interface Cupon {
   expires_at: string | null;
   client_id: string | null;
   is_active: boolean | null;
+  /** Cupón personal (el de la próxima compra): se usa solo con la sesión de la cuenta que lo activó. */
+  email_destino: string | null;
+  categorias: number[] | null;
+}
+
+interface UsuarioDeLaSesion {
+  id: string;
+  email: string | null;
+}
+
+/** La sesión del cliente, si compra con la cuenta abierta: la necesitan los cupones personales. */
+async function usuarioDeLaSesion(req: VercelRequest): Promise<UsuarioDeLaSesion | null> {
+  const bearer = req.headers.authorization;
+  const token = bearer?.startsWith("Bearer ") ? bearer.slice(7) : undefined;
+  if (!token) return null;
+  const { data } = await getSupabaseAdmin().auth.getUser(token);
+  return data.user ? { id: data.user.id, email: data.user.email ?? null } : null;
+}
+
+/** Las categorías del cupón con sus subcategorías (hasta tres niveles). */
+async function categoriasConHijas(supabase: ReturnType<typeof getSupabaseAdmin>, raices: number[]): Promise<Set<number>> {
+  const todas = new Set(raices.map(Number));
+  let nivel = [...todas];
+  for (let i = 0; i < 3 && nivel.length > 0; i += 1) {
+    const { data, error } = await supabase.from("categories").select("id").in("parent_id", nivel);
+    if (error) throw new Error(`No se pudieron leer las categorías del cupón: ${error.message}`);
+    nivel = ((data ?? []) as Array<{ id: number }>).map((c) => Number(c.id)).filter((id) => !todas.has(id));
+    for (const id of nivel) todas.add(id);
+  }
+  return todas;
 }
 
 const aDosDecimales = (n: number): number => Math.round(n * 100) / 100;
@@ -104,7 +135,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "OPTIONS") {
     origenPermitido(req, res);
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     return res.status(204).end();
   }
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
@@ -123,7 +154,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const resultado = await crearPedido(pedido);
+    const resultado = await crearPedido(pedido, await usuarioDeLaSesion(req));
     return ok(res, resultado, 201);
   } catch (e: unknown) {
     const mensaje = e instanceof Error ? e.message : "No se pudo crear el pedido.";
@@ -133,7 +164,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; numero: string; token: string }> {
+async function crearPedido(pedido: PedidoDeLaTienda, usuario: UsuarioDeLaSesion | null): Promise<{ id: number; numero: string; token: string }> {
   const supabase = getSupabaseAdmin();
 
   const { data: medio } = await supabase.from("medios_de_pago").select("id, activo, margen_porcentaje").eq("id", pedido.medio_pago).maybeSingle();
@@ -151,7 +182,7 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
 
   const { data: productosCrudos, error: errorProductos } = await supabase
     .from("products")
-    .select("id, name, name_custom, name_original, sku, active, publicado, stock, stock_reserved, precio_final_ars, iva_rate, weight_kg, cost_price, supplier_multiplier")
+    .select("id, name, name_custom, name_original, sku, active, publicado, stock, stock_reserved, precio_final_ars, iva_rate, weight_kg, cost_price, supplier_multiplier, category_id")
     .in("id", ids);
   if (errorProductos) throw new Error(`No se pudieron leer los productos: ${errorProductos.message}`);
   const productos = new Map<number, ProductoParaVender>();
@@ -171,6 +202,8 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
   const items: Array<Record<string, unknown>> = [];
   const lineasDelEmail: Array<{ nombre: string; cantidad: number; precioFinal: number }> = [];
   let subtotal = 0;
+  // Lo que suma cada categoría: un cupón puede valer solo para algunas.
+  const subtotalPorCategoria = new Map<number, number>();
 
   for (const [productoId, cantidad] of cantidades) {
     const p = productos.get(productoId);
@@ -185,6 +218,7 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
     const costoPesos = aDosDecimales((p.cost_price ?? 0) * (p.supplier_multiplier ?? 1) * (dolar ?? 0));
 
     subtotal += precioFinal * cantidad;
+    if (p.category_id !== null) subtotalPorCategoria.set(Number(p.category_id), (subtotalPorCategoria.get(Number(p.category_id)) ?? 0) + precioFinal * cantidad);
     items.push({
       product_id: p.id,
       name: nombreDe(p),
@@ -270,13 +304,27 @@ async function crearPedido(pedido: PedidoDeLaTienda): Promise<{ id: number; nume
     const c = cupon as Cupon | null;
     const vigente = c && c.is_active !== false && (!c.expires_at || new Date(c.expires_at) > new Date());
     const conUsos = c && (!c.max_uses || (c.used_count ?? 0) < c.max_uses);
-    const paraTodos = c && !c.client_id;
     const alcanza = c && subtotal >= (c.min_purchase ?? 0);
-    if (!c || !vigente || !conUsos || !paraTodos) throw new Error("El cupón no es válido o ya venció.");
+    if (!c || !vigente || !conUsos) throw new Error("El cupón no es válido o ya venció.");
+    if (c.email_destino) {
+      // Cupón personal: lo usa solo la cuenta que lo activó, con la sesión abierta.
+      if (!c.client_id) throw new Error("Ese cupón todavía no está activado: entrá a Mi cuenta con el email de la compra y activalo.");
+      if (!usuario || usuario.id !== c.client_id) throw new Error("Ese cupón es personal: entrá a tu cuenta para usarlo.");
+    } else if (c.client_id) {
+      // Los cupones con cliente del portal mayorista no valen en la tienda.
+      throw new Error("El cupón no es válido o ya venció.");
+    }
     if (!alcanza) throw new Error(`El cupón vale para compras desde ${new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(c.min_purchase ?? 0)}.`);
-    descuento = c.discount_type === "fixed" ? Number(c.discount_value) : (subtotal * Number(c.discount_value)) / 100;
+    // La base del descuento: todo el subtotal, o solo lo de las categorías del cupón.
+    let base = subtotal;
+    if (c.categorias && c.categorias.length > 0) {
+      const validas = await categoriasConHijas(supabase, c.categorias);
+      base = aDosDecimales([...subtotalPorCategoria].reduce((suma, [categoria, monto]) => (validas.has(categoria) ? suma + monto : suma), 0));
+      if (base <= 0) throw new Error("El cupón vale solo para productos de otras categorías.");
+    }
+    descuento = c.discount_type === "fixed" ? Number(c.discount_value) : (base * Number(c.discount_value)) / 100;
     if (c.max_discount && descuento > Number(c.max_discount)) descuento = Number(c.max_discount);
-    descuento = aDosDecimales(Math.min(descuento, subtotal));
+    descuento = aDosDecimales(Math.min(descuento, base));
     cuponId = c.id;
   }
 

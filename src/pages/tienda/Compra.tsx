@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tienda } from "@/components/tienda/Tienda";
 import { NoEncontrado } from "@/components/tienda/NoEncontrado";
+import { ExtrasDeLaCompra } from "@/components/tienda/ExtrasDeLaCompra";
 import { ResumenDeCompra } from "@/components/tienda/ResumenDeCompra";
 import { formatearPesos } from "@/lib/tienda/dinero";
 import { crearPreferencia, datosDeTransferencia, type DatosDeTransferencia } from "@/lib/tienda/pagos";
@@ -168,7 +169,13 @@ export default function Compra() {
       <div className="container mx-auto space-y-6 px-4 py-8">
         <div className="space-y-2">
           <h1 className="text-[40px] font-bold leading-[44px] tracking-[-1px]">{pedido.estado === "pagado" ? "Pago acreditado" : "Gracias por tu compra"}</h1>
-          <p className="text-muted-foreground">Te mandamos el detalle a {pedido.comprador.email}. Guardá este enlace para volver a ver tu compra.</p>
+          <p className="text-muted-foreground">
+            Te mandamos el detalle a {pedido.comprador.email}. Guardá este enlace o entrá a{" "}
+            <Link to="/cuenta" className="underline">
+              Mi cuenta
+            </Link>{" "}
+            con ese email para volver a verla.
+          </p>
         </div>
         {pedido.estado === "pendiente_pago" && pedido.medio_pago === "mercadopago" && <PagarConMercadoPago pedido={pedido} token={token} vuelta={vuelta} />}
         {pedido.estado === "pendiente_pago" && pedido.medio_pago === "transferencia" && <PagarPorTransferencia pedido={pedido} token={token} />}
@@ -177,6 +184,7 @@ export default function Compra() {
             Venció el plazo para pagar y liberamos el stock. Si ya transferiste, respondé el email de la compra con el comprobante y lo revisamos.
           </div>
         )}
+        <ExtrasDeLaCompra pedido={pedido} token={token} />
         <ResumenDeCompra pedido={pedido} />
       </div>
     </Tienda>

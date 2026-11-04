@@ -70,19 +70,35 @@ export function ResumenDeCompra({ pedido }: { pedido: PedidoPublico }) {
 
         {pedido.direccion && (
           <div className="space-y-1 rounded-2xl border border-border bg-card p-6 text-sm">
-            <p className="font-bold">Envío a domicilio</p>
-            <p>
-              {pedido.direccion.calle} {pedido.direccion.numero}
-              {pedido.direccion.piso ? `, ${pedido.direccion.piso}` : ""}
-            </p>
-            <p>
-              {pedido.direccion.localidad}, {pedido.direccion.provincia} (CP {pedido.direccion.codigo_postal})
-            </p>
+            {pedido.envio_opcion === "sucursal" ? (
+              <>
+                <p className="font-bold">Retiro en sucursal del transporte</p>
+                <p>{pedido.sucursal ?? "Sucursal a confirmar"}</p>
+              </>
+            ) : (
+              <>
+                <p className="font-bold">Envío a domicilio</p>
+                <p>
+                  {pedido.direccion.calle} {pedido.direccion.numero}
+                  {pedido.direccion.piso ? `, ${pedido.direccion.piso}` : ""}
+                </p>
+                <p>
+                  {pedido.direccion.localidad}, {pedido.direccion.provincia} (CP {pedido.direccion.codigo_postal})
+                </p>
+              </>
+            )}
             {demora && <p className="text-muted-foreground">{demora} desde que se acredita el pago.</p>}
             {pedido.seguimiento && (
               <p className="text-muted-foreground">
                 Seguimiento {pedido.transporte ? `${pedido.transporte} ` : ""}
                 <span className="font-mono">{pedido.seguimiento}</span>
+              </p>
+            )}
+            {pedido.seguimiento_url && (
+              <p>
+                <a href={pedido.seguimiento_url} target="_blank" rel="noreferrer" className="font-bold underline">
+                  Seguir el envío
+                </a>
               </p>
             )}
           </div>

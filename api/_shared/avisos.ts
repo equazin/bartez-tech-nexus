@@ -81,9 +81,41 @@ export async function avisarAlComprador(orderId: number, tipo: TipoDeAviso, extr
           sucursal: pedido.envio_detalle?.opcion === "sucursal" ? (pedido.envio_detalle.sucursal ?? null) : null,
         });
         break;
-      case "entregado":
-        html = pedidoEntregadoHTML({ numero: pedido.order_number, nombre, enlace, enlaceArrepentimiento: `${base}/arrepentimiento` });
+      case "entregado": {
+        // El cupón para la próxima compra lo emite cambiarEstadoDeLaTienda antes de este aviso (si está activo).
+        const { data: cupon } = await supabase
+          .from("coupons")
+          .select("code, discount_type, discount_value, min_purchase, max_discount, expires_at")
+          .eq("origen_order_id", pedido.id)
+          .maybeSingle();
+        const c = cupon as {
+          code: string;
+          discount_type: "percentage" | "fixed";
+          discount_value: number;
+          min_purchase: number | null;
+          max_discount: number | null;
+          expires_at: string | null;
+        } | null;
+        html = pedidoEntregadoHTML({
+          numero: pedido.order_number,
+          nombre,
+          enlace,
+          enlaceArrepentimiento: `${base}/arrepentimiento?compra=${encodeURIComponent(pedido.order_number)}`,
+          cupon: c
+            ? {
+                codigo: c.code,
+                tipo: c.discount_type,
+                valor: Number(c.discount_value),
+                minimo: c.min_purchase === null ? null : Number(c.min_purchase),
+                tope: c.max_discount === null ? null : Number(c.max_discount),
+                venceEn: c.expires_at,
+              }
+            : null,
+          email: pedido.comprador_email ?? undefined,
+          enlaceCuenta: `${base}/cuenta?cupon=${c ? encodeURIComponent(c.code) : ""}`,
+        });
         break;
+      }
       case "cancelado":
         html = pedidoCanceladoHTML({ numero: pedido.order_number, nombre, motivo: extra.motivo ?? null, pagado: Boolean(pedido.pagado_en), enlace });
         break;

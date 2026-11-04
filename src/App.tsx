@@ -24,6 +24,7 @@ const Vista = lazy(() => import("./pages/tienda/Vista"));
 const Carrito = lazy(() => import("./pages/tienda/Carrito"));
 const Checkout = lazy(() => import("./pages/tienda/Checkout"));
 const Compra = lazy(() => import("./pages/tienda/Compra"));
+const Cuenta = lazy(() => import("./pages/tienda/Cuenta"));
 const Seguimiento = lazy(() => import("./pages/tienda/Seguimiento"));
 const Arrepentimiento = lazy(() => import("./pages/tienda/Arrepentimiento"));
 const Ayuda = lazy(() => import("./pages/tienda/Ayuda"));
@@ -125,6 +126,7 @@ const App = () => (
                       <Route path="/cart" element={<Navigate to="/carrito" replace />} />
                       <Route path="/checkout" element={<Checkout />} />
                       <Route path="/compra/:id" element={<Compra />} />
+                      <Route path="/cuenta" element={<Cuenta />} />
                       <Route path="/seguimiento" element={<Seguimiento />} />
                       <Route path="/arrepentimiento" element={<Arrepentimiento />} />
                       <Route path="/ayuda" element={<Ayuda />} />
