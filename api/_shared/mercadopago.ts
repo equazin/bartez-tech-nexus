@@ -106,8 +106,17 @@ function aPago(r: Record<string, unknown>, id: string): PagoDeMercadoPago {
       payment_type_id: r.payment_type_id ?? null,
       date_approved: r.date_approved ?? null,
       date_created: r.date_created ?? null,
+      // Lo que cobra Mercado Pago por este pago (comisión y costo de las cuotas sin interés) y lo que queda acreditado.
+      comision: comisionDe(r.fee_details),
+      neto_recibido: aMonto((r.transaction_details as Record<string, unknown> | undefined)?.net_received_amount),
     },
   };
+}
+
+function comisionDe(fees: unknown): number | null {
+  if (!Array.isArray(fees)) return null;
+  const montos = fees.map((f) => aMonto((f as Record<string, unknown> | null)?.amount)).filter((m): m is number => m !== null);
+  return montos.length ? Math.round(montos.reduce((s, m) => s + m, 0) * 100) / 100 : null;
 }
 
 export interface PreferenciaNueva {

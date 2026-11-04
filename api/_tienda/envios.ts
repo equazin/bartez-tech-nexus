@@ -63,6 +63,8 @@ export interface OpcionDeEnvio {
   transporte: string | null;
   sucursales?: Array<{ id: number; nombre: string; direccion: string; horario: string | null }>;
   zipnova: DatosParaZipnova | null;
+  /** Lo que le cuesta el envío a Teqo (con IVA), aunque al cliente le salga gratis; nulo si no se sabe. Uso interno. */
+  costo: number | null;
 }
 
 interface ConfiguracionDeZipnova {
@@ -182,7 +184,7 @@ export async function opcionesDeEnvio(supabase: Supabase, items: ItemDelEnvio[],
 
   // Solo productos de un mayorista directo: su tarifa plana, a domicilio.
   if (propios.length === 0 && directo) {
-    return [{ id: "domicilio", precio: gratis ? 0 : directo.precio, gratis, demora_dias_min: directo.min, demora_dias_max: directo.max, entrega_estimada: null, transporte: null, zipnova: null }];
+    return [{ id: "domicilio", precio: gratis ? 0 : directo.precio, gratis, demora_dias_min: directo.min, demora_dias_max: directo.max, entrega_estimada: null, transporte: null, zipnova: null, costo: directo.precio }];
   }
 
   if (!zipnovaListo(zipnova)) {
@@ -191,7 +193,9 @@ export async function opcionesDeEnvio(supabase: Supabase, items: ItemDelEnvio[],
     if (error) throw new Error(`No se pudo cotizar el envío: ${error.message}`);
     const fila = (Array.isArray(data) ? data[0] : data) as { precio: number | null; demora_dias_min: number | null; demora_dias_max: number | null; gratis: boolean; disponible: boolean } | null;
     if (!fila?.disponible || fila.precio === null) return [];
-    return [{ id: "domicilio", precio: numero(fila.precio), gratis: Boolean(fila.gratis), demora_dias_min: fila.demora_dias_min, demora_dias_max: fila.demora_dias_max, entrega_estimada: null, transporte: null, zipnova: null }];
+    // La tarifa por peso es lo que cuesta el envío; con envío gratis no queda registrada.
+    const costo = fila.gratis ? null : numero(fila.precio);
+    return [{ id: "domicilio", precio: numero(fila.precio), gratis: Boolean(fila.gratis), demora_dias_min: fila.demora_dias_min, demora_dias_max: fila.demora_dias_max, entrega_estimada: null, transporte: null, zipnova: null, costo }];
   }
 
   const resultados = (
@@ -234,6 +238,8 @@ export async function opcionesDeEnvio(supabase: Supabase, items: ItemDelEnvio[],
             }))
           : undefined,
       zipnova: { carrier_id: r.carrier.id, transporte: r.carrier.name, service_type: r.service_type.code, logistic_type: r.logistic_type, precio_zipnova: precioDe(r) },
+      // Con un carrito mezclado se pagan los dos envíos: Zipnova y la tarifa plana del mayorista directo.
+      costo: precioDe(r) + (directo?.precio ?? 0),
     });
   }
   return opciones;
@@ -241,7 +247,7 @@ export async function opcionesDeEnvio(supabase: Supabase, items: ItemDelEnvio[],
 
 /** Lo que ve el navegador: sin los datos internos para crear el envío. */
 const paraElPublico = (o: OpcionDeEnvio) => {
-  const { zipnova: _interno, ...resto } = o;
+  const { zipnova: _interno, costo: _costo, ...resto } = o;
   return resto;
 };
 

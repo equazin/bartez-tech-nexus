@@ -35,6 +35,7 @@ import { BulkDeleteProducts } from "@/components/admin/BulkDeleteProducts";
 import { ErrorBoundary } from "@/components/admin/ErrorBoundary";
 import { CreateOrderModal } from "@/components/admin/CreateOrderModal";
 import { NotificationBell } from "@/components/admin/NotificationBell";
+import { PedidoDeLaTienda, type PedidoDeLaTiendaFila } from "@/components/admin/PedidoDeLaTienda";
 import { AdminSearch } from "@/components/admin/AdminSearch";
 import { logActivity } from "@/lib/api/activityLog";
 import { whatsappNotifications } from "@/lib/api/whatsappNotifications";
@@ -71,6 +72,7 @@ import {
 
 interface SupabaseOrder {
   id: string;
+  /** Nulo en las compras de la tienda (origen = 'tienda'): el comprador va en comprador_nombre. */
   client_id: string;
   products: OrderProduct[];
   total: number;
@@ -80,7 +82,13 @@ interface SupabaseOrder {
   shipping_provider?: string;
   tracking_number?: string;
   created_at: string;
+  origen?: string | null;
+  comprador_nombre?: string | null;
 }
+
+/** Las compras de la tienda se guardan en pesos: se muestran en pesos, sin pasar por el dólar del panel. */
+const formatPesosDeLaTienda = (monto: number) =>
+  new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(Number(monto));
 
 interface ClientProfile {
   id: string;
@@ -1718,7 +1726,7 @@ async function handleCreateSeller() {
                 total_orders: orders.filter(o => o.client_id === c.id).length,
                 last_order_date: orders.filter(o => o.client_id === c.id).sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]?.created_at
               }))}
-              orders={orders}
+              orders={orders.filter((o) => o.client_id)}
               isDark={isDark}
               onNavigate={(tab) => navigateTab(tab as Tab)}
             />
@@ -2410,6 +2418,16 @@ async function handleCreateSeller() {
                       </p>
                       <div className="flex justify-between items-center mt-2">
                         <span className={`text-xs ${dk("text-gray-500", "text-[#a3a3a3]")}`}>{order.products?.length} items</span>
+                        {order.origen === "tienda" ? (
+                          <div className="text-right">
+                            <span className={`font-bold text-sm ${dk("text-white", "text-[#171717]")}`}>
+                              {formatPesosDeLaTienda(order.total)}
+                            </span>
+                            <span className={`block text-[10px] ${dk("text-[#525252]", "text-[#a3a3a3]")}`}>
+                              Tienda · {order.comprador_nombre ?? "comprador"}
+                            </span>
+                          </div>
+                        ) : (
                         <div className="text-right">
                           <span className={`font-bold text-sm ${dk("text-white", "text-[#171717]")}`}>
                             {formatPrice(order.total)}
@@ -2418,6 +2436,7 @@ async function handleCreateSeller() {
                             ≈ {(order.total * exchangeRate.rate).toLocaleString("es-AR", { maximumFractionDigits: 0 })} ARS
                           </span>
                         </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -2479,6 +2498,10 @@ async function handleCreateSeller() {
                   {new Date(selectedOrder.created_at).toLocaleDateString("es-AR", { dateStyle: "full" })}
                 </p>
 
+                {selectedOrder.origen === "tienda" ? (
+                  <PedidoDeLaTienda pedido={selectedOrder as unknown as PedidoDeLaTiendaFila} />
+                ) : (
+                <>
                 <table className="w-full text-sm mb-4">
                   <thead>
                     <tr className={`border-b ${dk("border-[#333]", "border-[#e5e5e5]")}`}>
@@ -2544,6 +2567,8 @@ async function handleCreateSeller() {
                     </div>
                   </div>
                 </div>
+                </>
+                )}
 
                 <div className={`mb-5 p-4 rounded-xl border ${dk("bg-[#0d0d0d] border-[#1a1a1a]", "bg-[#f9f9f9] border-[#e5e5e5]")}`}>
                   <div className="flex items-center gap-2 mb-3">

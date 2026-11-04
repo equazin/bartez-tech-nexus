@@ -26,6 +26,8 @@ interface PedidoParaAvisar {
   shipping_transport: string | null;
   envio_seguimiento_url: string | null;
   envio_detalle: { opcion?: string; sucursal?: string | null } | null;
+  payment_method: string | null;
+  shipping_address: string | null;
 }
 
 const ASUNTOS: Record<TipoDeAviso, string> = {
@@ -50,7 +52,7 @@ export async function avisarAlComprador(orderId: number, tipo: TipoDeAviso, extr
     const supabase = getSupabaseAdmin();
     const { data } = await supabase
       .from("orders")
-      .select("id, order_number, status, origen, total, comprador_email, comprador_nombre, token_acceso, tracking_number, shipping_provider, envio_demora_dias_min, envio_demora_dias_max, pagado_en, shipping_transport, envio_seguimiento_url, envio_detalle")
+      .select("id, order_number, status, origen, total, comprador_email, comprador_nombre, token_acceso, tracking_number, shipping_provider, envio_demora_dias_min, envio_demora_dias_max, pagado_en, shipping_transport, envio_seguimiento_url, envio_detalle, payment_method, shipping_address")
       .eq("id", orderId)
       .maybeSingle();
     const pedido = data as PedidoParaAvisar | null;
@@ -127,7 +129,34 @@ export async function avisarAlComprador(orderId: number, tipo: TipoDeAviso, extr
       subject: sanitizeHeaderText(ASUNTOS[tipo].replace("{numero}", pedido.order_number), "Novedades de tu compra"),
       html,
     });
+    if (tipo === "pago_acreditado") await avisarAlAdmin(pedido, base);
   } catch (e: unknown) {
     console.error("[avisos]", tipo, orderId, e instanceof Error ? e.message : e);
+  }
+}
+
+const MEDIOS: Record<string, string> = { mercadopago: "Mercado Pago", transferencia: "transferencia" };
+
+/** Al admin, cuando se acredita el pago de una compra de la tienda: hay que prepararla. Nunca tira. */
+async function avisarAlAdmin(pedido: PedidoParaAvisar, base: string): Promise<void> {
+  try {
+    const pesos = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(Number(pedido.total));
+    const medio = MEDIOS[pedido.payment_method ?? ""] ?? pedido.payment_method ?? "sin dato";
+    await createMailerTransport().sendMail({
+      from: `"Teqo" <${getDefaultFromEmail()}>`,
+      to: process.env.ADMIN_EMAIL?.trim() || getDefaultFromEmail(),
+      subject: sanitizeHeaderText(`Pago acreditado: ${pedido.order_number} por ${pesos}`, "Pago acreditado"),
+      text: [
+        `Se acreditó el pago de la compra ${pedido.order_number}: ${pesos} con ${medio}.`,
+        "",
+        `Comprador: ${pedido.comprador_nombre ?? "sin nombre"} (${pedido.comprador_email ?? "sin email"})`,
+        `Envío: ${pedido.shipping_address ?? "sin dirección"}`,
+        "",
+        `La ves en el panel, en Pedidos: ${base}/admin`,
+        "Ahí están el proveedor, los costos y la ganancia de la compra.",
+      ].join("\n"),
+    });
+  } catch (e: unknown) {
+    console.error("[avisos] admin", pedido.id, e instanceof Error ? e.message : e);
   }
 }

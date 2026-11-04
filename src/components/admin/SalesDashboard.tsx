@@ -33,7 +33,10 @@ import { OperationalAlerts } from "@/components/admin/OperationalAlerts";
 // ── Types ──────────────────────────────────────────────────────────────────
 interface SupabaseOrder {
   id: string;
-  client_id: string;
+  /** Nulo en las compras de la tienda: el comprador va en comprador_nombre. */
+  client_id: string | null;
+  comprador_nombre?: string | null;
+  origen?: string | null;
   order_number?: string;
   products: Array<{ name: string; quantity: number; unit_price?: number; total_price?: number; margin?: number }>;
   total: number;
@@ -372,7 +375,8 @@ function ActivityFeed({
 }: { orders: SupabaseOrder[]; quotes: Quote[]; clients: ClientProfile[]; isDark: boolean }) {
   const { formatPrice } = useCurrency();
 
-  const clientName = (id: string) => {
+  const clientName = (id: string | null, comprador?: string | null) => {
+    if (!id) return comprador || "Compra de la tienda";
     const c = clients.find((cl) => cl.id === id);
     return c?.company_name || c?.contact_name || `${id.slice(0, 8)}...`;
   };
@@ -415,7 +419,7 @@ function ActivityFeed({
                         Pedido #{String(o.id).slice(-6).toUpperCase()}
                       </p>
                       <p className="truncate text-[11px] text-muted-foreground">
-                        {clientName(o.client_id)} ? {item.date.toLocaleDateString("es-AR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        {clientName(o.client_id, o.comprador_nombre)} · {item.date.toLocaleDateString("es-AR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                       </p>
                     </div>
                   </div>
@@ -804,6 +808,7 @@ function ClientsProfitabilityPanel({
     >();
 
     orders.forEach((order) => {
+      if (!order.client_id) return;
       const metrics = calculateOrderProfitability(order);
       if (metrics.cost <= 0) return;
 
@@ -1924,6 +1929,7 @@ export function SalesDashboard({ orders, clients, isDark, onRefreshOrders, onOpe
     const byClient = new Map<string, { current: number; previous: number }>();
 
     approvedOrders.forEach((order) => {
+      if (!order.client_id) return;
       const bucket = byClient.get(order.client_id) ?? { current: 0, previous: 0 };
       if (order.created_at.startsWith(currentMonth)) bucket.current += order.total;
       if (order.created_at.startsWith(previousMonth)) bucket.previous += order.total;

@@ -188,10 +188,17 @@ async function crearPedido(pedido: PedidoDeLaTienda, usuario: UsuarioDeLaSesion 
   const productos = new Map<number, ProductoParaVender>();
   for (const p of (productosCrudos ?? []) as ProductoParaVender[]) productos.set(p.id, p);
 
-  const [{ data: dolarCrudo }, { data: configuracion }] = await Promise.all([
+  const [{ data: dolarCrudo }, { data: configuracion }, { data: proveedoresCrudos }] = await Promise.all([
     supabase.rpc("dolar_vigente"),
     supabase.from("tienda_configuracion").select("clave, valor").in("clave", ["peso_por_defecto_kg", "redondeo_pesos"]),
+    // El proveedor de cada producto (el preferido) queda en la línea del pedido: el panel muestra a quién comprarle.
+    supabase.from("product_suppliers").select("product_id, supplier_id, suppliers(name)").in("product_id", ids).eq("is_preferred", true).eq("active", true),
   ]);
+  const proveedorDe = new Map<number, { id: string; nombre: string | null }>();
+  for (const fila of (proveedoresCrudos ?? []) as Array<{ product_id: number; supplier_id: string; suppliers: { name: string | null } | Array<{ name: string | null }> | null }>) {
+    const proveedor = Array.isArray(fila.suppliers) ? fila.suppliers[0] : fila.suppliers;
+    if (!proveedorDe.has(fila.product_id)) proveedorDe.set(fila.product_id, { id: fila.supplier_id, nombre: proveedor?.name ?? null });
+  }
   const dolar = typeof dolarCrudo === "number" ? dolarCrudo : Number(dolarCrudo ?? 0) || null;
   // Mismo redondeo que tienda_redondear en la base, para que el precio cobrado sea el que se mostró.
   const redondeo = Math.max(Number((configuracion ?? []).find((c: { clave: string; valor: unknown }) => c.clave === "redondeo_pesos")?.valor ?? 10) || 10, 1);
@@ -233,6 +240,8 @@ async function crearPedido(pedido: PedidoDeLaTienda, usuario: UsuarioDeLaSesion 
       costo_pesos: costoPesos,
       dolar,
       costo_moneda: "USD",
+      proveedor_id: proveedorDe.get(p.id)?.id ?? null,
+      proveedor: proveedorDe.get(p.id)?.nombre ?? null,
     });
     lineasDelEmail.push({ nombre: nombreDe(p), cantidad, precioFinal });
   }
@@ -358,6 +367,8 @@ async function crearPedido(pedido: PedidoDeLaTienda, usuario: UsuarioDeLaSesion 
         transporte: envio.transporte,
         entrega_estimada: envio.entrega_estimada,
         zipnova: envio.zipnova,
+        // Lo que le cuesta el envío a Teqo, para la ganancia del pedido en el panel (nunca sale al comprador).
+        costo: envio.costo,
         cotizado_en: new Date().toISOString(),
       },
       shipping_transport: envio.transporte,
