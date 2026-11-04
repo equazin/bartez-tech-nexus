@@ -1,34 +1,47 @@
 import type { ProductoPublico } from "@/lib/tienda/catalogo";
 import { formatearPesos } from "@/lib/tienda/dinero";
-import { mejorPlan, useCuotas } from "@/lib/tienda/cuotas";
+import { esSinInteres, mejorPlan, mejorSinInteres, useCuotas } from "@/lib/tienda/cuotas";
 import { MEDIO_CON_CUOTAS, nombreCortoDeMedio, preciosDe } from "@/lib/tienda/precios";
 import { cn } from "@/lib/utils";
 
 const formatoTasa = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 });
 
-/** Las cuotas de Mercado Pago para un monto: el plan de más cuotas y, en detalle, todos los planes. */
+/**
+ * Las cuotas de Mercado Pago para un monto. Si la cuenta ofrece cuotas sin interés, se destaca el plan sin interés
+ * con más cuotas; si no, el plan con más cuotas. En detalle, todos los planes de esa tarjeta.
+ */
 export function Cuotas({ monto, detallado }: { monto: number; detallado: boolean }) {
   const cuotas = useCuotas(monto);
   if (!cuotas || cuotas.origen === "sin_datos") return null;
   const mejor = mejorPlan(cuotas);
   if (!mejor) return null;
-  const { plan } = mejor;
+  const sinInteres = mejorSinInteres(cuotas);
+  const destacado = sinInteres ?? mejor;
+  const { plan } = destacado;
+  const masCuotasConInteres = sinInteres !== null && mejor.plan.cuotas > sinInteres.plan.cuotas ? mejor.plan.cuotas : null;
   return (
     <div className="space-y-1">
-      <p className="text-sm">
-        Hasta <span className="font-bold tabular-nums">{plan.cuotas} cuotas</span> de <span className="font-bold tabular-nums">{formatearPesos(plan.monto_cuota)}</span>
-      </p>
+      {sinInteres ? (
+        <p className="text-sm">
+          <span className="font-bold tabular-nums">{plan.cuotas} cuotas sin interés</span> de <span className="font-bold tabular-nums">{formatearPesos(plan.monto_cuota)}</span>
+        </p>
+      ) : (
+        <p className="text-sm">
+          Hasta <span className="font-bold tabular-nums">{plan.cuotas} cuotas</span> de <span className="font-bold tabular-nums">{formatearPesos(plan.monto_cuota)}</span>
+        </p>
+      )}
       <p className="text-xs text-muted-foreground">
         Total {formatearPesos(plan.total)} · CFTEA {formatoTasa.format(plan.cftea)} % · TEA {formatoTasa.format(plan.tea)} %
       </p>
+      {masCuotasConInteres !== null && !detallado && <p className="text-xs text-muted-foreground">O hasta {masCuotasConInteres} cuotas con interés.</p>}
       {detallado && (
         <ul className="mt-2 divide-y divide-border rounded-xl border border-border text-sm">
-          {mejor.tarjeta.planes
+          {destacado.tarjeta.planes
             .filter((p) => p.cuotas >= 2)
             .map((p) => (
               <li key={p.cuotas} className="flex items-center justify-between gap-3 px-3 py-2 tabular-nums">
                 <span>
-                  {p.cuotas} cuotas de {formatearPesos(p.monto_cuota)}
+                  {p.cuotas} cuotas {esSinInteres(p) ? <span className="font-bold">sin interés</span> : null} de {formatearPesos(p.monto_cuota)}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   Total {formatearPesos(p.total)} · CFTEA {formatoTasa.format(p.cftea)} %
@@ -37,14 +50,26 @@ export function Cuotas({ monto, detallado }: { monto: number; detallado: boolean
             ))}
         </ul>
       )}
-      {detallado && <p className="text-xs text-muted-foreground">Planes de {mejor.tarjeta.nombre} con Mercado Pago. Otras tarjetas pueden ofrecer otras cuotas al pagar.</p>}
+      {detallado && <p className="text-xs text-muted-foreground">Planes de {destacado.tarjeta.nombre} con Mercado Pago. Otras tarjetas pueden ofrecer otras cuotas al pagar.</p>}
     </div>
   );
 }
 
-/** "hasta 12 cuotas de $ 57.812", en una línea, para las tarjetas. Sin datos de cuotas no muestra nada. */
+/**
+ * "3 cuotas sin interés de $ 55.390" si la cuenta las ofrece, o "hasta 12 cuotas de $ 57.812", en una línea, para
+ * las tarjetas. Sin datos de cuotas no muestra nada.
+ */
 export function CuotasBreves({ monto }: { monto: number }) {
   const cuotas = useCuotas(monto);
+  const sinInteres = cuotas ? mejorSinInteres(cuotas) : null;
+  if (sinInteres) {
+    return (
+      <span className="text-xs text-muted-foreground">
+        <span className="font-bold text-foreground tabular-nums">{sinInteres.plan.cuotas} cuotas sin interés</span> de{" "}
+        <span className="tabular-nums">{formatearPesos(sinInteres.plan.monto_cuota)}</span>
+      </span>
+    );
+  }
   const mejor = cuotas ? mejorPlan(cuotas) : null;
   if (!mejor || mejor.plan.cuotas < 2) return null;
   return (

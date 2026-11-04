@@ -55,6 +55,22 @@ export function mejorPlan(cuotas: CuotasDeLaTienda): { tarjeta: TarjetaConCuotas
   return mejor;
 }
 
+/** Un plan sin interés: Mercado Pago lo informa con TEA y CFTEA en 0 %. Sale solo si está activado en la cuenta. */
+export function esSinInteres(plan: PlanDeCuotas): boolean {
+  return plan.cuotas >= 2 && plan.tea === 0 && plan.cftea === 0;
+}
+
+/** El plan sin interés con más cuotas entre todas las tarjetas; sin ninguno, null. */
+export function mejorSinInteres(cuotas: CuotasDeLaTienda): { tarjeta: TarjetaConCuotas; plan: PlanDeCuotas } | null {
+  let mejor: { tarjeta: TarjetaConCuotas; plan: PlanDeCuotas } | null = null;
+  for (const tarjeta of cuotas.tarjetas) {
+    for (const plan of tarjeta.planes) {
+      if (esSinInteres(plan) && (!mejor || plan.cuotas > mejor.plan.cuotas)) mejor = { tarjeta, plan };
+    }
+  }
+  return mejor;
+}
+
 export function useCuotas(monto: number | null | undefined): CuotasDeLaTienda | null {
   const [cuotas, setCuotas] = useState<CuotasDeLaTienda | null>(null);
   useEffect(() => {

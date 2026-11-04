@@ -82,7 +82,9 @@ function leerPlan(elemento: unknown, monto: number): PlanDeCuotas | null {
   const maximo = numero(costo.max_allowed_amount);
   if (minimo !== null && monto < minimo) return null;
   if (maximo !== null && maximo > 0 && monto > maximo) return null;
-  const tasas = leerTasas(costo.labels);
+  // Sin etiqueta de tasas, un plan sin recargo (tasa 0 y total igual al monto) es sin interés: CFTEA y TEA 0 %.
+  const sinRecargo = numero(costo.installment_rate) === 0 && Math.abs(total - monto) <= 1;
+  const tasas = leerTasas(costo.labels) ?? (sinRecargo ? { cftea: 0, tea: 0 } : null);
   if (!tasas) return null;
   // Un CFTEA nunca es menor que la TEA del mismo plan; si lo es, la etiqueta no trae un CFTEA real.
   if (tasas.cftea < tasas.tea) return null;

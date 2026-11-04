@@ -51,6 +51,7 @@ export default function Ayuda() {
           <Seccion id="pagos" titulo="Pagos y cuotas">
             <p>Todos los precios son finales, con IVA incluido. Pagás con Mercado Pago (tarjeta de crédito en cuotas, débito o dinero en cuenta) o por transferencia bancaria.</p>
             <p>Las cuotas que mostramos salen de Mercado Pago para cada monto, con su costo financiero total efectivo anual (CFTEA) y su tasa efectiva anual (TEA).</p>
+            <p>Las cuotas sin interés tienen CFTEA 0 % y TEA 0 %: pagás el precio con Mercado Pago dividido en cuotas, sin recargo. Con más cuotas, el plan es con interés y Mercado Pago te muestra el total antes de pagar.</p>
             <p>Nunca vemos ni guardamos los datos de tu tarjeta: el pago se hace en Mercado Pago.</p>
           </Seccion>
 

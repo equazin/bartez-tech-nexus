@@ -132,7 +132,8 @@ export async function crearPreferencia(config: ConfiguracionDeMercadoPago, p: Pr
       notification_url: p.aviso,
       back_urls: { success: `${p.vuelta}&pago=exito`, pending: `${p.vuelta}&pago=pendiente`, failure: `${p.vuelta}&pago=fallo` },
       auto_return: "approved",
-      // Las cuotas son con interés a cargo del cliente: Mercado Pago las calcula al pagar. Sin efectivo ni cajero.
+      // Las cuotas sin interés son las que estén activadas en la cuenta de Mercado Pago (Costos y cuotas); las demás,
+      // con interés a cargo del cliente. Mercado Pago las calcula al pagar. Sin efectivo ni cajero.
       payment_methods: { installments: Math.max(1, p.cuotasMaximas), excluded_payment_types: [{ id: "ticket" }, { id: "atm" }] },
       statement_descriptor: "TEQO",
       ...(p.venceEn ? { expires: true, expiration_date_to: p.venceEn.toISOString() } : {}),
