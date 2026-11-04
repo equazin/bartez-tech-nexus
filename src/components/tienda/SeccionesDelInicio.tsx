@@ -57,7 +57,7 @@ function useCarga<T>(cargar: () => Promise<T>, dependencias: DependencyList): T 
 const PROMESAS = [
   { icono: Truck, titulo: "Envío a todo el país", texto: "Mismo precio y plazo en cualquier provincia." },
   { icono: Receipt, titulo: "Precio final", texto: "Con IVA incluido, sin sorpresas al pagar." },
-  { icono: CreditCard, titulo: "Cuotas con Mercado Pago", texto: "O contado por transferencia bancaria." },
+  { icono: CreditCard, titulo: "3 cuotas sin interés", texto: "Con tarjeta de crédito por Mercado Pago, o contado por transferencia." },
   { icono: RotateCcw, titulo: "10 días para arrepentirte", texto: "Desde que lo recibís, sin registrarte." },
 ];
 

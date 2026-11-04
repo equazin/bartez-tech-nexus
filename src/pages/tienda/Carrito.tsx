@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Minus, Plus } from "lucide-react";
 import { Tienda } from "@/components/tienda/Tienda";
-import { Precio } from "@/components/tienda/Precio";
+import { Cuotas } from "@/components/tienda/Precio";
 import { Bloque, EncabezadoDeSeccion } from "@/components/tienda/Seccion";
 import { ChipsDeDatos, EstadoDeStock, GrillaProductos } from "@/components/tienda/TarjetaProducto";
 import { FilaDeServicio } from "@/components/tienda/ArmadorPartes";
@@ -232,7 +232,7 @@ export default function Carrito() {
           <aside aria-label="Resumen de la compra" className="flex w-full flex-col gap-3.5 rounded-2xl border border-border bg-card p-[22px] lg:sticky lg:top-6 lg:w-[360px] lg:shrink-0">
             <p className="font-display text-lg font-bold uppercase tracking-[0.06em]">Resumen</p>
             {medios.length > 1 && (
-              <div role="radiogroup" aria-label="Cómo vas a pagar" className="grid grid-cols-2 gap-1.5 rounded-xl bg-background p-1">
+              <div role="radiogroup" aria-label="Cómo vas a pagar" className={cn("grid gap-1.5 rounded-xl bg-background p-1", medios.length >= 3 ? "grid-cols-3" : "grid-cols-2")}>
                 {medios.map((m) => (
                   <button
                     key={m.id}
@@ -241,11 +241,11 @@ export default function Carrito() {
                     aria-checked={medioActual === m.id}
                     onClick={() => setMedio(m.id)}
                     className={cn(
-                      "flex flex-col items-center justify-center gap-0.5 rounded-[10px] py-2 transition-colors",
+                      "flex flex-col items-center justify-center gap-0.5 rounded-[10px] px-1 py-2 text-center transition-colors",
                       medioActual === m.id ? "bg-foreground text-background" : "hover:bg-secondary",
                     )}
                   >
-                    <span className="text-sm font-bold">{nombreCortoDeMedio(m)}</span>
+                    <span className="text-sm font-bold leading-tight">{nombreCortoDeMedio(m)}</span>
                     <span className={cn("text-xs tabular-nums", medioActual === m.id ? "text-background/80" : "text-muted-foreground")}>
                       {formatearPesos((subtotalPorMedio[m.id] ?? subtotal) + (costoEnvio ?? 0))}
                     </span>
@@ -268,7 +268,9 @@ export default function Carrito() {
               <span className="text-[30px] font-bold tracking-[-0.02em] tabular-nums">{formatearPesos(total)}</span>
             </div>
             {medioActual === MEDIO_CON_CUOTAS ? (
-              <Precio precioFinal={total} conCuotas className="[&>span]:hidden" />
+              <Cuotas monto={total} />
+            ) : medioActual === "mercadopago" ? (
+              <p className="text-[13px] leading-relaxed text-muted-foreground">Pagás en Mercado Pago con débito, crédito en 1 pago o dinero en cuenta.</p>
             ) : (
               <p className="text-[13px] leading-relaxed text-muted-foreground">Al confirmar te damos los datos de la cuenta. El pedido se prepara cuando se acredita la transferencia.</p>
             )}

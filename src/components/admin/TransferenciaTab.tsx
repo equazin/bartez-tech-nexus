@@ -137,9 +137,16 @@ export function TransferenciaTab() {
               <span>
                 <span className="font-bold">{medio.nombre}</span>
                 <span className="block text-xs text-muted-foreground">{medio.detalle}</span>
-                {medio.id === "mercadopago" && (
+                {(medio.id === "mercadopago" || medio.id === "mercadopago_cuotas") && (
                   <span className={`block text-xs ${config.mercadopago_configurado ? "text-success" : "text-danger"}`}>
                     {config.mercadopago_configurado ? (config.webhook_configurado ? "Credenciales y secreto del aviso cargados" : "Falta el secreto del aviso: los pagos no se acreditan") : "Faltan las credenciales en el hosting"}
+                  </span>
+                )}
+                {medio.id === "mercadopago" && <span className="block text-xs text-muted-foreground">Mercado Pago deja pagar en 1 sola cuota.</span>}
+                {medio.id === "mercadopago_cuotas" && (
+                  <span className="block text-xs text-muted-foreground">
+                    Hasta 3 cuotas y solo con crédito. Las 3 cuotas sin interés tienen que estar activadas en la cuenta de Mercado Pago (Costos y cuotas): si
+                    no, el cliente paga interés.
                   </span>
                 )}
               </span>

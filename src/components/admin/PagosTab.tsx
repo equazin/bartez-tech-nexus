@@ -24,7 +24,7 @@ const ESTADOS: Record<string, string> = {
   vencido: "Vencido",
 };
 
-const MEDIOS: Record<string, string> = { mercadopago: "Mercado Pago", transferencia: "Transferencia" };
+const MEDIOS: Record<string, string> = { mercadopago: "Mercado Pago", mercadopago_cuotas: "Mercado Pago en 3 cuotas", transferencia: "Transferencia" };
 
 function tonoDe(estado: string): "success" | "secondary" | "destructive" | "muted" {
   if (estado === "pagado" || estado === "entregado") return "success";

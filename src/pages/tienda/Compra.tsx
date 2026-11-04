@@ -8,6 +8,7 @@ import { ResumenDeCompra } from "@/components/tienda/ResumenDeCompra";
 import { formatearPesos } from "@/lib/tienda/dinero";
 import { crearPreferencia, datosDeTransferencia, type DatosDeTransferencia } from "@/lib/tienda/pagos";
 import { obtenerPedido, type PedidoPublico } from "@/lib/tienda/pedidos";
+import { esDeMercadoPago } from "@/lib/tienda/precios";
 import { usarSeo } from "@/lib/tienda/seo";
 
 const formatoFechaHora = new Intl.DateTimeFormat("es-AR", { dateStyle: "long", timeStyle: "short" });
@@ -37,7 +38,11 @@ function PagarConMercadoPago({ pedido, token, vuelta }: { pedido: PedidoPublico;
       ) : vuelta === "fallo" ? (
         <p className="text-sm text-muted-foreground">El pago no se completó. Podés intentar de nuevo con otra tarjeta o medio.</p>
       ) : (
-        <p className="text-sm text-muted-foreground">Pagás en Mercado Pago con tarjeta en cuotas, débito o dinero en cuenta, y volvés a la tienda.</p>
+        <p className="text-sm text-muted-foreground">
+          {pedido.medio_pago === "mercadopago_cuotas"
+            ? "Pagás en Mercado Pago con tarjeta de crédito, en 3 cuotas sin interés, y volvés a la tienda."
+            : "Pagás en Mercado Pago con débito, crédito en 1 pago o dinero en cuenta, y volvés a la tienda."}
+        </p>
       )}
       {vuelta !== "exito" && (
         <Button size="lg" onClick={pagar} disabled={yendo}>
@@ -177,7 +182,7 @@ export default function Compra() {
             con ese email para volver a verla.
           </p>
         </div>
-        {pedido.estado === "pendiente_pago" && pedido.medio_pago === "mercadopago" && <PagarConMercadoPago pedido={pedido} token={token} vuelta={vuelta} />}
+        {pedido.estado === "pendiente_pago" && esDeMercadoPago(pedido.medio_pago) && <PagarConMercadoPago pedido={pedido} token={token} vuelta={vuelta} />}
         {pedido.estado === "pendiente_pago" && pedido.medio_pago === "transferencia" && <PagarPorTransferencia pedido={pedido} token={token} />}
         {pedido.estado === "vencido" && (
           <div className="rounded-2xl border border-border bg-secondary p-6 text-sm text-muted-foreground">

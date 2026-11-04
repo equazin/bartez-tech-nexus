@@ -7,6 +7,7 @@ import { pedidoDeLaTiendaSchema, type PedidoDeLaTienda } from "../_shared/schema
 import { getSupabaseAdmin } from "../_shared/supabaseServer.js";
 import { configuracionDeMercadoPago } from "../_shared/mercadopago.js";
 import { opcionesDeEnvio } from "./envios.js";
+import { esDeMercadoPago } from "../_shared/medios.js";
 
 /**
  * POST /api/checkout · crea el pedido de un invitado.
@@ -169,7 +170,7 @@ async function crearPedido(pedido: PedidoDeLaTienda, usuario: UsuarioDeLaSesion 
 
   const { data: medio } = await supabase.from("medios_de_pago").select("id, activo, margen_porcentaje").eq("id", pedido.medio_pago).maybeSingle();
   const medioLeido = medio as { activo?: boolean; margen_porcentaje?: number | string | null } | null;
-  const medioActivo = Boolean(medioLeido?.activo) && (pedido.medio_pago !== "mercadopago" || configuracionDeMercadoPago() !== null);
+  const medioActivo = Boolean(medioLeido?.activo) && (!esDeMercadoPago(pedido.medio_pago) || configuracionDeMercadoPago() !== null);
   if (!medioActivo) throw new Error("Ese medio de pago no está disponible. Elegí otro.");
   // El margen sobre el costo lo pone el medio (Configuración › Transferencia y medios). precio_final_ars ya es
   // costo con IVA (más una regla de precios u oferta, si hay), así que el margen del medio se aplica encima.
@@ -260,7 +261,9 @@ async function crearPedido(pedido: PedidoDeLaTienda, usuario: UsuarioDeLaSesion 
     const pcCompleta = servicios.some((s) => s.solo_con_pc) ? await carritoConPcCompleta(supabase, ids) : true;
     for (const s of servicios) {
       if (s.solo_con_pc && !pcCompleta) throw new Error(`"${s.nombre}" se ofrece solo con una PC completa en el carrito.`);
-      const precio = Number((s.precios ?? {})[pedido.medio_pago]);
+      // Sin precio propio en cuotas, el servicio vale lo mismo que con Mercado Pago en 1 pago (como en la vista pública).
+      const precios = s.precios ?? {};
+      const precio = Number(precios[pedido.medio_pago] ?? (pedido.medio_pago === "mercadopago_cuotas" ? precios.mercadopago : undefined));
       if (!Number.isFinite(precio) || precio <= 0) throw new Error(`"${s.nombre}" no tiene precio con ese medio de pago.`);
       const precioFinal = aDosDecimales(precio);
       const iva = Number(s.iva_rate ?? 21);

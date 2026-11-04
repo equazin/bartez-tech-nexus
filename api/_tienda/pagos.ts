@@ -5,6 +5,7 @@ import { configuracionDeMercadoPago, crearPreferencia, firmaValida, obtenerPago,
 import { getRoleFromRequest } from "../_shared/roles.js";
 import { getSupabaseAdmin, getSupabaseClient } from "../_shared/supabaseServer.js";
 import { avisarAlComprador } from "../_shared/avisos.js";
+import { cuotasDeLaPreferencia, esDeMercadoPago, MEDIOS_DE_LA_TIENDA } from "../_shared/medios.js";
 
 /**
  * Pagos de la tienda.
@@ -153,7 +154,7 @@ async function mediosActivos(): Promise<Array<{ id: string; nombre: string; deta
   if (error) throw new Error(error.message);
   const hayMercadoPago = configuracionDeMercadoPago() !== null;
   return ((data ?? []) as Array<{ id: string; nombre: string; detalle: string; activo: boolean }>)
-    .filter((m) => m.activo && (m.id !== "mercadopago" || hayMercadoPago))
+    .filter((m) => m.activo && (!esDeMercadoPago(m.id) || hayMercadoPago))
     .map(({ id, nombre, detalle }) => ({ id, nombre, detalle }));
 }
 
@@ -177,7 +178,7 @@ async function preferencia(req: VercelRequest, res: VercelResponse) {
     return fail(res, e instanceof Error ? e.message : "La compra no es válida.", 404);
   }
   if (pedido.status !== "pendiente_pago") return fail(res, "Esta compra ya no está pendiente de pago.", 409);
-  if (pedido.payment_method !== "mercadopago") return fail(res, "Esta compra no se paga con Mercado Pago.", 409);
+  if (!esDeMercadoPago(pedido.payment_method)) return fail(res, "Esta compra no se paga con Mercado Pago.", 409);
 
   const supabase = getSupabaseAdmin();
   const { data: existente } = await supabase
@@ -203,8 +204,8 @@ async function preferencia(req: VercelRequest, res: VercelResponse) {
     pagoId = (creado as { id: number }).id;
   }
 
-  const valores = await leerConfiguracion(["cuotas_maximas", "pendiente_vence_horas"]);
-  const cuotasMaximas = typeof valores.cuotas_maximas === "number" ? valores.cuotas_maximas : 12;
+  const valores = await leerConfiguracion(["pendiente_vence_horas"]);
+  const cuotas = cuotasDeLaPreferencia(pedido.payment_method ?? "");
   const venceHoras = typeof valores.pendiente_vence_horas === "number" ? valores.pendiente_vence_horas : null;
   const venceEn = venceHoras ? new Date(new Date(pedido.created_at).getTime() + venceHoras * 3_600_000) : null;
   if (venceEn && venceEn.getTime() < Date.now()) return fail(res, "Venció el plazo para pagar esta compra.", 409);
@@ -217,7 +218,9 @@ async function preferencia(req: VercelRequest, res: VercelResponse) {
     email: pedido.comprador_email ?? "",
     vuelta: `${base}/compra/${pedido.id}?t=${pedido.token_acceso}`,
     aviso: `${base}/api/pagos?recurso=aviso`,
-    cuotasMaximas,
+    cuotasMaximas: cuotas.maximas,
+    cuotasPorDefecto: cuotas.porDefecto,
+    soloCredito: cuotas.soloCredito,
     venceEn,
   });
   await supabase.from("pagos").update({ referencia: creada.id, detalle: { url: creada.url, preferencia: creada.id }, actualizado_en: new Date().toISOString() }).eq("id", pagoId);
@@ -490,14 +493,14 @@ async function configuracion(req: VercelRequest, res: VercelResponse) {
     }
     if (cuerpo.medios) {
       for (const [id, activo] of Object.entries(cuerpo.medios)) {
-        if (id !== "mercadopago" && id !== "transferencia") continue;
+        if (!(MEDIOS_DE_LA_TIENDA as readonly string[]).includes(id)) continue;
         const { error } = await supabase.from("medios_de_pago").update({ activo: Boolean(activo), actualizado_en: ahora }).eq("id", id);
         if (error) throw new Error(error.message);
       }
     }
     if (cuerpo.margenes) {
       for (const [id, valor] of Object.entries(cuerpo.margenes)) {
-        if (id !== "mercadopago" && id !== "transferencia") continue;
+        if (!(MEDIOS_DE_LA_TIENDA as readonly string[]).includes(id)) continue;
         const margen = Number(valor);
         if (!Number.isFinite(margen) || margen < 0 || margen > 500) return fail(res, "El margen va de 0 a 500 %.");
         const { error } = await supabase

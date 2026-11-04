@@ -7,7 +7,7 @@ const PREGUNTAS = [
   },
   {
     pregunta: "¿Puedo pagar en cuotas?",
-    respuesta: "Sí, con Mercado Pago. Las cuotas disponibles para cada producto figuran debajo del precio. También podés pagar por transferencia bancaria.",
+    respuesta: "Sí, en 3 cuotas sin interés con tarjeta de crédito por Mercado Pago: cada producto muestra el valor de la cuota. También podés pagar con Mercado Pago en 1 pago o por transferencia bancaria, a un precio más bajo.",
   },
   {
     pregunta: "¿Y si me arrepiento de la compra?",

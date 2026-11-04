@@ -321,7 +321,7 @@ export const pedidoDeLaTiendaSchema = z.object({
     opcion: z.enum(["domicilio", "sucursal"]).default("domicilio"),
     sucursal_id: z.coerce.number().int().positive().optional(),
   }),
-  medio_pago: z.enum(["mercadopago", "transferencia"]),
+  medio_pago: z.enum(["mercadopago", "mercadopago_cuotas", "transferencia"]),
   cupon: optionalTrimmedString(40),
   notas: optionalTrimmedString(300),
 });

@@ -1,6 +1,7 @@
 import { createMailerTransport, getDefaultFromEmail, registroDelEnvio, sanitizeHeaderText } from "./mailer.js";
 import { pagoAcreditadoHTML, pedidoCanceladoHTML, pedidoEntregadoHTML, pedidoEnviadoHTML } from "./plantillas.js";
 import { getSupabaseAdmin } from "./supabaseServer.js";
+import { nombreDelMedio } from "./medios.js";
 
 /**
  * Avisos al comprador de la tienda por cada paso del pedido. Cada aviso se anota en
@@ -142,13 +143,12 @@ export async function avisarAlComprador(orderId: number, tipo: TipoDeAviso, extr
   }
 }
 
-const MEDIOS: Record<string, string> = { mercadopago: "Mercado Pago", transferencia: "transferencia" };
 
 /** Al admin, cuando se acredita el pago de una compra de la tienda: hay que prepararla. Nunca tira. */
 async function avisarAlAdmin(pedido: PedidoParaAvisar, base: string): Promise<void> {
   try {
     const pesos = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(Number(pedido.total));
-    const medio = MEDIOS[pedido.payment_method ?? ""] ?? pedido.payment_method ?? "sin dato";
+    const medio = nombreDelMedio(pedido.payment_method);
     await createMailerTransport().sendMail({
       from: `"Teqo" <${getDefaultFromEmail()}>`,
       to: process.env.ADMIN_EMAIL?.trim() || getDefaultFromEmail(),

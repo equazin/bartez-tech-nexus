@@ -7,12 +7,20 @@ import type { PrecioPorMedio, ProductoPublico } from "./catalogo";
  * a calcularlos al cobrar.
  */
 
-/** El medio con cuotas: sus precios llevan el detalle de cuotas de Mercado Pago. */
-export const MEDIO_CON_CUOTAS = "mercadopago";
+/** El medio en cuotas: Mercado Pago en 3 cuotas sin interés, con su propio precio. */
+export const MEDIO_CON_CUOTAS = "mercadopago_cuotas";
+/** Las cuotas sin interés del medio en cuotas (activadas en la cuenta de Mercado Pago). */
+export const CUOTAS_SIN_INTERES = 3;
+
+export const esDeMercadoPago = (medio: string | null | undefined): boolean => medio === "mercadopago" || medio === MEDIO_CON_CUOTAS;
+
+/** Lo que vale cada cuota sin interés, con centavos. */
+export const valorDeLaCuota = (total: number): number => Math.round((total / CUOTAS_SIN_INTERES) * 100) / 100;
 
 const NOMBRES_CORTOS: Record<string, string> = {
   transferencia: "Transferencia",
   mercadopago: "Mercado Pago",
+  mercadopago_cuotas: `${CUOTAS_SIN_INTERES} cuotas sin interés`,
 };
 
 export function nombreCortoDeMedio(medio: Pick<PrecioPorMedio, "id" | "nombre">): string {

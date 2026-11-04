@@ -22,7 +22,7 @@ import { formatearPesos } from "@/lib/tienda/dinero";
 import { PROVINCIAS, cotizarEnvioADestino, textoDeDemora, type OpcionDeEnvio } from "@/lib/tienda/envios";
 import { MEDIOS_DE_PAGO, crearPedido, type MedioDePago, type MedioDisponible } from "@/lib/tienda/pedidos";
 import { listarMedios } from "@/lib/tienda/pagos";
-import { precioConMedio } from "@/lib/tienda/precios";
+import { CUOTAS_SIN_INTERES, MEDIO_CON_CUOTAS, precioConMedio, valorDeLaCuota } from "@/lib/tienda/precios";
 import { usarSeo } from "@/lib/tienda/seo";
 import { cn } from "@/lib/utils";
 
@@ -105,7 +105,7 @@ export default function Checkout() {
   // El carrito deja elegir el medio antes de llegar acá; si viene en la URL, arranca elegido.
   const medioDelCarrito = parametros.get("medio");
   const [f, setF] = useState<Formulario>(() =>
-    medioDelCarrito === "transferencia" || medioDelCarrito === "mercadopago" ? { ...VACIO, medio_pago: medioDelCarrito as MedioDePago } : VACIO,
+    MEDIOS_DE_PAGO.some((m) => m.id === medioDelCarrito) ? { ...VACIO, medio_pago: medioDelCarrito as MedioDePago } : VACIO,
   );
   const [errores, setErrores] = useState<Partial<Record<keyof Formulario, string>>>({});
   const [opciones, setOpciones] = useState<OpcionDeEnvio[] | null>(null);
@@ -451,6 +451,11 @@ export default function Checkout() {
                       <span className="font-bold">{medio.nombre}</span>
                       <span className="font-bold tabular-nums">{formatearPesos((subtotalPorMedio[medio.id] ?? subtotal) + costoEnvio)}</span>
                     </span>
+                    {medio.id === MEDIO_CON_CUOTAS && (
+                      <span className="block text-sm font-medium tabular-nums">
+                        {CUOTAS_SIN_INTERES} cuotas sin interés de {formatearPesos(valorDeLaCuota((subtotalPorMedio[medio.id] ?? subtotal) + costoEnvio))}
+                      </span>
+                    )}
                     <span className="block text-sm text-muted-foreground">{medio.detalle}</span>
                   </span>
                 </label>

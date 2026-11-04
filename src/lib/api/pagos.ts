@@ -43,7 +43,7 @@ export interface PagoDelPanel {
 export interface ConfiguracionDePagos {
   transferencia: { titular?: string | null; cuit?: string | null; banco?: string | null; cbu?: string | null; alias?: string | null };
   pendiente_vence_horas: number | null;
-  medios: Array<{ id: "mercadopago" | "transferencia"; nombre: string; detalle: string; activo: boolean; orden: number; margen_porcentaje: number | string }>;
+  medios: Array<{ id: "mercadopago" | "mercadopago_cuotas" | "transferencia"; nombre: string; detalle: string; activo: boolean; orden: number; margen_porcentaje: number | string }>;
   mercadopago_configurado: boolean;
   webhook_configurado: boolean;
 }

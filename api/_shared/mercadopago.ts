@@ -127,6 +127,10 @@ export interface PreferenciaNueva {
   vuelta: string;
   aviso: string;
   cuotasMaximas: number;
+  /** Las cuotas con las que arranca la elección en Mercado Pago (el medio en cuotas arranca en 3). */
+  cuotasPorDefecto?: number | null;
+  /** Solo tarjeta de crédito: el medio en cuotas no ofrece débito ni prepagas. */
+  soloCredito?: boolean;
   venceEn: Date | null;
 }
 
@@ -141,9 +145,13 @@ export async function crearPreferencia(config: ConfiguracionDeMercadoPago, p: Pr
       notification_url: p.aviso,
       back_urls: { success: `${p.vuelta}&pago=exito`, pending: `${p.vuelta}&pago=pendiente`, failure: `${p.vuelta}&pago=fallo` },
       auto_return: "approved",
-      // Las cuotas sin interés son las que estén activadas en la cuenta de Mercado Pago (Costos y cuotas); las demás,
-      // con interés a cargo del cliente. Mercado Pago las calcula al pagar. Sin efectivo ni cajero.
-      payment_methods: { installments: Math.max(1, p.cuotasMaximas), excluded_payment_types: [{ id: "ticket" }, { id: "atm" }] },
+      // El medio en 1 pago deja una sola cuota; el medio en cuotas, hasta 3 sin interés (activadas en la cuenta de
+      // Mercado Pago, Costos y cuotas) y solo con crédito. Sin efectivo ni cajero.
+      payment_methods: {
+        installments: Math.max(1, p.cuotasMaximas),
+        ...(p.cuotasPorDefecto ? { default_installments: p.cuotasPorDefecto } : {}),
+        excluded_payment_types: [{ id: "ticket" }, { id: "atm" }, ...(p.soloCredito ? [{ id: "debit_card" }, { id: "prepaid_card" }] : [])],
+      },
       statement_descriptor: "TEQO",
       ...(p.venceEn ? { expires: true, expiration_date_to: p.venceEn.toISOString() } : {}),
     },

@@ -51,7 +51,8 @@ interface PagoDelPedido {
 }
 
 const IVA_GENERAL = 0.21;
-const MEDIOS: Record<string, string> = { mercadopago: "Mercado Pago", transferencia: "Transferencia" };
+const MEDIOS: Record<string, string> = { mercadopago: "Mercado Pago en 1 pago", mercadopago_cuotas: "Mercado Pago en 3 cuotas sin interés", transferencia: "Transferencia" };
+const esDeMercadoPago = (medio: string | null | undefined) => medio === "mercadopago" || medio === "mercadopago_cuotas";
 const ESTADOS_DE_PAGO: Record<string, string> = {
   pendiente: "pendiente",
   aprobado: "acreditado",
@@ -143,7 +144,7 @@ export function PedidoDeLaTienda({ pedido }: { pedido: PedidoDeLaTiendaFila }) {
     const descuentoNeto = subtotal > 0 ? descuento * (ventaProductosNeta / subtotal) : descuento / (1 + IVA_GENERAL);
     const envioCobrado = Number(pedido.shipping_cost ?? 0);
     const envio = costoDelEnvio(pedido);
-    const comision = pedido.payment_method === "mercadopago" ? (pago?.detalle?.comision ?? null) : 0;
+    const comision = esDeMercadoPago(pedido.payment_method) ? (pago?.detalle?.comision ?? null) : 0;
 
     const cobrado = Number(pedido.total);
     const cobradoNeto = ventaProductosNeta + envioCobrado / (1 + IVA_GENERAL) - descuentoNeto;
@@ -165,7 +166,7 @@ export function PedidoDeLaTienda({ pedido }: { pedido: PedidoDeLaTiendaFila }) {
 
   const medio = MEDIOS[pedido.payment_method ?? ""] ?? pedido.payment_method ?? "Sin dato";
   const estadoDelPago = pago ? (ESTADOS_DE_PAGO[pago.estado] ?? pago.estado) : null;
-  const esMercadoPago = pedido.payment_method === "mercadopago";
+  const esMercadoPago = esDeMercadoPago(pedido.payment_method);
 
   return (
     <div className="mb-5 space-y-4 text-sm">

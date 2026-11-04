@@ -1,3 +1,5 @@
+import { nombreDelMedio } from "./medios.js";
+
 /**
  * Emails al comprador de la tienda. En español rioplatense, con voseo, sin signos
  * de exclamación en los títulos y sin emojis. Los montos llegan en pesos.
@@ -74,7 +76,7 @@ export function compraRecibidaHTML(params: {
   medioPago: string;
   enlace: string;
 }): string {
-  const medio = params.medioPago === "mercadopago" ? "Mercado Pago" : params.medioPago === "transferencia" ? "transferencia bancaria" : params.medioPago;
+  const medio = nombreDelMedio(params.medioPago);
   const cuerpo = `
     ${parrafo(`Hola ${escapar(params.nombre)}, recibimos tu compra <strong>${escapar(params.numero)}</strong>. Queda pendiente de pago por ${escapar(medio)}.`)}
     ${tablaDeLineas(params.lineas)}
