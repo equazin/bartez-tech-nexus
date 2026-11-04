@@ -98,7 +98,7 @@ export async function cotizarConZipnova(params: {
   valorDeclarado: number;
   items: ItemDeZipnova[];
 }): Promise<ResultadoDeCotizacion[]> {
-  const respuesta = await pedirJson<{ results?: ResultadoDeCotizacion[]; all_results?: ResultadoDeCotizacion[] }>("/shipments/quote", {
+  const respuesta = await pedirJson<{ results?: unknown; all_results?: unknown }>("/shipments/quote", {
     method: "POST",
     body: {
       account_id: params.accountId,
@@ -110,7 +110,16 @@ export async function cotizarConZipnova(params: {
       type_packaging: "dynamic",
     },
   });
-  return [...(respuesta.all_results ?? []), ...(respuesta.results ?? [])];
+  return [...comoLista(respuesta.all_results), ...comoLista(respuesta.results)];
+}
+
+/**
+ * Zipnova devuelve "results" agrupado por tipo de servicio ({ standard_delivery: {...}, pickup_point: {...} }) y
+ * "all_results" como lista; se aceptan las dos formas. Los grupos vacíos (null) se descartan.
+ */
+function comoLista(valor: unknown): ResultadoDeCotizacion[] {
+  const elementos = Array.isArray(valor) ? valor : valor !== null && typeof valor === "object" ? Object.values(valor) : [];
+  return elementos.flatMap((e) => (Array.isArray(e) ? e : [e])).filter((e): e is ResultadoDeCotizacion => e !== null && typeof e === "object");
 }
 
 /** Días de una duración ISO 8601 como "P3D" o "P1W2D". */

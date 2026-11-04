@@ -146,6 +146,8 @@ function itemsParaZipnova(propios: ParteDelEnvio[]): ItemDeZipnova[] {
 
 /** Sin entregas en el día ni urgentes: la propuesta es la misma para todo el país. */
 const esValida = (r: ResultadoDeCotizacion) =>
+  typeof r.carrier?.id === "number" &&
+  Number.isFinite(Number(r.amounts?.price_incl_tax)) &&
   r.selectable !== false && !r.service_type?.is_urgent && !/same_?day|express|urgent|flex/i.test(r.service_type?.code ?? "");
 const esSucursal = (r: ResultadoDeCotizacion) => /pickup/i.test(r.service_type?.code ?? "");
 const precioDe = (r: ResultadoDeCotizacion) => numero(r.amounts?.price_incl_tax, Number.POSITIVE_INFINITY);
