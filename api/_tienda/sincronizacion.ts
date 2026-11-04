@@ -3,7 +3,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { consultarDolarBna, type TipoDeDolar } from "../_shared/dolarBna.js";
 import { camposDeElit, hayCredencialesDeElit, productoPorId, productosCambiadosDesde, type ProductoElit } from "../_shared/elitServidor.js";
 import { fail, methodNotAllowed, ok } from "../_shared/http.js";
-import { camposDeNewBytes, catalogoDeNewBytes, hayCredencialesDeNewBytes } from "../_shared/newBytesServidor.js";
+import { camposDeNewBytes, catalogoDeNewBytes, descripcionesDeNewBytes, hayCredencialesDeNewBytes, textoDeDescripcion } from "../_shared/newBytesServidor.js";
 import { getRoleFromRequest } from "../_shared/roles.js";
 import { getSupabaseAdmin, getSupabaseClient } from "../_shared/supabaseServer.js";
 
@@ -63,6 +63,8 @@ interface Corrida {
   newbytes: ResultadoDeMayorista;
   recalculados: number | null;
   error_recalculo?: string;
+  /** Descripciones de New Bytes que se completaron en esta corrida. */
+  descripciones?: ResultadoDeDescripciones;
   /** Desde cuándo pedirle cambios a ELIT en la próxima corrida; solo avanza cuando la consulta terminó completa. */
   elit_hasta?: string;
 }
@@ -104,6 +106,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await estado(req, res);
       case "configuracion":
         return await configuracion(req, res);
+      case "descripciones":
+        return await descripciones(req, res);
       default:
         return fail(res, "Recurso desconocido", 404);
     }
@@ -215,6 +219,10 @@ async function correr(req: VercelRequest, res: VercelResponse) {
   if (error) errorRecalculo = error.message;
   else recalculados = Number(data ?? 0);
 
+  // Lo que entró de New Bytes sin descripción la toma acá, si queda tiempo.
+  const descripcionesNuevas =
+    config.newbytes.activa && hayCredencialesDeNewBytes() && Date.now() - inicio < 25_000 ? await completarDescripcionesNewBytes() : undefined;
+
   const corrida: Corrida = {
     empezo: new Date(inicio).toISOString(),
     termino: new Date().toISOString(),
@@ -224,6 +232,7 @@ async function correr(req: VercelRequest, res: VercelResponse) {
     newbytes,
     recalculados,
     ...(errorRecalculo ? { error_recalculo: errorRecalculo } : {}),
+    ...(descripcionesNuevas ? { descripciones: descripcionesNuevas } : {}),
     elit_hasta: completa ? new Date(inicio).toISOString() : anterior?.elit_hasta,
   };
   const { error: errorAlGuardar } = await getSupabaseAdmin()
@@ -445,4 +454,71 @@ async function sincronizarNewBytes(): Promise<ResultadoDeMayorista> {
     console.error("[sincronizacion] New Bytes:", mensaje(e));
     return elitVacia("error", mensaje(e));
   }
+}
+
+// ── Descripciones de New Bytes ────────────────────────────────────────────────
+interface ResultadoDeDescripciones {
+  estado: "ok" | "sin_credenciales" | "error";
+  sin_descripcion: number;
+  completadas: number;
+  sin_texto_en_new_bytes: number;
+  error?: string;
+}
+
+const sinTexto = (valor: unknown) => {
+  const t = typeof valor === "string" ? valor.trim() : "";
+  return !t || t === "-" || /^part#:/i.test(t);
+};
+
+/**
+ * Completa la descripción de los productos vinculados a New Bytes que no tienen, con el texto que
+ * New Bytes genera para las tiendas de sus clientes. No pisa una descripción cargada a mano.
+ */
+async function completarDescripcionesNewBytes(): Promise<ResultadoDeDescripciones> {
+  const vacio = { sin_descripcion: 0, completadas: 0, sin_texto_en_new_bytes: 0 };
+  if (!hayCredencialesDeNewBytes()) return { estado: "sin_credenciales", ...vacio, error: "Faltan NB_API_USER y NB_API_PASSWORD en Vercel." };
+  try {
+    const vinculadas = (await filasDelProveedor("newbytes")).filter((f) => f.external_id);
+    if (vinculadas.length === 0) return { estado: "ok", ...vacio };
+    const supabase = getSupabaseAdmin();
+    const pendientes: Array<{ id: number; externo: string; specs: Record<string, unknown> | null }> = [];
+    for (let i = 0; i < vinculadas.length; i += 300) {
+      const tanda = vinculadas.slice(i, i + 300);
+      const { data, error } = await supabase.from("products").select("id, description, description_full, specs").in("id", tanda.map((f) => f.product_id));
+      if (error) throw new Error(error.message);
+      const externoDe = new Map(tanda.map((f) => [f.product_id, String(f.external_id)]));
+      for (const p of (data ?? []) as Array<{ id: number; description: string | null; description_full: string | null; specs: Record<string, unknown> | null }>) {
+        if (sinTexto(p.description_full) && sinTexto(p.description)) pendientes.push({ id: p.id, externo: externoDe.get(p.id)!, specs: p.specs });
+      }
+    }
+    if (pendientes.length === 0) return { estado: "ok", ...vacio };
+
+    const textos = await descripcionesDeNewBytes();
+    let completadas = 0;
+    let sinTextoEnNewBytes = 0;
+    await enTandas(pendientes, 8, async (p) => {
+      const crudo = textos.get(p.externo);
+      const texto = crudo ? textoDeDescripcion(crudo) : "";
+      if (!texto) {
+        sinTextoEnNewBytes += 1;
+        return;
+      }
+      const { error } = await supabase
+        .from("products")
+        .update({ description_full: texto, specs: { ...(p.specs ?? {}), supplier_description: crudo }, updated_at: new Date().toISOString() })
+        .eq("id", p.id);
+      if (error) console.error("[sincronizacion] Descripción de", p.id, error.message);
+      else completadas += 1;
+    });
+    return { estado: "ok", sin_descripcion: pendientes.length, completadas, sin_texto_en_new_bytes: sinTextoEnNewBytes };
+  } catch (e: unknown) {
+    console.error("[sincronizacion] Descripciones de New Bytes:", mensaje(e));
+    return { estado: "error", ...vacio, error: mensaje(e) };
+  }
+}
+
+async function descripciones(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== "GET" && req.method !== "POST") return methodNotAllowed(res, ["GET", "POST"]);
+  if (!esElCron(req) && !(await esAdmin(req)).admin) return fail(res, "Solo para administradores", 403);
+  return ok(res, await completarDescripcionesNewBytes());
 }

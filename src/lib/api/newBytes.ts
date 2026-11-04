@@ -84,6 +84,23 @@ export async function traerCatalogoDeNewBytes(): Promise<ProductoNewBytes[]> {
   return listaDe(json).filter((p) => p && p.id !== undefined && p.id !== null);
 }
 
+export interface ResultadoDeDescripciones {
+  estado: "ok" | "sin_credenciales" | "error";
+  sin_descripcion: number;
+  completadas: number;
+  sin_texto_en_new_bytes: number;
+  error?: string;
+}
+
+/** Completa la descripción de los productos de New Bytes que no tienen, con el texto que genera New Bytes. */
+export async function completarDescripcionesDeNewBytes(): Promise<ResultadoDeDescripciones> {
+  const respuesta = await fetch("/api/tienda?modulo=sincronizacion&recurso=descripciones", { method: "POST", headers: { ...(await encabezadosDelPanel()) } });
+  const json = (await respuesta.json().catch(() => ({}))) as { ok?: boolean; data?: ResultadoDeDescripciones; error?: string };
+  if (!respuesta.ok || json.ok === false || !json.data) throw new Error(json.error ?? `Error ${respuesta.status}`);
+  if (json.data.estado !== "ok") throw new Error(json.data.error ?? "No se pudieron traer las descripciones.");
+  return json.data;
+}
+
 /** Los ids de New Bytes que ya están vinculados a un producto de la tienda. */
 export async function idsYaVinculados(): Promise<Set<string>> {
   const { data: proveedor } = await supabase.from("suppliers").select("id").ilike("name", NOMBRE_DE_NEW_BYTES).maybeSingle();
