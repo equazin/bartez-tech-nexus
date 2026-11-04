@@ -143,7 +143,7 @@ export async function cambiarEstadoDeLaTienda(
       if (error) return { error: error.message, estado: 500 };
       await admin.from("orders").update({ status: "cancelado", cancelado_en: ahora, notes: motivo }).eq("id", pedido.id);
     }
-    void avisarAlComprador(pedido.id, "cancelado", { motivo });
+    await avisarAlComprador(pedido.id, "cancelado", { motivo });
   } else {
     if (nuevo === "preparando") patch.preparando_en = ahora;
     if (nuevo === "enviado") {
@@ -155,12 +155,12 @@ export async function cambiarEstadoDeLaTienda(
     if (nuevo === "entregado") patch.entregado_en = ahora;
     const { error } = await admin.from("orders").update(patch).eq("id", pedido.id);
     if (error) return { error: error.message, estado: 500 };
-    if (nuevo === "enviado") void avisarAlComprador(pedido.id, "enviado");
+    if (nuevo === "enviado") await avisarAlComprador(pedido.id, "enviado");
     if (nuevo === "entregado") {
       // Cupón para la próxima compra (si está activo en Marketing › Cupones): va en el email de entrega.
       const { error: errorCupon } = await admin.rpc("tienda_emitir_cupon_de_compra", { p_order_id: pedido.id });
       if (errorCupon) console.error("[orders] No se pudo emitir el cupón de la compra:", pedido.id, errorCupon.message);
-      void avisarAlComprador(pedido.id, "entregado");
+      await avisarAlComprador(pedido.id, "entregado");
     }
   }
 

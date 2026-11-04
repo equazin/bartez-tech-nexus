@@ -376,7 +376,7 @@ async function crearPedido(pedido: PedidoDeLaTienda, usuario: UsuarioDeLaSesion 
     .eq("id", resultado.id);
   if (errorDetalle) console.error("[checkout] No se pudo guardar el detalle del envío:", errorDetalle.message);
 
-  void avisarAlComprador(pedido, resultado, { lineasDelEmail, subtotal, envio: costoEnvio, descuento, total });
+  await avisarAlComprador(pedido, resultado, { lineasDelEmail, subtotal, envio: costoEnvio, descuento, total });
   return resultado;
 }
 

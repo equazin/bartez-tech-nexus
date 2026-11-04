@@ -122,13 +122,19 @@ export async function avisarAlComprador(orderId: number, tipo: TipoDeAviso, extr
         html = pedidoCanceladoHTML({ numero: pedido.order_number, nombre, motivo: extra.motivo ?? null, pagado: Boolean(pedido.pagado_en), enlace });
         break;
     }
-    const transporte = createMailerTransport();
-    await transporte.sendMail({
-      from: `"Teqo" <${getDefaultFromEmail()}>`,
-      to: pedido.comprador_email,
-      subject: sanitizeHeaderText(ASUNTOS[tipo].replace("{numero}", pedido.order_number), "Novedades de tu compra"),
-      html,
-    });
+    try {
+      const transporte = createMailerTransport();
+      await transporte.sendMail({
+        from: `"Teqo" <${getDefaultFromEmail()}>`,
+        to: pedido.comprador_email,
+        subject: sanitizeHeaderText(ASUNTOS[tipo].replace("{numero}", pedido.order_number), "Novedades de tu compra"),
+        html,
+      });
+    } catch (e: unknown) {
+      // No salió: se borra la anotación para que el mismo aviso se pueda volver a mandar.
+      await supabase.from("avisos_al_comprador").delete().eq("order_id", pedido.id).eq("tipo", tipo);
+      throw e;
+    }
     if (tipo === "pago_acreditado") await avisarAlAdmin(pedido, base);
   } catch (e: unknown) {
     console.error("[avisos]", tipo, orderId, e instanceof Error ? e.message : e);

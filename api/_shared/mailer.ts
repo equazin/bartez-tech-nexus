@@ -18,11 +18,16 @@ export function createMailerTransport() {
     throw new Error("SMTP_PORT must be a positive number");
   }
 
+  // Los emails se mandan antes de responder (en Vercel, lo que queda pendiente después de responder se corta):
+  // con estos topes, un servidor de correo lento no traba la compra más de unos segundos.
   return nodemailer.createTransport({
     host,
     port,
     secure: port === 465,
     auth: { user, pass },
+    connectionTimeout: 8_000,
+    greetingTimeout: 8_000,
+    socketTimeout: 12_000,
   });
 }
 
