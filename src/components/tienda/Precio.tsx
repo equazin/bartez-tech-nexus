@@ -1,4 +1,4 @@
-import type { ProductoPublico } from "@/lib/tienda/catalogo";
+import type { PrecioPorMedio, ProductoPublico } from "@/lib/tienda/catalogo";
 import { formatearPesos } from "@/lib/tienda/dinero";
 import { CUOTAS_SIN_INTERES, MEDIO_CON_CUOTAS, nombreCortoDeMedio, preciosDe, valorDeLaCuota } from "@/lib/tienda/precios";
 import { cn } from "@/lib/utils";
@@ -21,12 +21,11 @@ export function Cuotas({ monto, conDetalle = true }: { monto: number; conDetalle
   );
 }
 
-/** "3 cuotas sin interés de $ 55.390", en una línea, para las tarjetas de producto. */
+/** "3 cuotas sin interés de $ 55.390", en una línea y en verde, para las tarjetas de producto. */
 export function CuotasBreves({ monto }: { monto: number }) {
   return (
-    <span className="text-xs text-muted-foreground">
-      <span className="font-bold text-foreground tabular-nums">{CUOTAS_SIN_INTERES} cuotas sin interés</span> de{" "}
-      <span className="tabular-nums">{formatearPesos(valorDeLaCuota(monto))}</span>
+    <span className="text-[13px] font-semibold leading-snug text-success">
+      {CUOTAS_SIN_INTERES} cuotas sin interés de <span className="tabular-nums">{formatearPesos(valorDeLaCuota(monto))}</span>
     </span>
   );
 }
@@ -66,9 +65,13 @@ const etiquetaDelMedio = (m: { id: string; nombre: string }, varios: boolean): s
   return `Con ${nombreCortoDeMedio(m)}`;
 };
 
+/** Lo que se ahorra con el medio más barato frente al siguiente (transferencia frente a Mercado Pago en 1 pago). */
+const ahorroFrente = (principal: PrecioPorMedio, otro: PrecioPorMedio | undefined): number =>
+  otro && otro.precio !== null && principal.precio !== null && otro.precio > principal.precio ? otro.precio - principal.precio : 0;
+
 /**
- * Los precios del producto por medio de pago: el más barato (transferencia) grande, Mercado Pago en 1 pago debajo y
- * las 3 cuotas sin interés sobre el precio del medio en cuotas.
+ * Los precios del producto por medio de pago. Se destacan dos: transferencia (el más barato, en grafito, con lo que se
+ * ahorra) y las 3 cuotas sin interés (en verde). Mercado Pago en 1 pago queda en una línea simple debajo.
  */
 export function PreciosDelProducto({ producto, tamano = "tarjeta", className }: { producto: ProductoConPrecios; tamano?: "tarjeta" | "ficha" | "destacado"; className?: string }) {
   const precios = preciosDe(producto);
@@ -77,7 +80,7 @@ export function PreciosDelProducto({ producto, tamano = "tarjeta", className }: 
     return <p className={cn("text-sm text-muted-foreground", className)}>Precio a confirmar</p>;
   }
   const enCuotas = precios.find((m) => m.id === MEDIO_CON_CUOTAS && m.precio !== null);
-  const deContado = precios.filter((m) => m.id !== MEDIO_CON_CUOTAS);
+  const otrosDeContado = precios.filter((m) => m.id !== MEDIO_CON_CUOTAS && m.id !== principal.id && m.precio !== null);
   const hayOferta = typeof producto.precio_lista_ars === "number" && producto.precio_lista_ars > principal.precio;
 
   if (tamano === "tarjeta") {
@@ -86,47 +89,52 @@ export function PreciosDelProducto({ producto, tamano = "tarjeta", className }: 
         {hayOferta && <span className="text-[13px] tabular-nums text-muted-foreground line-through">{formatearPesos(producto.precio_lista_ars as number)}</span>}
         <div className="flex flex-wrap items-baseline gap-x-1.5">
           <span className="text-[22px] font-bold leading-tight tracking-[-0.01em] tabular-nums">{formatearPesos(principal.precio)}</span>
-          {precios.length > 1 && <span className="text-xs text-muted-foreground">{nombreCortoDeMedio(principal)}</span>}
+          {precios.length > 1 && <span className="text-xs font-semibold">con {nombreCortoDeMedio(principal).toLowerCase()}</span>}
         </div>
-        {deContado.slice(1).map((m) =>
-          m.precio === null ? null : (
-            <span key={m.id} className="text-[13px] leading-snug">
-              <span className="font-bold tabular-nums">{formatearPesos(m.precio)}</span> <span className="text-muted-foreground">con {nombreCortoDeMedio(m)}</span>
-            </span>
-          ),
-        )}
         {enCuotas?.precio ? <CuotasBreves monto={enCuotas.precio} /> : <span className="text-xs text-muted-foreground">Precio final con IVA</span>}
+        {otrosDeContado.map((m) => (
+          <span key={m.id} className="text-xs leading-snug text-muted-foreground">
+            <span className="tabular-nums">{formatearPesos(m.precio as number)}</span> con {nombreCortoDeMedio(m)}
+          </span>
+        ))}
       </div>
     );
   }
 
   const varios = precios.length > 1;
+  const ahorro = ahorroFrente(principal, otrosDeContado[0]);
+  const enDosColumnas = tamano === "ficha" && Boolean(enCuotas?.precio);
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       {hayOferta && <span className="text-sm tabular-nums text-muted-foreground line-through">Antes {formatearPesos(producto.precio_lista_ars as number)}</span>}
-      <div className={cn("grid gap-2", varios && tamano === "ficha" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")}>
-        {deContado.map((m, i) =>
-          m.precio === null ? null : (
-            <div key={m.id} className={cn("flex flex-col gap-1 rounded-xl border bg-background px-3.5 py-3", i === 0 ? "border-foreground" : "border-border")}>
-              <span className="text-xs text-muted-foreground">{etiquetaDelMedio(m, varios)}</span>
-              <span className={cn("font-bold leading-none tracking-[-0.02em] tabular-nums", i === 0 ? "text-[30px] md:text-[34px]" : "text-[22px] md:text-[26px]")}>
-                {formatearPesos(m.precio)}
-              </span>
-            </div>
-          ),
-        )}
+      <div className={cn("grid gap-2", enDosColumnas ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")}>
+        <div className="flex flex-col gap-1.5 rounded-xl bg-foreground px-4 py-3.5 text-background">
+          <span className="text-xs font-semibold text-background/75">{etiquetaDelMedio(principal, varios)}</span>
+          <span className="text-[32px] font-bold leading-none tracking-[-0.02em] tabular-nums md:text-[36px]">{formatearPesos(principal.precio)}</span>
+          {ahorro > 0 && otrosDeContado[0] && (
+            <span className="text-[13px] font-semibold leading-snug">
+              Ahorrás {formatearPesos(ahorro)} frente a {nombreCortoDeMedio(otrosDeContado[0])}
+            </span>
+          )}
+        </div>
         {enCuotas?.precio ? (
-          <div className={cn("flex flex-col gap-1 rounded-xl border border-border bg-background px-3.5 py-3", tamano === "ficha" && "sm:col-span-2")}>
-            <span className="text-xs text-muted-foreground">En {CUOTAS_SIN_INTERES} cuotas sin interés</span>
-            <span className="text-[22px] font-bold leading-none tracking-[-0.02em] tabular-nums md:text-[26px]">
+          <div className="flex flex-col gap-1.5 rounded-xl border border-success/40 bg-exito-fondo px-4 py-3.5">
+            <span className="text-xs font-bold text-success">{CUOTAS_SIN_INTERES} cuotas sin interés</span>
+            <span className="text-[26px] font-bold leading-none tracking-[-0.02em] tabular-nums md:text-[30px]">
               {CUOTAS_SIN_INTERES} × {formatearPesos(valorDeLaCuota(enCuotas.precio))}
             </span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs leading-snug text-muted-foreground">
               Total {formatearPesos(enCuotas.precio)} · CFTEA 0 % · TEA 0 % · con tarjeta de crédito por Mercado Pago
             </span>
           </div>
         ) : null}
       </div>
+      {otrosDeContado.map((m) => (
+        <div key={m.id} className="flex flex-wrap items-baseline justify-between gap-x-3 border-t border-border pt-2.5 text-sm">
+          <span className="text-muted-foreground">{etiquetaDelMedio(m, varios)}</span>
+          <span className="font-semibold tabular-nums">{formatearPesos(m.precio as number)}</span>
+        </div>
+      ))}
       <p className="text-xs text-muted-foreground">Precios finales con IVA incluido. El medio lo elegís al pagar.</p>
     </div>
   );
