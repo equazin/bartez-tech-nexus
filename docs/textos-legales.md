@@ -6,7 +6,7 @@ abogado**. Si se cambia algo, se cambia en el panel y acá.
 
 Decisiones que toman los textos:
 
-- Titular: Andrés Benitez, CUIT 20-21774424-6, 9 de Julio 3418. Factura B. Atención: contacto@teqo.com.ar, de lunes a viernes de 9 a 18.
+- Titular: Andrés Benitez, CUIT 20-21774424-6, 9 de Julio 3418, Rosario, Santa Fe. Factura B. Atención: contacto@teqo.com.ar, de lunes a viernes de 9 a 18.
 - Devolución del dinero (arrepentimiento, sin stock o envío demorado): 14 días hábiles.
 - Arrepentimiento: el envío de vuelta lo paga la tienda (art. 34 de la Ley 24.240), con etiqueta para dejar en sucursal.
 - Envío demorado más de 15 días hábiles después del plazo: el cliente puede cancelar con devolución total.
@@ -16,9 +16,8 @@ Decisiones que toman los textos:
 
 Pendiente:
 
-1. Localidad y provincia del domicilio (hoy dice solo "9 de Julio 3418").
-2. Inscribir la base de datos de clientes en el Registro Nacional de Bases de Datos de la AAIP y, si se quiere, sumar el número a Privacidad.
-3. Revisión de un abogado, sobre todo la cesión de datos fuera del país, las exclusiones de la garantía y la cláusula de uso indebido de los puntos.
+1. Inscribir la base de datos de clientes en el Registro Nacional de Bases de Datos de la AAIP y, si se quiere, sumar el número a Privacidad.
+2. Revisión de un abogado, sobre todo la cesión de datos fuera del país, las exclusiones de la garantía y la cláusula de uso indebido de los puntos.
 
 ---
 
@@ -29,7 +28,7 @@ Pendiente:
 
 1. Quién vende
 
-teqo.com.ar es la tienda online de Andrés Benitez, CUIT 20-21774424-6, con domicilio en 9 de Julio 3418. Para cualquier consulta escribinos a contacto@teqo.com.ar.
+teqo.com.ar es la tienda online de Andrés Benitez, CUIT 20-21774424-6, con domicilio en 9 de Julio 3418, Rosario, Santa Fe, Rosario, Santa Fe. Para cualquier consulta escribinos a contacto@teqo.com.ar.
 
 Al comprar en teqo.com.ar aceptás estos términos. Si no estás de acuerdo con alguna parte, no confirmes la compra.
 
@@ -143,7 +142,7 @@ Uso indebido. Si detectamos compras o cuentas creadas solo para sumar puntos, o 
 
 1. Quién es responsable de tus datos
 
-Andrés Benitez, CUIT 20-21774424-6, con domicilio en 9 de Julio 3418, es responsable de los datos personales que se cargan en teqo.com.ar. Para cualquier tema de privacidad escribinos a contacto@teqo.com.ar.
+Andrés Benitez, CUIT 20-21774424-6, con domicilio en 9 de Julio 3418, Rosario, Santa Fe, es responsable de los datos personales que se cargan en teqo.com.ar. Para cualquier tema de privacidad escribinos a contacto@teqo.com.ar.
 
 Tratamos tus datos según la Ley 25.326 de Protección de los Datos Personales.
 
