@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatearPesos } from "@/lib/tienda/dinero";
@@ -200,7 +201,13 @@ export function MisPuntos({ alVerCupones }: { alVerCupones: () => void }) {
             dio.
           </li>
         </ul>
-        <p className="text-xs">[BASES Y CONDICIONES DEL PROGRAMA: A REDACTAR POR UN PROFESIONAL]</p>
+        <p className="text-xs">
+          Las bases y condiciones completas están en el punto 13 de los{" "}
+          <Link to="/terminos" className="underline">
+            Términos y condiciones
+          </Link>
+          .
+        </p>
       </section>
     </div>
   );

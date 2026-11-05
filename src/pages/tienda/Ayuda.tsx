@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Tienda } from "@/components/tienda/Tienda";
-import { GARANTIAS_POR_DEFECTO, parrafosDe, useContenidoLegal } from "@/lib/tienda/legal";
+import { GARANTIAS_POR_DEFECTO, useContenidoLegal } from "@/lib/tienda/legal";
 import { usarSeo } from "@/lib/tienda/seo";
 
 function Seccion({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
@@ -14,8 +14,8 @@ function Seccion({ id, titulo, children }: { id: string; titulo: string; childre
 
 export default function Ayuda() {
   usarSeo("Ayuda", "Envíos, pagos, garantías, cambios y devoluciones en Teqo.");
-  const { datos_legales: datos, texto_garantias } = useContenidoLegal();
-  const garantias = parrafosDe(texto_garantias);
+  // Ayuda muestra el resumen de garantías; el texto completo del panel está en Garantías y cambios.
+  const { datos_legales: datos } = useContenidoLegal();
 
   return (
     <Tienda>
@@ -59,7 +59,7 @@ export default function Ayuda() {
           </Seccion>
 
           <Seccion id="garantias" titulo="Garantías">
-            {(garantias.length > 0 ? garantias : GARANTIAS_POR_DEFECTO).map((p, i) => (
+            {GARANTIAS_POR_DEFECTO.map((p, i) => (
               <p key={i}>{p}</p>
             ))}
             <p>
