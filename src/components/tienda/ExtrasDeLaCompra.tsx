@@ -10,7 +10,8 @@ import type { PedidoPublico } from "@/lib/tienda/pedidos";
 export function ExtrasDeLaCompra({ pedido, token }: { pedido: PedidoPublico; token: string }) {
   const enCamino = pedido.estado === "enviado" || pedido.estado === "entregado";
   const vence = fechaDeVencimiento(pedido.cupon?.vence_en ?? null);
-  const arrepentimiento = `/arrepentimiento?compra=${encodeURIComponent(pedido.numero)}${pedido.comprador.email ? `&email=${encodeURIComponent(pedido.comprador.email)}` : ""}`;
+  // El email viaja en el estado de la navegación: en la dirección lo verían las etiquetas de medición.
+  const arrepentimiento = `/arrepentimiento?compra=${encodeURIComponent(pedido.numero)}`;
 
   if (!pedido.factura && !pedido.cupon && !enCamino) return null;
 
@@ -55,7 +56,9 @@ export function ExtrasDeLaCompra({ pedido, token }: { pedido: PedidoPublico; tok
             Podés arrepentirte dentro de los 10 días corridos desde que recibiste el pedido, sin dar motivos.
           </p>
           <Button asChild variant="outline">
-            <Link to={arrepentimiento}>Me arrepentí de la compra</Link>
+            <Link to={arrepentimiento} state={{ email: pedido.comprador.email }}>
+              Me arrepentí de la compra
+            </Link>
           </Button>
         </section>
       )}

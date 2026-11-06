@@ -12,7 +12,7 @@ Decisiones que toman los textos:
 - Envío demorado más de 15 días hábiles después del plazo: el cliente puede cancelar con devolución total.
 - Cambios sin falla: dentro de 30 días corridos, producto impecable, envío de ida y vuelta a cargo del cliente.
 - Puntos Teqo (punto 13 de los Términos): los valores del panel de hoy y 30 días de aviso para cambios. Si se cambian las reglas en Marketing › Puntos, hay que cambiar el punto 13.
-- Privacidad: datos en Supabase (San Pablo, Brasil), Vercel y Hostmar; conservación de 10 años para lo contable; promociones solo con permiso; Google Analytics, Google Ads y el píxel de Meta recién con un aviso de cookies.
+- Privacidad: datos en Supabase (San Pablo, Brasil), Vercel y Hostmar; conservación de 10 años para lo contable; promociones solo con permiso; Google Analytics, Google Ads y el píxel de Meta solo si se aceptan en el aviso de cookies.
 
 Pendiente:
 
@@ -182,6 +182,8 @@ ARCA, para emitir la factura.
 
 Google, solo si elegís entrar con tu cuenta de Google.
 
+Google y Meta, solo si aceptás las cookies de medición y publicidad. No les mandamos tu nombre, tu email ni tu teléfono.
+
 Supabase, que guarda la información de la tienda en servidores de San Pablo, Brasil; Vercel, que aloja el sitio en servidores que pueden estar en Estados Unidos; y Hostmar, que manda los emails. Tratan los datos por cuenta nuestra y con medidas de seguridad. Al usar la tienda aceptás que tus datos se alojen en esos servidores fuera de la Argentina.
 
 No vendemos ni alquilamos tus datos.
@@ -200,9 +202,9 @@ La Agencia de Acceso a la Información Pública, en su carácter de órgano de c
 
 7. Cookies y almacenamiento en el navegador
 
-Hoy la tienda guarda en tu navegador solo lo necesario para funcionar, como el carrito y la sesión de tu cuenta.
+La tienda guarda en tu navegador lo necesario para funcionar, como el carrito y la sesión de tu cuenta.
 
-Si sumamos herramientas de medición o publicidad, como Google Analytics, Google Ads o el píxel de Meta, te vamos a pedir permiso con un aviso antes de activarlas, y las vas a poder rechazar sin que cambie nada en tu compra.
+Con tu permiso, usamos Google Analytics, Google Ads y el píxel de Meta para medir las visitas y las compras y para mostrar mejor nuestra publicidad. Te lo pedimos con un aviso antes de activarlas. Podés rechazarlas sin que cambie nada en tu compra, y cambiar tu decisión cuando quieras desde "Cookies", en el pie de la página.
 
 8. Seguridad
 

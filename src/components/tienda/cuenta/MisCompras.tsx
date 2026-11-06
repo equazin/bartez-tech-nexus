@@ -66,7 +66,7 @@ export function MisCompras() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Button asChild size="sm">
-                <Link to={`/compra/${compra.id}?t=${encodeURIComponent(compra.token)}`}>Ver compra</Link>
+                <a href={`/compra/${compra.id}?t=${encodeURIComponent(compra.token)}`}>Ver compra</a>
               </Button>
               {compra.seguimiento_url && (
                 <Button asChild size="sm" variant="outline">

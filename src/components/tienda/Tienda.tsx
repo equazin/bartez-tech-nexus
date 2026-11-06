@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { Encabezado } from "./Encabezado";
 import { Pie } from "./Pie";
+import { AvisoDeCookies } from "./AvisoDeCookies";
 import { BandejaComparador } from "./BandejaComparador";
 
 /** Estructura de todas las páginas públicas: encabezado con menú de categorías, contenido, pie y comparador. */
@@ -18,6 +19,7 @@ export function Tienda({ children }: { children: ReactNode }) {
       <main className="flex-1">{children}</main>
       <Pie />
       <BandejaComparador />
+      <AvisoDeCookies />
     </div>
   );
 }

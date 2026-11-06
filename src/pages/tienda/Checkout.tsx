@@ -1,10 +1,11 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tienda } from "@/components/tienda/Tienda";
 import { useAuth } from "@/context/AuthContext";
 import { useCarritoDetallado } from "@/lib/tienda/carritoDetallado";
+import { medirInicioDeCheckout } from "@/lib/tienda/medicion";
 import {
   conDireccionPrincipal,
   cuponUsable,
@@ -97,7 +98,6 @@ function Campo({ etiqueta, error, children }: { etiqueta: string; error?: string
 
 export default function Checkout() {
   usarSeo("Finalizar la compra");
-  const navigate = useNavigate();
   const { pathname, search } = useLocation();
   const { user } = useAuth();
   const [parametros] = useSearchParams();
@@ -120,6 +120,13 @@ export default function Checkout() {
   const [guardarEnLaCuenta, setGuardarEnLaCuenta] = useState(true);
   // Cada medio tiene su precio (recargo configurable); el servidor vuelve a calcularlo al confirmar.
   const subtotalDelMedio = subtotalPorMedio[f.medio_pago] ?? subtotal;
+
+  const checkoutMedido = useRef(false);
+  useEffect(() => {
+    if (checkoutMedido.current || cargando || lineas.length === 0) return;
+    checkoutMedido.current = true;
+    medirInicioDeCheckout(lineas, subtotalDelMedio);
+  }, [cargando, lineas, subtotalDelMedio]);
 
   useEffect(() => {
     let cancelado = false;
@@ -257,7 +264,8 @@ export default function Checkout() {
         }).catch(() => undefined);
       }
       vaciarCarrito();
-      navigate(`/compra/${creado.id}?t=${creado.token}`, { replace: true });
+      // Con carga completa: el token se saca de la dirección antes de que corra cualquier etiqueta de medición.
+      window.location.replace(`/compra/${creado.id}?t=${creado.token}`);
     } catch (e: unknown) {
       setErrorDelServidor(e instanceof Error ? e.message : "No se pudo crear el pedido.");
     } finally {

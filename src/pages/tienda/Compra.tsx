@@ -8,8 +8,10 @@ import { ResumenDeCompra } from "@/components/tienda/ResumenDeCompra";
 import { formatearPesos } from "@/lib/tienda/dinero";
 import { crearPreferencia, datosDeTransferencia, type DatosDeTransferencia } from "@/lib/tienda/pagos";
 import { obtenerPedido, type PedidoPublico } from "@/lib/tienda/pedidos";
+import { medirCompra } from "@/lib/tienda/medicion";
 import { esDeMercadoPago } from "@/lib/tienda/precios";
 import { usarSeo } from "@/lib/tienda/seo";
+import { tokenGuardado } from "@/lib/tienda/tokenDeCompra";
 
 const formatoFechaHora = new Intl.DateTimeFormat("es-AR", { dateStyle: "long", timeStyle: "short" });
 
@@ -105,13 +107,17 @@ function PagarPorTransferencia({ pedido, token }: { pedido: PedidoPublico; token
 export default function Compra() {
   const { id = "" } = useParams<{ id: string }>();
   const [parametros] = useSearchParams();
-  const token = parametros.get("t") ?? "";
+  const token = parametros.get("t") ?? tokenGuardado(id) ?? "";
   const vuelta = parametros.get("pago");
   const [pedido, setPedido] = useState<PedidoPublico | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   usarSeo(pedido ? `Compra ${pedido.numero}` : "Tu compra");
+
+  useEffect(() => {
+    if (pedido) medirCompra(pedido);
+  }, [pedido]);
 
   useEffect(() => {
     const numero = Number(id);

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tienda } from "@/components/tienda/Tienda";
@@ -12,8 +12,9 @@ export default function Arrepentimiento() {
   usarSeo("Botón de arrepentimiento", "Revocá tu compra dentro de los 10 días corridos de recibirla, sin registro y con un código al instante.");
   // Desde la compra o el email de entrega llegan el número y el email ya cargados.
   const [parametros] = useSearchParams();
+  const { state } = useLocation();
   const [nombre, setNombre] = useState("");
-  const [email, setEmail] = useState(() => (parametros.get("email") ?? "").slice(0, 320));
+  const [email, setEmail] = useState(() => ((state as { email?: string | null } | null)?.email ?? "").slice(0, 320));
   const [numero, setNumero] = useState(() => (parametros.get("compra") ?? "").slice(0, 40));
   const [motivo, setMotivo] = useState("");
   const [enviando, setEnviando] = useState(false);

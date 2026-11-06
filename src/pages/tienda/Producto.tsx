@@ -18,6 +18,7 @@ import { cotizarEnvio, textoDeDemora, type CotizacionDeEnvio } from "@/lib/tiend
 import { datosClaveConEtiqueta, esNotebook, paresDeFicha, valorDe } from "@/lib/tienda/ficha";
 import { complementosDe, parecidosA } from "@/lib/tienda/sugerencias";
 import { pasoDeCategoria } from "@/lib/tienda/armador";
+import { medirProductoVisto } from "@/lib/tienda/medicion";
 import { usarSeo } from "@/lib/tienda/seo";
 import { cn } from "@/lib/utils";
 
@@ -176,7 +177,9 @@ export default function Producto() {
     setError(null);
     obtenerProducto(slug)
       .then((p) => {
-        if (!cancelado) setProducto(p);
+        if (cancelado) return;
+        setProducto(p);
+        if (p) medirProductoVisto(p);
       })
       .catch((e: unknown) => {
         if (!cancelado) setError(e instanceof Error ? e.message : "No se pudo cargar el producto.");

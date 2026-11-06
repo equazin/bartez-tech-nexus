@@ -1,3 +1,4 @@
+import { medirAgregadoAlCarrito } from "@/lib/tienda/medicion";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AlertTriangle, Check, Minus, Plus, X } from "lucide-react";
@@ -429,6 +430,7 @@ export default function ArmaTuPc() {
     for (const paso of elegidos) {
       const p = seleccion[paso.id] as ProductoPublico;
       agregarAlCarrito(p.id, p.slug, cantidadDe(paso.id));
+      medirAgregadoAlCarrito(p, cantidadDe(paso.id));
     }
     if (serviciosElegidos.length > 0) sumarServicios(serviciosElegidos.map((s) => s.id));
     toast.success("Tu PC está en el carrito", { description: `${elegidos.length} ${elegidos.length === 1 ? "pieza" : "piezas"} agregadas.` });

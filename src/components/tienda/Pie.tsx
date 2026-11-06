@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { listarCategorias, type CategoriaPublica } from "@/lib/tienda/catalogo";
 import { useContenidoLegal } from "@/lib/tienda/legal";
+import { abrirAvisoDeCookies } from "@/lib/tienda/medicion";
 
 const DEFENSA_DEL_CONSUMIDOR = "https://www.argentina.gob.ar/defensadelconsumidor";
 /** El logo del formulario 960/D que da ARCA, pedido por https para que el navegador no lo bloquee en la tienda. */
@@ -91,6 +92,9 @@ export function Pie() {
             <Link to="/privacidad" className={ENLACE}>
               Privacidad
             </Link>
+            <button type="button" onClick={abrirAvisoDeCookies} className={`${ENLACE} text-left`}>
+              Cookies
+            </button>
             <a href={DEFENSA_DEL_CONSUMIDOR} target="_blank" rel="noopener noreferrer" className={ENLACE}>
               Defensa del consumidor
             </a>

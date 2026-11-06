@@ -1,3 +1,4 @@
+import { medirAgregadoAlCarrito } from "@/lib/tienda/medicion";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,8 +26,12 @@ export function EstadoDeStock({ producto, className }: { producto: Pick<Producto
   );
 }
 
-export function agregarYAvisar(producto: Pick<ProductoPublico, "id" | "slug" | "nombre">, cantidad = 1) {
+export function agregarYAvisar(
+  producto: Pick<ProductoPublico, "id" | "slug" | "nombre"> & Partial<Pick<ProductoPublico, "sku" | "marca" | "categoria_nombre" | "precio_final_ars">>,
+  cantidad = 1,
+) {
   agregarAlCarrito(producto.id, producto.slug, cantidad);
+  medirAgregadoAlCarrito(producto, cantidad);
   toast.success("Agregado al carrito", { description: producto.nombre });
 }
 
