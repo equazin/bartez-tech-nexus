@@ -1,29 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { IVA_GENERAL, cuentasDelPedido, esDeMercadoPago, type DetalleDelEnvio, type LineaDeLaTienda } from "@/lib/panel/cuentasDelPedido";
 
 /**
  * El detalle de una compra de la tienda en el panel, en pesos: qué se vendió y a qué proveedor se le compra, el costo
  * de cada producto, el costo del envío, la comisión de Mercado Pago y la ganancia bruta que queda. Solo para el panel:
- * el costo y el margen nunca salen por la API pública.
+ * el costo y el margen nunca salen por la API pública. Las cuentas son las mismas que usa el tablero
+ * (src/lib/panel/cuentasDelPedido.ts).
  */
-
-interface LineaDeLaTienda {
-  product_id?: number;
-  servicio_id?: string;
-  name: string;
-  sku?: string;
-  quantity: number;
-  /** Costo unitario en pesos, sin IVA, con el dólar del momento de la venta. */
-  cost_price: number | null;
-  /** Precio unitario sin IVA. */
-  unit_price: number;
-  total_price: number;
-  iva_rate?: number;
-  /** Precio unitario con IVA, el que pagó el comprador. */
-  precio_final?: number;
-  dolar?: number | null;
-  proveedor?: string | null;
-}
 
 export interface PedidoDeLaTiendaFila {
   id: string | number;
@@ -39,7 +23,7 @@ export interface PedidoDeLaTiendaFila {
   comprador_telefono?: string | null;
   comprador_documento?: string | null;
   shipping_address?: string | null;
-  envio_detalle?: { opcion?: string; sucursal?: string | null; transporte?: string | null; costo?: number | null; zipnova?: { precio_zipnova?: number } | null } | null;
+  envio_detalle?: DetalleDelEnvio | null;
   products: LineaDeLaTienda[];
 }
 
@@ -50,9 +34,7 @@ interface PagoDelPedido {
   detalle: { comision?: number | null; neto_recibido?: number | null } | null;
 }
 
-const IVA_GENERAL = 0.21;
 const MEDIOS: Record<string, string> = { mercadopago: "Mercado Pago en 1 pago", mercadopago_cuotas: "Mercado Pago en 3 cuotas sin interés", transferencia: "Transferencia" };
-const esDeMercadoPago = (medio: string | null | undefined) => medio === "mercadopago" || medio === "mercadopago_cuotas";
 const ESTADOS_DE_PAGO: Record<string, string> = {
   pendiente: "pendiente",
   aprobado: "acreditado",
@@ -65,15 +47,6 @@ const ESTADOS_DE_PAGO: Record<string, string> = {
 const pesos = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 const fmt = (n: number) => pesos.format(Math.round(n));
 const porcentaje = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 });
-
-function costoDelEnvio(p: PedidoDeLaTiendaFila): { monto: number | null; origen: string } {
-  const detalle = p.envio_detalle ?? null;
-  if (typeof detalle?.costo === "number") return { monto: detalle.costo, origen: detalle.zipnova ? "cotización de Zipnova" : "tarifa del envío" };
-  if (typeof detalle?.zipnova?.precio_zipnova === "number") return { monto: detalle.zipnova.precio_zipnova, origen: "cotización de Zipnova" };
-  const cobrado = Number(p.shipping_cost ?? 0);
-  // Pedidos anteriores sin el costo guardado: la tarifa cobrada es el costo, salvo con envío gratis (no se sabe).
-  return cobrado > 0 ? { monto: cobrado, origen: "tarifa cobrada" } : { monto: null, origen: "sin dato" };
-}
 
 export function PedidoDeLaTienda({ pedido }: { pedido: PedidoDeLaTiendaFila }) {
   const [pago, setPago] = useState<PagoDelPedido | null>(null);
@@ -123,46 +96,7 @@ export function PedidoDeLaTienda({ pedido }: { pedido: PedidoDeLaTiendaFila }) {
     };
   }, [pedido.id, lineas]);
 
-  const cuentas = useMemo(() => {
-    let ventaProductosNeta = 0;
-    let costoNeto = 0;
-    let costoConIva = 0;
-    let sinCosto = 0;
-    for (const l of lineas) {
-      ventaProductosNeta += Number(l.total_price ?? 0);
-      if (l.cost_price === null || l.cost_price === undefined || Number(l.cost_price) <= 0) {
-        sinCosto += 1;
-        continue;
-      }
-      const iva = Number(l.iva_rate ?? 21) / 100;
-      costoNeto += Number(l.cost_price) * l.quantity;
-      costoConIva += Number(l.cost_price) * (1 + iva) * l.quantity;
-    }
-    const subtotal = Number(pedido.subtotal ?? 0);
-    const descuento = Number(pedido.discount_amount ?? 0);
-    // El descuento sale de precios con IVA: se le saca el IVA en la misma proporción que a los productos.
-    const descuentoNeto = subtotal > 0 ? descuento * (ventaProductosNeta / subtotal) : descuento / (1 + IVA_GENERAL);
-    const envioCobrado = Number(pedido.shipping_cost ?? 0);
-    const envio = costoDelEnvio(pedido);
-    const comision = esDeMercadoPago(pedido.payment_method) ? (pago?.detalle?.comision ?? null) : 0;
-
-    const cobrado = Number(pedido.total);
-    const cobradoNeto = ventaProductosNeta + envioCobrado / (1 + IVA_GENERAL) - descuentoNeto;
-    const gananciaConIva = cobrado - costoConIva - (envio.monto ?? 0) - (comision ?? 0);
-    const gananciaNeta = cobradoNeto - costoNeto - (envio.monto ?? 0) / (1 + IVA_GENERAL) - (comision ?? 0) / (1 + IVA_GENERAL);
-    return {
-      cobrado,
-      cobradoNeto,
-      costoConIva,
-      costoNeto,
-      sinCosto,
-      envio,
-      comision,
-      gananciaConIva,
-      gananciaNeta,
-      margen: cobradoNeto > 0 ? (gananciaNeta / cobradoNeto) * 100 : null,
-    };
-  }, [lineas, pedido, pago]);
+  const cuentas = useMemo(() => cuentasDelPedido({ ...pedido, products: lineas }, pago?.detalle?.comision), [lineas, pedido, pago]);
 
   const medio = MEDIOS[pedido.payment_method ?? ""] ?? pedido.payment_method ?? "Sin dato";
   const estadoDelPago = pago ? (ESTADOS_DE_PAGO[pago.estado] ?? pago.estado) : null;

@@ -254,6 +254,32 @@ async function flushRetryQueue(): Promise<void> {
   } catch { /* ignore — se reintentará la próxima vez */ }
 }
 
+// ── Visitas que no cuentan y de dónde llegan ──────────────────
+
+/** Navegadores automáticos (robots de buscadores, vistas previas, auditorías): el tablero cuenta personas. */
+const NAVEGADOR_AUTOMATICO =
+  /bot|crawl|spider|slurp|headless|lighthouse|pagespeed|prerender|google-inspectiontool|googleother|mediapartners|bingpreview|facebookexternalhit|gtmetrix|pingdom|uptime/i;
+
+function esNavegadorAutomatico(): boolean {
+  try {
+    return navigator.webdriver === true || NAVEGADOR_AUTOMATICO.test(navigator.userAgent ?? "");
+  } catch {
+    return false;
+  }
+}
+
+/** El sitio desde el que llegó la visita, solo el dominio y solo si no es la propia tienda. */
+function referenteExterno(): string | null {
+  try {
+    if (!document.referrer) return null;
+    const dominio = new URL(document.referrer).hostname.toLowerCase().replace(/^www\./, "");
+    const propio = window.location.hostname.toLowerCase().replace(/^www\./, "");
+    return dominio && dominio !== propio ? dominio : null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Core Track ────────────────────────────────────────────────
 
 let _currentUTMs: UTMParams | null = null;
@@ -268,6 +294,8 @@ export async function track(
   metadata: Record<string, unknown> = {},
   userId?: string | null,
 ): Promise<void> {
+  if (esNavegadorAutomatico()) return;
+
   // Intentar flush de cola pendiente (fire-and-forget, no bloquea)
   void flushRetryQueue();
 
@@ -287,6 +315,7 @@ export async function track(
       wbraid: utms.wbraid,
       gbraid: utms.gbraid,
       first_touch_attribution: getFirstTouchUTMs(),
+      referente: referenteExterno(),
       ...metadata,
     },
     created_at: new Date().toISOString(),

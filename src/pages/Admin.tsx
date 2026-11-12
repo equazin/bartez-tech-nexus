@@ -44,13 +44,15 @@ import { MarketingTab } from "@/components/admin/MarketingTab";
 import { B2BInsights } from "@/components/admin/B2BInsights";
 import { AdminLayout } from "@/components/admin/layout/AdminLayout";
 import { KeepAliveTab } from "@/components/admin/layout/KeepAliveTab";
-import { TAB_TO_MODULE, type Tab, type ModuleId, type NavItem } from "@/components/admin/layout/adminNavConfig";
+import { MODO_TIENDA, TAB_TO_MODULE, type Tab, type ModuleId, type NavItem } from "@/components/admin/layout/adminNavConfig";
+import type { PedidoDelTablero } from "@/lib/panel/ventas";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { EmailNotificationService } from "@/lib/api/emailNotifications";
 import { patchOrder } from "@/lib/api/ordersApi";
 
 // Lazy loaded tabs
 const SalesDashboard = lazy(() => import("@/components/admin/SalesDashboard").then(m => ({ default: m.SalesDashboard })));
+const TableroDeLaTienda = lazy(() => import("@/components/admin/tablero/TableroDeLaTienda").then(m => ({ default: m.TableroDeLaTienda })));
 const ClientCRM = lazy(() => import("@/components/admin/ClientCRM").then(m => ({ default: m.ClientCRM })));
 const SellerCRM = lazy(() => import("@/components/admin/SellerCRM").then(m => ({ default: m.SellerCRM })));
 const SellerManagementTab = lazy(() => import("@/components/admin/SellerManagementTab").then(m => ({ default: m.SellerManagementTab })));
@@ -376,7 +378,9 @@ const Admin = () => {
     { id: "credit", label: "Cobro", helper: "Credito, deuda y seguimiento financiero", icon: CreditCard },
   ];
 
-  const showCommercialJourney = ["dashboard", "quotes_admin", "orders", "kanban", "clients", "documents", "invoices", "credit"].includes(activeTab);
+  // El flujo de cotización, cliente y cobro es del portal mayorista: la tienda no tiene cotizaciones ni cuenta corriente.
+  const showCommercialJourney =
+    MODO_TIENDA === "mayorista" && ["dashboard", "quotes_admin", "orders", "kanban", "clients", "documents", "invoices", "credit"].includes(activeTab);
 
   const customerProfiles = useMemo(
     () => clients.filter((client) => !["admin", "vendedor", "sales"].includes(client.role)),
@@ -1724,6 +1728,15 @@ async function handleCreateSeller() {
 
         {/* -- DASHBOARD -- */}
         <KeepAliveTab active={activeTab === "dashboard"} id="dashboard">
+          {MODO_TIENDA === "consumidor" ? (
+            // Las compras llegan enteras de la base (select *): el tablero lee de ahí los campos de la tienda.
+            <TableroDeLaTienda
+              orders={orders as unknown as PedidoDelTablero[]}
+              activo={activeTab === "dashboard"}
+              onNavigateTab={navigateTab}
+              onRefreshOrders={fetchOrders}
+            />
+          ) : (
           <div className="space-y-6">
             <AdminMobileQuickPanel
               orders={orders}
@@ -1745,6 +1758,7 @@ async function handleCreateSeller() {
             />
             <SalesDashboard orders={orders} clients={clients} isDark={isDark} onRefreshOrders={fetchOrders} />
           </div>
+          )}
         </KeepAliveTab>
 
         {/* -- PRODUCTOS -- */}

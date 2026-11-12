@@ -24,7 +24,7 @@ const WORKSPACE_ITEMS: Array<{
   tab: Tab;
   icon: typeof LayoutDashboard;
 }> = [
-  { id: "dashboard", label: "Dashboard", module: "top", tab: "dashboard", icon: LayoutDashboard },
+  { id: "dashboard", label: "Tablero", module: "top", tab: "dashboard", icon: LayoutDashboard },
   { id: "sales", label: "Ventas", module: "pedidos", tab: "quotes_admin", icon: ClipboardList },
   { id: "clients", label: "Clientes 360", module: "clientes", tab: "clients", icon: Users },
   { id: "products", label: "Catalogo", module: "catalogo", tab: "products", icon: Package },
@@ -52,6 +52,13 @@ export function AdminSidebar({
 }: AdminSidebarProps) {
   const activeGroup = NAV_MODULES.find((m) => m.id === activeModule);
   const visibleItems = activeGroup ? activeGroup.items.filter(canSeeItem) : [];
+  // Cada acceso lleva a una pestaña que exista en este modo de tienda: si la preferida es del portal mayorista
+  // (cotizaciones, vendedores), va a la primera visible del módulo; si el módulo quedó vacío, el acceso no se muestra.
+  const workspaceItems = WORKSPACE_ITEMS.flatMap((item) => {
+    const visibles = NAV_MODULES.find((m) => m.id === item.module)?.items.filter(canSeeItem) ?? [];
+    if (visibles.length === 0) return [];
+    return [{ ...item, tab: visibles.some((v) => v.id === item.tab) ? item.tab : visibles[0].id }];
+  });
 
   const content = (
     <div className="flex h-full flex-col bg-card/65">
@@ -70,9 +77,9 @@ export function AdminSidebar({
       <div className="flex-1 overflow-y-auto px-2 py-3">
         <div className="space-y-5">
           <section className="space-y-2">
-            {(!collapsed || mobile) && <p className="px-2 text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Workspace</p>}
+            {(!collapsed || mobile) && <p className="px-2 text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Secciones</p>}
             <div className="space-y-1">
-              {WORKSPACE_ITEMS.map((item) => {
+              {workspaceItems.map((item) => {
                 const Icon = item.icon;
                 const active = activeModule === item.module || activeTab === item.tab;
                 return (

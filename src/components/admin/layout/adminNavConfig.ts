@@ -42,10 +42,10 @@ export interface NavModule {
 const NAV_MODULES_COMPLETOS: NavModule[] = [
   {
     id: "top",
-    label: "Dashboard",
+    label: "Tablero",
     icon: LayoutDashboard,
     items: [
-      { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { id: "dashboard", label: "Tablero", icon: LayoutDashboard },
     ],
   },
   {
