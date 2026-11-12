@@ -4,7 +4,7 @@ import { getRoleFromRequest, ensureWriteRole } from "../_shared/roles.js";
 import { createOrderSchema, updateOrderSchema, ORDER_STATUSES, type OrderStatus } from "../_shared/schemas.js";
 import { getSupabaseClient, getSupabaseAdmin } from "../_shared/supabaseServer.js";
 import { notifyOrderStatusChange } from "../_shared/notifications.js";
-import { avisarAlComprador } from "../_shared/avisos.js";
+import { avisarAlComprador, type TipoDeAviso } from "../_shared/avisos.js";
 import type { ApiRole } from "../_shared/roles.js";
 
 /**
@@ -40,6 +40,18 @@ const ALLOWED_TRANSITIONS: Record<ApiRole, OrderStatus[]> = {
 };
 
 const esDeLaTienda = (estado: string): estado is EstadoDeLaTienda => (ESTADOS_DE_LA_TIENDA as readonly string[]).includes(estado);
+
+/**
+ * El mail que el panel puede reenviar según el estado de la compra. Pendiente de pago, vencido y reintegrado no
+ * tienen uno: el de "compra recibida" sale del checkout con el detalle del carrito.
+ */
+const AVISO_DEL_ESTADO: Partial<Record<EstadoDeLaTienda, TipoDeAviso>> = {
+  pagado: "pago_acreditado",
+  preparando: "pago_acreditado",
+  enviado: "enviado",
+  entregado: "entregado",
+  cancelado: "cancelado",
+};
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "GET")   return listOrders(req, res);
@@ -179,7 +191,7 @@ async function updateOrder(req: VercelRequest, res: VercelResponse) {
     const parsed = updateOrderSchema.safeParse(req.body ?? {});
     if (!parsed.success) return fail(res, "Invalid payload", 400, parsed.error.flatten());
 
-    const { id, status, ...rest } = parsed.data;
+    const { id, status, notificar, reenviar_aviso, ...rest } = parsed.data;
 
     // Validate status transition is allowed for this role
     if (status !== undefined && !ALLOWED_TRANSITIONS[role].includes(status)) {
@@ -199,6 +211,14 @@ async function updateOrder(req: VercelRequest, res: VercelResponse) {
     // Los pedidos de la tienda siguen su flujo y solo los opera el panel.
     if (pedido.origen === "tienda") {
       if (role === "cliente" || role === "client") return fail(res, "Los pedidos de la tienda se operan desde el panel.", 403);
+      // Reenviar el mail del estado actual: no toca el pedido.
+      if (reenviar_aviso) {
+        const tipo = esDeLaTienda(pedido.status) ? AVISO_DEL_ESTADO[pedido.status] : undefined;
+        if (!tipo) return fail(res, `Una compra en estado "${pedido.status}" no tiene un mail para reenviar.`, 409);
+        const aviso = await avisarAlComprador(pedido.id, tipo, { reenviar: true });
+        if (!aviso.enviado) return fail(res, aviso.motivo, 409);
+        return ok(res, { reenviado: tipo });
+      }
       if (status !== undefined) {
         if (!esDeLaTienda(status)) return fail(res, `"${status}" no es un estado de la tienda.`, 400);
         const bearer = req.headers.authorization?.slice(7) ?? "";
@@ -207,8 +227,16 @@ async function updateOrder(req: VercelRequest, res: VercelResponse) {
         if (resultado.error) return fail(res, resultado.error, resultado.estado ?? 500);
         return ok(res, resultado.data);
       }
-      const { data, error } = await admin.from("orders").update(rest).eq("id", id).select("*").single();
+      const cambios = Object.fromEntries(Object.entries(rest).filter(([, valor]) => valor !== undefined));
+      if (Object.keys(cambios).length === 0) return fail(res, "No hay datos para guardar: completá el transporte o el número de seguimiento.", 400);
+      const { data, error } = await admin.from("orders").update(cambios).eq("id", id).select("*").single();
       if (error) return fail(res, error.message, 500);
+      // Transporte y seguimiento cargados a mano: si el panel lo pide, el comprador recibe el mail con esos datos.
+      // Sale cada vez que se pide, así una corrección del número también le llega.
+      if (notificar) {
+        const aviso = await avisarAlComprador(pedido.id, "seguimiento", { reenviar: true });
+        return ok(res, { ...(data as Record<string, unknown>), aviso });
+      }
       return ok(res, data);
     }
 

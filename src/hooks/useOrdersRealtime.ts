@@ -82,10 +82,9 @@ export function useOrdersRealtime() {
   );
 
   const updateLogistics = useCallback(
-    async (orderId: string, provider: string, tracking: string): Promise<void> => {
-      await patchOrder({ id: Number(orderId), shipping_provider: provider, tracking_number: tracking });
-
-    },
+    // `notificar` vale para las compras de la tienda: el servidor le manda al comprador el mail con el seguimiento.
+    async (orderId: string, provider: string, tracking: string, notificar = false) =>
+      patchOrder({ id: Number(orderId), shipping_provider: provider, tracking_number: tracking, notificar }),
     []
   );
 

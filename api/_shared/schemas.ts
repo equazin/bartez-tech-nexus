@@ -109,6 +109,10 @@ export const updateOrderSchema = z.object({
   tracking_number: optionalTrimmedString(100),
   numero_remito: optionalTrimmedString(64),
   notes: optionalTrimmedString(300),
+  // Solo compras de la tienda: mandar al comprador el mail con el seguimiento que se guarda en este mismo pedido...
+  notificar: z.boolean().optional(),
+  // ...o reenviarle el mail del estado en que está la compra. No cambian nada del pedido.
+  reenviar_aviso: z.boolean().optional(),
 });
 
 // Fields an admin/vendedor can update on profiles

@@ -130,6 +130,35 @@ export function pedidoEnviadoHTML(params: {
   return base("Tu pedido está en camino", cuerpo);
 }
 
+/**
+ * Se cargó el transporte y el número de seguimiento desde el panel. No dice que el pedido ya salió: eso lo
+ * avisa pedidoEnviadoHTML cuando la compra pasa a enviada.
+ */
+export function seguimientoCargadoHTML(params: {
+  numero: string;
+  nombre: string;
+  transporte: string | null;
+  seguimiento: string;
+  enlace: string;
+  /** Link de seguimiento del envío (Zipnova o el transporte), si se conoce. */
+  enlaceSeguimiento?: string | null;
+  /** Si retira en una sucursal del transporte: cuál. */
+  sucursal?: string | null;
+}): string {
+  const dondeSeguirlo = params.enlaceSeguimiento
+    ? boton(params.enlaceSeguimiento, "Seguir el envío")
+    : params.transporte
+      ? nota(`Con ese número lo seguís en el sitio de ${escapar(params.transporte)}.`)
+      : "";
+  const cuerpo = `
+    ${parrafo(`Hola ${escapar(params.nombre)}, ya podés seguir el envío de tu compra <strong>${escapar(params.numero)}</strong>.`)}
+    ${parrafo(`Número de seguimiento${params.transporte ? ` de ${escapar(params.transporte)}` : ""}: <strong>${escapar(params.seguimiento)}</strong>`)}
+    ${params.sucursal ? parrafo(`Lo retirás en esta sucursal: ${escapar(params.sucursal)}. Te avisan cuando esté listo para retirar.`) : ""}
+    ${dondeSeguirlo}
+    ${boton(params.enlace, "Ver mi compra")}`;
+  return base("Tu compra ya tiene seguimiento", cuerpo);
+}
+
 export interface CuponDelEmail {
   codigo: string;
   tipo: "percentage" | "fixed";

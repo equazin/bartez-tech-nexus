@@ -1,14 +1,18 @@
 import { createMailerTransport, getDefaultFromEmail, registroDelEnvio, sanitizeHeaderText } from "./mailer.js";
-import { pagoAcreditadoHTML, pedidoCanceladoHTML, pedidoEntregadoHTML, pedidoEnviadoHTML } from "./plantillas.js";
+import { pagoAcreditadoHTML, pedidoCanceladoHTML, pedidoEntregadoHTML, pedidoEnviadoHTML, seguimientoCargadoHTML } from "./plantillas.js";
 import { getSupabaseAdmin } from "./supabaseServer.js";
 import { nombreDelMedio } from "./medios.js";
 
 /**
  * Avisos al comprador de la tienda por cada paso del pedido. Cada aviso se anota en
- * avisos_al_comprador antes de salir: el mismo aviso no se manda dos veces. Nunca tira.
+ * avisos_al_comprador antes de salir: el mismo aviso no se manda dos veces, salvo que el panel
+ * pida reenviarlo. Nunca tira: devuelve si el mail salió y, si no, por qué.
  */
 
-export type TipoDeAviso = "pago_acreditado" | "enviado" | "entregado" | "cancelado";
+export type TipoDeAviso = "pago_acreditado" | "seguimiento" | "enviado" | "entregado" | "cancelado";
+
+/** Lo que pasó con un aviso. El panel lo muestra cuando el aviso se pidió a mano. */
+export type ResultadoDelAviso = { enviado: true } | { enviado: false; motivo: string };
 
 interface PedidoParaAvisar {
   id: number;
@@ -33,6 +37,7 @@ interface PedidoParaAvisar {
 
 const ASUNTOS: Record<TipoDeAviso, string> = {
   pago_acreditado: "Pago acreditado de tu compra {numero}",
+  seguimiento: "Seguimiento de tu compra {numero}",
   enviado: "Tu compra {numero} está en camino",
   entregado: "Entregamos tu compra {numero}",
   cancelado: "Tu compra {numero} quedó cancelada",
@@ -48,7 +53,23 @@ function textoDeDemora(min: number | null, max: number | null): string | null {
   return `Llega en ${min} a ${max} días hábiles desde el despacho.`;
 }
 
-export async function avisarAlComprador(orderId: number, tipo: TipoDeAviso, extra: { motivo?: string | null } = {}): Promise<void> {
+/**
+ * El transporte que ve el comprador. Si se cargó a mano en el panel, ese; con Zipnova, shipping_provider dice
+ * "zipnova" y el nombre del transporte está en shipping_transport (que al comprar guarda el de la cotización).
+ */
+function transporteDe(pedido: PedidoParaAvisar): string | null {
+  const cargado = pedido.shipping_provider?.trim();
+  if (cargado && cargado.toLowerCase() !== "zipnova") return cargado;
+  return pedido.shipping_transport ?? null;
+}
+
+const sucursalDe = (pedido: PedidoParaAvisar): string | null => (pedido.envio_detalle?.opcion === "sucursal" ? (pedido.envio_detalle.sucursal ?? null) : null);
+
+export async function avisarAlComprador(
+  orderId: number,
+  tipo: TipoDeAviso,
+  extra: { motivo?: string | null; /** Pedido a mano desde el panel: sale aunque ya se haya mandado. */ reenviar?: boolean } = {},
+): Promise<ResultadoDelAviso> {
   try {
     const supabase = getSupabaseAdmin();
     const { data } = await supabase
@@ -57,10 +78,16 @@ export async function avisarAlComprador(orderId: number, tipo: TipoDeAviso, extr
       .eq("id", orderId)
       .maybeSingle();
     const pedido = data as PedidoParaAvisar | null;
-    if (!pedido || pedido.origen !== "tienda" || !pedido.comprador_email) return;
+    if (!pedido || pedido.origen !== "tienda") return { enviado: false, motivo: "No es una compra de la tienda." };
+    if (!pedido.comprador_email) return { enviado: false, motivo: "La compra no tiene el email del comprador." };
+    const seguimiento = pedido.tracking_number?.trim() ?? "";
+    if (tipo === "seguimiento" && !seguimiento) return { enviado: false, motivo: "Falta el número de seguimiento." };
 
+    // Reenvío pedido desde el panel: se saca la anotación anterior para que el mismo aviso pueda salir otra vez.
+    if (extra.reenviar) await supabase.from("avisos_al_comprador").delete().eq("order_id", pedido.id).eq("tipo", tipo);
     const { error: errorAnotacion } = await supabase.from("avisos_al_comprador").insert({ order_id: pedido.id, tipo, email: pedido.comprador_email });
-    if (errorAnotacion) return; // Ya se mandó (índice único) o no se pudo anotar: no se manda.
+    // Ya se mandó (índice único) o no se pudo anotar: no se manda.
+    if (errorAnotacion) return { enviado: false, motivo: "Ese aviso ya se había mandado." };
 
     const base = sitioPublico();
     const enlace = `${base}/compra/${pedido.id}?t=${pedido.token_acceso ?? ""}`;
@@ -71,17 +98,27 @@ export async function avisarAlComprador(orderId: number, tipo: TipoDeAviso, extr
       case "pago_acreditado":
         html = pagoAcreditadoHTML({ numero: pedido.order_number, nombre, total: Number(pedido.total), demora, enlace });
         break;
+      case "seguimiento":
+        html = seguimientoCargadoHTML({
+          numero: pedido.order_number,
+          nombre,
+          transporte: transporteDe(pedido),
+          seguimiento,
+          enlace,
+          enlaceSeguimiento: pedido.envio_seguimiento_url,
+          sucursal: sucursalDe(pedido),
+        });
+        break;
       case "enviado":
         html = pedidoEnviadoHTML({
           numero: pedido.order_number,
           nombre,
-          // Con Zipnova, shipping_provider dice "zipnova": al cliente le sirve el nombre del transporte.
-          transporte: pedido.shipping_transport ?? (pedido.shipping_provider === "zipnova" ? null : pedido.shipping_provider),
+          transporte: transporteDe(pedido),
           seguimiento: pedido.tracking_number,
           demora,
           enlace,
           enlaceSeguimiento: pedido.envio_seguimiento_url,
-          sucursal: pedido.envio_detalle?.opcion === "sucursal" ? (pedido.envio_detalle.sucursal ?? null) : null,
+          sucursal: sucursalDe(pedido),
         });
         break;
       case "entregado": {
@@ -146,9 +183,12 @@ export async function avisarAlComprador(orderId: number, tipo: TipoDeAviso, extr
       await supabase.from("avisos_al_comprador").delete().eq("order_id", pedido.id).eq("tipo", tipo);
       throw e;
     }
-    if (tipo === "pago_acreditado") await avisarAlAdmin(pedido, base);
+    // El aviso al admin es para preparar la compra: en un reenvío al comprador no hace falta.
+    if (tipo === "pago_acreditado" && !extra.reenviar) await avisarAlAdmin(pedido, base);
+    return { enviado: true };
   } catch (e: unknown) {
     console.error("[avisos]", tipo, orderId, e instanceof Error ? e.message : e);
+    return { enviado: false, motivo: "No se pudo mandar el mail. Probá de nuevo en un rato." };
   }
 }
 

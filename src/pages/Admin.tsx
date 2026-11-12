@@ -47,6 +47,7 @@ import { KeepAliveTab } from "@/components/admin/layout/KeepAliveTab";
 import { TAB_TO_MODULE, type Tab, type ModuleId, type NavItem } from "@/components/admin/layout/adminNavConfig";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { EmailNotificationService } from "@/lib/api/emailNotifications";
+import { patchOrder } from "@/lib/api/ordersApi";
 
 // Lazy loaded tabs
 const SalesDashboard = lazy(() => import("@/components/admin/SalesDashboard").then(m => ({ default: m.SalesDashboard })));
@@ -877,9 +878,20 @@ const Admin = () => {
     if (!selectedOrder) return;
     setSavingLogistics(true);
     try {
-      await rtUpdateLogistics(selectedOrder.id, shippingProvider, trackingNumber);
-      
-      if (notifyByEmail) {
+      const esDeLaTienda = selectedOrder.origen === "tienda";
+      // En las compras de la tienda el mail lo arma y lo manda el servidor, con el seguimiento recién guardado.
+      const guardado = await rtUpdateLogistics(selectedOrder.id, shippingProvider, trackingNumber, esDeLaTienda && notifyByEmail);
+
+      if (esDeLaTienda) {
+        if (notifyByEmail) {
+          const aviso = guardado.aviso;
+          alert(
+            aviso?.enviado
+              ? "Guardado. Le mandamos al comprador el mail con el seguimiento."
+              : `Guardado, pero el mail no salió: ${aviso && !aviso.enviado ? aviso.motivo : "no hubo respuesta del servidor."}`,
+          );
+        }
+      } else if (notifyByEmail) {
         const client = clients.find(c => c.id === selectedOrder.client_id);
         if (client?.email) {
           await fetch("/api/email", {
@@ -905,6 +917,7 @@ const Admin = () => {
       setSelectedOrder(prev => prev ? { ...prev, shipping_provider: shippingProvider, tracking_number: trackingNumber } : null);
     } catch (err) {
        logger.error("Error saving logistics:", err);
+       alert("No se pudo guardar el envío: " + (err instanceof Error ? err.message : String(err)));
     } finally {
       setSavingLogistics(false);
     }
@@ -2626,8 +2639,19 @@ async function handleCreateSeller() {
                   <button 
                     onClick={async () => {
                       if (!selectedOrder) return;
-                      const ok = confirm("¿Estás seguro de que quieres reenviar el email de este estado?");
-                      if (ok) {
+                      const ok = confirm("¿Querés reenviar el mail de este estado?");
+                      if (!ok) return;
+                      // Compras de la tienda: el servidor reenvía el mail que corresponde al estado (pago acreditado, en camino, entregada o cancelada).
+                      if (selectedOrder.origen === "tienda") {
+                        try {
+                          await patchOrder({ id: selectedOrder.id, reenviar_aviso: true });
+                          alert("Mail reenviado al comprador.");
+                        } catch (err) {
+                          alert("No se pudo reenviar el mail: " + (err instanceof Error ? err.message : String(err)));
+                        }
+                        return;
+                      }
+                      {
                         const res = await EmailNotificationService.notifyOrderStatus(selectedOrder.id, selectedOrder.status);
                         if (res.success) {
                           alert("Email reenviado con éxito");
