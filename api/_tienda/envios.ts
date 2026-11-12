@@ -30,7 +30,14 @@ import { cambiarEstadoDeLaTienda, type PedidoActual } from "./orders.js";
  * Lo que despacha Teqo se cotiza con Zipnova (más el margen del panel). Lo que despacha un mayorista directo
  * paga su tarifa plana; si el carrito mezcla, se cobra el envío más alto y solo se ofrece la entrega a domicilio,
  * porque el mayorista entrega en el domicilio. Sin Zipnova activo, se usa la tabla de tarifas por peso.
+ *
+ * El envío sale gratis por dos caminos: el subtotal llega a `envio_gratis_desde` (configuración), o todos los
+ * productos del carrito llevan la etiqueta `envio-gratis`. En los dos casos se cotiza igual, para guardar lo que
+ * le cuesta a Teqo y los datos del transporte.
  */
+
+/** Los productos con esta etiqueta no pagan envío. Vale si la lleva todo el carrito: con uno sin ella se cobra entero. */
+export const ETIQUETA_DE_ENVIO_GRATIS = "envio-gratis";
 
 type Supabase = ReturnType<typeof getSupabaseAdmin>;
 
@@ -128,6 +135,19 @@ async function partesDelEnvio(supabase: Supabase, items: ItemDelEnvio[]): Promis
   }));
 }
 
+/** Si todo el carrito lleva la etiqueta de envío gratis. Ante un error de lectura no se regala el envío. */
+async function todosConEnvioGratis(supabase: Supabase, items: ItemDelEnvio[]): Promise<boolean> {
+  const ids = [...new Set(items.map((i) => i.product_id))];
+  if (ids.length === 0) return false;
+  const { data, error } = await supabase.from("products").select("id, tags").in("id", ids);
+  if (error) {
+    console.error("[envios] No se pudieron leer las etiquetas de envío gratis:", error.message);
+    return false;
+  }
+  const filas = (data ?? []) as Array<{ id: number; tags: string[] | null }>;
+  return filas.length === ids.length && filas.every((f) => Array.isArray(f.tags) && f.tags.includes(ETIQUETA_DE_ENVIO_GRATIS));
+}
+
 function itemsParaZipnova(propios: ParteDelEnvio[]): ItemDeZipnova[] {
   const items: ItemDeZipnova[] = [];
   for (const p of propios) {
@@ -170,7 +190,8 @@ export async function opcionesDeEnvio(supabase: Supabase, items: ItemDelEnvio[],
   const partes = await partesDelEnvio(supabase, items);
   if (partes.length === 0) return [];
   const { zipnova, gratisDesde, redondeo } = await leerConfiguracion(supabase);
-  const gratis = gratisDesde !== null && subtotal >= gratisDesde;
+  // Gratis por el monto de la compra o porque todo el carrito lleva la etiqueta de envío gratis.
+  const gratis = (gratisDesde !== null && subtotal >= gratisDesde) || (await todosConEnvioGratis(supabase, items));
   const redondear = (n: number) => Math.ceil(n / redondeo) * redondeo;
 
   const directos = partes.filter((p) => p.directo);
@@ -195,9 +216,10 @@ export async function opcionesDeEnvio(supabase: Supabase, items: ItemDelEnvio[],
     if (error) throw new Error(`No se pudo cotizar el envío: ${error.message}`);
     const fila = (Array.isArray(data) ? data[0] : data) as { precio: number | null; demora_dias_min: number | null; demora_dias_max: number | null; gratis: boolean; disponible: boolean } | null;
     if (!fila?.disponible || fila.precio === null) return [];
-    // La tarifa por peso es lo que cuesta el envío; con envío gratis no queda registrada.
+    // La tarifa por peso es lo que cuesta el envío; con el envío gratis por monto (lo resuelve la base) no queda registrada.
     const costo = fila.gratis ? null : numero(fila.precio);
-    return [{ id: "domicilio", precio: numero(fila.precio), gratis: Boolean(fila.gratis), demora_dias_min: fila.demora_dias_min, demora_dias_max: fila.demora_dias_max, entrega_estimada: null, transporte: null, zipnova: null, costo }];
+    const sinCargo = gratis || Boolean(fila.gratis);
+    return [{ id: "domicilio", precio: sinCargo ? 0 : numero(fila.precio), gratis: sinCargo, demora_dias_min: fila.demora_dias_min, demora_dias_max: fila.demora_dias_max, entrega_estimada: null, transporte: null, zipnova: null, costo }];
   }
 
   const resultados = (
