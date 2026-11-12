@@ -53,14 +53,18 @@ function textoDeDemora(min: number | null, max: number | null): string | null {
   return `Llega en ${min} a ${max} días hábiles desde el despacho.`;
 }
 
+/** Los transportes que se cargan a mano en el panel (orders.shipping_provider) que tienen un nombre para mostrar. */
+const NOMBRE_DEL_TRANSPORTE: Record<string, string> = { andreani: "Andreani", oca: "OCA" };
+
 /**
- * El transporte que ve el comprador. Si se cargó a mano en el panel, ese; con Zipnova, shipping_provider dice
- * "zipnova" y el nombre del transporte está en shipping_transport (que al comprar guarda el de la cotización).
+ * El transporte que ve el comprador. Con Zipnova (o sin nada cargado), el nombre está en shipping_transport,
+ * que al comprar guarda el de la cotización. Si el envío se cargó a mano en el panel vale ese: "otro" y
+ * "propio" no nombran a nadie, y el de la cotización ya no corresponde.
  */
 function transporteDe(pedido: PedidoParaAvisar): string | null {
-  const cargado = pedido.shipping_provider?.trim();
-  if (cargado && cargado.toLowerCase() !== "zipnova") return cargado;
-  return pedido.shipping_transport ?? null;
+  const cargado = pedido.shipping_provider?.trim().toLowerCase();
+  if (!cargado || cargado === "zipnova") return pedido.shipping_transport ?? null;
+  return NOMBRE_DEL_TRANSPORTE[cargado] ?? null;
 }
 
 const sucursalDe = (pedido: PedidoParaAvisar): string | null => (pedido.envio_detalle?.opcion === "sucursal" ? (pedido.envio_detalle.sucursal ?? null) : null);

@@ -2596,12 +2596,12 @@ async function handleCreateSeller() {
                         onChange={(e) => setShippingProvider(e.target.value)}
                         className={`w-full rounded-lg border px-3 py-2 text-xs outline-none ${dk("bg-[#111] border-[#2a2a2a] text-white", "bg-white border-[#d4d4d4] text-[#171717]")}`}
                       >
+                        {/* Los valores son los que acepta la base (orders_shipping_provider_check): con otros, guardar fallaba. */}
                         <option value="">Seleccionar...</option>
-                        <option value="Andreani">Andreani</option>
-                        <option value="OCA">OCA</option>
-                        <option value="OCASA">OCASA</option>
-                        <option value="Logística propia">Logística propia</option>
-                        <option value="Retiro en sucursal">Retiro en sucursal</option>
+                        <option value="andreani">Andreani</option>
+                        <option value="oca">OCA</option>
+                        <option value="otro">Otro transporte</option>
+                        <option value="propio">Logística propia</option>
                       </select>
                     </div>
                     <div>
