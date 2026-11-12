@@ -12,7 +12,7 @@ export interface DatoDelDia {
   detalle?: string;
 }
 
-const ALTO_DEL_GRAFICO = 168;
+const ALTO_MINIMO_DEL_GRAFICO = 168;
 const DIAS_CON_ETIQUETA = 8;
 
 /**
@@ -89,13 +89,14 @@ export function BarrasPorDia({
       ) : maximo <= 0 ? (
         <Vacio>{vacio}</Vacio>
       ) : (
-        <div>
-          <div className="flex gap-3">
-            <div className="flex w-14 shrink-0 flex-col justify-between text-right text-[11px] tabular-nums text-muted-foreground" style={{ height: ALTO_DEL_GRAFICO }} aria-hidden>
+        <div className="flex flex-1 flex-col">
+          {/* El gráfico ocupa el alto que le deja la tarjeta: al lado de una tarjeta más alta no queda un hueco abajo. */}
+          <div className="flex flex-1 gap-3" style={{ minHeight: ALTO_MINIMO_DEL_GRAFICO }}>
+            <div className="flex w-14 shrink-0 flex-col justify-between text-right text-[11px] tabular-nums text-muted-foreground" aria-hidden>
               <span className="-translate-y-1.5">{formatoDelEje(tope)}</span>
               <span className="translate-y-1.5">0</span>
             </div>
-            <div className="relative min-w-0 flex-1" style={{ height: ALTO_DEL_GRAFICO }}>
+            <div className="relative min-w-0 flex-1">
               <div className="pointer-events-none absolute inset-x-0 top-0 border-t border-border/70" aria-hidden />
               <div className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-border/70" aria-hidden />
               <div className="pointer-events-none absolute inset-x-0 bottom-0 border-t border-border" aria-hidden />

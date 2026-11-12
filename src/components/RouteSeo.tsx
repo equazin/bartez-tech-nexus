@@ -173,8 +173,8 @@ function buildRouteSchema(seo: RouteSeoConfig, canonicalUrl: string) {
 function getRouteSeo(pathname: string): RouteSeoConfig | null {
   if (pathname.startsWith("/portal") || pathname.startsWith("/admin") || pathname.startsWith("/clientes")) {
     return {
-      title: "Portal Clientes | Teqo",
-      description: "Acceso privado para clientes Teqo.",
+      title: "Panel | Teqo",
+      description: "Panel de administración de Teqo.",
       canonicalPath: pathname,
       noindex: true,
     };
