@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { usarSeo } from "@/lib/tienda/seo";
+import { usarNoIndexar, usarSeo } from "@/lib/tienda/seo";
 
 export function NoEncontrado({ titulo = "No encontramos esta página", detalle }: { titulo?: string; detalle?: string }) {
   usarSeo(titulo);
+  // El servidor responde 200 a cualquier dirección: sin esto, Google indexaría las que no existen.
+  usarNoIndexar();
   return (
     <div className="container mx-auto flex flex-col items-start gap-4 px-4 py-24">
       <h1 className="text-[28px] font-bold leading-[34px]">{titulo}</h1>

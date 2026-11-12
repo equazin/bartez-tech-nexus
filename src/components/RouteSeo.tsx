@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 
 type RouteSeoConfig = {
@@ -10,11 +10,17 @@ type RouteSeoConfig = {
 };
 
 const SITE_URL = ((import.meta.env.VITE_SITE_URL as string | undefined) ?? "https://DOMINIO-DE-TEQO-A-CONFIRMAR").replace(/\/$/, "");
+// Sin canonicalPath: una página que no figura en la tabla (categorías, fichas, ayuda, legales) es canónica de sí
+// misma. Con "/" acá, todo el catálogo se declaraba copia del inicio.
 const DEFAULT_SEO: RouteSeoConfig = {
   title: "Teqo | Notebooks, gaming, monitores y periféricos",
   description: "Tecnología para trabajar, crear y jugar, con envío a todo el país y precios finales con IVA incluido.",
-  canonicalPath: "/",
 };
+
+/** Páginas de la tienda que son de cada comprador: nunca se indexan. */
+const PRIVADAS_DE_LA_TIENDA = ["/carrito", "/checkout", "/cuenta", "/seguimiento", "/comparar", "/compra"];
+
+const sinBarraFinal = (ruta: string): string => (ruta.length > 1 ? ruta.replace(/\/+$/, "") || "/" : "/");
 
 const PUBLIC_ROUTE_SEO: Record<string, RouteSeoConfig> = {
   "/": {
@@ -163,7 +169,8 @@ function buildRouteSchema(seo: RouteSeoConfig, canonicalUrl: string) {
   return base;
 }
 
-function getRouteSeo(pathname: string): RouteSeoConfig {
+/** La configuración de la dirección, o nula si la página pone su propio título y descripción (catálogo, ayuda, legales). */
+function getRouteSeo(pathname: string): RouteSeoConfig | null {
   if (pathname.startsWith("/portal") || pathname.startsWith("/admin") || pathname.startsWith("/clientes")) {
     return {
       title: "Portal Clientes | Teqo",
@@ -182,26 +189,46 @@ function getRouteSeo(pathname: string): RouteSeoConfig {
     };
   }
 
-  return PUBLIC_ROUTE_SEO[pathname] ?? DEFAULT_SEO;
+  if (PRIVADAS_DE_LA_TIENDA.some((ruta) => pathname === ruta || pathname.startsWith(`${ruta}/`))) {
+    return { title: DEFAULT_SEO.title, description: DEFAULT_SEO.description, canonicalPath: pathname, noindex: true };
+  }
+
+  return PUBLIC_ROUTE_SEO[pathname] ?? null;
 }
 
 export function RouteSeo() {
   const location = useLocation();
+  const primeraCarga = useRef(true);
 
   useEffect(() => {
-    const seo = getRouteSeo(location.pathname);
-    const canonicalUrl = `${SITE_URL}${seo.canonicalPath ?? location.pathname}`;
+    const propia = getRouteSeo(location.pathname);
+    const seo = propia ?? DEFAULT_SEO;
+    const canonicalUrl = `${SITE_URL}${sinBarraFinal(seo.canonicalPath ?? location.pathname)}`;
+    const esLaPrimera = primeraCarga.current;
+    primeraCarga.current = false;
 
-    document.title = seo.title;
     upsertCanonical(canonicalUrl);
-    upsertNamedMeta("description", seo.description);
-    upsertNamedMeta("robots", seo.noindex ? "noindex,nofollow" : "index,follow");
-    upsertPropertyMeta("og:title", seo.title);
-    upsertPropertyMeta("og:description", seo.description);
     upsertPropertyMeta("og:url", canonicalUrl);
-    upsertNamedMeta("twitter:title", seo.title);
-    upsertNamedMeta("twitter:description", seo.description);
-    upsertJsonLd("teqo-route-schema", buildRouteSchema(seo, canonicalUrl));
+    upsertNamedMeta("robots", seo.noindex ? "noindex,nofollow" : "index,follow");
+
+    // En la primera carga de una página del catálogo, el HTML ya trae su título y su descripción (prerender): no se
+    // pisan con los genéricos. Al navegar sí, hasta que la página nueva ponga los suyos con usarSeo.
+    if (propia || !esLaPrimera) {
+      document.title = seo.title;
+      upsertNamedMeta("description", seo.description);
+      upsertPropertyMeta("og:title", seo.title);
+      upsertPropertyMeta("og:description", seo.description);
+      upsertNamedMeta("twitter:title", seo.title);
+      upsertNamedMeta("twitter:description", seo.description);
+    }
+
+    // Los datos estructurados que dejó el prerender son de la página con la que se entró.
+    if (!esLaPrimera) {
+      document.head.querySelectorAll('script[type="application/ld+json"][data-prerender]').forEach((viejo) => viejo.remove());
+    }
+
+    if (propia) upsertJsonLd("teqo-route-schema", buildRouteSchema(seo, canonicalUrl));
+    else document.head.querySelector("script#teqo-route-schema")?.remove();
   }, [location.pathname]);
 
   return null;

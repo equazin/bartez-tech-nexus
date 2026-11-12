@@ -9,6 +9,7 @@ Disallow: /cart
 Disallow: /carrito
 Disallow: /checkout
 Disallow: /compra
+Disallow: /cuenta
 Disallow: /seguimiento
 Disallow: /arrepentimiento
 

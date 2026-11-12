@@ -212,6 +212,12 @@ export default defineConfig(({ mode }) => {
           manualChunks(id) {
             const normalizedId = id.replace(/\\/g, "/");
 
+            // Los ayudantes de Vite y de CommonJS van con el framework. Sin esto Rollup dejó el de precarga
+            // dentro de jspdf-vendor, y todas las páginas de la tienda descargaban la librería de PDF.
+            if (normalizedId.includes("vite/preload-helper") || normalizedId.includes("commonjsHelpers")) {
+              return "framework";
+            }
+
             if (!normalizedId.includes("node_modules")) {
               return undefined;
             }

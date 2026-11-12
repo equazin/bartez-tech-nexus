@@ -19,7 +19,7 @@ import { datosClaveConEtiqueta, esNotebook, paresDeFicha, valorDe } from "@/lib/
 import { complementosDe, parecidosA } from "@/lib/tienda/sugerencias";
 import { pasoDeCategoria } from "@/lib/tienda/armador";
 import { medirProductoVisto } from "@/lib/tienda/medicion";
-import { usarSeo } from "@/lib/tienda/seo";
+import { ETIQUETA_DE_PRUEBA, datosDelProducto, usarDatosEstructurados, usarNoIndexar, usarSeo } from "@/lib/tienda/seo";
 import { cn } from "@/lib/utils";
 
 function CajaDeCompra({ producto }: { producto: ProductoPublico }) {
@@ -214,6 +214,9 @@ export default function Producto() {
   }, [producto]);
 
   usarSeo(producto?.nombre ?? null, producto?.descripcion_corta ?? (producto ? `${producto.nombre} con envío a todo el país y precio final con IVA incluido.` : null));
+  // Precio y stock del momento para Google: los del prerender son los del último despliegue.
+  usarDatosEstructurados("producto", producto ? datosDelProducto(producto) : null);
+  usarNoIndexar(Boolean(producto?.tags?.includes(ETIQUETA_DE_PRUEBA)));
 
   if (cargando) {
     return (

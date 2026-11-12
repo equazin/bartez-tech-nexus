@@ -164,6 +164,10 @@
     },
     {
       "source": "/(.*)",
+      "destination": "/aplicacion"
+    },
+    {
+      "source": "/(.*)",
       "destination": "/"
     }
   ],
