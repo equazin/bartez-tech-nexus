@@ -3,6 +3,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import checkout from "./_tienda/checkout.js";
 import cuenta from "./_tienda/cuenta.js";
 import envios from "./_tienda/envios.js";
+import feed from "./_tienda/feed.js";
 import legal from "./_tienda/legal.js";
 import orders from "./_tienda/orders.js";
 import pagos from "./_tienda/pagos.js";
@@ -15,13 +16,14 @@ import sincronizacion from "./_tienda/sincronizacion.js";
  * /api/orders, /api/pagos y /api/precios a /api/tienda?modulo=... conservando la consulta,
  * así el front, los crons y el aviso de Mercado Pago siguen usando las direcciones de siempre.
  * La sincronización automática (dólar del BNA y ELIT) se llama directo: /api/tienda?modulo=sincronizacion.
+ * El feed de productos para Google sale por /feed-google.xml (modulo=feed).
  */
 
 export const config = { maxDuration: 60 };
 
 type Manejador = (req: VercelRequest, res: VercelResponse) => Promise<unknown> | unknown;
 
-const MODULOS: Record<string, Manejador> = { checkout, cuenta, envios, legal, orders, pagos, precios, sincronizacion };
+const MODULOS: Record<string, Manejador> = { checkout, cuenta, envios, feed, legal, orders, pagos, precios, sincronizacion };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const modulo = typeof req.query.modulo === "string" ? req.query.modulo : "";

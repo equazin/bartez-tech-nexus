@@ -83,6 +83,10 @@
       "destination": "/robots.txt"
     },
     {
+      "source": "/feed-google.xml",
+      "destination": "/api/tienda?modulo=feed"
+    },
+    {
       "source": "/assets/(.*)",
       "destination": "/assets/$1"
     },
