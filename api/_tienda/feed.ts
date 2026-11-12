@@ -74,7 +74,17 @@ interface EnvioDelProducto {
   tarifa: number | null;
   demoraMin: number | null;
   demoraMax: number | null;
+  /** El peso que cobra el correo: el real o el del volumen de la caja, el que sea mayor. */
+  pesoFacturable: number | null;
 }
+
+/**
+ * Centímetros cúbicos que el correo cuenta como un kilo. Los tramos de la política de envío de Merchant Center
+ * (hasta 3, 8 y 15 kg, y más de 15) están armados con este mismo cálculo: si cambia, hay que rehacerlos.
+ * Cada tramo cobra lo más caro que cotizó la tienda a domicilio para ese tamaño de caja (Ushuaia). Al 12/11/2026:
+ * $ 24.050, $ 33.330, $ 46.280 y $ 76.400. Las tarifas del correo cambian: hay que volver a cotizar cada tanto.
+ */
+const CM3_POR_KILO = 4000;
 
 interface DatosDelFeed {
   sitio: string;
@@ -173,6 +183,9 @@ function itemDe(p: ProductoDelFeed, datos: DatosDelFeed): string | null {
   // Se declara el costo solo cuando es fijo: gratis, o la tarifa plana del despacho directo. Lo que se cotiza por
   // destino no lleva costo: Google no admite un valor que pueda quedar corto.
   const costoDelEnvio = envioGratis ? 0 : tarifaPlana;
+  // Lo que se cotiza por destino paga en Merchant Center una tabla por peso: va el peso que cobra el correo. El
+  // resto informa su peso real, si lo tiene.
+  const pesoDeEnvio = envio && !envio.directo && envio.pesoFacturable !== null ? envio.pesoFacturable : Number.isFinite(peso) && peso > 0 ? peso : null;
 
   const lineas = [
     etiqueta("id", id),
@@ -189,7 +202,7 @@ function itemDe(p: ProductoDelFeed, datos: DatosDelFeed): string | null {
     ...(gtin ? [etiqueta("gtin", gtin)] : []),
     ...(sku && sku.length <= LARGO_DEL_MPN ? [etiqueta("mpn", sku)] : []),
     ...(rubro ? [etiqueta("product_type", rubro)] : []),
-    ...(Number.isFinite(peso) && peso > 0 ? [etiqueta("shipping_weight", `${Number(peso.toFixed(3))} kg`)] : []),
+    ...(pesoDeEnvio !== null ? [etiqueta("shipping_weight", `${Number(pesoDeEnvio.toFixed(3))} kg`)] : []),
     etiqueta("shipping_label", envio?.directo ? ENVIO_DIRECTO : ENVIO_COTIZADO),
     ...(costoDelEnvio !== null ? [bloqueDeEnvio(costoDelEnvio, envio?.directo ? envio : null)] : []),
   ];
@@ -222,13 +235,28 @@ async function leerEnvioPorProducto(): Promise<Map<number, EnvioDelProducto>> {
   for (let desde = 0; desde < MAXIMO_DE_PRODUCTOS; desde += POR_PAGINA) {
     const { data, error } = await supabase.rpc("tienda_envio_de_productos").range(desde, desde + POR_PAGINA - 1);
     if (error) throw new Error(`No se pudo leer el envío de los productos: ${error.message}`);
-    const filas = (data ?? []) as Array<{ product_id: number; directo: boolean | null; tarifa: unknown; demora_dias_min: unknown; demora_dias_max: unknown }>;
+    const filas = (data ?? []) as Array<{
+      product_id: number;
+      directo: boolean | null;
+      tarifa: unknown;
+      demora_dias_min: unknown;
+      demora_dias_max: unknown;
+      peso_kg: unknown;
+      alto_cm: unknown;
+      ancho_cm: unknown;
+      largo_cm: unknown;
+    }>;
     for (const fila of filas) {
+      const pesoReal = numeroONulo(fila.peso_kg);
+      const [alto, ancho, largo] = [numeroONulo(fila.alto_cm), numeroONulo(fila.ancho_cm), numeroONulo(fila.largo_cm)];
+      const pesoDelVolumen = alto !== null && ancho !== null && largo !== null ? (alto * ancho * largo) / CM3_POR_KILO : null;
+      const pesoFacturable = Math.max(pesoReal ?? 0, pesoDelVolumen ?? 0);
       envios.set(Number(fila.product_id), {
         directo: fila.directo === true,
         tarifa: numeroONulo(fila.tarifa),
         demoraMin: numeroONulo(fila.demora_dias_min),
         demoraMax: numeroONulo(fila.demora_dias_max),
+        pesoFacturable: pesoFacturable > 0 ? pesoFacturable : null,
       });
     }
     if (filas.length < POR_PAGINA) break;
