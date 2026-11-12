@@ -61,11 +61,31 @@ function escapar(texto) {
 
 const formatoPesos = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
+/**
+ * Codifica el camino de la dirección de una foto: un «?» o un «%» suelto en el nombre del archivo la rompe.
+ * Copia de src/lib/direccionDeImagen.ts (este script no puede importar TypeScript): si cambia una, cambiar la otra.
+ */
+function codificarDireccionDeImagen(url) {
+  const partes = /^(https?:\/\/[^/]+)(\/.*)?$/i.exec(url);
+  if (!partes) return url;
+  const origen = partes[1];
+  const resto = partes[2] ?? "";
+  const corte = resto.indexOf("?");
+  const consulta = corte >= 0 && /^[^=&]+=/.test(resto.slice(corte + 1)) ? resto.slice(corte) : "";
+  const camino = consulta ? resto.slice(0, corte) : resto;
+  const codificado = camino
+    .replace(/%(?![0-9A-Fa-f]{2})/g, "%25")
+    .split(/(%[0-9A-Fa-f]{2})/)
+    .map((parte, i) => (i % 2 === 1 ? parte : encodeURI(parte).replace(/\?/g, "%3F").replace(/#/g, "%23")))
+    .join("");
+  return origen + codificado + consulta;
+}
+
 function imagenDe(p) {
   const lista = Array.isArray(p.imagenes) ? p.imagenes.filter((x) => typeof x === "string" && x) : [];
   const primera = lista[0] ?? p.imagen ?? null;
   if (!primera) return null;
-  return primera.replace("/storage/v1/object/products/", "/storage/v1/object/public/products/");
+  return codificarDireccionDeImagen(primera.replace("/storage/v1/object/products/", "/storage/v1/object/public/products/"));
 }
 
 /** Cambia el contenido de un <meta> de la plantilla o, si no está, lo agrega antes de </head>. `nombre` va sin caracteres de expresión regular. */

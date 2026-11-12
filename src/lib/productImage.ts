@@ -1,3 +1,5 @@
+import { codificarDireccionDeImagen } from "./direccionDeImagen";
+
 const preloadedProductImages = new Set<string>();
 
 export function resolveProductImageUrl(rawUrl: string | null | undefined): string {
@@ -8,7 +10,8 @@ export function resolveProductImageUrl(rawUrl: string | null | undefined): strin
     return value.replace("/storage/v1/object/products/", "/storage/v1/object/public/products/");
   }
 
-  return value;
+  // Las fotos de los mayoristas pueden traer «?» o «%» en el nombre del archivo: sin codificar no cargan.
+  return codificarDireccionDeImagen(value);
 }
 
 export function preloadProductImage(rawUrl: string | null | undefined): void {

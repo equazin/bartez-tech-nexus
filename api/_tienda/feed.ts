@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 import { sitioPublico } from "../_shared/avisos.js";
+import { codificarDireccionDeImagen } from "../_shared/direccionDeImagen.js";
 import { fail, methodNotAllowed } from "../_shared/http.js";
 import { getSupabaseAdmin } from "../_shared/supabaseServer.js";
 import { ETIQUETA_DE_ENVIO_GRATIS } from "./envios.js";
@@ -100,7 +101,9 @@ function fotosDe(p: ProductoDelFeed, sitio: string): string[] {
   const completas = todas
     .map((url) => url.trim().replace("/storage/v1/object/products/", "/storage/v1/object/public/products/"))
     .map((url) => (url.startsWith("//") ? `https:${url}` : url.startsWith("/") ? `${sitio}${url}` : url))
-    .filter((url) => /^https?:\/\//i.test(url));
+    .filter((url) => /^https?:\/\//i.test(url))
+    // Un «?» o un «%» suelto en el nombre del archivo rompe la dirección y Google rechaza el producto.
+    .map(codificarDireccionDeImagen);
   return [...new Set(completas)];
 }
 
