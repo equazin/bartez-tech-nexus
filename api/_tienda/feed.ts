@@ -16,6 +16,8 @@ import { ETIQUETA_DE_ENVIO_GRATIS } from "./envios.js";
  * (src/lib/tienda/seo.ts y scripts/prerender.mjs). Si uno cambia tiene que cambiar el otro: Google rechaza el
  * producto cuando el feed y la página no coinciden. El id es el SKU, igual al de los eventos de medición
  * (src/lib/tienda/medicion.ts), para que la publicidad reconozca el producto.
+ * El envío se declara solo cuando es fijo: gratis (por monto o por etiqueta) o la tarifa plana de lo que despacha
+ * un mayorista directo (tienda_envio_de_productos, migración 143). Lo que se cotiza por destino va sin costo.
  * No sale nada que no sea público: ni costo, ni margen, ni proveedor.
  * Una función de Vercel responde hasta 4,5 MB: con unos 1,2 KB por producto alcanza para más de 3.000. Pasado
  * eso hay que partir el feed.
@@ -66,18 +68,31 @@ interface CategoriaDelFeed {
   padre_id: number | null;
 }
 
+/** Cómo sale un producto: lo que despacha un mayorista directo paga una tarifa plana a todo el país. */
+interface EnvioDelProducto {
+  directo: boolean;
+  tarifa: number | null;
+  demoraMin: number | null;
+  demoraMax: number | null;
+}
+
 interface DatosDelFeed {
   sitio: string;
   categorias: Map<number, CategoriaDelFeed>;
   eanPorProducto: Map<number, string>;
+  envioPorProducto: Map<number, EnvioDelProducto>;
   envioGratisDesde: number | null;
 }
+
+/** Etiquetas de envío del feed: sirven para armar políticas de envío por grupo en Merchant Center. */
+const ENVIO_DIRECTO = "despacho-directo";
+const ENVIO_COTIZADO = "se-cotiza";
 
 /** Texto seguro dentro de una etiqueta XML: sin caracteres de control (XML 1.0 no los admite) y con las entidades. */
 function escapar(texto: string): string {
   return texto
     // eslint-disable-next-line no-control-regex
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -153,6 +168,11 @@ function itemDe(p: ProductoDelFeed, datos: DatosDelFeed): string | null {
   const gtin = gtinValido(datos.eanPorProducto.get(Number(p.id)));
   const peso = Number(p.peso_kg);
   const envioGratis = (datos.envioGratisDesde !== null && precio >= datos.envioGratisDesde) || tags.includes(ETIQUETA_DE_ENVIO_GRATIS);
+  const envio = datos.envioPorProducto.get(Number(p.id));
+  const tarifaPlana = envio?.directo && envio.tarifa !== null && envio.tarifa >= 0 ? envio.tarifa : null;
+  // Se declara el costo solo cuando es fijo: gratis, o la tarifa plana del despacho directo. Lo que se cotiza por
+  // destino no lleva costo: Google no admite un valor que pueda quedar corto.
+  const costoDelEnvio = envioGratis ? 0 : tarifaPlana;
 
   const lineas = [
     etiqueta("id", id),
@@ -170,10 +190,50 @@ function itemDe(p: ProductoDelFeed, datos: DatosDelFeed): string | null {
     ...(sku && sku.length <= LARGO_DEL_MPN ? [etiqueta("mpn", sku)] : []),
     ...(rubro ? [etiqueta("product_type", rubro)] : []),
     ...(Number.isFinite(peso) && peso > 0 ? [etiqueta("shipping_weight", `${Number(peso.toFixed(3))} kg`)] : []),
-    // Solo se declara el envío cuando es gratis: el resto depende del destino y se configura en Merchant Center.
-    ...(envioGratis ? [`      <g:shipping>\n        <g:country>${PAIS}</g:country>\n        <g:price>${importe(0)}</g:price>\n      </g:shipping>`] : []),
+    etiqueta("shipping_label", envio?.directo ? ENVIO_DIRECTO : ENVIO_COTIZADO),
+    ...(costoDelEnvio !== null ? [bloqueDeEnvio(costoDelEnvio, envio?.directo ? envio : null)] : []),
   ];
   return `    <item>\n${lineas.join("\n")}\n    </item>`;
+}
+
+/**
+ * El envío del producto a todo el país. Con despacho directo se suma el plazo que tiene cargado el mayorista: en
+ * los términos de la tienda corre desde que se acredita el pago, así que va entero como tiempo de viaje.
+ */
+function bloqueDeEnvio(costo: number, conPlazo: EnvioDelProducto | null): string {
+  const lineas = [`        <g:country>${PAIS}</g:country>`, `        <g:price>${importe(costo)}</g:price>`];
+  const min = conPlazo?.demoraMin ?? null;
+  const max = conPlazo?.demoraMax ?? null;
+  if (min !== null && max !== null && min >= 0 && max >= min) {
+    lineas.push(
+      "        <g:min_handling_time>0</g:min_handling_time>",
+      "        <g:max_handling_time>0</g:max_handling_time>",
+      `        <g:min_transit_time>${Math.trunc(min)}</g:min_transit_time>`,
+      `        <g:max_transit_time>${Math.trunc(max)}</g:max_transit_time>`,
+    );
+  }
+  return `      <g:shipping>\n${lineas.join("\n")}\n      </g:shipping>`;
+}
+
+async function leerEnvioPorProducto(): Promise<Map<number, EnvioDelProducto>> {
+  const supabase = getSupabaseAdmin();
+  const envios = new Map<number, EnvioDelProducto>();
+  const numeroONulo = (valor: unknown): number | null => (valor === null || valor === undefined || !Number.isFinite(Number(valor)) ? null : Number(valor));
+  for (let desde = 0; desde < MAXIMO_DE_PRODUCTOS; desde += POR_PAGINA) {
+    const { data, error } = await supabase.rpc("tienda_envio_de_productos").range(desde, desde + POR_PAGINA - 1);
+    if (error) throw new Error(`No se pudo leer el envío de los productos: ${error.message}`);
+    const filas = (data ?? []) as Array<{ product_id: number; directo: boolean | null; tarifa: unknown; demora_dias_min: unknown; demora_dias_max: unknown }>;
+    for (const fila of filas) {
+      envios.set(Number(fila.product_id), {
+        directo: fila.directo === true,
+        tarifa: numeroONulo(fila.tarifa),
+        demoraMin: numeroONulo(fila.demora_dias_min),
+        demoraMax: numeroONulo(fila.demora_dias_max),
+      });
+    }
+    if (filas.length < POR_PAGINA) break;
+  }
+  return envios;
 }
 
 async function leerProductos(): Promise<ProductoDelFeed[]> {
@@ -232,8 +292,14 @@ async function leerEnvioGratisDesde(): Promise<number | null> {
 }
 
 async function armarFeed(sitio: string): Promise<{ xml: string; cantidad: number }> {
-  const [productos, categorias, eanPorProducto, envioGratisDesde] = await Promise.all([leerProductos(), leerCategorias(), leerCodigosDeBarras(), leerEnvioGratisDesde()]);
-  const datos: DatosDelFeed = { sitio, categorias, eanPorProducto, envioGratisDesde };
+  const [productos, categorias, eanPorProducto, envioPorProducto, envioGratisDesde] = await Promise.all([
+    leerProductos(),
+    leerCategorias(),
+    leerCodigosDeBarras(),
+    leerEnvioPorProducto(),
+    leerEnvioGratisDesde(),
+  ]);
+  const datos: DatosDelFeed = { sitio, categorias, eanPorProducto, envioPorProducto, envioGratisDesde };
   const items = productos.map((p) => itemDe(p, datos)).filter((item): item is string => item !== null);
   const xml =
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
