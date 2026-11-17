@@ -8,9 +8,13 @@ import { getRoleFromRequest } from "../_shared/roles.js";
 import { getSupabaseAdmin, getSupabaseClient } from "../_shared/supabaseServer.js";
 
 /**
- * Sincronización automática de la tienda. El cron de Vercel la corre a las 9 y a las 18 (hora de Argentina):
- * trae el dólar del BNA, los costos y el stock de ELIT y de New Bytes de los productos vinculados, y recalcula
- * los precios.
+ * Sincronización automática de la tienda: trae el dólar del BNA, los costos y el stock de ELIT y de New Bytes de
+ * los productos vinculados, y recalcula los precios.
+ * El cron de Vercel la corre todos los días a las 9 y a las 18 (hora de Argentina) y, de lunes a viernes, también
+ * cada hora entre las 10 y las 17, que es cuando los mayoristas mueven stock: así es menos probable vender algo
+ * que ya no tienen. En el plan gratuito de Vercel cada tarea corre una sola vez por día y arranca en algún momento
+ * dentro de su hora, por eso vercel.json tiene una tarea por hora (el parámetro turno solo las distingue).
+ * Cada corrida tarda unos segundos; si un mayorista empieza a rechazar consultas, sale como error en el estado.
  *   GET/POST ?recurso=correr          admin o el cron (CRON_SECRET): corre la sincronización
  *   GET      ?recurso=estado          admin: configuración y resultado de la última corrida
  *   PATCH    ?recurso=configuracion   admin: {dolar: {activo, tipo}, elit: {activa}, newbytes: {activa}}

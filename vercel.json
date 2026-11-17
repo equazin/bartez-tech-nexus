@@ -191,6 +191,38 @@
     {
       "path": "/api/tienda?modulo=sincronizacion&recurso=correr&turno=tarde",
       "schedule": "0 21 * * *"
+    },
+    {
+      "path": "/api/tienda?modulo=sincronizacion&recurso=correr&turno=h10",
+      "schedule": "0 13 * * 1-5"
+    },
+    {
+      "path": "/api/tienda?modulo=sincronizacion&recurso=correr&turno=h11",
+      "schedule": "0 14 * * 1-5"
+    },
+    {
+      "path": "/api/tienda?modulo=sincronizacion&recurso=correr&turno=h12",
+      "schedule": "0 15 * * 1-5"
+    },
+    {
+      "path": "/api/tienda?modulo=sincronizacion&recurso=correr&turno=h13",
+      "schedule": "0 16 * * 1-5"
+    },
+    {
+      "path": "/api/tienda?modulo=sincronizacion&recurso=correr&turno=h14",
+      "schedule": "0 17 * * 1-5"
+    },
+    {
+      "path": "/api/tienda?modulo=sincronizacion&recurso=correr&turno=h15",
+      "schedule": "0 18 * * 1-5"
+    },
+    {
+      "path": "/api/tienda?modulo=sincronizacion&recurso=correr&turno=h16",
+      "schedule": "0 19 * * 1-5"
+    },
+    {
+      "path": "/api/tienda?modulo=sincronizacion&recurso=correr&turno=h17",
+      "schedule": "0 20 * * 1-5"
     }
   ]
 }
