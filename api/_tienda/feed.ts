@@ -18,9 +18,12 @@ import { ETIQUETA_DE_ENVIO_GRATIS } from "./envios.js";
  * (src/lib/tienda/medicion.ts), para que la publicidad reconozca el producto.
  * El envío se declara solo cuando es fijo: gratis (por monto o por etiqueta) o la tarifa plana de lo que despacha
  * un mayorista directo (tienda_envio_de_productos, migración 143). Lo que se cotiza por destino va sin costo.
+ * La ficha técnica pública (la que muestra la página) va tres veces, porque Google la busca en los tres lugares:
+ * como detalles del producto, como color y al final de la descripción. Merchant Center marca los productos a los
+ * que les faltan en la descripción los datos que la gente filtra (en un mouse: sensibilidad, botones y color).
  * No sale nada que no sea público: ni costo, ni margen, ni proveedor.
- * Una función de Vercel responde hasta 4,5 MB: con unos 1,2 KB por producto alcanza para más de 3.000. Pasado
- * eso hay que partir el feed.
+ * Una función de Vercel responde hasta 4,5 MB. El registro informa cuánto pesa el feed: si el catálogo crece y se
+ * acerca a ese tope, hay que partirlo.
  */
 
 export const config = { maxDuration: 30 };
@@ -39,6 +42,13 @@ const LARGO_DEL_TITULO = 150;
 const LARGO_DE_LA_DESCRIPCION = 5000;
 const LARGO_DEL_MPN = 70;
 const FOTOS_ADICIONALES = 10;
+const LARGO_DEL_NOMBRE_DEL_DETALLE = 140;
+const LARGO_DEL_VALOR_DEL_DETALLE = 1000;
+const LARGO_DEL_COLOR = 100;
+const COLORES_POR_PRODUCTO = 3;
+const DETALLES_POR_PRODUCTO = 24;
+/** Filas de la ficha que no van al feed: Google no admite plazos ni condiciones comerciales entre los detalles. */
+const FILAS_FUERA_DEL_FEED = new Set(["garantia"]);
 /** Google lee el feed una vez por día; media hora en la red de Vercel alcanza para no recalcularlo en cada pedido. */
 const CACHE = "public, s-maxage=1800, stale-while-revalidate=86400";
 
@@ -60,6 +70,13 @@ interface ProductoDelFeed {
   sku: string | null;
   tags: string[] | null;
   peso_kg: number | string | null;
+  ficha: unknown;
+}
+
+/** Una fila de la ficha técnica: «Botones» y «6». */
+interface FilaDeLaFicha {
+  clave: string;
+  valor: string;
 }
 
 interface CategoriaDelFeed {
@@ -158,6 +175,59 @@ function rubroDe(categoriaId: number | null, categorias: Map<number, CategoriaDe
   return cadena.join(" > ");
 }
 
+const sinAcentos = (texto: string): string => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+
+/** La ficha técnica pública del producto, la misma que muestra la página: limpia, sin repetir y sin la garantía. */
+function fichaDe(p: ProductoDelFeed): FilaDeLaFicha[] {
+  if (!Array.isArray(p.ficha)) return [];
+  const filas: FilaDeLaFicha[] = [];
+  const vistas = new Set<string>();
+  for (const fila of p.ficha as unknown[]) {
+    if (!fila || typeof fila !== "object") continue;
+    const { clave, valor } = fila as { clave?: unknown; valor?: unknown };
+    if (typeof clave !== "string" || (typeof valor !== "string" && typeof valor !== "number")) continue;
+    const nombre = clave.replace(/\s+/g, " ").trim();
+    const texto = String(valor).replace(/\s+/g, " ").trim();
+    const llave = sinAcentos(nombre);
+    if (!nombre || !texto || nombre.length > LARGO_DEL_NOMBRE_DEL_DETALLE || texto.length > LARGO_DEL_VALOR_DEL_DETALLE) continue;
+    if (FILAS_FUERA_DEL_FEED.has(llave) || vistas.has(llave)) continue;
+    vistas.add(llave);
+    filas.push({ clave: nombre, valor: texto });
+    if (filas.length >= DETALLES_POR_PRODUCTO) break;
+  }
+  return filas;
+}
+
+/** El color como lo pide Google: hasta tres, separados por una barra («Negro/Rojo»). */
+function colorDe(ficha: FilaDeLaFicha[]): string | null {
+  const fila = ficha.find((f) => sinAcentos(f.clave) === "color");
+  if (!fila) return null;
+  const color = fila.valor
+    .split(/\s*[/,]\s*|\s+y\s+/i)
+    .map((parte) => parte.trim())
+    .filter(Boolean)
+    .slice(0, COLORES_POR_PRODUCTO)
+    .join("/");
+  return color && color.length <= LARGO_DEL_COLOR ? color : null;
+}
+
+/** La descripción con la ficha al final: «… Características: Botones: 6. Conexión: Con cable. Color: Azul.» */
+function descripcionCon(descripcion: string, ficha: FilaDeLaFicha[]): string {
+  if (ficha.length === 0) return descripcion;
+  const detalles = ficha.map((f) => `${f.clave}: ${f.valor.replace(/[.\s]+$/, "")}`).join(". ");
+  const base = /[.!?…]$/.test(descripcion) ? descripcion : `${descripcion}.`;
+  return `${base} Características: ${detalles}.`;
+}
+
+function bloqueDeDetalle(fila: FilaDeLaFicha): string {
+  return [
+    "      <g:product_detail>",
+    `        <g:attribute_name>${escapar(fila.clave)}</g:attribute_name>`,
+    `        <g:attribute_value>${escapar(fila.valor)}</g:attribute_value>`,
+    "      </g:product_detail>",
+  ].join("\n");
+}
+
 /** El producto como un <item>, o nulo si le falta algo que Google exige (foto, precio, dirección). */
 function itemDe(p: ProductoDelFeed, datos: DatosDelFeed): string | null {
   const slug = p.slug ?? "";
@@ -174,6 +244,8 @@ function itemDe(p: ProductoDelFeed, datos: DatosDelFeed): string | null {
   const lista = Number(p.precio_lista_ars);
   const enOferta = p.oferta === true && Number.isFinite(lista) && lista > precio;
   const descripcion = (p.descripcion ?? "").trim() || (p.descripcion_corta ?? "").trim() || `${nombre} con envío a todo el país y precio final con IVA incluido.`;
+  const ficha = fichaDe(p);
+  const color = colorDe(ficha);
   const rubro = rubroDe(p.categoria_id === null ? null : Number(p.categoria_id), datos.categorias);
   const gtin = gtinValido(datos.eanPorProducto.get(Number(p.id)));
   const peso = Number(p.peso_kg);
@@ -190,7 +262,7 @@ function itemDe(p: ProductoDelFeed, datos: DatosDelFeed): string | null {
   const lineas = [
     etiqueta("id", id),
     etiqueta("title", recortar(nombre, LARGO_DEL_TITULO)),
-    etiqueta("description", recortar(descripcion, LARGO_DE_LA_DESCRIPCION)),
+    etiqueta("description", recortar(descripcionCon(descripcion, ficha), LARGO_DE_LA_DESCRIPCION)),
     etiqueta("link", `${datos.sitio}/${segmento}/${slug}`),
     etiqueta("image_link", fotos[0]),
     ...fotos.slice(1, 1 + FOTOS_ADICIONALES).map((foto) => etiqueta("additional_image_link", foto)),
@@ -202,6 +274,8 @@ function itemDe(p: ProductoDelFeed, datos: DatosDelFeed): string | null {
     ...(gtin ? [etiqueta("gtin", gtin)] : []),
     ...(sku && sku.length <= LARGO_DEL_MPN ? [etiqueta("mpn", sku)] : []),
     ...(rubro ? [etiqueta("product_type", rubro)] : []),
+    ...(color ? [etiqueta("color", color)] : []),
+    ...ficha.map(bloqueDeDetalle),
     ...(pesoDeEnvio !== null ? [etiqueta("shipping_weight", `${Number(pesoDeEnvio.toFixed(3))} kg`)] : []),
     etiqueta("shipping_label", envio?.directo ? ENVIO_DIRECTO : ENVIO_COTIZADO),
     ...(costoDelEnvio !== null ? [bloqueDeEnvio(costoDelEnvio, envio?.directo ? envio : null)] : []),
@@ -270,7 +344,7 @@ async function leerProductos(): Promise<ProductoDelFeed[]> {
   for (let desde = 0; desde < MAXIMO_DE_PRODUCTOS; desde += POR_PAGINA) {
     const { data, error } = await supabase
       .from("tienda_productos")
-      .select("id, slug, nombre, descripcion, descripcion_corta, imagenes, imagen, categoria_id, categoria_slug, marca, hay_stock, precio_final_ars, precio_lista_ars, oferta, sku, tags, peso_kg")
+      .select("id, slug, nombre, descripcion, descripcion_corta, imagenes, imagen, categoria_id, categoria_slug, marca, hay_stock, precio_final_ars, precio_lista_ars, oferta, sku, tags, peso_kg, ficha")
       .order("id")
       .range(desde, desde + POR_PAGINA - 1);
     if (error) throw new Error(`No se pudieron leer los productos: ${error.message}`);
@@ -355,7 +429,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const sitio = sitioDe(req);
     if (!sitio) return fail(res, "Falta la dirección pública del sitio.", 500);
     const { xml, cantidad } = await armarFeed(sitio);
-    console.info("[feed]", `${cantidad} productos`);
+    console.info("[feed]", `${cantidad} productos, ${Buffer.byteLength(xml)} bytes`);
     res.setHeader("Content-Type", "application/xml; charset=utf-8");
     res.setHeader("Cache-Control", CACHE);
     return res.status(200).send(req.method === "HEAD" ? "" : xml);
