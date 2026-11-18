@@ -43,8 +43,8 @@ const ALLOWED_TRANSITIONS: Record<ApiRole, OrderStatus[]> = {
 const esDeLaTienda = (estado: string): estado is EstadoDeLaTienda => (ESTADOS_DE_LA_TIENDA as readonly string[]).includes(estado);
 
 /**
- * El mail que el panel puede reenviar según el estado de la compra. Pendiente de pago, vencido y reintegrado no
- * tienen uno: el de "compra recibida" sale del checkout con el detalle del carrito.
+ * El mail que el panel puede reenviar según el estado de la compra. Pendiente de pago y vencido no tienen uno:
+ * el de "compra recibida" sale del checkout con el detalle del carrito.
  */
 const AVISO_DEL_ESTADO: Partial<Record<EstadoDeLaTienda, TipoDeAviso>> = {
   pagado: "pago_acreditado",
@@ -52,6 +52,7 @@ const AVISO_DEL_ESTADO: Partial<Record<EstadoDeLaTienda, TipoDeAviso>> = {
   enviado: "enviado",
   entregado: "entregado",
   cancelado: "cancelado",
+  reintegrado: "reintegrado",
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

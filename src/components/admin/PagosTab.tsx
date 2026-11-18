@@ -34,6 +34,9 @@ function tonoDe(estado: string): "success" | "secondary" | "destructive" | "mute
 }
 
 /** Ventas › Pagos: los pedidos de la tienda con sus pagos, lo que despacha un mayorista directo y las acciones que cambian plata. */
+/** Lo que lee el comprador cuando el mayorista ya no tiene lo que compró: se reintegra siempre (decisión de Nico del 18/11/2026). */
+const MOTIVO_SIN_STOCK = "No tenemos stock de lo que compraste.";
+
 export function PagosTab() {
   const { isAdmin } = useAuth();
   const [pedidos, setPedidos] = useState<PedidoDeLaTienda[]>([]);
@@ -205,6 +208,16 @@ export function PagosTab() {
                       <Button type="button" size="sm" variant="ghost" onClick={() => setReintegro(null)}>
                         Cerrar
                       </Button>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground sm:col-span-4">
+                        <Button type="button" size="sm" variant="outline" onClick={() => setReintegro({ ...reintegro, monto: "", motivo: MOTIVO_SIN_STOCK })}>
+                          Sin stock del proveedor
+                        </Button>
+                        <span>
+                          {reintegro.pago.proveedor === "mercadopago"
+                            ? "El reintegro total devuelve la plata por Mercado Pago, cancela la compra si todavía no salió, libera el stock y le avisa al comprador por mail con el motivo."
+                            : "Primero transferile la plata al comprador. Al anotar el reintegro total, la compra queda cancelada si todavía no salió, se libera el stock y le llega el mail con el motivo."}
+                        </span>
+                      </div>
                     </form>
                   )}
                 </SurfaceCard>

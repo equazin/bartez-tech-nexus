@@ -235,6 +235,33 @@ export function pedidoCanceladoHTML(params: { numero: string; nombre: string; mo
   return base("Compra cancelada", cuerpo);
 }
 
+/**
+ * El reintegro ya está hecho. `cancelada` distingue la compra que no llegó a salir (se cancela con el reintegro,
+ * por ejemplo cuando el proveedor ya no tiene el producto) de la devolución de una compra entregada.
+ */
+export function pedidoReintegradoHTML(params: {
+  numero: string;
+  nombre: string;
+  motivo: string | null;
+  monto: string;
+  porMercadoPago: boolean;
+  cancelada: boolean;
+  enlace: string;
+}): string {
+  const numero = `<strong>${escapar(params.numero)}</strong>`;
+  const queda = params.cancelada ? `tu compra ${numero} quedó cancelada` : `hicimos un reintegro de tu compra ${numero}`;
+  const cuerpo = `
+    ${parrafo(`Hola ${escapar(params.nombre)}, ${queda}${params.motivo ? `: ${escapar(params.motivo)}` : "."}`)}
+    ${parrafo(
+      params.porMercadoPago
+        ? `Te devolvimos <strong>${escapar(params.monto)}</strong> por Mercado Pago, al mismo medio con el que pagaste. Cuándo lo ves acreditado depende de Mercado Pago y de tu banco o tarjeta.`
+        : `Te devolvimos <strong>${escapar(params.monto)}</strong> por transferencia bancaria.`,
+    )}
+    ${boton(params.enlace, "Ver mi compra")}
+    ${nota("Si tenés dudas, respondé este email.")}`;
+  return base(params.cancelada ? "Compra cancelada y reintegrada" : "Reintegro de tu compra", cuerpo);
+}
+
 export function arrepentimientoRecibidoHTML(params: { codigo: string; nombre: string | null; numero: string | null }): string {
   const cuerpo = `
     ${parrafo(`Hola${params.nombre ? ` ${escapar(params.nombre)}` : ""}, recibimos tu pedido de arrepentimiento${params.numero ? ` sobre la compra <strong>${escapar(params.numero)}</strong>` : ""}.`)}

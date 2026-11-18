@@ -1,7 +1,7 @@
 import { createMailerTransport, getDefaultFromEmail, registroDelEnvio, sanitizeHeaderText } from "./mailer.js";
-import { pagoAcreditadoHTML, pedidoCanceladoHTML, pedidoEntregadoHTML, pedidoEnviadoHTML, seguimientoCargadoHTML } from "./plantillas.js";
+import { pagoAcreditadoHTML, pedidoCanceladoHTML, pedidoEntregadoHTML, pedidoEnviadoHTML, pedidoReintegradoHTML, seguimientoCargadoHTML } from "./plantillas.js";
 import { getSupabaseAdmin } from "./supabaseServer.js";
-import { nombreDelMedio } from "./medios.js";
+import { esDeMercadoPago, nombreDelMedio } from "./medios.js";
 
 /**
  * Avisos al comprador de la tienda por cada paso del pedido. Cada aviso se anota en
@@ -9,7 +9,7 @@ import { nombreDelMedio } from "./medios.js";
  * pida reenviarlo. Nunca tira: devuelve si el mail salió y, si no, por qué.
  */
 
-export type TipoDeAviso = "pago_acreditado" | "seguimiento" | "enviado" | "entregado" | "cancelado";
+export type TipoDeAviso = "pago_acreditado" | "seguimiento" | "enviado" | "entregado" | "cancelado" | "reintegrado";
 
 /** Lo que pasó con un aviso. El panel lo muestra cuando el aviso se pidió a mano. */
 export type ResultadoDelAviso = { enviado: true } | { enviado: false; motivo: string };
@@ -41,6 +41,7 @@ const ASUNTOS: Record<TipoDeAviso, string> = {
   enviado: "Tu compra {numero} está en camino",
   entregado: "Entregamos tu compra {numero}",
   cancelado: "Tu compra {numero} quedó cancelada",
+  reintegrado: "Reintegro de tu compra {numero}",
 };
 
 export function sitioPublico(): string {
@@ -72,7 +73,13 @@ const sucursalDe = (pedido: PedidoParaAvisar): string | null => (pedido.envio_de
 export async function avisarAlComprador(
   orderId: number,
   tipo: TipoDeAviso,
-  extra: { motivo?: string | null; /** Pedido a mano desde el panel: sale aunque ya se haya mandado. */ reenviar?: boolean } = {},
+  extra: {
+    motivo?: string | null;
+    /** Lo reintegrado, para el aviso de reintegro. Sin dato, el total de la compra. */
+    monto?: number;
+    /** Pedido a mano desde el panel: sale aunque ya se haya mandado. */
+    reenviar?: boolean;
+  } = {},
 ): Promise<ResultadoDelAviso> {
   try {
     const supabase = getSupabaseAdmin();
@@ -171,6 +178,17 @@ export async function avisarAlComprador(
       }
       case "cancelado":
         html = pedidoCanceladoHTML({ numero: pedido.order_number, nombre, motivo: extra.motivo ?? null, pagado: Boolean(pedido.pagado_en), enlace });
+        break;
+      case "reintegrado":
+        html = pedidoReintegradoHTML({
+          numero: pedido.order_number,
+          nombre,
+          motivo: extra.motivo ?? null,
+          monto: new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(Number(extra.monto ?? pedido.total)),
+          porMercadoPago: esDeMercadoPago(pedido.payment_method ?? ""),
+          cancelada: pedido.status === "reintegrado" || pedido.status === "cancelado",
+          enlace,
+        });
         break;
     }
     try {

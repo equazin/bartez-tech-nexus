@@ -4,7 +4,7 @@ import { fail, methodNotAllowed, ok } from "../_shared/http.js";
 import { configuracionDeMercadoPago, crearPreferencia, firmaValida, obtenerPago, reintegrar as reintegrarEnMercadoPago } from "../_shared/mercadopago.js";
 import { getRoleFromRequest } from "../_shared/roles.js";
 import { getSupabaseAdmin, getSupabaseClient } from "../_shared/supabaseServer.js";
-import { avisarAlComprador } from "../_shared/avisos.js";
+import { avisarAlComprador, type ResultadoDelAviso } from "../_shared/avisos.js";
 import { cuotasDeLaPreferencia, esDeMercadoPago, MEDIOS_DE_LA_TIENDA } from "../_shared/medios.js";
 
 /**
@@ -16,7 +16,8 @@ import { cuotasDeLaPreferencia, esDeMercadoPago, MEDIOS_DE_LA_TIENDA } from "../
  *   GET   ?recurso=lista                        panel: pedidos de la tienda con sus pagos
  *   POST  ?recurso=validar {order_id}           admin: confirma una transferencia (único camino a "pagado" para ese medio)
  *   POST  ?recurso=cancelar {order_id, motivo}  admin: cancela un pedido pendiente y libera el stock
- *   POST  ?recurso=reintegrar {pago_id, monto?} admin: reintegro total o parcial
+ *   POST  ?recurso=reintegrar {pago_id, monto?} admin: reintegro total o parcial; el total cancela la compra que no salió,
+ *                                               libera el stock y le avisa al comprador
  *   GET/PATCH ?recurso=configuracion            admin: cuenta bancaria, medios activos, margen por medio y plazo de vencimiento
  *   GET/POST ?recurso=vencer                    admin o cron: vence los pedidos pendientes que pasaron el plazo
  */
@@ -469,9 +470,28 @@ async function reintegrar(req: VercelRequest, res: VercelResponse) {
     .from("pagos")
     .update({ reintegrado_monto: reintegrado, reintegro_id_externo: idExterno ?? undefined, estado: total ? "reintegrado" : "aprobado", nota: motivo || undefined, actualizado_en: new Date().toISOString() })
     .eq("id", fila.id);
-  if (total) await supabase.from("orders").update({ status: "reintegrado" }).eq("id", fila.order_id).in("status", ["pagado", "cancelado"]);
+  // Reintegro total (decisión de Nico del 18/11/2026: si se vende algo que el mayorista ya no tiene, se reintegra
+  // siempre). Una compra que todavía no salió, pagada o en preparación, queda cancelada acá mismo y devuelve el stock
+  // que tenía reservado. Una compra enviada o entregada conserva su estado: ahí el reintegro es una devolución.
+  let aviso: ResultadoDelAviso | undefined;
+  if (total) {
+    const { data: pedidoCrudo } = await supabase.from("orders").select("status, notes").eq("id", fila.order_id).maybeSingle();
+    const pedido = pedidoCrudo as { status: string; notes: string | null } | null;
+    const sinSalir = pedido?.status === "pagado" || pedido?.status === "preparando";
+    if (sinSalir) {
+      const { error: errorReserva } = await supabase.rpc("tienda_liberar_reserva", { p_order_id: fila.order_id });
+      if (errorReserva) console.error("[pagos] No se pudo liberar la reserva al reintegrar:", fila.order_id, errorReserva.message);
+    }
+    if (pedido && (sinSalir || pedido.status === "cancelado")) {
+      const cambios = sinSalir
+        ? { status: "reintegrado", cancelado_en: new Date().toISOString(), notes: [pedido.notes, motivo].filter(Boolean).join(" · ") || null }
+        : { status: "reintegrado" };
+      await supabase.from("orders").update(cambios).eq("id", fila.order_id);
+    }
+    aviso = await avisarAlComprador(fila.order_id, "reintegrado", { motivo: motivo || null, monto: reintegrado });
+  }
   await registrarActividad(userId, "reintegrar", String(fila.order_id), { pago_id: fila.id, monto, total, proveedor: fila.proveedor, motivo });
-  return ok(res, { resultado: total ? "reintegrado" : "reintegro_parcial", monto });
+  return ok(res, { resultado: total ? "reintegrado" : "reintegro_parcial", monto, aviso });
 }
 
 async function configuracion(req: VercelRequest, res: VercelResponse) {

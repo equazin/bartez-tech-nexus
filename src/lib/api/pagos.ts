@@ -72,7 +72,10 @@ export const listarPagos = () => llamarPagos<{ pedidos: PedidoDeLaTienda[]; pago
 export const validarTransferencia = (orderId: number) => llamarPagos<{ resultado: string }>("validar", { method: "POST", body: { order_id: orderId } });
 export const cancelarPedido = (orderId: number, motivo: string) => llamarPagos<{ resultado: string }>("cancelar", { method: "POST", body: { order_id: orderId, motivo } });
 export const reintegrarPago = (pagoId: number, monto: number | null, motivo: string) =>
-  llamarPagos<{ resultado: string; monto: number }>("reintegrar", { method: "POST", body: { pago_id: pagoId, monto, motivo } });
+  llamarPagos<{ resultado: string; monto: number; aviso?: { enviado: true } | { enviado: false; motivo: string } }>("reintegrar", {
+    method: "POST",
+    body: { pago_id: pagoId, monto, motivo },
+  });
 export const leerConfiguracionDePagos = () => llamarPagos<ConfiguracionDePagos>("configuracion");
 export const guardarConfiguracionDePagos = (cambios: {
   transferencia?: ConfiguracionDePagos["transferencia"];
