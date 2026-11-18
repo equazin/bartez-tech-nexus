@@ -389,6 +389,9 @@ const Admin = () => {
       setActiveTab(tab);
       setActiveModule(TAB_TO_MODULE[tab] ?? "top");
     });
+    // Pedidos se relee al entrar: un pago confirmado en Pagos (o acreditado por Mercado Pago) cambia el estado, y el
+    // detalle ofrece los pasos según ese estado.
+    if (tab === "orders") void fetchOrders();
   }
 
   const adminJourneySteps: Array<{ id: Tab; label: string; helper: string; icon: LucideIcon }> = [
@@ -892,6 +895,22 @@ const Admin = () => {
     onOpenOrder: () => navigateTab("orders"),
     onOpenQuote: () => navigateTab("quotes_admin"),
   });
+
+  // El detalle abierto sigue a la lista: si el pedido cambió de estado o de envío en otro lado (un pago que se
+  // acreditó, otra pestaña), se actualiza solo. Sin cambios queda el mismo objeto, para no pisar lo que se esté
+  // escribiendo en el formulario de envío.
+  useEffect(() => {
+    setSelectedOrder((actual) => {
+      if (!actual) return actual;
+      const fresco = orders.find((o) => String(o.id) === String(actual.id));
+      if (!fresco) return actual;
+      const cambio =
+        fresco.status !== actual.status ||
+        (fresco.tracking_number ?? "") !== (actual.tracking_number ?? "") ||
+        (fresco.shipping_provider ?? "") !== (actual.shipping_provider ?? "");
+      return cambio ? fresco : actual;
+    });
+  }, [orders]);
 
   useEffect(() => {
     if (selectedOrder) {
