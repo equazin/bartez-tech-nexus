@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<title>Teqo · Instagram · Producto</title>
+<link rel="stylesheet" href="base.css">
+</head>
+<body>
+
+<!-- Pieza de producto. Los textos salen de producto.js. Publicación (4:5) e historia (9:16). -->
+
+<article class="pieza post claro" id="producto-publicacion" data-carpeta="plantillas">
+  <header class="cabecera"><p class="rotulo" data-campo="categoria"></p><img class="firma" src="../../../public/marca/teqo-encendido-fondo-claro.svg" alt="teqo"></header>
+  <div class="contenido" style="--arriba:176px">
+    <div class="placa-foto" style="height:520px" data-foto></div>
+    <p class="marca-producto" data-campo="marca"></p>
+    <p class="nombre" data-campo="nombre"></p>
+    <ul class="chips" data-datos></ul>
+    <div class="precios">
+      <div class="contado"><small>Transferencia</small><b data-campo="precio_transferencia"></b><span>Precio final con IVA</span></div>
+      <div class="cuotas"><small>Mercado Pago</small><b data-campo="precio_mercado_pago"></b><span data-campo="cuotas"></span></div>
+    </div>
+  </div>
+  <footer class="pie" style="bottom:50px"><span class="legal" data-campo="vigencia"></span><span class="web" style="white-space:nowrap">teqo.com.ar</span></footer>
+</article>
+
+<article class="pieza historia claro" id="producto-historia" data-carpeta="plantillas">
+  <header class="cabecera"><p class="rotulo" data-campo="categoria"></p><img class="firma" src="../../../public/marca/teqo-encendido-fondo-claro.svg" alt="teqo"></header>
+  <div class="contenido" style="--arriba:372px">
+    <div class="placa-foto" style="height:560px" data-foto></div>
+    <p class="marca-producto" data-campo="marca"></p>
+    <p class="nombre" data-campo="nombre"></p>
+    <ul class="chips" data-datos></ul>
+    <div class="precios">
+      <div class="contado"><small>Transferencia</small><b data-campo="precio_transferencia"></b><span>Precio final con IVA</span></div>
+      <div class="cuotas"><small>Mercado Pago</small><b data-campo="precio_mercado_pago"></b><span data-campo="cuotas"></span></div>
+    </div>
+    <p class="legal" style="margin-top:26px" data-campo="vigencia"></p>
+  </div>
+</article>
+
+<script src="producto.js"></script>
+<script>
+  for (const el of document.querySelectorAll("[data-campo]")) el.textContent = PRODUCTO[el.dataset.campo] || "";
+  for (const el of document.querySelectorAll("[data-datos]")) el.innerHTML = PRODUCTO.datos.filter(Boolean).map((d) => `<li>${d}</li>`).join("");
+  for (const el of document.querySelectorAll("[data-foto]")) el.innerHTML = PRODUCTO.foto ? `<img src="${PRODUCTO.foto}" alt="">` : '<p class="falta">[FOTO DEL PRODUCTO]</p>';
+</script>
+<script src="iconos.js"></script>
+</body>
+</html>
