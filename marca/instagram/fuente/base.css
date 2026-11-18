@@ -189,3 +189,22 @@ body { display: flex; flex-wrap: wrap; gap: 48px; padding: 48px; font-family: "D
 .precios b { display: block; margin-top: 14px; font: 800 66px/1 "DM Sans", sans-serif; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
 .precios span { display: block; margin-top: 12px; font: 400 30px/1.25 "DM Sans", sans-serif; }
 .legal { font: 400 28px/1.3 "DM Sans", sans-serif; color: var(--gris-texto); max-width: 640px; }
+
+/* ---------- Láminas de carrusel ----------
+   Si al subir un carrusel no se elige el formato original, Instagram lo recorta a un cuadrado. Por eso todo lo
+   importante de cada lámina queda en el cuadrado central (entre y = 135 e y = 1215). En la portada, además, queda
+   en la franja central de 810 px de ancho, que es lo que muestra la grilla del perfil de una publicación cuadrada. */
+.lamina .cabecera { top: 196px; }
+.lamina .pie { bottom: 190px; }
+.lamina .contenido { --arriba: 300px; }
+.lamina .numero { --cuerpo-numero: 230px; }
+.lamina .bajada { font-size: 44px; max-width: 900px; }
+.lamina .icono-de-paso { position: absolute; right: 76px; top: 300px; --tam: 184px; --grosor: 1.3; color: var(--rojo); }
+.lamina.rojo .icono-de-paso { color: var(--blanco); }
+.lamina.portada .cabecera { justify-content: center; }
+.lamina.portada .cabecera .firma { margin-right: 0; }
+.lamina.portada .contenido { left: 150px; right: 150px; --arriba: 318px; align-items: center; text-align: center; }
+.lamina.portada .pie { justify-content: center; }
+.lamina.portada .emblema { position: absolute; left: 50%; top: var(--emblema-arriba, 790px); width: 300px; height: 300px; margin-left: -150px; border-radius: 50%; background: var(--rojo); display: flex; align-items: center; justify-content: center; }
+.lamina.portada .emblema [data-icono] { --tam: 170px; --grosor: 1.5; color: var(--blanco); }
+.lamina.portada .de-fondo { position: absolute; z-index: -1; left: 0; right: 0; text-align: center; opacity: .16; }

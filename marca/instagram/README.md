@@ -52,6 +52,9 @@ Los textos para acompañar cada pieza, la bio y los textos alternativos están e
 - **Garantía.** No hay pieza de garantía: falta definir el plazo. Cuando esté, se suma una historia en Ayuda.
 - **Pieza de producto.** Se completa en `fuente/producto.js` con lo que muestra la ficha ese día y se genera de
   nuevo. Los precios cambian: una pieza con precio se publica el día que se genera.
+- **Carruseles.** Si al subir un carrusel no se elige el formato original, Instagram lo recorta a un cuadrado.
+  Las láminas están armadas para eso: el logo, el texto y el pie quedan dentro del cuadrado central, y en las
+  portadas todo va centrado para que tampoco se corte en la grilla del perfil. Subidas en 4:5 se ven enteras.
 - **Zonas libres.** En historias y portadas de reels no hay nada importante en los primeros 250 px ni en los
   últimos 340. Son márgenes prudentes; no los pude verificar contra la documentación oficial de Instagram.
   Los posts son 4:5; la grilla del perfil los recorta a 3:4 (unos 34 px por lado) y el texto queda adentro.
