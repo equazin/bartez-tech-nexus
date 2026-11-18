@@ -95,6 +95,18 @@ async function leerConfiguracion(claves: string[]): Promise<Record<string, unkno
   return valores;
 }
 
+/**
+ * Hasta cuándo se puede pagar una compra pendiente. La cuenta la hace la base (tienda_vence_en) con el plazo del
+ * medio: Mercado Pago tiene uno corto propio y la transferencia el general. Nulo: ese medio no vence.
+ */
+async function venceEnDe(pedido: { payment_method: string | null; created_at: string }): Promise<Date | null> {
+  const { data, error } = await getSupabaseAdmin().rpc("tienda_vence_en", { p_medio: pedido.payment_method, p_creado_en: pedido.created_at });
+  if (error) throw new Error(error.message);
+  return typeof data === "string" ? new Date(data) : null;
+}
+
+const horasONulo = (valor: unknown): number | null => (typeof valor === "number" ? valor : null);
+
 async function pedidoConToken(id: unknown, token: unknown): Promise<PedidoParaPagar> {
   const numero = Number(id);
   if (!Number.isInteger(numero) || typeof token !== "string" || !/^[0-9a-f]{48}$/.test(token)) throw new Error("La compra no es válida.");
@@ -179,6 +191,9 @@ async function preferencia(req: VercelRequest, res: VercelResponse) {
   }
   if (pedido.status !== "pendiente_pago") return fail(res, "Esta compra ya no está pendiente de pago.", 409);
   if (!esDeMercadoPago(pedido.payment_method)) return fail(res, "Esta compra no se paga con Mercado Pago.", 409);
+  // El plazo se mira antes de devolver un enlace ya creado: Mercado Pago rechaza una preferencia vencida.
+  const venceEn = await venceEnDe(pedido);
+  if (venceEn && venceEn.getTime() < Date.now()) return fail(res, "Venció el plazo para pagar esta compra.", 409);
 
   const supabase = getSupabaseAdmin();
   const { data: existente } = await supabase
@@ -204,11 +219,7 @@ async function preferencia(req: VercelRequest, res: VercelResponse) {
     pagoId = (creado as { id: number }).id;
   }
 
-  const valores = await leerConfiguracion(["pendiente_vence_horas"]);
   const cuotas = cuotasDeLaPreferencia(pedido.payment_method ?? "");
-  const venceHoras = typeof valores.pendiente_vence_horas === "number" ? valores.pendiente_vence_horas : null;
-  const venceEn = venceHoras ? new Date(new Date(pedido.created_at).getTime() + venceHoras * 3_600_000) : null;
-  if (venceEn && venceEn.getTime() < Date.now()) return fail(res, "Venció el plazo para pagar esta compra.", 409);
 
   const base = sitio();
   const creada = await crearPreferencia(config, {
@@ -322,15 +333,14 @@ async function transferencia(req: VercelRequest, res: VercelResponse) {
   } catch (e: unknown) {
     return fail(res, e instanceof Error ? e.message : "La compra no es válida.", 404);
   }
-  const valores = await leerConfiguracion(["transferencia", "pendiente_vence_horas"]);
+  const [valores, venceEn] = await Promise.all([leerConfiguracion(["transferencia"]), venceEnDe(pedido)]);
   const cuenta = (valores.transferencia ?? {}) as Partial<ConfiguracionDeTransferencia>;
-  const venceHoras = typeof valores.pendiente_vence_horas === "number" ? valores.pendiente_vence_horas : null;
   return ok(res, {
     numero: pedido.order_number,
     total: pedido.total,
     estado: pedido.status,
     cuenta: { titular: cuenta.titular ?? null, cuit: cuenta.cuit ?? null, banco: cuenta.banco ?? null, cbu: cuenta.cbu ?? null, alias: cuenta.alias ?? null },
-    vence_en: venceHoras ? new Date(new Date(pedido.created_at).getTime() + venceHoras * 3_600_000).toISOString() : null,
+    vence_en: venceEn ? venceEn.toISOString() : null,
   });
 }
 
@@ -475,6 +485,7 @@ async function configuracion(req: VercelRequest, res: VercelResponse) {
       medios?: Record<string, boolean>;
       margenes?: Record<string, unknown>;
       pendiente_vence_horas?: unknown;
+      pendiente_vence_horas_mercadopago?: unknown;
     };
     const ahora = new Date().toISOString();
     if (cuerpo.transferencia) {
@@ -489,6 +500,16 @@ async function configuracion(req: VercelRequest, res: VercelResponse) {
       const horas = cuerpo.pendiente_vence_horas === null || cuerpo.pendiente_vence_horas === "" ? null : Number(cuerpo.pendiente_vence_horas);
       if (horas !== null && (!Number.isInteger(horas) || horas < 1 || horas > 720)) return fail(res, "El plazo va de 1 a 720 horas, o vacío para que no venza.");
       const { error } = await supabase.from("tienda_configuracion").update({ valor: horas, actualizado_en: ahora, actualizado_por: userId }).eq("clave", "pendiente_vence_horas");
+      if (error) throw new Error(error.message);
+    }
+    if (cuerpo.pendiente_vence_horas_mercadopago !== undefined) {
+      const crudo = cuerpo.pendiente_vence_horas_mercadopago;
+      const horas = crudo === null || crudo === "" ? null : Number(crudo);
+      if (horas !== null && (!Number.isInteger(horas) || horas < 1 || horas > 720)) return fail(res, "El plazo de Mercado Pago va de 1 a 720 horas, o vacío para usar el de transferencia.");
+      const { error } = await supabase
+        .from("tienda_configuracion")
+        .update({ valor: horas, actualizado_en: ahora, actualizado_por: userId })
+        .eq("clave", "pendiente_vence_horas_mercadopago");
       if (error) throw new Error(error.message);
     }
     if (cuerpo.medios) {
@@ -515,11 +536,12 @@ async function configuracion(req: VercelRequest, res: VercelResponse) {
     return methodNotAllowed(res, ["GET", "PATCH"]);
   }
 
-  const valores = await leerConfiguracion(["transferencia", "pendiente_vence_horas"]);
+  const valores = await leerConfiguracion(["transferencia", "pendiente_vence_horas", "pendiente_vence_horas_mercadopago"]);
   const { data: mediosCrudos } = await supabase.from("medios_de_pago").select("id, nombre, detalle, activo, orden, margen_porcentaje").order("orden");
   return ok(res, {
     transferencia: valores.transferencia ?? {},
-    pendiente_vence_horas: typeof valores.pendiente_vence_horas === "number" ? valores.pendiente_vence_horas : null,
+    pendiente_vence_horas: horasONulo(valores.pendiente_vence_horas),
+    pendiente_vence_horas_mercadopago: horasONulo(valores.pendiente_vence_horas_mercadopago),
     medios: mediosCrudos ?? [],
     mercadopago_configurado: configuracionDeMercadoPago() !== null,
     webhook_configurado: Boolean(configuracionDeMercadoPago()?.secreto),
@@ -532,10 +554,12 @@ async function vencer(req: VercelRequest, res: VercelResponse) {
     const { admin } = await quienPide(req);
     if (!admin) return fail(res, "Solo para administradores", 403);
   }
-  const valores = await leerConfiguracion(["pendiente_vence_horas"]);
-  const horas = typeof valores.pendiente_vence_horas === "number" ? valores.pendiente_vence_horas : null;
-  if (!horas) return ok(res, { vencidos: 0, aviso: "Sin plazo configurado: los pedidos pendientes no vencen." });
-  const { data, error } = await getSupabaseAdmin().rpc("tienda_vencer_pendientes", { p_horas: horas });
+  // Cada pedido vence con el plazo de su medio (tienda_vence_en). En la base también lo corre pg_cron cada 15 minutos.
+  const valores = await leerConfiguracion(["pendiente_vence_horas", "pendiente_vence_horas_mercadopago"]);
+  const horas = horasONulo(valores.pendiente_vence_horas);
+  const horasDeMercadoPago = horasONulo(valores.pendiente_vence_horas_mercadopago) ?? horas;
+  if (!horas && !horasDeMercadoPago) return ok(res, { vencidos: 0, aviso: "Sin plazo configurado: los pedidos pendientes no vencen." });
+  const { data, error } = await getSupabaseAdmin().rpc("tienda_vencer_pendientes");
   if (error) throw new Error(error.message);
-  return ok(res, { vencidos: Number(data ?? 0), horas });
+  return ok(res, { vencidos: Number(data ?? 0), horas, horas_mercadopago: horasDeMercadoPago });
 }

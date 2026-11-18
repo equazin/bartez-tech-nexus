@@ -18,6 +18,7 @@ export function TransferenciaTab() {
   const [config, setConfig] = useState<ConfiguracionDePagos | null>(null);
   const [cuenta, setCuenta] = useState<Record<string, string>>({});
   const [horas, setHoras] = useState("");
+  const [horasDeMercadoPago, setHorasDeMercadoPago] = useState("");
   const [margenes, setMargenes] = useState<Record<string, string>>({});
   const [guardandoMargenes, setGuardandoMargenes] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +28,7 @@ export function TransferenciaTab() {
     setConfig(c);
     setCuenta(Object.fromEntries(CAMPOS.map(({ clave }) => [clave, c.transferencia?.[clave] ?? ""])));
     setHoras(c.pendiente_vence_horas === null ? "" : String(c.pendiente_vence_horas));
+    setHorasDeMercadoPago(c.pendiente_vence_horas_mercadopago === null || c.pendiente_vence_horas_mercadopago === undefined ? "" : String(c.pendiente_vence_horas_mercadopago));
     setMargenes(Object.fromEntries(c.medios.map((m) => [m.id, String(Number(m.margen_porcentaje ?? 0))])));
   }
 
@@ -66,6 +68,7 @@ export function TransferenciaTab() {
         await guardarConfiguracionDePagos({
           transferencia: { titular: cuenta.titular, cuit: cuenta.cuit, banco: cuenta.banco, cbu: cuenta.cbu, alias: cuenta.alias },
           pendiente_vence_horas: horas.trim() === "" ? null : Number(horas),
+          pendiente_vence_horas_mercadopago: horasDeMercadoPago.trim() === "" ? null : Number(horasDeMercadoPago),
         }),
       );
       toast.success("Configuración de pagos guardada");
@@ -111,9 +114,14 @@ export function TransferenciaTab() {
             </label>
           ))}
           <label className="block space-y-1 text-sm">
-            <span className="font-medium">Plazo para pagar (horas; vacío: no vence)</span>
+            <span className="font-medium">Plazo para pagar por transferencia (horas; vacío: no vence)</span>
             <Input inputMode="numeric" value={horas} onChange={(e) => setHoras(e.target.value)} />
             <span className="block text-xs text-muted-foreground">Pasado el plazo, el pedido pendiente vence y libera el stock. Una transferencia que llega después igual se puede confirmar.</span>
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Plazo para pagar con Mercado Pago (horas; vacío: el de transferencia)</span>
+            <Input inputMode="numeric" value={horasDeMercadoPago} onChange={(e) => setHorasDeMercadoPago(e.target.value)} />
+            <span className="block text-xs text-muted-foreground">Mercado Pago se paga en el momento: con un plazo corto, una compra abandonada no retiene el stock. Los pedidos vencidos se revisan cada 15 minutos.</span>
           </label>
           <div className="flex flex-wrap gap-2">
             <Button type="submit" disabled={guardando}>

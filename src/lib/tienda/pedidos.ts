@@ -73,6 +73,8 @@ export interface PedidoPublico {
   estado: string;
   creado_en: string;
   pagado_en: string | null;
+  /** Hasta cuándo se puede pagar, mientras la compra está pendiente de pago. Nulo: no vence. */
+  vence_en?: string | null;
   total: number;
   subtotal: number | null;
   envio_costo: number | null;

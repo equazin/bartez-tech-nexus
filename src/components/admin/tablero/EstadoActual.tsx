@@ -45,7 +45,7 @@ export function PedidosEnCurso({
         ))}
       </ul>
       {venceHoras !== null && venceHoras > 0 && (
-        <p className="mt-3 text-xs text-muted-foreground">Un pedido sin pagar vence a las {entero(venceHoras)} horas y libera el stock.</p>
+        <p className="mt-3 text-xs text-muted-foreground">Una transferencia sin pagar vence a las {entero(venceHoras)} horas y libera el stock. Mercado Pago tiene su propio plazo, más corto.</p>
       )}
     </Tarjeta>
   );

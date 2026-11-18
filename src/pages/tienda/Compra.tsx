@@ -46,6 +46,11 @@ function PagarConMercadoPago({ pedido, token, vuelta }: { pedido: PedidoPublico;
             : "Pagás en Mercado Pago con débito, crédito en 1 pago o dinero en cuenta, y volvés a la tienda."}
         </p>
       )}
+      {pedido.vence_en && vuelta !== "exito" && vuelta !== "pendiente" && (
+        <p className="text-sm text-muted-foreground">
+          Tenés tiempo hasta el {formatoFechaHora.format(new Date(pedido.vence_en))}. Después la compra vence y liberamos el stock.
+        </p>
+      )}
       {vuelta !== "exito" && (
         <Button size="lg" onClick={pagar} disabled={yendo}>
           {yendo ? "Abriendo Mercado Pago" : "Pagar con Mercado Pago"}
@@ -192,7 +197,9 @@ export default function Compra() {
         {pedido.estado === "pendiente_pago" && pedido.medio_pago === "transferencia" && <PagarPorTransferencia pedido={pedido} token={token} />}
         {pedido.estado === "vencido" && (
           <div className="rounded-2xl border border-border bg-secondary p-6 text-sm text-muted-foreground">
-            Venció el plazo para pagar y liberamos el stock. Si ya transferiste, respondé el email de la compra con el comprobante y lo revisamos.
+            {esDeMercadoPago(pedido.medio_pago)
+              ? "Venció el plazo para pagar y liberamos el stock. Si lo seguís queriendo, hacé la compra de nuevo. Si ya pagaste, no vuelvas a pagar: respondé el email de la compra y lo revisamos."
+              : "Venció el plazo para pagar y liberamos el stock. Si ya transferiste, respondé el email de la compra con el comprobante y lo revisamos."}
           </div>
         )}
         <ExtrasDeLaCompra pedido={pedido} token={token} />
