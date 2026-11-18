@@ -12,10 +12,10 @@ país, configuraciones de fábrica, transferencia o Mercado Pago, 10 días para 
 | Carpeta | Piezas | Medida |
 | --- | ---: | --- |
 | `listas/perfil/` | Foto de perfil | 1080 × 1080 |
-| `listas/feed/` | 13 publicaciones y 3 carruseles (18 láminas), numerados en orden de publicación | 1080 × 1350 |
+| `listas/feed/` | 14 publicaciones y 4 carruseles (25 láminas), numerados en orden de publicación | 1080 × 1350 |
 | `listas/temporada/` | Fiestas y vuelta a clases | 1080 × 1350 |
-| `listas/historias/` | 23 historias, en una carpeta por destacada | 1080 × 1920 |
-| `listas/destacadas/` | 12 portadas de destacadas | 1080 × 1080 |
+| `listas/historias/` | 27 historias, en una carpeta por destacada | 1080 × 1920 |
+| `listas/destacadas/` | 13 portadas de destacadas | 1080 × 1080 |
 | `listas/reels/` | 4 portadas de reels (sin video) | 1080 × 1920 |
 | `listas/plantillas/` | Pieza de producto, en publicación e historia. Tiene marcadores: no se publica así | 1350 y 1920 de alto |
 | `vista-previa/` | Cómo queda la grilla del perfil y hojas con todas las piezas | |
@@ -27,13 +27,14 @@ Los textos para acompañar cada pieza, la bio y los textos alternativos están e
 
 1. Foto de perfil: `listas/perfil/foto-de-perfil.png`. Es el mismo símbolo que el ícono de la tienda.
 2. Bio, nombre y enlace: los de `TEXTOS.md`.
-3. Destacadas del primer día: Comprar, Envíos, Pagos, Armá tu PC y Ayuda. Cada una tiene sus historias en
+3. Destacadas del primer día: Comprar, Envíos, Pagos, Armá tu PC, Ayuda y Tu cuenta. Cada una tiene sus historias en
    `listas/historias/<nombre>/`: se suben en orden, se guardan en la destacada y se le pone la portada de
    `listas/destacadas/`. Las demás portadas (Guías, Notebooks, Gaming, Monitores, Periféricos, Ofertas y Novedades)
    se usan cuando haya historias para guardar ahí; una destacada vacía no se puede crear.
 4. Publicaciones: del 01 al 12, en ese orden. La 07, la 10 y la 12 son carruseles: se suben todas las láminas
    con el mismo número, en orden. Así la grilla alterna claro, rojo y oscuro (`vista-previa/grilla-del-perfil.jpg`).
-   La 13, la 14, la 15 y la 16 siguen después, intercaladas con piezas de producto.
+   De la 13 a la 18 siguen después, intercaladas con piezas de producto. La 17 (carrusel) y la 18 son las de la
+   cuenta y los puntos.
 5. Historias de lanzamiento (`listas/historias/lanzamiento/`): el día que se publica la 01. En la tercera va el
    sticker de enlace a la tienda.
 
@@ -45,6 +46,9 @@ Los textos para acompañar cada pieza, la bio y los textos alternativos están e
 - **Cuotas.** Las piezas dicen "en cuotas", sin número, para que no queden viejas si cambia la promoción.
 - **Armado de PC.** Las piezas hablan del armador y de la compatibilidad; no prometen el servicio de armado y
   prueba, que en la tienda está inactivo hasta que tenga precio.
+- **Cuenta y puntos.** Los beneficios de la cuenta son los que lista la página Mi cuenta de la tienda. Las piezas
+  de Puntos Teqo no dicen cuánto suma ni cuánto vale cada punto, porque se cambia desde el panel: se publican
+  solo con el programa prendido.
 - **Garantía.** No hay pieza de garantía: falta definir el plazo. Cuando esté, se suma una historia en Ayuda.
 - **Pieza de producto.** Se completa en `fuente/producto.js` con lo que muestra la ficha ese día y se genera de
   nuevo. Los precios cambian: una pieza con precio se publica el día que se genera.

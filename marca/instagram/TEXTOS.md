@@ -34,6 +34,7 @@ El nombre se escribe en Instagram; la portada lleva solo el ícono.
 | 3 | Pagos | `03-pagos` | `historias/pagos/` (2) |
 | 4 | Armá tu PC | `04-arma-tu-pc` | `historias/arma-tu-pc/` (3) |
 | 5 | Ayuda | `06-ayuda` | `historias/ayuda/` (3) |
+| 6 | Tu cuenta | `13-tu-cuenta` | `historias/tu-cuenta/` (4) |
 | después | Guías | `05-guias` | Los carruseles 10 y 12 compartidos a historias |
 | después | Notebooks, Gaming, Monitores, Periféricos | `07` a `10` | `historias/categorias/` y las piezas de producto de cada una |
 | después | Ofertas, Novedades | `11` y `12` | Cuando haya ofertas o ingresos reales |
@@ -168,6 +169,22 @@ Procesadores, placas de video, memorias y gabinetes. Si vas a armar una PC compl
 
 **Texto alternativo:** Un gabinete, una placa de video, memorias, un disco y un procesador sobre fondo oscuro. Dice "Pieza por pieza. Procesadores, placas de video, memorias y gabinetes".
 
+### 17 · Para qué crear una cuenta (carrusel de 7)
+
+Podés comprar sin cuenta. Con una, tenés más.
+Ves todas tus compras en un lugar, también las que hiciste sin cuenta con ese email. Bajás las facturas y seguís los envíos. Guardás tus datos y direcciones para comprar más rápido. Activás y usás tus cupones. Y ves tus Puntos Teqo.
+Entrás con Google o con tu email y una contraseña.
+
+**Texto alternativo:** Carrusel de siete láminas con lo que permite la cuenta de Teqo: ver todas las compras, bajar facturas y seguir envíos, guardar datos y direcciones, usar cupones y sumar puntos.
+
+### 18 · Puntos Teqo
+
+Tus compras suman puntos.
+Aparecen cuando te entregamos la compra y se liberan al terminar el plazo de arrepentimiento. Después los canjeás, desde Mi cuenta, por un cupón de descuento para tu próxima compra.
+El envío no suma. Las condiciones completas están en los términos de la web.
+
+**Texto alternativo:** Fondo claro. Dice "Tus compras suman puntos. Los ves en Mi cuenta y los canjeás por un cupón de descuento". Debajo, tres tarjetas: Sumás, Se liberan y Canjeás.
+
 ## Temporada
 
 ### Fiestas
@@ -189,7 +206,7 @@ Si no sabés cuál, en el perfil hay una guía con cinco preguntas para elegir.
 ## Historias
 
 - **Lanzamiento** (3). La tercera lleva el sticker de enlace a https://teqo.com.ar, debajo de la dirección.
-- **Comprar** (5), **Envíos** (3), **Pagos** (2) y **Armá tu PC** (3). Se suben en orden y se guardan en su destacada.
+- **Comprar** (5), **Envíos** (3), **Pagos** (2), **Armá tu PC** (3) y **Tu cuenta** (4). Se suben en orden y se guardan en su destacada.
   En la última de cada grupo conviene sumar el sticker de enlace a la página que corresponde.
 - **Ayuda** (3). `ayuda-3-pregunta` es para el sticker de preguntas: va en el espacio libre de abajo.
   Se responde con lo que hay en el catálogo, sin prometer stock ni plazos que no estén en la web.
