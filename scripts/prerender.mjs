@@ -162,23 +162,37 @@ function fotoDeLaFicha(direccion) {
 }
 
 /**
- * La precarga de la primera portada del inicio, que es lo primero que se ve al entrar. Las portadas con la imagen
- * completa usan una versión cuadrada en el celular; las de tipo banner, una sola imagen. Si el inicio no empieza
- * con la portada, o no se puede leer, no se precarga nada.
+ * La primera portada del inicio, que es lo primero que se ve al entrar: su precarga para el <head> y la imagen
+ * para el contenido inicial, así se ve antes de que arranque la aplicación. Las portadas con la imagen completa
+ * usan una versión cuadrada en el celular; las de tipo banner, una sola imagen. Si el inicio no empieza con la
+ * portada, o no se puede leer, no devuelve nada.
  */
-async function precargaDeLaPrimeraPortada(supabase) {
+async function primeraPortadaDelInicio(supabase) {
+  const nada = { cabeza: "", cuerpo: "" };
   try {
     const [{ data: secciones }, { data: portadas }] = await Promise.all([
       supabase.from("tienda_secciones_inicio").select("tipo").order("orden").limit(1),
-      supabase.from("tienda_portadas").select("tipo, imagen_url, imagen_movil_url").order("orden").limit(1),
+      supabase.from("tienda_portadas").select("tipo, titulo, imagen_url, imagen_movil_url").order("orden").limit(1),
     ]);
     const primera = (portadas ?? [])[0];
-    if (!primera?.imagen_url) return "";
-    if ((secciones ?? []).length > 0 && secciones[0].tipo !== "portada") return "";
-    if (primera.tipo !== "imagen" || !primera.imagen_movil_url) return precargaDeImagen(primera.imagen_url);
-    return precargaDeImagen(primera.imagen_movil_url, "(max-width: 767px)") + precargaDeImagen(primera.imagen_url, "(min-width: 768px)");
+    if (!primera?.imagen_url) return nada;
+    if ((secciones ?? []).length > 0 && secciones[0].tipo !== "portada") return nada;
+    const estilo = 'style="display:block;width:100%;height:auto"';
+    const alt = escapar(primera.titulo ?? "");
+    if (primera.tipo !== "imagen" || !primera.imagen_movil_url) {
+      return {
+        cabeza: precargaDeImagen(primera.imagen_url),
+        cuerpo: `<img src="${escapar(primera.imagen_url)}" alt="${alt}" fetchpriority="high" ${estilo} />`,
+      };
+    }
+    return {
+      cabeza: precargaDeImagen(primera.imagen_movil_url, "(max-width: 767px)") + precargaDeImagen(primera.imagen_url, "(min-width: 768px)"),
+      cuerpo:
+        `<picture><source media="(min-width: 768px)" srcset="${escapar(primera.imagen_url)}" width="2400" height="830" />` +
+        `<img src="${escapar(primera.imagen_movil_url)}" alt="${alt}" width="1080" height="1080" fetchpriority="high" ${estilo} /></picture>`,
+    };
   } catch {
-    return "";
+    return nada;
   }
 }
 
@@ -267,8 +281,9 @@ async function main() {
 
   // Inicio: las categorías con sus subcategorías, los destacados y las páginas fijas.
   const destacados = ordenados.filter((p) => p.destacado).slice(0, DESTACADOS_DEL_INICIO);
+  const portadaDelInicio = await primeraPortadaDelInicio(supabase);
   const cuerpoDelInicio =
-    `<main><h1>${escapar(NOMBRE)}: notebooks, gaming, monitores, periféricos y componentes</h1><p>${escapar(DESCRIPCION)}</p>` +
+    `<main>${portadaDelInicio.cuerpo}<h1>${escapar(NOMBRE)}: notebooks, gaming, monitores, periféricos y componentes</h1><p>${escapar(DESCRIPCION)}</p>` +
     `<nav><ul>${raices
       .map((c) => {
         const hijas = hijasDe(c);
@@ -285,8 +300,7 @@ async function main() {
     },
     "sitio",
   );
-  const precargaDeLaPortada = await precargaDeLaPrimeraPortada(supabase);
-  writeFileSync(indice, armarPagina(base, { ruta: "/", extraHead: cabezaDelInicio + precargaDeLaPortada, cuerpo: cuerpoDelInicio }));
+  writeFileSync(indice, armarPagina(base, { ruta: "/", extraHead: cabezaDelInicio + portadaDelInicio.cabeza, cuerpo: cuerpoDelInicio }));
 
   // Categorías: una categoría principal lista también lo de sus subcategorías.
   for (const categoria of categorias) {
@@ -367,7 +381,11 @@ async function main() {
       jsonLd(producto, "producto") +
       jsonLd(migasDe(cadena, { nombre: p.nombre, item: sitio + ruta }), "migas") +
       (imagen ? precargaDeImagen(fotoDeLaFicha(imagen)) : "");
-    const cuerpo = `<main>${migasEnlazadas(cadena)}<h1>${escapar(p.nombre)}</h1>${p.marca ? `<p>${escapar(p.marca)}</p>` : ""}<p>${
+    // La foto va en el contenido inicial: se ve antes de que arranque la aplicación, que después dibuja la ficha.
+    const foto = imagen
+      ? `<img src="${escapar(fotoDeLaFicha(imagen))}" alt="${escapar(p.nombre)}" width="828" height="828" fetchpriority="high" style="display:block;max-width:min(100%,560px);height:auto" />`
+      : "";
+    const cuerpo = `<main>${migasEnlazadas(cadena)}<h1>${escapar(p.nombre)}</h1>${foto}${p.marca ? `<p>${escapar(p.marca)}</p>` : ""}<p>${
       p.precio_final_ars !== null ? `${escapar(formatoPesos.format(p.precio_final_ars))} · precio final con IVA incluido` : "Precio a confirmar"
     } · ${p.hay_stock ? "En stock" : "Sin stock"}</p><p>${escapar(descripcion)}</p>${
       specs.length > 0 ? `<table>${specs.map(([k, v]) => `<tr><th>${escapar(k)}</th><td>${escapar(v)}</td></tr>`).join("")}</table>` : ""
