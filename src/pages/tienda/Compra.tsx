@@ -15,6 +15,16 @@ import { tokenGuardado } from "@/lib/tienda/tokenDeCompra";
 
 const formatoFechaHora = new Intl.DateTimeFormat("es-AR", { dateStyle: "long", timeStyle: "short" });
 
+/** El título acompaña al estado: una compra cancelada, reintegrada o vencida no se agradece como si siguiera en pie. */
+const TITULO_DEL_ESTADO: Record<string, string> = {
+  pagado: "Pago acreditado",
+  cancelado: "Compra cancelada",
+  reintegrado: "Compra cancelada",
+  vencido: "Compra vencida",
+};
+
+const CAJA_DE_AVISO = "rounded-2xl border border-border bg-secondary p-6 text-sm text-muted-foreground";
+
 function PagarConMercadoPago({ pedido, token, vuelta }: { pedido: PedidoPublico; token: string; vuelta: string | null }) {
   const [yendo, setYendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -195,7 +205,7 @@ export default function Compra() {
     <Tienda>
       <div className="container mx-auto space-y-6 px-4 py-8">
         <div className="space-y-2">
-          <h1 className="text-[40px] font-bold leading-[44px] tracking-[-1px]">{pedido.estado === "pagado" ? "Pago acreditado" : "Gracias por tu compra"}</h1>
+          <h1 className="text-[40px] font-bold leading-[44px] tracking-[-1px]">{TITULO_DEL_ESTADO[pedido.estado] ?? "Gracias por tu compra"}</h1>
           <p className="text-muted-foreground">
             Te mandamos el detalle a {pedido.comprador.email}. Guardá este enlace o entrá a{" "}
             <Link to="/cuenta" className="underline">
@@ -207,10 +217,25 @@ export default function Compra() {
         {pedido.estado === "pendiente_pago" && esDeMercadoPago(pedido.medio_pago) && <PagarConMercadoPago pedido={pedido} token={token} vuelta={vuelta} />}
         {pedido.estado === "pendiente_pago" && pedido.medio_pago === "transferencia" && <PagarPorTransferencia pedido={pedido} token={token} />}
         {pedido.estado === "vencido" && (
-          <div className="rounded-2xl border border-border bg-secondary p-6 text-sm text-muted-foreground">
+          <div className={CAJA_DE_AVISO}>
             {esDeMercadoPago(pedido.medio_pago)
               ? "Venció el plazo para pagar y liberamos el stock. Si lo seguís queriendo, hacé la compra de nuevo. Si ya pagaste, no vuelvas a pagar: respondé el email de la compra y lo revisamos."
               : "Venció el plazo para pagar y liberamos el stock. Si ya transferiste, respondé el email de la compra con el comprobante y lo revisamos."}
+          </div>
+        )}
+        {/* Reintegrada: la compra no llegó a salir, se canceló y la plata ya volvió (por ejemplo, el proveedor se quedó sin stock). */}
+        {pedido.estado === "reintegrado" && (
+          <div className={CAJA_DE_AVISO}>
+            {esDeMercadoPago(pedido.medio_pago)
+              ? "Cancelamos esta compra y te devolvimos la plata por Mercado Pago, al mismo medio con el que pagaste. Cuándo la ves acreditada depende de Mercado Pago y de tu banco o tarjeta. El detalle está en el email del reintegro; si tenés dudas, respondelo."
+              : "Cancelamos esta compra y te devolvimos la plata por transferencia bancaria. El detalle está en el email del reintegro; si tenés dudas, respondelo."}
+          </div>
+        )}
+        {pedido.estado === "cancelado" && (
+          <div className={CAJA_DE_AVISO}>
+            {pedido.pagado_en
+              ? "Esta compra quedó cancelada. Como ya estaba paga, te devolvemos el dinero por el mismo medio con el que pagaste. Te avisamos cuando esté hecho."
+              : "Esta compra quedó cancelada. Si la seguís queriendo, hacé la compra de nuevo. Si ya habías pagado, respondé el email de la compra y lo revisamos."}
           </div>
         )}
         <ExtrasDeLaCompra pedido={pedido} token={token} />

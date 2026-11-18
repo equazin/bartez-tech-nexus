@@ -7,9 +7,14 @@ import { resolveProductImageUrl } from "@/lib/productImage";
 
 const formatoFecha = new Intl.DateTimeFormat("es-AR", { dateStyle: "long" });
 
+/** Estados en los que el pedido todavía tiene que llegar: solo ahí se muestra la demora del envío. */
+const ESTADOS_QUE_ESPERAN_LA_ENTREGA = ["pendiente_pago", "pagado", "preparando", "enviado"];
+
 export function ResumenDeCompra({ pedido }: { pedido: PedidoPublico }) {
   const envio = pedido.envio_costo ?? 0;
   const descuento = pedido.descuento ?? 0;
+  // Una compra cancelada, reintegrada, vencida o ya entregada no promete cuándo llega.
+  const esperaLaEntrega = ESTADOS_QUE_ESPERAN_LA_ENTREGA.includes(pedido.estado);
   const demora = textoDeDemora({ demora_dias_min: pedido.envio_demora_dias_min, demora_dias_max: pedido.envio_demora_dias_max });
 
   return (
@@ -87,7 +92,7 @@ export function ResumenDeCompra({ pedido }: { pedido: PedidoPublico }) {
                 </p>
               </>
             )}
-            {demora && <p className="text-muted-foreground">{demora} desde que se acredita el pago.</p>}
+            {demora && esperaLaEntrega && <p className="text-muted-foreground">{demora} desde que se acredita el pago.</p>}
             {pedido.seguimiento && (
               <p className="text-muted-foreground">
                 Seguimiento {pedido.transporte ? `${pedido.transporte} ` : ""}
