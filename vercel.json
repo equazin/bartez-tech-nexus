@@ -1,5 +1,6 @@
 {
   "cleanUrls": true,
+  "trailingSlash": false,
   "regions": [
     "gru1"
   ],
@@ -167,12 +168,24 @@
       "destination": "/api/$1"
     },
     {
-      "source": "/(.*)",
+      "source": "/(buscar|comparar|arma-tu-pc|ofertas|nuevos-ingresos|carrito|cart|checkout|cuenta|seguimiento|arrepentimiento|ayuda|terminos|privacidad|garantias|login|reset-password|admin|sistema-de-diseno)",
       "destination": "/aplicacion"
     },
     {
-      "source": "/(.*)",
-      "destination": "/"
+      "source": "/compra/:id",
+      "destination": "/aplicacion"
+    },
+    {
+      "source": "/clientes/:id",
+      "destination": "/aplicacion"
+    },
+    {
+      "source": "/:categoria([a-z0-9][a-z0-9-]*)",
+      "destination": "/api/tienda?modulo=pagina&categoria=:categoria"
+    },
+    {
+      "source": "/:categoria([a-z0-9][a-z0-9-]*)/:producto([a-z0-9][a-z0-9-]*)",
+      "destination": "/api/tienda?modulo=pagina&categoria=:categoria&producto=:producto"
     }
   ],
   "crons": [

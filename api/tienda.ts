@@ -6,6 +6,7 @@ import envios from "./_tienda/envios.js";
 import feed from "./_tienda/feed.js";
 import legal from "./_tienda/legal.js";
 import orders from "./_tienda/orders.js";
+import pagina from "./_tienda/pagina.js";
 import pagos from "./_tienda/pagos.js";
 import precios from "./_tienda/precios.js";
 import sincronizacion from "./_tienda/sincronizacion.js";
@@ -17,13 +18,15 @@ import sincronizacion from "./_tienda/sincronizacion.js";
  * así el front, los crons y el aviso de Mercado Pago siguen usando las direcciones de siempre.
  * La sincronización automática (dólar del BNA y ELIT) se llama directo: /api/tienda?modulo=sincronizacion.
  * El feed de productos para Google sale por /feed-google.xml (modulo=feed).
+ * Las direcciones de categoría o de producto sin página propia en el despliegue pasan por modulo=pagina, que
+ * responde 200 o 404 según existan.
  */
 
 export const config = { maxDuration: 60 };
 
 type Manejador = (req: VercelRequest, res: VercelResponse) => Promise<unknown> | unknown;
 
-const MODULOS: Record<string, Manejador> = { checkout, cuenta, envios, feed, legal, orders, pagos, precios, sincronizacion };
+const MODULOS: Record<string, Manejador> = { checkout, cuenta, envios, feed, legal, orders, pagina, pagos, precios, sincronizacion };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const modulo = typeof req.query.modulo === "string" ? req.query.modulo : "";
