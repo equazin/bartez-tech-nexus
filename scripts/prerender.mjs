@@ -157,7 +157,7 @@ function precargaDeImagen(direccion, medio = null) {
  * coinciden, la precarga baja una imagen que después no se usa.
  */
 function fotoDeLaFicha(direccion) {
-  if (/^https:\/\/static\.nb\.com\.ar\/i\//.test(direccion)) return `/_vercel/image?url=${encodeURIComponent(direccion)}&w=828&q=75`;
+  if (/^https:\/\/static\.nb\.com\.ar\/i\//.test(direccion) || /^https:\/\/images\.elit\.com\.ar\/.+_l\.webp$/.test(direccion)) return `/_vercel/image?url=${encodeURIComponent(direccion)}&w=828&q=75`;
   return direccion;
 }
 
