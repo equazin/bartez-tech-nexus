@@ -113,6 +113,8 @@ export const updateOrderSchema = z.object({
   notificar: z.boolean().optional(),
   // ...o reenviarle el mail del estado en que está la compra. No cambian nada del pedido.
   reenviar_aviso: z.boolean().optional(),
+  // Solo compras de la tienda: pasar la compra a enviada o entregada sin mandarle el mail al comprador.
+  sin_aviso: z.boolean().optional(),
 });
 
 // Fields an admin/vendedor can update on profiles

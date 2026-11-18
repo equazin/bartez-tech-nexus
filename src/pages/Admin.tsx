@@ -89,6 +89,27 @@ interface SupabaseOrder {
   comprador_nombre?: string | null;
 }
 
+/**
+ * Los pasos que el detalle de una compra de la tienda ofrece según su estado. "Pagado" no está: lo pone solo el
+ * pago. De pagado se puede marcar enviada sin pasar por preparación (lo que despacha directo el mayorista).
+ */
+interface PasoDeLaCompra {
+  estado: "preparando" | "enviado" | "entregado";
+  texto: string;
+  pregunta: string;
+  /** El paso le manda un mail al comprador (si "Notificar al cliente" está tildado). */
+  avisa: boolean;
+}
+const PASO_PREPARANDO: PasoDeLaCompra = { estado: "preparando", texto: "Marcar en preparación", pregunta: "¿Pasar la compra a En preparación?", avisa: false };
+const PASO_ENVIADO: PasoDeLaCompra = { estado: "enviado", texto: "Marcar como enviada", pregunta: "¿Marcar la compra como enviada?", avisa: true };
+const PASO_ENTREGADO: PasoDeLaCompra = { estado: "entregado", texto: "Marcar como entregada", pregunta: "¿Marcar la compra como entregada?", avisa: true };
+const PASOS_DE_LA_TIENDA: Record<string, PasoDeLaCompra[]> = {
+  pagado: [PASO_PREPARANDO, PASO_ENVIADO],
+  preparando: [PASO_ENVIADO],
+  enviado: [PASO_ENTREGADO],
+};
+const NOMBRE_DEL_PASO: Record<PasoDeLaCompra["estado"], string> = { preparando: "en preparación", enviado: "enviada", entregado: "entregada" };
+
 /** Las compras de la tienda se guardan en pesos: se muestran en pesos, sin pasar por el dólar del panel. */
 const formatPesosDeLaTienda = (monto: number) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(Number(monto));
@@ -411,6 +432,7 @@ const Admin = () => {
   const [trackingNumber,   setTrackingNumber]   = useState("");
   const [notifyByEmail,    setNotifyByEmail]    = useState(true);
   const [savingLogistics,  setSavingLogistics]  = useState(false);
+  const [cambiandoPaso,    setCambiandoPaso]    = useState(false);
 
   // Realtime orders for kanban
   const { orders: rtOrders, updateStatus: rtUpdateStatus, updateLogistics: rtUpdateLogistics } = useOrdersRealtime();
@@ -878,10 +900,58 @@ const Admin = () => {
     }
   }, [selectedOrder]);
 
+  // Compra de la tienda todavía sin despachar y con un número de seguimiento escrito: guardar el envío la deja
+  // como enviada. El mail que recibe el comprador es el de "en camino", que ya trae el seguimiento.
+  const pasosDeLaCompra = selectedOrder?.origen === "tienda" ? (PASOS_DE_LA_TIENDA[selectedOrder.status] ?? []) : [];
+  const seMarcaEnviadaAlGuardar = pasosDeLaCompra.includes(PASO_ENVIADO) && trackingNumber.trim() !== "";
+
+  /**
+   * Compras de la tienda: pasa la compra al paso que se pide. El servidor valida el paso, descuenta el stock al
+   * enviar y le manda el mail al comprador. Al enviar viajan también el transporte y el seguimiento del formulario.
+   */
+  async function pasarLaCompraA(estado: PasoDeLaCompra["estado"]): Promise<void> {
+    if (!selectedOrder) return;
+    const idDelPedido = selectedOrder.id;
+    const envio =
+      estado === "enviado"
+        ? {
+            ...(shippingProvider ? { shipping_provider: shippingProvider } : {}),
+            ...(trackingNumber.trim() ? { tracking_number: trackingNumber.trim() } : {}),
+          }
+        : {};
+    const guardado = await patchOrder({ id: idDelPedido, status: estado, ...envio, sin_aviso: !notifyByEmail });
+    const cambios = { status: estado, ...envio };
+    setSelectedOrder((prev) => (prev && String(prev.id) === String(idDelPedido) ? { ...prev, ...cambios } : prev));
+    setOrders((prev) => prev.map((o) => (String(o.id) === String(idDelPedido) ? { ...o, ...cambios } : o)));
+    const nombre = NOMBRE_DEL_PASO[estado];
+    const aviso = guardado.aviso;
+    if (aviso && aviso.enviado === false) alert(`La compra quedó ${nombre}, pero el mail al comprador no salió: ${aviso.motivo}`);
+    else toast.success(aviso ? `La compra quedó ${nombre}. Le mandamos el mail al comprador.` : `La compra quedó ${nombre}.`);
+  }
+
+  async function handlePasoDeLaCompra(paso: PasoDeLaCompra) {
+    if (!selectedOrder || cambiandoPaso) return;
+    const sobreElMail = !paso.avisa ? "" : notifyByEmail ? " El comprador recibe el mail." : " No se le manda mail al comprador.";
+    if (!confirm(`${paso.pregunta}${sobreElMail}`)) return;
+    setCambiandoPaso(true);
+    try {
+      await pasarLaCompraA(paso.estado);
+    } catch (err) {
+      logger.error("Error al cambiar el estado de la compra:", err);
+      alert("No se pudo cambiar el estado: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setCambiandoPaso(false);
+    }
+  }
+
   async function handleSaveLogistics() {
     if (!selectedOrder) return;
     setSavingLogistics(true);
     try {
+      if (seMarcaEnviadaAlGuardar) {
+        await pasarLaCompraA("enviado");
+        return;
+      }
       const esDeLaTienda = selectedOrder.origen === "tienda";
       // En las compras de la tienda el mail lo arma y lo manda el servidor, con el seguimiento recién guardado.
       const guardado = await rtUpdateLogistics(selectedOrder.id, shippingProvider, trackingNumber, esDeLaTienda && notifyByEmail);
@@ -2644,10 +2714,10 @@ async function handleCreateSeller() {
 
                   <button 
                     onClick={handleSaveLogistics}
-                    disabled={savingLogistics}
+                    disabled={savingLogistics || cambiandoPaso}
                     className="w-full bg-[#2D9F6A] hover:bg-[#25835A] disabled:opacity-50 text-white rounded-lg py-2 text-[11px] font-bold uppercase tracking-widest transition shadow-lg shadow-[#2D9F6A]/10"
                   >
-                    {savingLogistics ? "Guardando..." : "Actualizar Información de Envío"}
+                    {savingLogistics ? "Guardando..." : seMarcaEnviadaAlGuardar ? "Guardar y marcar como enviada" : "Actualizar Información de Envío"}
                   </button>
 
                   <button 
@@ -2678,6 +2748,27 @@ async function handleCreateSeller() {
                   >
                     Reenviar Email (Estado Actual)
                   </button>
+
+                  {/* Compras de la tienda: los pasos que siguen. Con un seguimiento escrito, "enviada" ya la marca el botón de arriba. */}
+                  {pasosDeLaCompra.filter((paso) => !(paso === PASO_ENVIADO && seMarcaEnviadaAlGuardar)).length > 0 && (
+                    <div className={`mt-3 border-t pt-3 ${dk("border-[#1a1a1a]", "border-[#e5e5e5]")}`}>
+                      <p className={`mb-2 px-1 text-[10px] font-bold uppercase tracking-wider ${dk("text-gray-400", "text-gray-600")}`}>Estado de la compra</p>
+                      <div className="flex flex-wrap gap-2">
+                        {pasosDeLaCompra
+                          .filter((paso) => !(paso === PASO_ENVIADO && seMarcaEnviadaAlGuardar))
+                          .map((paso) => (
+                            <button
+                              key={paso.estado}
+                              onClick={() => void handlePasoDeLaCompra(paso)}
+                              disabled={cambiandoPaso || savingLogistics}
+                              className={`flex-1 border rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-widest transition disabled:opacity-50 ${dk("border-[#1a1a1a] text-gray-300 hover:bg-[#1a1a1a] hover:text-white", "border-[#e5e5e5] text-gray-600 hover:bg-[#f5f5f5] hover:text-[#171717]")}`}
+                            >
+                              {cambiandoPaso ? "Guardando..." : paso.texto}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {selectedOrder.status === "pending" && (() => {

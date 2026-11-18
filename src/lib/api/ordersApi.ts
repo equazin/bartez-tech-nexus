@@ -45,9 +45,12 @@ export interface Order {
 /** Lo que pasó con un mail al comprador que se pidió desde el panel (solo compras de la tienda). */
 export type AvisoAlComprador = { enviado: true } | { enviado: false; motivo: string };
 
+/** Los pasos de una compra de la tienda que se marcan a mano desde el panel. "Pagado" lo pone solo el pago. */
+export type PasoDeLaTienda = "preparando" | "enviado" | "entregado" | "cancelado";
+
 export async function patchOrder(payload: {
   id: string | number;
-  status?: OrderStatus;
+  status?: OrderStatus | PasoDeLaTienda;
   notes?: string | null;
   shipping_provider?: string;
   tracking_number?: string;
@@ -55,6 +58,8 @@ export async function patchOrder(payload: {
   notificar?: boolean;
   /** Compras de la tienda: reenvía el mail del estado en que está la compra, sin cambiar nada. */
   reenviar_aviso?: boolean;
+  /** Compras de la tienda: pasa la compra a enviada o entregada sin mandarle el mail al comprador. */
+  sin_aviso?: boolean;
 }): Promise<Order & { aviso?: AvisoAlComprador }> {
   return callVercelApi<Order & { aviso?: AvisoAlComprador }>("/api/orders", "PATCH", {
     id: payload.id,
@@ -66,6 +71,7 @@ export async function patchOrder(payload: {
     ...(payload.tracking_number !== undefined ? { tracking_number: payload.tracking_number } : {}),
     ...(payload.notificar ? { notificar: true } : {}),
     ...(payload.reenviar_aviso ? { reenviar_aviso: true } : {}),
+    ...(payload.sin_aviso ? { sin_aviso: true } : {}),
   });
 }
 

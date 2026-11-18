@@ -4,7 +4,7 @@ import { getRoleFromRequest, ensureWriteRole } from "../_shared/roles.js";
 import { createOrderSchema, updateOrderSchema, ORDER_STATUSES, type OrderStatus } from "../_shared/schemas.js";
 import { getSupabaseClient, getSupabaseAdmin } from "../_shared/supabaseServer.js";
 import { notifyOrderStatusChange } from "../_shared/notifications.js";
-import { avisarAlComprador, type TipoDeAviso } from "../_shared/avisos.js";
+import { avisarAlComprador, type ResultadoDelAviso, type TipoDeAviso } from "../_shared/avisos.js";
 import type { ApiRole } from "../_shared/roles.js";
 
 /**
@@ -12,6 +12,7 @@ import type { ApiRole } from "../_shared/roles.js";
  *   pendiente_pago → pagado → preparando → enviado → entregado, más cancelado, reintegrado y vencido.
  * "pagado" nunca se pone desde acá: solo lo ponen el aviso firmado de Mercado Pago y la confirmación
  * manual de una transferencia (api/pagos.ts). Al enviar se descuenta el stock; al cancelar se libera.
+ * De pagado se puede pasar directo a enviado: lo que despacha el mayorista no se prepara acá.
  * Los pedidos mayoristas heredados conservan el flujo de Bartez.
  */
 
@@ -20,7 +21,7 @@ type EstadoDeLaTienda = (typeof ESTADOS_DE_LA_TIENDA)[number];
 
 const FLUJO_DE_LA_TIENDA: Record<EstadoDeLaTienda, EstadoDeLaTienda[]> = {
   pendiente_pago: ["cancelado"],
-  pagado: ["preparando", "cancelado"],
+  pagado: ["preparando", "enviado", "cancelado"],
   preparando: ["enviado", "cancelado"],
   enviado: ["entregado"],
   entregado: [],
@@ -125,14 +126,20 @@ export interface PedidoActual {
   pagado_en: string | null;
 }
 
-/** También lo usan los avisos de Zipnova (api/_tienda/envios.ts) para pasar un pedido a enviado o entregado. */
+/**
+ * También lo usan los avisos de Zipnova (api/_tienda/envios.ts) para pasar un pedido a enviado o entregado.
+ * Con `sinAviso` el cambio a enviado o entregado no le manda el mail al comprador (el panel lo pide cuando se
+ * destilda "Notificar al cliente"). `aviso` cuenta qué pasó con el mail, cuando el cambio manda uno.
+ */
 export async function cambiarEstadoDeLaTienda(
   pedido: PedidoActual,
   nuevo: EstadoDeLaTienda,
   resto: Record<string, unknown>,
   userId: string | null,
-): Promise<{ error?: string; estado?: number; data?: unknown }> {
+  opciones: { sinAviso?: boolean } = {},
+): Promise<{ error?: string; estado?: number; data?: unknown; aviso?: ResultadoDelAviso }> {
   const admin = getSupabaseAdmin();
+  let aviso: ResultadoDelAviso | undefined;
   const actual = pedido.status as EstadoDeLaTienda;
   if (nuevo === "pagado") return { error: "Un pedido se marca pagado solo desde Pagos: por el aviso de Mercado Pago o confirmando la transferencia.", estado: 409 };
   if (nuevo === actual) return { error: `El pedido ya está "${actual}".`, estado: 409 };
@@ -155,7 +162,7 @@ export async function cambiarEstadoDeLaTienda(
       if (error) return { error: error.message, estado: 500 };
       await admin.from("orders").update({ status: "cancelado", cancelado_en: ahora, notes: motivo }).eq("id", pedido.id);
     }
-    await avisarAlComprador(pedido.id, "cancelado", { motivo });
+    aviso = await avisarAlComprador(pedido.id, "cancelado", { motivo });
   } else {
     if (nuevo === "preparando") patch.preparando_en = ahora;
     if (nuevo === "enviado") {
@@ -167,18 +174,18 @@ export async function cambiarEstadoDeLaTienda(
     if (nuevo === "entregado") patch.entregado_en = ahora;
     const { error } = await admin.from("orders").update(patch).eq("id", pedido.id);
     if (error) return { error: error.message, estado: 500 };
-    if (nuevo === "enviado") await avisarAlComprador(pedido.id, "enviado");
+    if (nuevo === "enviado" && !opciones.sinAviso) aviso = await avisarAlComprador(pedido.id, "enviado");
     if (nuevo === "entregado") {
       // Cupón para la próxima compra (si está activo en Marketing › Cupones): va en el email de entrega.
       const { error: errorCupon } = await admin.rpc("tienda_emitir_cupon_de_compra", { p_order_id: pedido.id });
       if (errorCupon) console.error("[orders] No se pudo emitir el cupón de la compra:", pedido.id, errorCupon.message);
-      await avisarAlComprador(pedido.id, "entregado");
+      if (!opciones.sinAviso) aviso = await avisarAlComprador(pedido.id, "entregado");
     }
   }
 
   await admin.from("activity_logs").insert({ user_id: userId, action: "cambiar_estado_pedido", entity_type: "order", entity_id: String(pedido.id), metadata: { de: actual, a: nuevo } });
   const { data } = await admin.from("orders").select("*").eq("id", pedido.id).single();
-  return { data };
+  return { data, aviso };
 }
 
 async function updateOrder(req: VercelRequest, res: VercelResponse) {
@@ -191,7 +198,7 @@ async function updateOrder(req: VercelRequest, res: VercelResponse) {
     const parsed = updateOrderSchema.safeParse(req.body ?? {});
     if (!parsed.success) return fail(res, "Invalid payload", 400, parsed.error.flatten());
 
-    const { id, status, notificar, reenviar_aviso, ...rest } = parsed.data;
+    const { id, status, notificar, reenviar_aviso, sin_aviso, ...rest } = parsed.data;
 
     // Validate status transition is allowed for this role
     if (status !== undefined && !ALLOWED_TRANSITIONS[role].includes(status)) {
@@ -223,9 +230,11 @@ async function updateOrder(req: VercelRequest, res: VercelResponse) {
         if (!esDeLaTienda(status)) return fail(res, `"${status}" no es un estado de la tienda.`, 400);
         const bearer = req.headers.authorization?.slice(7) ?? "";
         const userId = (await supabase.auth.getUser(bearer)).data.user?.id ?? null;
-        const resultado = await cambiarEstadoDeLaTienda(pedido, status, rest, userId);
+        // El transporte y el seguimiento que vienen en el mismo pedido se guardan con el cambio de estado:
+        // así el mail de "en camino" ya sale con el número.
+        const resultado = await cambiarEstadoDeLaTienda(pedido, status, rest, userId, { sinAviso: sin_aviso === true });
         if (resultado.error) return fail(res, resultado.error, resultado.estado ?? 500);
-        return ok(res, resultado.data);
+        return ok(res, resultado.aviso ? { ...(resultado.data as Record<string, unknown>), aviso: resultado.aviso } : resultado.data);
       }
       const cambios = Object.fromEntries(Object.entries(rest).filter(([, valor]) => valor !== undefined));
       if (Object.keys(cambios).length === 0) return fail(res, "No hay datos para guardar: completá el transporte o el número de seguimiento.", 400);
