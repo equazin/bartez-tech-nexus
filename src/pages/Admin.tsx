@@ -2406,21 +2406,28 @@ async function handleCreateSeller() {
         <KeepAliveTab active={activeTab === "orders"} id="orders">
           <div className="grid lg:grid-cols-2 gap-5 max-w-5xl">
             <div className="space-y-3">
-              {/* Export + Currency notice */}
+              {/* Exportar y aviso de moneda. El aviso en dólares y el pedido cargado a mano son del portal mayorista:
+                  las compras de la tienda se guardan y se muestran en pesos, y nacen en el checkout. */}
               <div className="flex items-center gap-2">
-                <div className={`flex-1 flex items-start gap-2.5 rounded-xl px-4 py-3 border text-xs ${dk("bg-blue-500/8 border-blue-500/20 text-blue-300", "bg-blue-50 border-blue-200 text-blue-700")}`}>
-                  <DollarSign size={13} className="mt-0.5 shrink-0" />
-                  <span>
-                    Mostrando importes en <strong>{currency}</strong>.
-                    1 USD = <strong>{exchangeRate.rate.toLocaleString("es-AR")} ARS</strong>
-                  </span>
-                </div>
-                <button
-                  onClick={() => setShowCreateOrder(true)}
-                  className="flex items-center gap-1.5 text-xs shrink-0 px-3 py-2 rounded-lg bg-[#2D9F6A] hover:bg-[#25835A] text-white font-semibold transition"
-                >
-                  <UserPlus size={12} /> Nuevo pedido
-                </button>
+                {MODO_TIENDA === "mayorista" ? (
+                  <>
+                    <div className={`flex-1 flex items-start gap-2.5 rounded-xl px-4 py-3 border text-xs ${dk("bg-blue-500/8 border-blue-500/20 text-blue-300", "bg-blue-50 border-blue-200 text-blue-700")}`}>
+                      <DollarSign size={13} className="mt-0.5 shrink-0" />
+                      <span>
+                        Mostrando importes en <strong>{currency}</strong>.
+                        1 USD = <strong>{exchangeRate.rate.toLocaleString("es-AR")} ARS</strong>
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setShowCreateOrder(true)}
+                      className="flex items-center gap-1.5 text-xs shrink-0 px-3 py-2 rounded-lg bg-[#2D9F6A] hover:bg-[#25835A] text-white font-semibold transition"
+                    >
+                      <UserPlus size={12} /> Nuevo pedido
+                    </button>
+                  </>
+                ) : (
+                  <p className={`flex-1 px-1 text-xs ${dk("text-gray-500", "text-[#737373]")}`}>Las compras se muestran en pesos, como se cobraron.</p>
+                )}
                 {orders.length > 0 && (
                   <button
                     onClick={() => exportOrdersCSV(orders)}
@@ -2448,24 +2455,31 @@ async function handleCreateSeller() {
                   <option value="cancelado">Cancelado</option>
                   <option value="reintegrado">Reintegrado</option>
                   <option value="vencido">Vencido</option>
-                  <option value="pending">En revisión (mayorista)</option>
-                  <option value="approved">Aprobado</option>
-                  <option value="preparing">Preparando</option>
-                  <option value="shipped">Enviado</option>
-                  <option value="dispatched">Despachado</option>
-                  <option value="delivered">Entregado</option>
-                  <option value="rejected">Rechazado</option>
+                  {/* Los estados y el filtro por cliente del portal mayorista: en la tienda no hay pedidos así. */}
+                  {MODO_TIENDA === "mayorista" && (
+                    <>
+                      <option value="pending">En revisión (mayorista)</option>
+                      <option value="approved">Aprobado</option>
+                      <option value="preparing">Preparando</option>
+                      <option value="shipped">Enviado</option>
+                      <option value="dispatched">Despachado</option>
+                      <option value="delivered">Entregado</option>
+                      <option value="rejected">Rechazado</option>
+                    </>
+                  )}
                 </select>
-                <select
-                  value={filterOrderClient}
-                  onChange={(e) => { setFilterOrderClient(e.target.value); setOrdersPage(1); }}
-                  className={`border rounded-lg px-2 py-1.5 text-xs outline-none flex-1 min-w-[140px] ${dk("bg-[#111] border-[#2a2a2a] text-gray-300", "bg-white border-[#d4d4d4] text-[#525252]")}`}
-                >
-                  <option value="all">Todos los clientes</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>{c.company_name || c.contact_name}</option>
-                  ))}
-                </select>
+                {MODO_TIENDA === "mayorista" && (
+                  <select
+                    value={filterOrderClient}
+                    onChange={(e) => { setFilterOrderClient(e.target.value); setOrdersPage(1); }}
+                    className={`border rounded-lg px-2 py-1.5 text-xs outline-none flex-1 min-w-[140px] ${dk("bg-[#111] border-[#2a2a2a] text-gray-300", "bg-white border-[#d4d4d4] text-[#525252]")}`}
+                  >
+                    <option value="all">Todos los clientes</option>
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id}>{c.company_name || c.contact_name}</option>
+                    ))}
+                  </select>
+                )}
                 {(filterOrderStatus !== "all" || filterOrderClient !== "all") && (
                   <button
                     onClick={() => { setFilterOrderStatus("all"); setFilterOrderClient("all"); }}

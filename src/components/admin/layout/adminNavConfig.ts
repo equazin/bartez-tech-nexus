@@ -96,10 +96,10 @@ const NAV_MODULES_COMPLETOS: NavModule[] = [
   },
   {
     id: "clientes",
-    label: "Clientes 360",
+    label: "Clientes",
     icon: Users,
     items: [
-      { id: "clients",                label: "Ficha 360",     icon: Users,      adminOnly: true },
+      { id: "clients",                label: "Fichas",        icon: Users,      adminOnly: true },
       { id: "exception_inbox",        label: "Excepciones",   icon: ShieldAlert, adminOnly: true },
       { id: "registration_requests",  label: "Altas B2B",     icon: UserPlus,   adminOnly: true },
       { id: "users_permissions",      label: "Accesos",       icon: UserPlus,   adminOnly: true },

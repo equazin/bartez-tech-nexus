@@ -26,7 +26,7 @@ const WORKSPACE_ITEMS: Array<{
 }> = [
   { id: "dashboard", label: "Tablero", module: "top", tab: "dashboard", icon: LayoutDashboard },
   { id: "sales", label: "Ventas", module: "pedidos", tab: "quotes_admin", icon: ClipboardList },
-  { id: "clients", label: "Clientes 360", module: "clientes", tab: "clients", icon: Users },
+  { id: "clients", label: "Clientes", module: "clientes", tab: "clients", icon: Users },
   { id: "products", label: "Catalogo", module: "catalogo", tab: "products", icon: Package },
   { id: "armador",  label: "Armá tu PC", module: "armador",  tab: "pc_armadas",        icon: Cpu },
   { id: "sellers",   label: "Vendedores", module: "vendedores", tab: "seller_mode",       icon: DollarSign },
