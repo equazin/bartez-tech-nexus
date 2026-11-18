@@ -87,15 +87,20 @@ export function useCarritoDetallado() {
   );
   const claveDeEnvio = itemsDeEnvio.map((i) => `${i.product_id}x${i.cantidad}`).join(",");
 
+  /** Los productos del carrito que ya se leyeron de la tienda (estén o no publicados). */
+  const todoLeido = lineas.every(({ linea }) => productos.has(linea.productoId));
+
   const problemas = useMemo(
     () =>
       lineas.flatMap(({ linea, producto }) => {
+        // Sin leer todavía: está cargando, no es que el producto ya no esté.
+        if (!producto && !productos.has(linea.productoId)) return [];
         if (!producto) return [`Un producto del carrito ya no está en la tienda.`];
         if (!producto.hay_stock) return [`"${producto.nombre}" se quedó sin stock.`];
         if (producto.precio_final_ars === null) return [`"${producto.nombre}" no tiene precio todavía.`];
         return linea.cantidad > 0 ? [] : [];
       }),
-    [lineas],
+    [lineas, productos],
   );
 
   return {
@@ -113,6 +118,6 @@ export function useCarritoDetallado() {
     claveDeEnvio,
     cargando,
     problemas,
-    listoParaComprar: lineas.length > 0 && problemas.length === 0 && !cargando,
+    listoParaComprar: lineas.length > 0 && todoLeido && problemas.length === 0 && !cargando,
   };
 }

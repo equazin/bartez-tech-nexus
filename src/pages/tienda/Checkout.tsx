@@ -103,6 +103,16 @@ export default function Checkout() {
   const { user } = useAuth();
   const [parametros] = useSearchParams();
   const { lineas, subtotal, subtotalPorMedio, serviciosElegidos, itemsDeEnvio, claveDeEnvio, cargando, listoParaComprar } = useCarritoDetallado();
+  // Al salir a Mercado Pago la dirección de la pestaña queda en la de la compra. Si el comprador vuelve atrás, el
+  // navegador puede restaurar esta pantalla tal como quedó (el checkout, ya sin carrito): se recarga para que
+  // muestre la compra, con su botón para pagar.
+  useEffect(() => {
+    const alMostrar = (evento: PageTransitionEvent) => {
+      if (evento.persisted && window.location.pathname.startsWith("/compra/")) window.location.reload();
+    };
+    window.addEventListener("pageshow", alMostrar);
+    return () => window.removeEventListener("pageshow", alMostrar);
+  }, []);
   // El carrito deja elegir el medio antes de llegar acá; si viene en la URL, arranca elegido.
   const medioDelCarrito = parametros.get("medio");
   const [f, setF] = useState<Formulario>(() =>
@@ -277,7 +287,8 @@ export default function Checkout() {
         if (enlaceDePago) {
           vaciarCarrito();
           // La dirección de esta pestaña pasa a ser la de la compra, sin el token (queda guardado en la pestaña):
-          // quien vuelve atrás desde Mercado Pago cae en su compra y no en un carrito vacío.
+          // quien vuelve atrás desde Mercado Pago cae en su compra y no en un carrito vacío. Si el navegador
+          // restaura esta pantalla en lugar de cargar esa dirección, el efecto de arriba la recarga.
           if (guardarToken(String(creado.id), creado.token)) window.history.replaceState(null, "", `/compra/${creado.id}`);
           window.location.href = enlaceDePago;
           return;

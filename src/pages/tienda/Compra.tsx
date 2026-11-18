@@ -48,7 +48,7 @@ function PagarConMercadoPago({ pedido, token, vuelta }: { pedido: PedidoPublico;
       )}
       {pedido.vence_en && vuelta !== "exito" && vuelta !== "pendiente" && (
         <p className="text-sm text-muted-foreground">
-          Tenés tiempo hasta el {formatoFechaHora.format(new Date(pedido.vence_en))}. Después la compra vence y liberamos el stock.
+          Tenés tiempo para pagar hasta el {formatoFechaHora.format(new Date(pedido.vence_en))}; después la compra vence y liberamos el stock.
         </p>
       )}
       {vuelta !== "exito" && (
@@ -103,7 +103,8 @@ function PagarPorTransferencia({ pedido, token }: { pedido: PedidoPublico; token
       )}
       <p className="text-sm text-muted-foreground">
         Poné el número {pedido.numero} como referencia. Cuando se acredite te avisamos por email y empezamos a preparar el pedido.
-        {datos?.vence_en ? ` Tenés tiempo hasta el ${formatoFechaHora.format(new Date(datos.vence_en))}.` : ""}
+        {/* La hora termina en "p. m.": sin el punto final propio, para que no queden dos seguidos. */}
+        {datos?.vence_en ? ` Tenés tiempo hasta el ${formatoFechaHora.format(new Date(datos.vence_en)).replace(/\.$/, "")}.` : ""}
       </p>
     </div>
   );
@@ -123,6 +124,16 @@ export default function Compra() {
   useEffect(() => {
     if (pedido) medirCompra(pedido);
   }, [pedido]);
+
+  // Al volver con "atrás" (por ejemplo desde Mercado Pago) el navegador puede restaurar la página tal como quedó:
+  // se recarga para mostrar el estado real de la compra.
+  useEffect(() => {
+    const alMostrar = (evento: PageTransitionEvent) => {
+      if (evento.persisted) window.location.reload();
+    };
+    window.addEventListener("pageshow", alMostrar);
+    return () => window.removeEventListener("pageshow", alMostrar);
+  }, []);
 
   useEffect(() => {
     const numero = Number(id);
