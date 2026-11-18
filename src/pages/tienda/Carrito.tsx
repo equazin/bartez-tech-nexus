@@ -1,3 +1,4 @@
+import { FotoDeProducto } from "@/components/tienda/FotoDeProducto";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Minus, Plus } from "lucide-react";
@@ -139,7 +140,7 @@ export default function Carrito() {
                       to={producto ? rutaDelProducto(producto) : "#"}
                       className="flex h-[104px] w-[104px] shrink-0 items-center justify-center rounded-xl bg-placa-foto"
                     >
-                      {foto && <img src={foto} alt="" className="max-h-[88px] max-w-[88px] object-contain mix-blend-multiply" />}
+                      {foto && <FotoDeProducto src={foto} className="max-h-[88px] max-w-[88px] object-contain mix-blend-multiply" />}
                     </Link>
                     <div className="flex min-w-0 flex-[1_1_240px] flex-col gap-1.5">
                       {producto ? (

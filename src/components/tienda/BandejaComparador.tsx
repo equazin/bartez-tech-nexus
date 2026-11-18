@@ -1,3 +1,4 @@
+import { FotoDeProducto } from "@/components/tienda/FotoDeProducto";
 import { Link, useLocation } from "react-router-dom";
 import { X } from "lucide-react";
 import { MAXIMO_A_COMPARAR, quitarDeComparacion, useComparador, vaciarComparacion } from "@/lib/tienda/comparador";
@@ -21,7 +22,7 @@ export function BandejaComparador() {
             p ? (
               <li key={p.id} className="flex h-14 min-w-0 flex-[1_1_180px] items-center gap-2.5 rounded-xl border border-input bg-background px-2.5">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-placa-foto">
-                  {p.imagen && <img src={p.imagen} alt="" className="h-[34px] w-[34px] object-contain mix-blend-multiply" />}
+                  {p.imagen && <FotoDeProducto src={p.imagen} className="h-[34px] w-[34px] object-contain mix-blend-multiply" />}
                 </span>
                 <span className="line-clamp-2 min-w-0 flex-1 text-[13px] leading-snug">{p.nombre}</span>
                 <button

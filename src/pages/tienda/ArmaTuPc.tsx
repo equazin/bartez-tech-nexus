@@ -1,3 +1,4 @@
+import { FotoDeProducto } from "@/components/tienda/FotoDeProducto";
 import { medirAgregadoAlCarrito } from "@/lib/tienda/medicion";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -112,7 +113,7 @@ function FilaDePieza({
         {producto && (
           <div className="flex min-w-0 flex-[1_1_320px] flex-wrap items-center gap-3.5">
             <span className="flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-lg bg-placa-foto">
-              {foto && <img src={foto} alt="" className="max-h-[50px] max-w-[50px] object-contain mix-blend-multiply" />}
+              {foto && <FotoDeProducto src={foto} className="max-h-[50px] max-w-[50px] object-contain mix-blend-multiply" />}
             </span>
             <span className="flex min-w-0 flex-[1_1_200px] flex-col gap-1.5">
               <span className="text-sm font-medium leading-snug">{producto.nombre}</span>

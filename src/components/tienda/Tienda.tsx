@@ -16,7 +16,8 @@ export function Tienda({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <Encabezado />
-      <main className="flex-1">{children}</main>
+      {/* Al menos una pantalla de alto: el pie arranca fuera de la vista y no salta cuando llega el contenido. */}
+      <main className="min-h-screen flex-1">{children}</main>
       <Pie />
       <BandejaComparador />
       <AvisoDeCookies />

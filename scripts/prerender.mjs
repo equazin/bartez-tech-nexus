@@ -147,6 +147,41 @@ function escribirPagina(rutaRelativa, html) {
 const organizacion = () => ({ "@type": "Organization", "@id": `${sitio}/#organization`, name: NOMBRE, url: sitio, logo: `${sitio}/android-chrome-512x512.png` });
 const sitioWeb = () => ({ "@type": "WebSite", "@id": `${sitio}/#website`, name: NOMBRE, url: sitio });
 
+/** Adelanta la carga de una imagen que la aplicación va a mostrar apenas arranque. `medio` la limita a un ancho de pantalla. */
+function precargaDeImagen(direccion, medio = null) {
+  return `<link rel="preload" as="image" href="${escapar(direccion)}"${medio ? ` media="${medio}"` : ""} fetchpriority="high" />`;
+}
+
+/**
+ * La foto grande de una ficha, en la misma dirección que pide la aplicación (src/lib/tienda/fotos.ts): si no
+ * coinciden, la precarga baja una imagen que después no se usa.
+ */
+function fotoDeLaFicha(direccion) {
+  if (/^https:\/\/static\.nb\.com\.ar\/i\//.test(direccion)) return `/_vercel/image?url=${encodeURIComponent(direccion)}&w=828&q=75`;
+  return direccion;
+}
+
+/**
+ * La precarga de la primera portada del inicio, que es lo primero que se ve al entrar. Las portadas con la imagen
+ * completa usan una versión cuadrada en el celular; las de tipo banner, una sola imagen. Si el inicio no empieza
+ * con la portada, o no se puede leer, no se precarga nada.
+ */
+async function precargaDeLaPrimeraPortada(supabase) {
+  try {
+    const [{ data: secciones }, { data: portadas }] = await Promise.all([
+      supabase.from("tienda_secciones_inicio").select("tipo").order("orden").limit(1),
+      supabase.from("tienda_portadas").select("tipo, imagen_url, imagen_movil_url").order("orden").limit(1),
+    ]);
+    const primera = (portadas ?? [])[0];
+    if (!primera?.imagen_url) return "";
+    if ((secciones ?? []).length > 0 && secciones[0].tipo !== "portada") return "";
+    if (primera.tipo !== "imagen" || !primera.imagen_movil_url) return precargaDeImagen(primera.imagen_url);
+    return precargaDeImagen(primera.imagen_movil_url, "(max-width: 767px)") + precargaDeImagen(primera.imagen_url, "(min-width: 768px)");
+  } catch {
+    return "";
+  }
+}
+
 async function main() {
   const indice = join(dist, "index.html");
   if (!existsSync(indice)) {
@@ -250,7 +285,8 @@ async function main() {
     },
     "sitio",
   );
-  writeFileSync(indice, armarPagina(base, { ruta: "/", extraHead: cabezaDelInicio, cuerpo: cuerpoDelInicio }));
+  const precargaDeLaPortada = await precargaDeLaPrimeraPortada(supabase);
+  writeFileSync(indice, armarPagina(base, { ruta: "/", extraHead: cabezaDelInicio + precargaDeLaPortada, cuerpo: cuerpoDelInicio }));
 
   // Categorías: una categoría principal lista también lo de sus subcategorías.
   for (const categoria of categorias) {
@@ -327,7 +363,10 @@ async function main() {
           }
         : {}),
     };
-    const extraHead = jsonLd(producto, "producto") + jsonLd(migasDe(cadena, { nombre: p.nombre, item: sitio + ruta }), "migas");
+    const extraHead =
+      jsonLd(producto, "producto") +
+      jsonLd(migasDe(cadena, { nombre: p.nombre, item: sitio + ruta }), "migas") +
+      (imagen ? precargaDeImagen(fotoDeLaFicha(imagen)) : "");
     const cuerpo = `<main>${migasEnlazadas(cadena)}<h1>${escapar(p.nombre)}</h1>${p.marca ? `<p>${escapar(p.marca)}</p>` : ""}<p>${
       p.precio_final_ars !== null ? `${escapar(formatoPesos.format(p.precio_final_ars))} · precio final con IVA incluido` : "Precio a confirmar"
     } · ${p.hay_stock ? "En stock" : "Sin stock"}</p><p>${escapar(descripcion)}</p>${

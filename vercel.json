@@ -1,6 +1,16 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
+  "images": {
+    "sizes": [384, 828],
+    "remotePatterns": [
+      { "protocol": "https", "hostname": "static.nb.com.ar", "pathname": "^/i/.*$" },
+      { "protocol": "https", "hostname": "images.elit.com.ar", "pathname": "^/p/.*$" }
+    ],
+    "minimumCacheTTL": 2678400,
+    "qualities": [75],
+    "formats": ["image/webp"]
+  },
   "regions": [
     "gru1"
   ],

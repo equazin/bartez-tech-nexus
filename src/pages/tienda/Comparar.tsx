@@ -1,3 +1,4 @@
+import { FotoDeProducto } from "@/components/tienda/FotoDeProducto";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { X } from "lucide-react";
@@ -84,7 +85,7 @@ export default function Comparar() {
                       <X className="h-4 w-4" aria-hidden />
                     </button>
                     <Link to={rutaDelProducto(p)} className="flex h-[170px] items-center justify-center rounded-xl bg-placa-foto">
-                      {foto && <img src={foto} alt={p.nombre} className="max-h-[146px] max-w-[86%] object-contain mix-blend-multiply" />}
+                      {foto && <FotoDeProducto src={foto} alt={p.nombre} className="max-h-[146px] max-w-[86%] object-contain mix-blend-multiply" />}
                     </Link>
                     {p.marca && <p className="font-display text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{p.marca}</p>}
                     <Link to={rutaDelProducto(p)} className="line-clamp-2 text-sm font-medium leading-snug hover:underline">

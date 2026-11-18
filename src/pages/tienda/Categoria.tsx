@@ -1,3 +1,4 @@
+import { FotoDeProducto } from "@/components/tienda/FotoDeProducto";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Cpu } from "lucide-react";
@@ -128,7 +129,7 @@ export default function Categoria() {
                     )}
                   >
                     <span className="flex h-[38px] w-[38px] items-center justify-center overflow-hidden rounded-full bg-placa-foto">
-                      {foto && <img src={foto} alt="" className="h-[30px] w-[30px] object-contain mix-blend-multiply" />}
+                      {foto && <FotoDeProducto src={foto} loading="lazy" className="h-[30px] w-[30px] object-contain mix-blend-multiply" />}
                     </span>
                     {c.nombre}
                     <span className="font-medium tabular-nums opacity-75">{c.cantidad}</span>

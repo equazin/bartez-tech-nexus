@@ -1,3 +1,4 @@
+import { FotoDeProducto } from "@/components/tienda/FotoDeProducto";
 import { Link } from "react-router-dom";
 import { AlertTriangle, Check, X } from "lucide-react";
 import { ChipsDeDatos } from "@/components/tienda/TarjetaProducto";
@@ -85,7 +86,7 @@ export function FilaDeOpcion({
   return (
     <li className={cn("flex flex-wrap items-center gap-3 rounded-xl border bg-background p-2.5", elegido ? "border-foreground" : "border-border", noVa && "opacity-60")}>
       <Link to={rutaDelProducto(producto)} className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-placa-foto" aria-label={`Ver la ficha de ${producto.nombre}`}>
-        {foto && <img src={foto} alt="" loading="lazy" className="max-h-14 max-w-14 object-contain mix-blend-multiply" />}
+        {foto && <FotoDeProducto src={foto} loading="lazy" className="max-h-14 max-w-14 object-contain mix-blend-multiply" />}
       </Link>
       <div className="flex min-w-0 flex-[1_1_180px] flex-col gap-1">
         <Link to={rutaDelProducto(producto)} className="line-clamp-2 text-[13px] font-medium leading-snug hover:underline">
@@ -140,7 +141,7 @@ export function TarjetaDeArmada({
   return (
     <article className={cn("flex min-w-0 flex-col rounded-2xl bg-card p-3", estado === "libre" ? "border border-border" : "border-2 border-foreground")}>
       <span className="flex h-[150px] items-center justify-center rounded-xl bg-placa-foto">
-        {foto && <img src={foto} alt="" loading="lazy" className="max-h-[130px] max-w-[70%] object-contain mix-blend-multiply" />}
+        {foto && <FotoDeProducto src={foto} loading="lazy" className="max-h-[130px] max-w-[70%] object-contain mix-blend-multiply" />}
       </span>
       <span className="mt-3 flex min-w-0 flex-1 flex-col gap-2 px-1">
         <span className="font-display text-lg font-bold uppercase leading-tight">{nombre}</span>

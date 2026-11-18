@@ -1,3 +1,4 @@
+import { FotoDeProducto } from "@/components/tienda/FotoDeProducto";
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -31,7 +32,7 @@ export function Galeria({ imagenes, nombre }: Props) {
         aria-label="Ver la foto más grande"
         className="flex h-[clamp(320px,42vw,540px)] cursor-zoom-in items-center justify-center rounded-2xl bg-placa-foto p-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--foco-placa))]"
       >
-        <img src={actual} alt={nombre} className="max-h-full max-w-[86%] object-contain mix-blend-multiply" />
+        <FotoDeProducto src={actual} uso="ficha" fetchPriority="high" alt={nombre} className="max-h-full max-w-[86%] object-contain mix-blend-multiply" />
       </button>
       {imagenes.length > 1 && (
         <ul className="grid grid-cols-4 gap-2.5 sm:grid-cols-5" aria-label="Más fotos">
@@ -47,7 +48,7 @@ export function Galeria({ imagenes, nombre }: Props) {
                   i === activa ? "border-foreground" : "border-transparent hover:border-input",
                 )}
               >
-                <img src={url} alt="" className="max-h-full max-w-[80%] object-contain mix-blend-multiply" />
+                <FotoDeProducto src={url} loading="lazy" className="max-h-full max-w-[80%] object-contain mix-blend-multiply" />
               </button>
             </li>
           ))}

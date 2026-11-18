@@ -1,3 +1,4 @@
+import { FotoDeProducto } from "@/components/tienda/FotoDeProducto";
 import { medirAgregadoAlCarrito } from "@/lib/tienda/medicion";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -81,7 +82,7 @@ export function TarjetaProducto({ producto, conComparar = false }: PropsDeTarjet
           className="flex h-[170px] items-center justify-center rounded-xl bg-placa-foto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--foco-placa))]"
         >
           {imagen ? (
-            <img src={imagen} alt={producto.nombre} loading="lazy" className="max-h-[146px] max-w-[86%] object-contain mix-blend-multiply" />
+            <FotoDeProducto src={imagen} alt={producto.nombre} loading="lazy" className="max-h-[146px] max-w-[86%] object-contain mix-blend-multiply" />
           ) : (
             <span className="text-sm text-texto-placa">Sin foto</span>
           )}

@@ -49,6 +49,7 @@ function BannerConImagen({ banner, enlazar }: { banner: DatosDeBanner; enlazar: 
         <img
           src={banner.imagen_url}
           alt=""
+          fetchPriority="high"
           className="aspect-[16/10] w-full object-cover object-right md:absolute md:inset-y-0 md:right-0 md:aspect-auto md:h-full lg:w-auto lg:max-w-none lg:object-contain lg:[mask-image:linear-gradient(to_right,transparent,#000_30%)]"
         />
       )}
@@ -240,8 +241,17 @@ export function BannerSoloImagen({ portada, enlazar = true }: { portada: Pick<Po
   if (!portada.imagen_url) return null;
   const imagen = (
     <picture>
-      <source media="(min-width: 768px)" srcSet={portada.imagen_url} />
-      <img src={portada.imagen_movil_url ?? portada.imagen_url} alt={portada.titulo} className="block h-auto w-full lg:h-full lg:object-cover" />
+      {/* El ancho y el alto reservan el lugar antes de que llegue la imagen: los banners son de 2400 × 830 y su
+          versión para el celular, cuadrada. Con otra proporción, la imagen igual se ve bien al cargar. */}
+      <source media="(min-width: 768px)" srcSet={portada.imagen_url} width={2400} height={830} />
+      <img
+        src={portada.imagen_movil_url ?? portada.imagen_url}
+        alt={portada.titulo}
+        width={portada.imagen_movil_url ? 1080 : 2400}
+        height={portada.imagen_movil_url ? 1080 : 830}
+        fetchPriority="high"
+        className="block h-auto w-full lg:h-full lg:object-cover"
+      />
     </picture>
   );
   return enlazar ? (
@@ -303,7 +313,7 @@ export function PortadaDelInicio() {
   // En el celular se pasa de portada deslizando el dedo; las flechas quedan abajo, junto a los puntos.
   const inicioDelToque = useRef<number | null>(null);
 
-  if (portadas === undefined) return <div className="min-h-[420px] w-full animate-pulse rounded-2xl bg-placa-foto lg:aspect-[2400/830] lg:min-h-0" aria-hidden />;
+  if (portadas === undefined) return <div className="aspect-square w-full animate-pulse rounded-2xl bg-placa-foto md:aspect-[2400/830]" aria-hidden />;
   if (total === 0)
     return (
       <MarcoDePortada>

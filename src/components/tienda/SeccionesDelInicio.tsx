@@ -2,6 +2,7 @@
  * Las secciones del inicio. Cada una lee su configuración del panel (Marketing › Secciones del inicio);
  * el panel las usa también para la vista previa.
  */
+import { FotoDeProducto } from "@/components/tienda/FotoDeProducto";
 import { useEffect, useMemo, useRef, useState, type DependencyList, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Check, ChevronLeft, ChevronRight, CreditCard, MessageCircle, Receipt, RotateCcw, Truck } from "lucide-react";
@@ -133,7 +134,7 @@ export function Portada({ raices, fotos }: { raices: CategoriaPublica[] | null; 
                 </div>
                 {a.foto && (
                   <span className="flex h-[140px] w-[140px] shrink-0 items-center justify-center rounded-xl bg-placa-foto">
-                    <img src={a.foto} alt="" className="max-h-[120px] max-w-[120px] object-contain mix-blend-multiply" />
+                    <FotoDeProducto src={a.foto} className="max-h-[120px] max-w-[120px] object-contain mix-blend-multiply" />
                   </span>
                 )}
               </Link>
@@ -180,7 +181,7 @@ function QueEstasBuscando({ raices, fotos, titulo, slugs }: { raices: CategoriaP
             <li key={c.id}>
               <Link to={`/${c.slug}`} className="flex h-full flex-col gap-2.5 rounded-2xl border border-border bg-card p-3 transition-colors hover:border-input">
                 <span className="flex h-[120px] items-center justify-center rounded-xl bg-placa-foto">
-                  {foto && <img src={foto} alt="" loading="lazy" className="max-h-[100px] max-w-[82%] object-contain mix-blend-multiply" />}
+                  {foto && <FotoDeProducto src={foto} loading="lazy" className="max-h-[100px] max-w-[82%] object-contain mix-blend-multiply" />}
                 </span>
                 <span className="flex flex-col gap-0.5 px-1 pb-1">
                   <span className="text-[15px] font-bold leading-tight">{c.nombre}</span>
@@ -316,7 +317,7 @@ function ElegidoDeLaSemana({ titulo, productoId }: { titulo: string; productoId?
           <span className="absolute left-4 top-4 rounded-chip bg-primary px-3 py-1.5 font-display text-[13px] font-bold uppercase tracking-[0.08em] text-primary-foreground">
             {titulo}
           </span>
-          {foto && <img src={foto} alt={elegido.nombre} className="max-h-[280px] max-w-[82%] object-contain mix-blend-multiply" />}
+          {foto && <FotoDeProducto src={foto} uso="ficha" alt={elegido.nombre} className="max-h-[280px] max-w-[82%] object-contain mix-blend-multiply" />}
         </Link>
         <div className="flex min-w-0 flex-[1.2_1_360px] flex-col justify-center gap-4">
           <p className="font-display text-[13px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
@@ -415,7 +416,7 @@ function AccesoPorUso({ nodo, titulo, fotos }: { nodo: CategoriaPublica; titulo:
       </div>
       {foto && (
         <span className="flex h-[130px] w-[150px] shrink-0 items-center justify-center rounded-xl bg-placa-foto">
-          <img src={foto} alt="" loading="lazy" className="max-h-[110px] max-w-[130px] object-contain mix-blend-multiply" />
+          <FotoDeProducto src={foto} loading="lazy" className="max-h-[110px] max-w-[130px] object-contain mix-blend-multiply" />
         </span>
       )}
     </Link>
