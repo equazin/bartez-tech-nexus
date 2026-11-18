@@ -1,4 +1,5 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
+import { waitUntil } from "@vercel/functions";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 import { fail, methodNotAllowed, ok } from "../_shared/http.js";
@@ -334,6 +335,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
+// ── La cotización reciente ──────────────────────────────────────────────────
+// Cotizar con el correo tarda de 3 a 7 segundos. La cotización que arma el servidor queda guardada media hora con
+// una clave que sale del carrito, el subtotal y el destino: al confirmar la compra se reutiliza en vez de consultar
+// otra vez. La guarda y la lee solo el servidor, así que el precio del envío sigue sin salir del navegador.
+const MINUTOS_QUE_VALE_UNA_COTIZACION = 30;
+
+function claveDeCotizacion(items: ItemDelEnvio[], subtotal: number, destino: DestinoDelEnvio): string {
+  const cantidades = new Map<number, number>();
+  for (const i of items) cantidades.set(i.product_id, (cantidades.get(i.product_id) ?? 0) + i.cantidad);
+  const texto = JSON.stringify({
+    items: [...cantidades].sort((a, b) => a[0] - b[0]),
+    subtotal: Math.round(subtotal * 100) / 100,
+    codigo_postal: destino.codigo_postal.trim(),
+    localidad: destino.localidad.trim().toLowerCase().replace(/\s+/g, " "),
+    provincia: destino.provincia.trim().toLowerCase(),
+  });
+  return createHash("sha256").update(texto).digest("hex");
+}
+
+/** La cotización guardada hace poco para el mismo carrito, subtotal y destino. Nulo si no hay o ya es vieja. */
+export async function cotizacionReciente(supabase: Supabase, items: ItemDelEnvio[], subtotal: number, destino: DestinoDelEnvio): Promise<OpcionDeEnvio[] | null> {
+  const desde = new Date(Date.now() - MINUTOS_QUE_VALE_UNA_COTIZACION * 60_000).toISOString();
+  const { data, error } = await supabase
+    .from("envio_cotizaciones")
+    .select("opciones")
+    .eq("clave", claveDeCotizacion(items, subtotal, destino))
+    .gte("creado_en", desde)
+    .maybeSingle();
+  if (error) {
+    console.error("[envios] cotización guardada:", error.message);
+    return null;
+  }
+  const opciones = (data as { opciones?: unknown } | null)?.opciones;
+  return Array.isArray(opciones) && opciones.length > 0 ? (opciones as OpcionDeEnvio[]) : null;
+}
+
+/** Guarda una cotización recién hecha y borra las de más de un día. Nunca tira: es una ayuda, no parte de la compra. */
+export async function guardarCotizacion(supabase: Supabase, items: ItemDelEnvio[], subtotal: number, destino: DestinoDelEnvio, opciones: OpcionDeEnvio[]): Promise<void> {
+  if (opciones.length === 0) return;
+  try {
+    const { error } = await supabase
+      .from("envio_cotizaciones")
+      .upsert({ clave: claveDeCotizacion(items, subtotal, destino), opciones, creado_en: new Date().toISOString() });
+    if (error) console.error("[envios] no se pudo guardar la cotización:", error.message);
+    await supabase.from("envio_cotizaciones").delete().lt("creado_en", new Date(Date.now() - 24 * 3_600_000).toISOString());
+  } catch (e: unknown) {
+    console.error("[envios] no se pudo guardar la cotización:", mensaje(e));
+  }
+}
+
 function leerDestino(crudo: unknown): DestinoDelEnvio | null {
   const d = (crudo ?? {}) as Record<string, unknown>;
   const codigo_postal = String(d.codigo_postal ?? "").trim();
@@ -365,7 +416,12 @@ async function cotizar(req: VercelRequest, res: VercelResponse) {
   if (!items || !destino) return fail(res, "Revisá el código postal, la localidad y la provincia.", 400);
   const subtotal = Math.max(numero(cuerpo.subtotal), 0);
   try {
-    const opciones = await opcionesDeEnvio(getSupabaseAdmin(), items, subtotal, destino);
+    const supabase = getSupabaseAdmin();
+    const guardada = await cotizacionReciente(supabase, items, subtotal, destino);
+    if (guardada) return ok(res, { opciones: guardada.map(paraElPublico) });
+    const opciones = await opcionesDeEnvio(supabase, items, subtotal, destino);
+    // Se guarda después de responder: al confirmar la compra el servidor la reutiliza y no consulta otra vez al correo.
+    waitUntil(guardarCotizacion(supabase, items, subtotal, destino, opciones));
     return ok(res, { opciones: opciones.map(paraElPublico) });
   } catch (e: unknown) {
     console.error("[envios:cotizar]", mensaje(e));

@@ -1,3 +1,4 @@
+import { waitUntil } from "@vercel/functions";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 import { fail, methodNotAllowed, ok } from "../_shared/http.js";
@@ -6,7 +7,7 @@ import { compraRecibidaHTML } from "../_shared/plantillas.js";
 import { pedidoDeLaTiendaSchema, type PedidoDeLaTienda } from "../_shared/schemas.js";
 import { getSupabaseAdmin } from "../_shared/supabaseServer.js";
 import { configuracionDeMercadoPago } from "../_shared/mercadopago.js";
-import { opcionesDeEnvio } from "./envios.js";
+import { cotizacionReciente, opcionesDeEnvio } from "./envios.js";
 import { esDeMercadoPago } from "../_shared/medios.js";
 
 /**
@@ -155,7 +156,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const resultado = await crearPedido(pedido, await usuarioDeLaSesion(req));
+    const { resultado, aviso } = await crearPedido(pedido, await usuarioDeLaSesion(req));
+    // El mail de "compra recibida" sale después de responder: el comprador no espera al servidor de correo.
+    waitUntil(aviso);
     return ok(res, resultado, 201);
   } catch (e: unknown) {
     const mensaje = e instanceof Error ? e.message : "No se pudo crear el pedido.";
@@ -165,10 +168,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-async function crearPedido(pedido: PedidoDeLaTienda, usuario: UsuarioDeLaSesion | null): Promise<{ id: number; numero: string; token: string }> {
+async function crearPedido(
+  pedido: PedidoDeLaTienda,
+  usuario: UsuarioDeLaSesion | null,
+): Promise<{ resultado: { id: number; numero: string; token: string }; aviso: Promise<void> }> {
   const supabase = getSupabaseAdmin();
 
-  const { data: medio } = await supabase.from("medios_de_pago").select("id, activo, margen_porcentaje").eq("id", pedido.medio_pago).maybeSingle();
+  // Un producto por línea, sumando cantidades repetidas.
+  const cantidades = new Map<number, number>();
+  for (const item of pedido.items) cantidades.set(item.product_id, (cantidades.get(item.product_id) ?? 0) + item.quantity);
+  const ids = [...cantidades.keys()];
+
+  // Todo lo que hace falta leer para armar el pedido, en una sola ida a la base.
+  const [{ data: medio }, { data: productosCrudos, error: errorProductos }, { data: dolarCrudo }, { data: configuracion }, { data: proveedoresCrudos }] = await Promise.all([
+    supabase.from("medios_de_pago").select("id, activo, margen_porcentaje").eq("id", pedido.medio_pago).maybeSingle(),
+    supabase.from("products").select("id, name, name_custom, name_original, sku, active, publicado, stock, stock_reserved, precio_final_ars, iva_rate, weight_kg, cost_price, supplier_multiplier, category_id").in("id", ids),
+    supabase.rpc("dolar_vigente"),
+    supabase.from("tienda_configuracion").select("clave, valor").in("clave", ["peso_por_defecto_kg", "redondeo_pesos"]),
+    // El proveedor de cada producto (el preferido) queda en la línea del pedido: el panel muestra a quién comprarle.
+    supabase.from("product_suppliers").select("product_id, supplier_id, is_preferred, active, cost_price, suppliers(name)").in("product_id", ids),
+  ]);
   const medioLeido = medio as { activo?: boolean; margen_porcentaje?: number | string | null } | null;
   const medioActivo = Boolean(medioLeido?.activo) && (!esDeMercadoPago(pedido.medio_pago) || configuracionDeMercadoPago() !== null);
   if (!medioActivo) throw new Error("Ese medio de pago no está disponible. Elegí otro.");
@@ -176,25 +195,10 @@ async function crearPedido(pedido: PedidoDeLaTienda, usuario: UsuarioDeLaSesion 
   // costo con IVA (más una regla de precios u oferta, si hay), así que el margen del medio se aplica encima.
   const margenDelMedio = Math.min(Math.max(Number(medioLeido?.margen_porcentaje ?? 0) || 0, 0), 500);
 
-  // Un producto por línea, sumando cantidades repetidas.
-  const cantidades = new Map<number, number>();
-  for (const item of pedido.items) cantidades.set(item.product_id, (cantidades.get(item.product_id) ?? 0) + item.quantity);
-  const ids = [...cantidades.keys()];
-
-  const { data: productosCrudos, error: errorProductos } = await supabase
-    .from("products")
-    .select("id, name, name_custom, name_original, sku, active, publicado, stock, stock_reserved, precio_final_ars, iva_rate, weight_kg, cost_price, supplier_multiplier, category_id")
-    .in("id", ids);
   if (errorProductos) throw new Error(`No se pudieron leer los productos: ${errorProductos.message}`);
   const productos = new Map<number, ProductoParaVender>();
   for (const p of (productosCrudos ?? []) as ProductoParaVender[]) productos.set(p.id, p);
 
-  const [{ data: dolarCrudo }, { data: configuracion }, { data: proveedoresCrudos }] = await Promise.all([
-    supabase.rpc("dolar_vigente"),
-    supabase.from("tienda_configuracion").select("clave, valor").in("clave", ["peso_por_defecto_kg", "redondeo_pesos"]),
-    // El proveedor de cada producto (el preferido) queda en la línea del pedido: el panel muestra a quién comprarle.
-    supabase.from("product_suppliers").select("product_id, supplier_id, is_preferred, active, cost_price, suppliers(name)").in("product_id", ids),
-  ]);
   const proveedorDe = elegirProveedores(
     (proveedoresCrudos ?? []) as Array<FilaDeProveedor>,
   );
@@ -290,17 +294,18 @@ async function crearPedido(pedido: PedidoDeLaTienda, usuario: UsuarioDeLaSesion 
   subtotal = aDosDecimales(subtotal);
 
   // Lo que despacha Teqo se cotiza con Zipnova (o por peso, si Zipnova no está activo) y lo que despacha un
-  // mayorista directo paga su tarifa plana; si se mezclan, se cobra solo el envío más alto. Se vuelve a cotizar
-  // acá con el destino real: el precio del envío nunca sale del navegador.
+  // mayorista directo paga su tarifa plana; si se mezclan, se cobra solo el envío más alto. El precio del envío
+  // nunca sale del navegador: se usa la cotización que el servidor armó un momento antes para este mismo carrito,
+  // subtotal y destino (la que vio el comprador) y, si no hay una reciente, se cotiza acá. Consultar al correo tarda
+  // de 3 a 7 segundos, y repetirlo era la mayor parte de la espera al confirmar.
   const itemsDeEnvio = [...cantidades].map(([productoId, cantidad]) => ({ product_id: productoId, cantidad }));
-  const opciones = await opcionesDeEnvio(supabase, itemsDeEnvio, subtotal, {
-    codigo_postal: pedido.envio.codigo_postal,
-    localidad: pedido.envio.localidad,
-    provincia: pedido.envio.provincia,
-  }).catch((e: unknown) => {
-    console.error("[checkout] cotización del envío:", e instanceof Error ? e.message : e);
-    return [];
-  });
+  const destinoDelEnvio = { codigo_postal: pedido.envio.codigo_postal, localidad: pedido.envio.localidad, provincia: pedido.envio.provincia };
+  const opciones =
+    (await cotizacionReciente(supabase, itemsDeEnvio, subtotal, destinoDelEnvio)) ??
+    (await opcionesDeEnvio(supabase, itemsDeEnvio, subtotal, destinoDelEnvio).catch((e: unknown) => {
+      console.error("[checkout] cotización del envío:", e instanceof Error ? e.message : e);
+      return [];
+    }));
   const envio = opciones.find((o) => o.id === pedido.envio.opcion);
   if (!envio) throw new Error("No pudimos cotizar el envío a ese destino. Revisá el código postal o elegí otra forma de entrega.");
   const sucursal = envio.id === "sucursal" ? envio.sucursales?.find((s) => s.id === pedido.envio.sucursal_id) : undefined;
@@ -377,8 +382,9 @@ async function crearPedido(pedido: PedidoDeLaTienda, usuario: UsuarioDeLaSesion 
     .eq("id", resultado.id);
   if (errorDetalle) console.error("[checkout] No se pudo guardar el detalle del envío:", errorDetalle.message);
 
-  await avisarAlComprador(pedido, resultado, { lineasDelEmail, subtotal, envio: costoEnvio, descuento, total });
-  return resultado;
+  // El mail no se espera acá: quien llama lo deja corriendo después de responder. avisarAlComprador nunca tira.
+  const aviso = avisarAlComprador(pedido, resultado, { lineasDelEmail, subtotal, envio: costoEnvio, descuento, total });
+  return { resultado, aviso };
 }
 
 interface FilaDeProveedor {

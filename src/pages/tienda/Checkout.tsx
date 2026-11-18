@@ -22,9 +22,10 @@ import { vaciarCarrito } from "@/lib/tienda/carrito";
 import { formatearPesos } from "@/lib/tienda/dinero";
 import { PROVINCIAS, cotizarEnvioADestino, textoDeDemora, type OpcionDeEnvio } from "@/lib/tienda/envios";
 import { MEDIOS_DE_PAGO, crearPedido, type MedioDePago, type MedioDisponible } from "@/lib/tienda/pedidos";
-import { listarMedios } from "@/lib/tienda/pagos";
-import { CUOTAS_SIN_INTERES, MEDIO_CON_CUOTAS, precioConMedio, valorDeLaCuota } from "@/lib/tienda/precios";
+import { crearPreferencia, listarMedios } from "@/lib/tienda/pagos";
+import { CUOTAS_SIN_INTERES, MEDIO_CON_CUOTAS, esDeMercadoPago, precioConMedio, valorDeLaCuota } from "@/lib/tienda/precios";
 import { usarSeo } from "@/lib/tienda/seo";
+import { guardarToken } from "@/lib/tienda/tokenDeCompra";
 import { cn } from "@/lib/utils";
 
 const CLASE_SELECT =
@@ -112,6 +113,7 @@ export default function Checkout() {
   const [cotizando, setCotizando] = useState(false);
   const [errorDeEnvio, setErrorDeEnvio] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [abriendoElPago, setAbriendoElPago] = useState(false);
   const [errorDelServidor, setErrorDelServidor] = useState<string | null>(null);
   const [medios, setMedios] = useState<MedioDisponible[]>(MEDIOS_DE_PAGO);
   // Con la sesión abierta: datos guardados, cupones activos y la opción de guardar lo de esta compra.
@@ -227,8 +229,10 @@ export default function Checkout() {
     if (Object.keys(nuevosErrores).length > 0 || !listoParaComprar || !elegida || faltaSucursal) return;
     setEnviando(true);
     setErrorDelServidor(null);
+    // Con la compra ya creada la página se va (al pago o a la compra): el botón no se vuelve a habilitar.
+    let creado: Awaited<ReturnType<typeof crearPedido>> | null = null;
     try {
-      const creado = await crearPedido({
+      creado = await crearPedido({
         items: lineas.map(({ linea }) => ({ product_id: linea.productoId, quantity: linea.cantidad })),
         servicios: serviciosElegidos.length > 0 ? serviciosElegidos.map((s) => s.id) : undefined,
         comprador: { nombre: f.nombre.trim(), email: f.email.trim(), telefono: f.telefono.trim(), documento: f.documento.replace(/[.\- ]/g, "") },
@@ -246,6 +250,8 @@ export default function Checkout() {
         cupon: f.cupon.trim() || undefined,
         notas: f.notas.trim() || undefined,
       });
+      // Guardar los datos en la cuenta es una comodidad: corre mientras se abre el pago y no frena la compra.
+      let datosGuardados: Promise<unknown> = Promise.resolve();
       if (user && guardarEnLaCuenta) {
         const direccion: DireccionGuardada = {
           calle: f.calle.trim(),
@@ -256,20 +262,41 @@ export default function Checkout() {
           provincia: f.provincia,
         };
         // Si no se puede guardar, la compra igual sigue: es una comodidad, no parte del pedido.
-        await guardarMisDatos(user.id, {
+        datosGuardados = guardarMisDatos(user.id, {
           nombre: f.nombre.trim(),
           telefono: f.telefono.trim(),
           documento: f.documento.replace(/[.\- ]/g, ""),
           direcciones: conDireccionPrincipal(misDatos?.direcciones ?? [], direccion),
         }).catch(() => undefined);
       }
+      // Con Mercado Pago se va directo a pagar, sin pasar por la página de la compra. Si Mercado Pago no responde,
+      // esa página tiene el botón para pagar.
+      if (esDeMercadoPago(f.medio_pago)) {
+        setAbriendoElPago(true);
+        const [enlaceDePago] = await Promise.all([crearPreferencia(creado.id, creado.token).catch(() => null), datosGuardados]);
+        if (enlaceDePago) {
+          vaciarCarrito();
+          // La dirección de esta pestaña pasa a ser la de la compra, sin el token (queda guardado en la pestaña):
+          // quien vuelve atrás desde Mercado Pago cae en su compra y no en un carrito vacío.
+          if (guardarToken(String(creado.id), creado.token)) window.history.replaceState(null, "", `/compra/${creado.id}`);
+          window.location.href = enlaceDePago;
+          return;
+        }
+      }
+      await datosGuardados;
       vaciarCarrito();
       // Con carga completa: el token se saca de la dirección antes de que corra cualquier etiqueta de medición.
       window.location.replace(`/compra/${creado.id}?t=${creado.token}`);
     } catch (e: unknown) {
+      if (creado) {
+        // La compra ya existe: falló un paso de después. Se muestra la compra, que tiene todo para pagarla.
+        vaciarCarrito();
+        window.location.replace(`/compra/${creado.id}?t=${creado.token}`);
+        return;
+      }
       setErrorDelServidor(e instanceof Error ? e.message : "No se pudo crear el pedido.");
     } finally {
-      setEnviando(false);
+      if (!creado) setEnviando(false);
     }
   }
 
@@ -538,7 +565,7 @@ export default function Checkout() {
             )}
             {errorDelServidor && <p className="rounded-xl bg-error-fondo p-3 text-sm text-danger">{errorDelServidor}</p>}
             <Button type="submit" size="lg" className="w-full" disabled={enviando || !listoParaComprar || !elegida || faltaSucursal}>
-              {enviando ? "Creando tu pedido" : "Confirmar la compra"}
+              {abriendoElPago ? "Abriendo Mercado Pago" : enviando ? "Creando tu pedido" : "Confirmar la compra"}
             </Button>
             <p className="text-xs text-muted-foreground">
               Al confirmar aceptás los <Link to="/terminos" className="underline">términos y condiciones</Link>. Podés arrepentirte dentro de los 10 días corridos de recibir el pedido.

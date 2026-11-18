@@ -24,6 +24,16 @@ export function guardarTokenDeLaDireccion(): void {
   window.history.replaceState(window.history.state, "", `${pathname}${resto ? `?${resto}` : ""}${hash}`);
 }
 
+/** Guarda el token de una compra recién creada: su página abre en esta pestaña sin llevarlo en la dirección. */
+export function guardarToken(id: string, token: string): boolean {
+  try {
+    window.sessionStorage.setItem(clave(id), token);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function tokenGuardado(id: string): string | null {
   try {
     return window.sessionStorage.getItem(clave(id));
