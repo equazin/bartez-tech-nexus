@@ -1,7 +1,9 @@
 import { Link } from "react-router-dom";
+import { Mail, MessageCircle } from "lucide-react";
+import { DataFiscal } from "@/components/tienda/DataFiscal";
 import { Tienda } from "@/components/tienda/Tienda";
 import ayuda from "@/lib/tienda/ayuda.json";
-import { GARANTIAS_POR_DEFECTO, useContenidoLegal } from "@/lib/tienda/legal";
+import { GARANTIAS_POR_DEFECTO, enMinuscula, enlaceDeWhatsApp, useContenidoLegal, type DatosLegales } from "@/lib/tienda/legal";
 import { usarSeo } from "@/lib/tienda/seo";
 
 /**
@@ -14,7 +16,7 @@ interface SeccionDeAyuda {
   parrafos?: string[];
   lista?: string[];
   cierre?: string[];
-  /** "garantias": el resumen de garantías. "contacto": cómo escribirnos, con el email del panel. */
+  /** "garantias": el resumen de garantías. "contacto": cómo escribirnos y los datos fiscales, con lo cargado en el panel. */
   contenido?: string;
   enlace?: { antes?: string; texto: string; a: string; despues?: string };
 }
@@ -27,6 +29,90 @@ function Seccion({ id, titulo, children }: { id: string; titulo: string; childre
       <h2 className="text-[20px] font-bold leading-[26px]">{titulo}</h2>
       <div className="space-y-2 text-base leading-6 text-muted-foreground">{children}</div>
     </section>
+  );
+}
+
+/** Cómo escribirnos (email y, si hay teléfono cargado, WhatsApp) y los datos fiscales de la tienda. */
+function Contacto({ datos }: { datos: DatosLegales }) {
+  const textos = ayuda.contacto;
+  const whatsapp = enlaceDeWhatsApp(datos.telefono);
+  const hayDatosFiscales = Boolean(datos.cuit || datos.domicilio || datos.data_fiscal_url);
+
+  return (
+    <>
+      <p>
+        {textos.texto}
+        {datos.horario ? ` ${textos.horario.replace("{horario}", enMinuscula(datos.horario))}` : ""}
+      </p>
+      {(datos.email || whatsapp || hayDatosFiscales) && (
+        <div className="flex flex-col gap-4 pt-2 text-foreground">
+          {(datos.email || whatsapp) && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {datos.email && (
+                <div className="flex flex-col gap-3.5 rounded-2xl border border-border bg-card p-5">
+                  <div className="flex items-center gap-3">
+                    <Mail className="h-[26px] w-[26px] shrink-0" strokeWidth={1.8} aria-hidden />
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <span className="text-[13px] leading-[18px] text-muted-foreground">{textos.email}</span>
+                      <span className="break-words font-bold">{datos.email}</span>
+                    </div>
+                  </div>
+                  <a href={`mailto:${datos.email}`} className="flex h-11 items-center justify-center rounded-xl bg-primary text-[15px] font-bold text-primary-foreground hover:bg-primary/90">
+                    {textos.escribinos}
+                  </a>
+                </div>
+              )}
+              {whatsapp && (
+                <div className="flex flex-col gap-3.5 rounded-2xl border border-border bg-card p-5">
+                  <div className="flex items-center gap-3">
+                    <MessageCircle className="h-[26px] w-[26px] shrink-0" strokeWidth={1.8} aria-hidden />
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <span className="text-[13px] leading-[18px] text-muted-foreground">{textos.whatsapp}</span>
+                      <span className="break-words font-bold">{datos.telefono}</span>
+                    </div>
+                  </div>
+                  <a
+                    href={whatsapp}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex h-11 items-center justify-center rounded-xl border border-foreground text-[15px] font-bold hover:bg-secondary"
+                  >
+                    {textos.escribinosPorWhatsApp}
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+          {hayDatosFiscales && (
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-4 rounded-2xl border border-border bg-secondary p-5">
+              <div className="flex min-w-0 flex-[1_1_420px] flex-col gap-2.5">
+                <p className="font-display text-sm font-bold uppercase tracking-[0.08em]">{textos.datosFiscales}</p>
+                <dl className="flex flex-wrap gap-x-8 gap-y-2.5">
+                  {datos.cuit && (
+                    <div className="flex flex-col gap-0.5">
+                      <dt className="text-[13px] leading-[18px] text-muted-foreground">CUIT</dt>
+                      <dd className="tabular-nums">{datos.cuit}</dd>
+                    </div>
+                  )}
+                  {datos.domicilio && (
+                    <div className="flex flex-col gap-0.5">
+                      <dt className="text-[13px] leading-[18px] text-muted-foreground">Domicilio</dt>
+                      <dd>{datos.domicilio}</dd>
+                    </div>
+                  )}
+                </dl>
+                <p className="text-[15px] leading-[22px]">
+                  <Link to="/quienes-somos" className="font-bold underline">
+                    {textos.quienesSomos}
+                  </Link>
+                </p>
+              </div>
+              {datos.data_fiscal_url && <DataFiscal url={datos.data_fiscal_url} />}
+            </div>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -68,18 +154,7 @@ export default function Ayuda() {
               {(s.cierre ?? []).map((p, i) => (
                 <p key={`cierre-${i}`}>{p}</p>
               ))}
-              {s.contenido === "contacto" &&
-                (datos.email ? (
-                  <p>
-                    {ayuda.contacto.antes}
-                    <a href={`mailto:${datos.email}`} className="underline">
-                      {datos.email}
-                    </a>
-                    {ayuda.contacto.despues}
-                  </p>
-                ) : (
-                  <p>{ayuda.contacto.sinEmail}</p>
-                ))}
+              {s.contenido === "contacto" && <Contacto datos={datos} />}
               {s.enlace && (
                 <p>
                   {s.enlace.antes}

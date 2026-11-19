@@ -65,12 +65,12 @@
     },
     {
       "source": "/nosotros",
-      "destination": "/",
+      "destination": "/quienes-somos",
       "permanent": true
     },
     {
       "source": "/contacto",
-      "destination": "/",
+      "destination": "/ayuda#contacto",
       "permanent": true
     },
     {
@@ -178,7 +178,7 @@
       "destination": "/api/$1"
     },
     {
-      "source": "/(buscar|comparar|arma-tu-pc|ofertas|nuevos-ingresos|carrito|cart|checkout|cuenta|seguimiento|arrepentimiento|ayuda|terminos|privacidad|garantias|login|reset-password|admin|sistema-de-diseno)",
+      "source": "/(buscar|comparar|arma-tu-pc|ofertas|nuevos-ingresos|carrito|cart|checkout|cuenta|seguimiento|arrepentimiento|ayuda|quienes-somos|terminos|privacidad|garantias|login|reset-password|admin|sistema-de-diseno)",
       "destination": "/aplicacion"
     },
     {

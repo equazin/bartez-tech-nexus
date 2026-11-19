@@ -39,6 +39,7 @@ const textosSchema = z.object({
       domicilio: z.string().trim().max(240).nullable().optional(),
       email: z.string().trim().max(320).nullable().optional(),
       telefono: z.string().trim().max(40).nullable().optional(),
+      horario: z.string().trim().max(120).nullable().optional(),
       data_fiscal_url: z.string().trim().max(500).nullable().optional(),
     })
     .optional(),

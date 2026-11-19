@@ -11,7 +11,8 @@ const CAMPOS: Array<{ clave: keyof DatosLegales; etiqueta: string }> = [
   { clave: "cuit", etiqueta: "CUIT" },
   { clave: "domicilio", etiqueta: "Domicilio legal" },
   { clave: "email", etiqueta: "Email de contacto" },
-  { clave: "telefono", etiqueta: "Teléfono (opcional)" },
+  { clave: "telefono", etiqueta: "Teléfono con WhatsApp (opcional)" },
+  { clave: "horario", etiqueta: "Horario de atención (opcional)" },
   { clave: "data_fiscal_url", etiqueta: "Enlace del Data Fiscal de ARCA" },
 ];
 
@@ -72,7 +73,10 @@ export function TextosLegalesTab() {
       <SurfaceCard className="space-y-4">
         <div>
           <h2 className="text-lg font-bold">Datos del vendedor</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Van en el pie de todas las páginas. Mientras falten, la tienda muestra marcadores entre corchetes.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            El CUIT, el domicilio, el email, el teléfono, el horario y el Data Fiscal se muestran en el pie de todas las páginas, en Ayuda y en Quiénes somos. Lo que
+            quede vacío no se muestra. La razón social no va en esos lugares: figura en los textos legales.
+          </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {CAMPOS.map(({ clave, etiqueta }) => (

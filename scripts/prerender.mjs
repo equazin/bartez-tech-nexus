@@ -41,6 +41,11 @@ const ID_DEL_CONTENIDO_LEGAL = "datos-legales";
 const PAGINAS_CON_CONTENIDO_LEGAL = new Set(["/ayuda", "/terminos", "/privacidad", "/garantias"]);
 /** Los textos de Ayuda y los de garantías por defecto: los mismos que usa la aplicación. */
 const ARCHIVO_DE_LA_AYUDA = join("src", "lib", "tienda", "ayuda.json");
+/** Los textos de Quiénes somos: los mismos que usa la aplicación. */
+const ARCHIVO_DE_QUIENES_SOMOS = join("src", "lib", "tienda", "quienesSomos.json");
+const RUTA_DE_QUIENES_SOMOS = "/quienes-somos";
+/** El id del <script> con los datos de la tienda, en todas las páginas. Lo lee src/lib/tienda/legal.ts: si cambia uno, cambiar el otro. */
+const ID_DE_LOS_DATOS_DE_LA_TIENDA = "datos-de-la-tienda";
 /** Tope de módulos que se precargan en el inicio, por si el trozo del inicio importara medio sitio. */
 const MAXIMO_DE_MODULOS_PRECARGADOS = 30;
 /** La imagen que acompaña a un enlace compartido cuando la página no tiene una propia: la foto de portada. */
@@ -49,6 +54,7 @@ const IMAGEN_DEL_SITIO = { ruta: "/portada/portada.jpg", ancho: 1600, alto: 1067
 const RESERVADOS = new Set([
   "api", "assets", "fonts", "marca", "portada", "email", "admin", "login", "reset-password", "registrarse", "buscar", "carrito",
   "checkout", "compra", "seguimiento", "arrepentimiento", "ayuda", "terminos", "privacidad", "garantias", "sistema-de-diseno",
+  "quienes-somos", "nosotros", "contacto",
   "clientes", "portal", "cart", "sitemap.xml", "robots.txt", "favicon.ico", "favicon.svg", "site.webmanifest",
   "aplicacion", "ofertas", "nuevos-ingresos", "arma-tu-pc", "comparar", "cuenta",
 ]);
@@ -140,10 +146,16 @@ function armarPagina(base, { titulo = null, descripcion = null, ruta, extraHead 
     html = html.replace(/\s*<meta property="og:image:(?:width|height)" content="[^"]*" \/>/g, "");
     html = conMeta(html, "property", "og:image", imagen);
   }
-  const cabeza = `    <link rel="canonical" href="${escapar(sitio + ruta)}" />\n    <meta property="og:url" content="${escapar(sitio + ruta)}" />\n${extraHead}`;
+  const cabeza = `    <link rel="canonical" href="${escapar(sitio + ruta)}" />\n    <meta property="og:url" content="${escapar(sitio + ruta)}" />\n${extraHead}${enTodasLasPaginas.cabeza}`;
   html = html.replace("</head>", () => `${cabeza}  </head>`);
-  return html.replace('<div id="root"></div>', () => `<div id="root">${cuerpo}</div>`);
+  return html.replace('<div id="root"></div>', () => `<div id="root">${cuerpo}${enTodasLasPaginas.pie}</div>`);
 }
+
+/**
+ * Lo que llevan todas las páginas con contenido propio, además de lo suyo: los datos de la tienda como datos (para que
+ * el pie de la aplicación los dibuje sin esperar a la base) y el pie del resumen. Se completa al leer el panel.
+ */
+const enTodasLasPaginas = { cabeza: "", pie: "" };
 
 /** `marca` deja ubicar el bloque desde la aplicación, que lo reemplaza o lo saca (ver src/lib/tienda/seo.ts). */
 function jsonLd(objeto, marca) {
@@ -156,7 +168,35 @@ function escribirPagina(rutaRelativa, html) {
   writeFileSync(join(carpeta, "index.html"), html);
 }
 
-const organizacion = () => ({ "@type": "Organization", "@id": `${sitio}/#organization`, name: NOMBRE, url: sitio, logo: `${sitio}/android-chrome-512x512.png` });
+/**
+ * La organización para los datos estructurados. Con los datos de la tienda suma lo mismo que se ve en el pie: el
+ * email, el CUIT, el domicilio y el contacto de atención. Sin la razón social, que no se muestra fuera de los Términos.
+ */
+function organizacion(tienda = null) {
+  const numero = numeroDeWhatsApp(tienda);
+  return {
+    "@type": "Organization",
+    "@id": `${sitio}/#organization`,
+    name: NOMBRE,
+    url: sitio,
+    logo: `${sitio}/android-chrome-512x512.png`,
+    ...(tienda?.email ? { email: tienda.email } : {}),
+    ...(tienda?.cuit ? { taxID: tienda.cuit } : {}),
+    ...(tienda?.domicilio ? { address: direccionPostal(tienda.domicilio) } : {}),
+    ...(tienda?.email || numero
+      ? {
+          contactPoint: {
+            "@type": "ContactPoint",
+            contactType: "customer service",
+            ...(tienda?.email ? { email: tienda.email } : {}),
+            ...(numero ? { telephone: `+${numero}` } : {}),
+            areaServed: "AR",
+            availableLanguage: "es",
+          },
+        }
+      : {}),
+  };
+}
 const sitioWeb = () => ({ "@type": "WebSite", "@id": `${sitio}/#website`, name: NOMBRE, url: sitio });
 
 /** Adelanta la carga de una imagen que la aplicación va a mostrar apenas arranque. `medio` la limita a un ancho de pantalla. */
@@ -213,17 +253,104 @@ async function contenidoLegal(supabase) {
   }
 }
 
-/** Los textos de Ayuda, o null si el archivo no se puede leer (la página queda con su descripción). */
-function textosDeLaAyuda() {
+/** Un archivo de textos de la aplicación, o null si no se puede leer o le falta algo (la página queda con su descripción). */
+function leerTextos(archivo, completo, queLeFalta) {
   try {
-    const ayuda = JSON.parse(readFileSync(join(raiz, ARCHIVO_DE_LA_AYUDA), "utf8"));
-    const completa = Array.isArray(ayuda?.secciones) && Array.isArray(ayuda?.garantias) && Array.isArray(ayuda?.cambios) && ayuda?.contacto;
-    if (!completa) throw new Error("le faltan secciones, garantías, cambios o contacto");
-    return ayuda;
+    const textos = JSON.parse(readFileSync(join(raiz, archivo), "utf8"));
+    if (!completo(textos)) throw new Error(`le faltan ${queLeFalta}`);
+    return textos;
   } catch (e) {
-    console.warn(`[prerender] No se pudo leer ${ARCHIVO_DE_LA_AYUDA}: ${e instanceof Error ? e.message : e}`);
+    console.warn(`[prerender] No se pudo leer ${archivo}: ${e instanceof Error ? e.message : e}`);
     return null;
   }
+}
+
+/** Los textos de Ayuda y los de garantías por defecto. */
+const textosDeLaAyuda = () =>
+  leerTextos(
+    ARCHIVO_DE_LA_AYUDA,
+    (a) => Array.isArray(a?.secciones) && Array.isArray(a?.garantias) && Array.isArray(a?.cambios) && typeof a?.contacto?.texto === "string",
+    "secciones, garantías, cambios o contacto",
+  );
+
+/** Los textos de Quiénes somos. */
+const textosDeQuienesSomos = () =>
+  leerTextos(
+    ARCHIVO_DE_QUIENES_SOMOS,
+    (q) =>
+      typeof q?.titulo === "string" &&
+      typeof q?.descripcion === "string" &&
+      typeof q?.bajada === "string" &&
+      Array.isArray(q?.comoTrabajamos?.tarjetas) &&
+      Array.isArray(q?.pedido?.parrafos) &&
+      Array.isArray(q?.pasos?.lista) &&
+      typeof q?.contacto?.titulo === "string",
+    "el título, la bajada o alguna sección",
+  );
+
+/** "Lunes a viernes, de 9 a 18" pasa a "lunes a viernes, de 9 a 18", para seguir una frase (igual que en legal.ts). */
+const enMinuscula = (texto) => texto.charAt(0).toLowerCase() + texto.slice(1);
+
+/**
+ * Los datos de la tienda que se muestran en todas las páginas, tal como están cargados en el panel: CUIT, domicilio,
+ * contacto y Data Fiscal. La razón social no va: figura en los Términos, no en el pie (decisión de Nico, 19/11/2026).
+ * Lo que no está cargado queda nulo y no se escribe.
+ */
+function datosDeLaTienda(legal) {
+  const crudos = legal?.datos_legales && typeof legal.datos_legales === "object" ? legal.datos_legales : {};
+  const texto = (valor) => (typeof valor === "string" && valor.trim() ? valor.trim() : null);
+  const tienda = {
+    cuit: texto(crudos.cuit),
+    domicilio: texto(crudos.domicilio),
+    email: texto(crudos.email),
+    telefono: texto(crudos.telefono),
+    horario: texto(crudos.horario),
+    data_fiscal_url: texto(crudos.data_fiscal_url),
+  };
+  return Object.values(tienda).some(Boolean) ? tienda : null;
+}
+
+/** El número del teléfono de la tienda para un enlace de WhatsApp, o "" si no hay teléfono. */
+const numeroDeWhatsApp = (tienda) => (tienda?.telefono ?? "").replace(/\D/g, "");
+
+/** Los datos de la tienda en una línea, para el pie de cada página y para Quiénes somos. */
+function datosEnLinea(tienda) {
+  if (!tienda) return "";
+  const numero = numeroDeWhatsApp(tienda);
+  return [
+    tienda.cuit ? `CUIT ${escapar(tienda.cuit)}` : "",
+    tienda.domicilio ? escapar(tienda.domicilio) : "",
+    tienda.email ? `<a href="mailto:${escapar(tienda.email)}">${escapar(tienda.email)}</a>` : "",
+    numero ? `<a href="https://wa.me/${numero}">WhatsApp ${escapar(tienda.telefono)}</a>` : "",
+    tienda.horario ? `Atención: ${escapar(enMinuscula(tienda.horario))}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/**
+ * El pie del resumen de cada página: los enlaces a quién es Teqo, a cómo contactarla y a los textos legales, y los
+ * datos de la tienda. Es lo mismo que dibuja src/components/tienda/Pie.tsx, en el HTML que entrega el servidor.
+ */
+function pieEscrito(tienda) {
+  const enlaces = [
+    ["/quienes-somos", "Quiénes somos"],
+    ["/ayuda#contacto", "Contacto"],
+    ["/ayuda", "Ayuda"],
+    ["/terminos", "Términos y condiciones"],
+    ["/privacidad", "Política de privacidad"],
+    ["/garantias", "Garantías y cambios"],
+  ];
+  const datos = datosEnLinea(tienda);
+  return `<footer><p>${enlaces.map(([ruta, texto]) => `<a href="${ruta}">${escapar(texto)}</a>`).join(" · ")}</p>${datos ? `<p>${escapar(NOMBRE)} · ${datos}</p>` : ""}</footer>`;
+}
+
+/** El domicilio como dirección postal. "Calle 123, Localidad, Provincia" se separa en sus tres partes; si no, va entero. */
+function direccionPostal(domicilio) {
+  const partes = domicilio.split(",").map((p) => p.trim()).filter(Boolean);
+  return partes.length === 3
+    ? { "@type": "PostalAddress", streetAddress: partes[0], addressLocality: partes[1], addressRegion: partes[2], addressCountry: "AR" }
+    : { "@type": "PostalAddress", streetAddress: domicilio, addressCountry: "AR" };
 }
 
 /** Un texto del panel en párrafos, igual que src/lib/tienda/legal.ts (parrafosDe). */
@@ -235,32 +362,56 @@ const parrafosDe = (texto) =>
 
 const enParrafos = (lista) => lista.map((p) => `<p>${escapar(p)}</p>`).join("");
 
+/** La sección Contacto de la ayuda: cómo escribirnos y los datos fiscales, con lo cargado en el panel. */
+function contactoDeLaAyuda(ayuda, tienda) {
+  const textos = ayuda.contacto;
+  const horario = tienda?.horario && typeof textos.horario === "string" ? ` ${textos.horario.replace("{horario}", enMinuscula(tienda.horario))}` : "";
+  const numero = numeroDeWhatsApp(tienda);
+  const fiscales = [tienda?.cuit ? `CUIT ${tienda.cuit}` : "", tienda?.domicilio ? `Domicilio: ${tienda.domicilio}` : ""].filter(Boolean);
+  return (
+    `<p>${escapar(textos.texto + horario)}</p>` +
+    (tienda?.email ? `<p>${escapar(textos.email ?? "Email")}: <a href="mailto:${escapar(tienda.email)}">${escapar(tienda.email)}</a></p>` : "") +
+    (numero ? `<p>${escapar(textos.whatsapp ?? "WhatsApp")}: <a href="https://wa.me/${numero}">${escapar(tienda.telefono)}</a></p>` : "") +
+    (fiscales.length > 0 ? `<p>${escapar(textos.datosFiscales ?? "Datos fiscales")}: ${escapar(fiscales.join(" · "))}</p>` : "") +
+    `<p><a href="/quienes-somos">${escapar(textos.quienesSomos ?? "Quiénes somos")}</a></p>`
+  );
+}
+
 /** La página de ayuda, con las mismas secciones y textos que dibuja src/pages/tienda/Ayuda.tsx. */
-function cuerpoDeLaAyuda(ayuda, legal) {
-  const email = typeof legal?.datos_legales?.email === "string" ? legal.datos_legales.email.trim() : "";
+function cuerpoDeLaAyuda(ayuda, tienda) {
   return ayuda.secciones
     .map((s) => {
       const parrafos = s.contenido === "garantias" ? ayuda.garantias : (s.parrafos ?? []);
       const lista = Array.isArray(s.lista) ? `<ul>${s.lista.map((item) => `<li>${escapar(item)}</li>`).join("")}</ul>` : "";
-      const contacto =
-        s.contenido !== "contacto"
-          ? ""
-          : email
-            ? `<p>${escapar(ayuda.contacto.antes)}<a href="mailto:${escapar(email)}">${escapar(email)}</a>${escapar(ayuda.contacto.despues)}</p>`
-            : `<p>${escapar(ayuda.contacto.sinEmail)}</p>`;
+      const contacto = s.contenido === "contacto" ? contactoDeLaAyuda(ayuda, tienda) : "";
       const enlace = s.enlace ? `<p>${escapar(s.enlace.antes ?? "")}<a href="${escapar(s.enlace.a)}">${escapar(s.enlace.texto)}</a>${escapar(s.enlace.despues ?? "")}</p>` : "";
       return `<section id="${escapar(s.id)}"><h2>${escapar(s.titulo)}</h2>${enParrafos(parrafos)}${lista}${enParrafos(s.cierre ?? [])}${contacto}${enlace}</section>`;
     })
     .join("");
 }
 
+/** Quiénes somos, con los mismos textos que dibuja src/pages/tienda/QuienesSomos.tsx. */
+function cuerpoDeQuienesSomos(quienes, tienda) {
+  const tarjetas = quienes.comoTrabajamos.tarjetas.map((t) => `<h3>${escapar(t.titulo)}</h3><p>${escapar(t.texto)}</p>`).join("");
+  const pasos = `<ol>${quienes.pasos.lista.map((p) => `<li><strong>${escapar(p.titulo)}</strong> ${escapar(p.texto)}</li>`).join("")}</ol>`;
+  const datos = datosEnLinea(tienda);
+  return (
+    `<p>${escapar(quienes.bajada)}</p>` +
+    `<h2>${escapar(quienes.comoTrabajamos.titulo)}</h2>${tarjetas}` +
+    `<h2>${escapar(quienes.pedido.titulo)}</h2>${enParrafos(quienes.pedido.parrafos)}` +
+    `<h2>${escapar(quienes.pasos.titulo)}</h2>${pasos}` +
+    (datos ? `<h2>${escapar(quienes.contacto.titulo)}</h2><p>${datos}</p>` : "")
+  );
+}
+
 /**
  * El contenido propio de una página fija, o "" si no tiene (queda con su descripción). Términos, Privacidad y
- * Garantías llevan el texto cargado en el panel; Ayuda, sus secciones. Así el texto está en el HTML que entrega el
- * servidor y no depende de que quien lo lee ejecute la aplicación.
+ * Garantías llevan el texto cargado en el panel; Ayuda y Quiénes somos, sus secciones. Así el texto está en el HTML
+ * que entrega el servidor y no depende de que quien lo lee ejecute la aplicación.
  */
-function contenidoDeLaPaginaFija(ruta, legal, ayuda) {
-  if (ruta === "/ayuda") return ayuda ? cuerpoDeLaAyuda(ayuda, legal) : "";
+function contenidoDeLaPaginaFija(ruta, { legal, ayuda, quienes, tienda }) {
+  if (ruta === "/ayuda") return ayuda ? cuerpoDeLaAyuda(ayuda, tienda) : "";
+  if (ruta === RUTA_DE_QUIENES_SOMOS) return quienes ? cuerpoDeQuienesSomos(quienes, tienda) : "";
   if (ruta === "/terminos") return enParrafos(parrafosDe(legal?.texto_terminos));
   if (ruta === "/privacidad") return enParrafos(parrafosDe(legal?.texto_privacidad));
   if (ruta === "/garantias") {
@@ -409,6 +560,16 @@ async function main() {
   const hoy = new Date().toISOString().slice(0, 10);
   const urls = [`${sitio}/`];
 
+  // Lo que se carga en el panel (Legal › Textos y datos) y los textos de las páginas fijas. Los datos de la tienda van
+  // en todas las páginas: como datos para la aplicación y en el pie del resumen.
+  const legal = await contenidoLegal(supabase);
+  const tienda = datosDeLaTienda(legal);
+  const ayuda = textosDeLaAyuda();
+  const quienes = textosDeQuienesSomos();
+  enTodasLasPaginas.cabeza = datosEscritos(tienda, ID_DE_LOS_DATOS_DE_LA_TIENDA);
+  enTodasLasPaginas.pie = pieEscrito(tienda);
+  const fijas = [...PAGINAS_FIJAS, ...(quienes ? [{ ruta: RUTA_DE_QUIENES_SOMOS, titulo: quienes.titulo, descripcion: quienes.descripcion }] : [])];
+
   // Inicio: las categorías con sus subcategorías, los destacados y las páginas fijas.
   const destacados = ordenados.filter((p) => p.destacado).slice(0, DESTACADOS_DEL_INICIO);
   const datosParaElInicio = await datosDelInicio(supabase);
@@ -422,12 +583,12 @@ async function main() {
       })
       .join("")}</ul></nav>` +
     (destacados.length > 0 ? `<h2>Destacados</h2><ul>${destacados.map(itemDeProducto).join("")}</ul>` : "") +
-    `<ul>${PAGINAS_FIJAS.map((f) => `<li>${enlaceA(f.ruta, f.titulo)}</li>`).join("")}</ul>` +
+    `<ul>${fijas.map((f) => `<li>${enlaceA(f.ruta, f.titulo)}</li>`).join("")}</ul>` +
     `<p>Envío a domicilio a todo el país. Precios finales con IVA incluido.</p></main>`;
   const cabezaDelInicio = jsonLd(
     {
       "@context": "https://schema.org",
-      "@graph": [organizacion(), { ...sitioWeb(), potentialAction: { "@type": "SearchAction", target: `${sitio}/buscar?q={q}`, "query-input": "required name=q" } }],
+      "@graph": [organizacion(tienda), { ...sitioWeb(), potentialAction: { "@type": "SearchAction", target: `${sitio}/buscar?q={q}`, "query-input": "required name=q" } }],
     },
     "sitio",
   );
@@ -477,19 +638,17 @@ async function main() {
 
   // Páginas fijas: el título, la descripción y el canonical propios. Las que tienen texto (Ayuda y las legales) lo
   // llevan escrito, y además como datos, para que la aplicación lo dibuje sin esperar a la base.
-  const legal = await contenidoLegal(supabase);
-  const ayuda = textosDeLaAyuda();
   const legalEscrito = datosEscritos(legal, ID_DEL_CONTENIDO_LEGAL);
   let conTexto = 0;
-  for (const fija of PAGINAS_FIJAS) {
-    const contenido = contenidoDeLaPaginaFija(fija.ruta, legal, ayuda);
+  for (const fija of fijas) {
+    const contenido = contenidoDeLaPaginaFija(fija.ruta, { legal, ayuda, quienes, tienda });
     if (contenido) conTexto += 1;
     const cuerpo = `<main>${migasEnlazadas([])}<h1>${escapar(fija.titulo)}</h1>${contenido || `<p>${escapar(fija.descripcion)}</p>`}</main>`;
     const extraHead = PAGINAS_CON_CONTENIDO_LEGAL.has(fija.ruta) ? legalEscrito : "";
     escribirPagina(fija.ruta, armarPagina(base, { titulo: fija.titulo, descripcion: fija.descripcion, ruta: fija.ruta, extraHead, cuerpo }));
     urls.push(sitio + fija.ruta);
   }
-  console.log(`[prerender] Páginas fijas con su texto escrito: ${conTexto} de ${PAGINAS_CON_CONTENIDO_LEGAL.size}.`);
+  console.log(`[prerender] Páginas fijas con su texto escrito: ${conTexto} de ${fijas.length} (Ayuda, Quiénes somos y las legales).`);
 
   // Productos
   let fichas = 0;
@@ -544,7 +703,7 @@ async function main() {
     .map((u) => `  <url><loc>${escapar(u)}</loc><lastmod>${hoy}</lastmod></url>`)
     .join("\n")}\n</urlset>\n`;
   writeFileSync(join(dist, "sitemap.xml"), sitemap);
-  console.log(`[prerender] El inicio, ${categorias.length} categorías, ${PAGINAS_FIJAS.length} páginas fijas, ${fichas} fichas y el sitemap (${urls.length} direcciones).`);
+  console.log(`[prerender] El inicio, ${categorias.length} categorías, ${fijas.length} páginas fijas, ${fichas} fichas y el sitemap (${urls.length} direcciones).`);
 }
 
 main().catch((e) => {

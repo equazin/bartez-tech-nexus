@@ -28,6 +28,7 @@ const Cuenta = lazy(() => import("./pages/tienda/Cuenta"));
 const Seguimiento = lazy(() => import("./pages/tienda/Seguimiento"));
 const Arrepentimiento = lazy(() => import("./pages/tienda/Arrepentimiento"));
 const Ayuda = lazy(() => import("./pages/tienda/Ayuda"));
+const QuienesSomos = lazy(() => import("./pages/tienda/QuienesSomos"));
 const TextoLegal = lazy(() => import("./pages/tienda/TextoLegal"));
 const SistemaDeDiseno = lazy(() => import("./pages/SistemaDeDiseno"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -42,7 +43,7 @@ const CustomerView = lazy(() => import("./pages/CustomerView"));
 // vercel.json redirige las públicas con 301 antes de llegar acá.
 const RUTAS_VIEJAS = [
   "/tecnologia", "/productos", "/soluciones-corporativas", "/servicios-it", "/partnership", "/empresas",
-  "/soluciones-por-industria", "/puntos-de-venta", "/nosotros", "/contacto", "/evaluacion-tecnologica", "/cotizacion",
+  "/soluciones-por-industria", "/puntos-de-venta", "/evaluacion-tecnologica", "/cotizacion",
   "/registrarse", "/b2b-portal", "/catalogo", "/armador-pc", "/cotizaciones", "/cotizador", "/pagos", "/portal", "/portal/*",
 ];
 
@@ -130,6 +131,10 @@ const App = () => (
                       <Route path="/seguimiento" element={<Seguimiento />} />
                       <Route path="/arrepentimiento" element={<Arrepentimiento />} />
                       <Route path="/ayuda" element={<Ayuda />} />
+                      <Route path="/quienes-somos" element={<QuienesSomos />} />
+                      {/* Las dos direcciones que la gente prueba a mano: llevan a la página y a la sección que las reemplazan. */}
+                      <Route path="/nosotros" element={<Navigate to="/quienes-somos" replace />} />
+                      <Route path="/contacto" element={<Navigate to="/ayuda#contacto" replace />} />
                       <Route path="/terminos" element={<TextoLegal tipo="terminos" />} />
                       <Route path="/privacidad" element={<TextoLegal tipo="privacidad" />} />
                       <Route path="/garantias" element={<TextoLegal tipo="garantias" />} />

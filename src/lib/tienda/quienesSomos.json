@@ -1,0 +1,54 @@
+{
+  "titulo": "Quiénes somos",
+  "descripcion": "Teqo es una tienda online argentina de notebooks, gaming, monitores, periféricos y componentes: cómo trabajamos, de dónde sale tu pedido y cómo contactarnos.",
+  "etiqueta": "Notebooks · Gaming · Monitores · Componentes",
+  "bajada": "Teqo es una tienda online argentina de notebooks, gaming, monitores, periféricos y componentes. Vendemos solo por internet y enviamos a domicilio a todo el país.",
+  "comoTrabajamos": {
+    "titulo": "Cómo trabajamos",
+    "tarjetas": [
+      {
+        "icono": "caja",
+        "titulo": "Productos nuevos, de fábrica",
+        "texto": "Todo llega nuevo, en su caja original y con la configuración de fábrica. No agregamos ni cambiamos componentes como memoria o disco."
+      },
+      {
+        "icono": "garantia",
+        "titulo": "Garantía oficial de la marca",
+        "texto": "El plazo figura en cada ficha y nunca es menor a 6 meses. Si algo falla, te acompañamos en el trámite hasta que se resuelva."
+      },
+      {
+        "icono": "precio",
+        "titulo": "Precio final a la vista",
+        "texto": "Con IVA incluido. Cada producto muestra su precio por transferencia, con Mercado Pago en 1 pago y en 3 cuotas."
+      },
+      {
+        "icono": "arrepentimiento",
+        "titulo": "10 días para arrepentirte",
+        "texto": "Desde que recibís la compra, sin dar motivos y sin costo, con el botón de arrepentimiento que está en todas las páginas."
+      }
+    ]
+  },
+  "pedido": {
+    "titulo": "De dónde sale tu pedido",
+    "parrafos": [
+      "La disponibilidad depende del stock de nuestros proveedores. Por eso actualizamos el stock y los precios todos los días.",
+      "Algunos productos los despachamos nosotros y otros salen directo del depósito del proveedor. Si tu compra tiene productos que salen de distintos lugares, pueden llegar en envíos separados.",
+      "Si después de tu compra un producto deja de estar disponible, te avisamos y te devolvemos el total de lo que pagaste por ese producto, o lo cambiamos por otro que elijas."
+    ]
+  },
+  "pasos": {
+    "titulo": "Cómo comprás",
+    "lista": [
+      { "titulo": "Elegís el producto.", "texto": "La ficha muestra el precio final de cada medio de pago y el envío." },
+      { "titulo": "Comprás sin registrarte.", "texto": "Como invitado, y después seguís el pedido con tu email." },
+      { "titulo": "Pagás por transferencia o con Mercado Pago.", "texto": "No vemos ni guardamos los datos de tu tarjeta." },
+      { "titulo": "Lo recibís en tu domicilio.", "texto": "Preparamos el pedido cuando se acredita el pago y te mandamos por email el seguimiento y la factura." }
+    ]
+  },
+  "contacto": {
+    "titulo": "Contacto y datos fiscales",
+    "dataFiscal": "Tocá el logo de Data Fiscal para ver nuestros datos fiscales en ARCA.",
+    "escribinos": "Escribinos",
+    "ayuda": "Ir a la ayuda"
+  }
+}

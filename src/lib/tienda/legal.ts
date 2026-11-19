@@ -8,6 +8,8 @@ export interface DatosLegales {
   domicilio: string | null;
   email: string | null;
   telefono: string | null;
+  /** Cuándo se atiende, tal como se muestra: "Lunes a viernes, de 9 a 18". */
+  horario: string | null;
   data_fiscal_url: string | null;
 }
 
@@ -26,7 +28,7 @@ export interface ContenidoLegalLeido extends ContenidoLegal {
 }
 
 const VACIO: ContenidoLegal = {
-  datos_legales: { razon_social: null, cuit: null, domicilio: null, email: null, telefono: null, data_fiscal_url: null },
+  datos_legales: { razon_social: null, cuit: null, domicilio: null, email: null, telefono: null, horario: null, data_fiscal_url: null },
   texto_terminos: null,
   texto_privacidad: null,
   texto_garantias: null,
@@ -61,13 +63,37 @@ function contenidoEscrito(): ContenidoLegal | null {
   }
 }
 
+/**
+ * El id del <script> con los datos de la tienda (CUIT, domicilio, contacto, Data Fiscal) que scripts/prerender.mjs
+ * deja en todas las páginas, sin los textos legales: si cambia uno, cambiar el otro. Con eso el pie los dibuja sin
+ * esperar a la base.
+ */
+const ID_DE_LOS_DATOS = "datos-de-la-tienda";
+
+/** Los datos de la tienda que la página trae escritos, o null. */
+function datosEscritos(): DatosLegales | null {
+  if (typeof document === "undefined") return null;
+  try {
+    const texto = document.getElementById(ID_DE_LOS_DATOS)?.textContent;
+    return texto ? { ...VACIO.datos_legales, ...(JSON.parse(texto) as Partial<DatosLegales>) } : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Lo último que se supo: lo que vino escrito en la página o lo que respondió la base. `undefined`: todavía no se miró. */
 let conocido: ContenidoLegal | null | undefined;
+let datosSabidos: DatosLegales | null | undefined;
 let enMemoria: Promise<ContenidoLegal | null> | null = null;
 
 function contenidoConocido(): ContenidoLegal | null {
   if (conocido === undefined) conocido = contenidoEscrito();
   return conocido;
+}
+
+function datosConocidos(): DatosLegales | null {
+  if (datosSabidos === undefined) datosSabidos = datosEscritos();
+  return datosSabidos;
 }
 
 /** Los datos del vendedor y los textos legales, una sola vez por visita. Null si no se pudieron leer. */
@@ -101,7 +127,10 @@ export function contenidoLegal(): Promise<ContenidoLegal> {
 export function useContenidoLegal(): ContenidoLegalLeido {
   const [leido, setLeido] = useState<ContenidoLegalLeido>(() => {
     const previo = contenidoConocido();
-    return previo ? { ...previo, estado: "listo" } : { ...VACIO, estado: "cargando" };
+    if (previo) return { ...previo, estado: "listo" };
+    // Sin los textos pero con los datos de la tienda escritos en la página: el pie ya tiene qué mostrar.
+    const datos = datosConocidos();
+    return { ...VACIO, ...(datos ? { datos_legales: datos } : {}), estado: "cargando" };
   });
   useEffect(() => {
     let cancelado = false;
@@ -121,6 +150,15 @@ export function useContenidoLegal(): ContenidoLegalLeido {
   }, []);
   return leido;
 }
+
+/** El enlace de WhatsApp del teléfono de la tienda, o null si no hay teléfono cargado. */
+export function enlaceDeWhatsApp(telefono: string | null): string | null {
+  const numero = telefono?.replace(/\D/g, "") ?? "";
+  return numero ? `https://wa.me/${numero}` : null;
+}
+
+/** "Lunes a viernes, de 9 a 18" pasa a "lunes a viernes, de 9 a 18", para seguir una frase. */
+export const enMinuscula = (texto: string): string => texto.charAt(0).toLowerCase() + texto.slice(1);
 
 export interface ArrepentimientoNuevo {
   email: string;

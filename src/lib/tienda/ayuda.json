@@ -48,9 +48,14 @@
     }
   ],
   "contacto": {
-    "antes": "Respondé cualquier email que te mandamos, o escribinos a ",
-    "despues": ".",
-    "sinEmail": "Respondé cualquier email que te mandamos."
+    "texto": "Respondé cualquier email que te mandamos, o escribinos.",
+    "horario": "Horario de atención: {horario}.",
+    "email": "Email",
+    "escribinos": "Escribinos",
+    "whatsapp": "WhatsApp",
+    "escribinosPorWhatsApp": "Escribinos por WhatsApp",
+    "datosFiscales": "Datos fiscales",
+    "quienesSomos": "Conocé cómo trabajamos en Quiénes somos"
   },
   "garantias": [
     "Todos los productos son nuevos, en su caja original y con la configuración de fábrica.",
