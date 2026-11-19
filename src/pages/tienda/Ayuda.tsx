@@ -1,7 +1,25 @@
 import { Link } from "react-router-dom";
 import { Tienda } from "@/components/tienda/Tienda";
+import ayuda from "@/lib/tienda/ayuda.json";
 import { GARANTIAS_POR_DEFECTO, useContenidoLegal } from "@/lib/tienda/legal";
 import { usarSeo } from "@/lib/tienda/seo";
+
+/**
+ * Una sección de la ayuda. El contenido vive en src/lib/tienda/ayuda.json porque también lo lee scripts/prerender.mjs
+ * para escribirlo en el HTML de la página: así lo que ve un buscador es lo mismo que ve una persona.
+ */
+interface SeccionDeAyuda {
+  id: string;
+  titulo: string;
+  parrafos?: string[];
+  lista?: string[];
+  cierre?: string[];
+  /** "garantias": el resumen de garantías. "contacto": cómo escribirnos, con el email del panel. */
+  contenido?: string;
+  enlace?: { antes?: string; texto: string; a: string; despues?: string };
+}
+
+const SECCIONES = ayuda.secciones as SeccionDeAyuda[];
 
 function Seccion({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
   return (
@@ -22,17 +40,10 @@ export default function Ayuda() {
       <div className="container mx-auto grid grid-cols-1 gap-10 px-4 py-8 lg:grid-cols-[220px_minmax(0,1fr)]">
         <nav aria-label="Temas" className="lg:sticky lg:top-24 lg:self-start">
           <ul className="flex flex-wrap gap-2 text-sm lg:flex-col">
-            {[
-              ["envios", "Envíos"],
-              ["pagos", "Pagos y cuotas"],
-              ["garantias", "Garantías"],
-              ["cambios", "Cambios y devoluciones"],
-              ["seguimiento", "Seguir mi compra"],
-              ["contacto", "Contacto"],
-            ].map(([id, nombre]) => (
-              <li key={id}>
-                <a href={`#${id}`} className="inline-flex h-9 items-center rounded-chip bg-secondary px-3 font-medium hover:bg-accent">
-                  {nombre}
+            {SECCIONES.map((s) => (
+              <li key={s.id}>
+                <a href={`#${s.id}`} className="inline-flex h-9 items-center rounded-chip bg-secondary px-3 font-medium hover:bg-accent">
+                  {s.titulo}
                 </a>
               </li>
             ))}
@@ -42,48 +53,44 @@ export default function Ayuda() {
         <div className="space-y-12">
           <h1 className="text-[40px] font-bold leading-[44px] tracking-[-1px]">Ayuda</h1>
 
-          <Seccion id="envios" titulo="Envíos">
-            <p>Mandamos a todo el país, a tu domicilio, al mismo precio en cualquier provincia. El costo depende del peso del pedido y lo ves en el carrito antes de comprar.</p>
-            <p>El plazo de entrega se cuenta en días hábiles desde que se acredita el pago. Cuando despachamos te mandamos el número de seguimiento por email.</p>
-            <p>No hacemos entregas en el día ni retiro en sucursal.</p>
-          </Seccion>
-
-          <Seccion id="pagos" titulo="Pagos y cuotas">
-            <p>Todos los precios son finales, con IVA incluido. Cada producto muestra tres precios, uno por cada forma de pago:</p>
-            <ul className="list-disc space-y-1 pl-5">
-              <li>Transferencia bancaria: el precio más bajo.</li>
-              <li>Mercado Pago en 1 pago: con débito, tarjeta de crédito en 1 pago o dinero en cuenta.</li>
-              <li>3 cuotas sin interés: con tarjeta de crédito por Mercado Pago. Pagás el total de ese precio en 3 cuotas iguales, con costo financiero total efectivo anual (CFTEA) 0 % y tasa efectiva anual (TEA) 0 %.</li>
-            </ul>
-            <p>Nunca vemos ni guardamos los datos de tu tarjeta: el pago se hace en Mercado Pago.</p>
-          </Seccion>
-
-          <Seccion id="garantias" titulo="Garantías">
-            {GARANTIAS_POR_DEFECTO.map((p, i) => (
-              <p key={i}>{p}</p>
-            ))}
-            <p>
-              El texto completo está en <Link to="/garantias" className="underline">Garantías y cambios</Link>.
-            </p>
-          </Seccion>
-
-          <Seccion id="cambios" titulo="Cambios y devoluciones">
-            <p>Podés arrepentirte de la compra dentro de los 10 días corridos desde que la recibiste, sin dar motivos y sin costo para vos, con el botón de arrepentimiento. Te damos un código al instante y te respondemos dentro de las 24 horas.</p>
-            <p>
-              <Link to="/arrepentimiento" className="underline">Ir al botón de arrepentimiento</Link>
-            </p>
-          </Seccion>
-
-          <Seccion id="seguimiento" titulo="Seguir mi compra">
-            <p>No hace falta cuenta: con el email que usaste y el número de pedido ves el estado, el envío y el seguimiento.</p>
-            <p>
-              <Link to="/seguimiento" className="underline">Buscar mi compra</Link>
-            </p>
-          </Seccion>
-
-          <Seccion id="contacto" titulo="Contacto">
-            <p>Respondé cualquier email que te mandamos, o escribinos a {datos.email ?? "[EMAIL A CONFIRMAR]"}.</p>
-          </Seccion>
+          {SECCIONES.map((s) => (
+            <Seccion key={s.id} id={s.id} titulo={s.titulo}>
+              {(s.contenido === "garantias" ? GARANTIAS_POR_DEFECTO : (s.parrafos ?? [])).map((p, i) => (
+                <p key={i}>{p}</p>
+              ))}
+              {s.lista && (
+                <ul className="list-disc space-y-1 pl-5">
+                  {s.lista.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              )}
+              {(s.cierre ?? []).map((p, i) => (
+                <p key={`cierre-${i}`}>{p}</p>
+              ))}
+              {s.contenido === "contacto" &&
+                (datos.email ? (
+                  <p>
+                    {ayuda.contacto.antes}
+                    <a href={`mailto:${datos.email}`} className="underline">
+                      {datos.email}
+                    </a>
+                    {ayuda.contacto.despues}
+                  </p>
+                ) : (
+                  <p>{ayuda.contacto.sinEmail}</p>
+                ))}
+              {s.enlace && (
+                <p>
+                  {s.enlace.antes}
+                  <Link to={s.enlace.a} className="underline">
+                    {s.enlace.texto}
+                  </Link>
+                  {s.enlace.despues}
+                </p>
+              )}
+            </Seccion>
+          ))}
         </div>
       </div>
     </Tienda>

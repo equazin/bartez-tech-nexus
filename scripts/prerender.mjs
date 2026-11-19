@@ -35,6 +35,12 @@ const RESPALDO = "aplicacion.html";
 const ID_DE_LOS_DATOS_DEL_INICIO = "datos-del-inicio";
 /** El id del <script> con las categorías. Lo lee src/lib/tienda/catalogo.ts: si cambia uno, cambiar el otro. */
 const ID_DE_LAS_CATEGORIAS = "datos-de-categorias";
+/** El id del <script> con los datos del vendedor y los textos legales. Lo lee src/lib/tienda/legal.ts: si cambia uno, cambiar el otro. */
+const ID_DEL_CONTENIDO_LEGAL = "datos-legales";
+/** Las páginas que dibujan ese contenido apenas cargan: lo llevan escrito para no esperar a la base. */
+const PAGINAS_CON_CONTENIDO_LEGAL = new Set(["/ayuda", "/terminos", "/privacidad", "/garantias"]);
+/** Los textos de Ayuda y los de garantías por defecto: los mismos que usa la aplicación. */
+const ARCHIVO_DE_LA_AYUDA = join("src", "lib", "tienda", "ayuda.json");
 /** Tope de módulos que se precargan en el inicio, por si el trozo del inicio importara medio sitio. */
 const MAXIMO_DE_MODULOS_PRECARGADOS = 30;
 /** La imagen que acompaña a un enlace compartido cuando la página no tiene una propia: la foto de portada. */
@@ -187,9 +193,81 @@ async function datosDelInicio(supabase) {
 }
 
 /** El <script> con los datos del inicio. No se ejecuta: la aplicación lo lee como texto. */
-function datosEscritos(datos) {
+function datosEscritos(datos, id = ID_DE_LOS_DATOS_DEL_INICIO) {
   if (!datos) return "";
-  return `    <script type="application/json" id="${ID_DE_LOS_DATOS_DEL_INICIO}">${JSON.stringify(datos).replace(/</g, "\\u003c")}</script>\n`;
+  return `    <script type="application/json" id="${id}">${JSON.stringify(datos).replace(/</g, "\\u003c")}</script>\n`;
+}
+
+/**
+ * Los datos del vendedor y los textos legales, tal como los devuelve la base a cualquier visitante. Si no se pueden
+ * leer, las páginas legales quedan con el título y la descripción, como antes, y el build sigue.
+ */
+async function contenidoLegal(supabase) {
+  try {
+    const { data, error } = await supabase.rpc("tienda_contenido_legal");
+    if (error) throw new Error(error.message);
+    return data && typeof data === "object" ? data : null;
+  } catch (e) {
+    console.warn(`[prerender] No se pudo leer el contenido legal: ${e instanceof Error ? e.message : e}`);
+    return null;
+  }
+}
+
+/** Los textos de Ayuda, o null si el archivo no se puede leer (la página queda con su descripción). */
+function textosDeLaAyuda() {
+  try {
+    const ayuda = JSON.parse(readFileSync(join(raiz, ARCHIVO_DE_LA_AYUDA), "utf8"));
+    const completa = Array.isArray(ayuda?.secciones) && Array.isArray(ayuda?.garantias) && Array.isArray(ayuda?.cambios) && ayuda?.contacto;
+    if (!completa) throw new Error("le faltan secciones, garantías, cambios o contacto");
+    return ayuda;
+  } catch (e) {
+    console.warn(`[prerender] No se pudo leer ${ARCHIVO_DE_LA_AYUDA}: ${e instanceof Error ? e.message : e}`);
+    return null;
+  }
+}
+
+/** Un texto del panel en párrafos, igual que src/lib/tienda/legal.ts (parrafosDe). */
+const parrafosDe = (texto) =>
+  String(texto ?? "")
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+const enParrafos = (lista) => lista.map((p) => `<p>${escapar(p)}</p>`).join("");
+
+/** La página de ayuda, con las mismas secciones y textos que dibuja src/pages/tienda/Ayuda.tsx. */
+function cuerpoDeLaAyuda(ayuda, legal) {
+  const email = typeof legal?.datos_legales?.email === "string" ? legal.datos_legales.email.trim() : "";
+  return ayuda.secciones
+    .map((s) => {
+      const parrafos = s.contenido === "garantias" ? ayuda.garantias : (s.parrafos ?? []);
+      const lista = Array.isArray(s.lista) ? `<ul>${s.lista.map((item) => `<li>${escapar(item)}</li>`).join("")}</ul>` : "";
+      const contacto =
+        s.contenido !== "contacto"
+          ? ""
+          : email
+            ? `<p>${escapar(ayuda.contacto.antes)}<a href="mailto:${escapar(email)}">${escapar(email)}</a>${escapar(ayuda.contacto.despues)}</p>`
+            : `<p>${escapar(ayuda.contacto.sinEmail)}</p>`;
+      const enlace = s.enlace ? `<p>${escapar(s.enlace.antes ?? "")}<a href="${escapar(s.enlace.a)}">${escapar(s.enlace.texto)}</a>${escapar(s.enlace.despues ?? "")}</p>` : "";
+      return `<section id="${escapar(s.id)}"><h2>${escapar(s.titulo)}</h2>${enParrafos(parrafos)}${lista}${enParrafos(s.cierre ?? [])}${contacto}${enlace}</section>`;
+    })
+    .join("");
+}
+
+/**
+ * El contenido propio de una página fija, o "" si no tiene (queda con su descripción). Términos, Privacidad y
+ * Garantías llevan el texto cargado en el panel; Ayuda, sus secciones. Así el texto está en el HTML que entrega el
+ * servidor y no depende de que quien lo lee ejecute la aplicación.
+ */
+function contenidoDeLaPaginaFija(ruta, legal, ayuda) {
+  if (ruta === "/ayuda") return ayuda ? cuerpoDeLaAyuda(ayuda, legal) : "";
+  if (ruta === "/terminos") return enParrafos(parrafosDe(legal?.texto_terminos));
+  if (ruta === "/privacidad") return enParrafos(parrafosDe(legal?.texto_privacidad));
+  if (ruta === "/garantias") {
+    const cargados = parrafosDe(legal?.texto_garantias);
+    return enParrafos(cargados.length > 0 ? cargados : ayuda ? [...ayuda.garantias, ...ayuda.cambios] : []);
+  }
+  return "";
 }
 
 /**
@@ -345,7 +423,7 @@ async function main() {
       .join("")}</ul></nav>` +
     (destacados.length > 0 ? `<h2>Destacados</h2><ul>${destacados.map(itemDeProducto).join("")}</ul>` : "") +
     `<ul>${PAGINAS_FIJAS.map((f) => `<li>${enlaceA(f.ruta, f.titulo)}</li>`).join("")}</ul>` +
-    `<p>Envío a todo el país, al mismo precio en cualquier provincia. Precios finales con IVA incluido.</p></main>`;
+    `<p>Envío a domicilio a todo el país. Precios finales con IVA incluido.</p></main>`;
   const cabezaDelInicio = jsonLd(
     {
       "@context": "https://schema.org",
@@ -397,12 +475,21 @@ async function main() {
     urls.push(sitio + ruta);
   }
 
-  // Páginas fijas: el título, la descripción y el canonical propios.
+  // Páginas fijas: el título, la descripción y el canonical propios. Las que tienen texto (Ayuda y las legales) lo
+  // llevan escrito, y además como datos, para que la aplicación lo dibuje sin esperar a la base.
+  const legal = await contenidoLegal(supabase);
+  const ayuda = textosDeLaAyuda();
+  const legalEscrito = datosEscritos(legal, ID_DEL_CONTENIDO_LEGAL);
+  let conTexto = 0;
   for (const fija of PAGINAS_FIJAS) {
-    const cuerpo = `<main>${migasEnlazadas([])}<h1>${escapar(fija.titulo)}</h1><p>${escapar(fija.descripcion)}</p></main>`;
-    escribirPagina(fija.ruta, armarPagina(base, { titulo: fija.titulo, descripcion: fija.descripcion, ruta: fija.ruta, cuerpo }));
+    const contenido = contenidoDeLaPaginaFija(fija.ruta, legal, ayuda);
+    if (contenido) conTexto += 1;
+    const cuerpo = `<main>${migasEnlazadas([])}<h1>${escapar(fija.titulo)}</h1>${contenido || `<p>${escapar(fija.descripcion)}</p>`}</main>`;
+    const extraHead = PAGINAS_CON_CONTENIDO_LEGAL.has(fija.ruta) ? legalEscrito : "";
+    escribirPagina(fija.ruta, armarPagina(base, { titulo: fija.titulo, descripcion: fija.descripcion, ruta: fija.ruta, extraHead, cuerpo }));
     urls.push(sitio + fija.ruta);
   }
+  console.log(`[prerender] Páginas fijas con su texto escrito: ${conTexto} de ${PAGINAS_CON_CONTENIDO_LEGAL.size}.`);
 
   // Productos
   let fichas = 0;
@@ -447,7 +534,7 @@ async function main() {
       p.precio_final_ars !== null ? `${escapar(formatoPesos.format(p.precio_final_ars))} · precio final con IVA incluido` : "Precio a confirmar"
     } · ${p.hay_stock ? "En stock" : "Sin stock"}</p><p>${escapar(descripcion)}</p>${
       specs.length > 0 ? `<table>${specs.map(([k, v]) => `<tr><th>${escapar(k)}</th><td>${escapar(v)}</td></tr>`).join("")}</table>` : ""
-    }<p>Envío a todo el país, al mismo precio en cualquier provincia. Configuración de fábrica.</p></main>`;
+    }<p>Envío a domicilio a todo el país. Configuración de fábrica.</p></main>`;
     escribirPagina(ruta, armarPagina(base, { titulo: p.nombre, descripcion, ruta, extraHead, cuerpo, imagen, tipo: "product" }));
     urls.push(sitio + ruta);
     fichas += 1;

@@ -1,0 +1,66 @@
+{
+  "secciones": [
+    {
+      "id": "envios",
+      "titulo": "Envíos",
+      "parrafos": [
+        "Mandamos a todo el país, a tu domicilio. El costo y el plazo dependen del producto, del peso del pedido y del destino: los ves antes de confirmar la compra.",
+        "Si el producto tiene una tarifa fija para todo el país, figura en su ficha. Si no, el envío se calcula cuando cargás tu dirección.",
+        "El plazo de entrega se cuenta en días hábiles desde que se acredita el pago. Cuando despachamos te mandamos el número de seguimiento por email.",
+        "Vendemos solo por internet: no hacemos entregas en el día ni tenemos local para retirar. En algunos productos podés elegir retirar en una sucursal del transporte."
+      ]
+    },
+    {
+      "id": "pagos",
+      "titulo": "Pagos y cuotas",
+      "parrafos": ["Todos los precios son finales, con IVA incluido. Cada producto muestra tres precios, uno por cada forma de pago:"],
+      "lista": [
+        "Transferencia bancaria: el precio más bajo.",
+        "Mercado Pago en 1 pago: con débito, tarjeta de crédito en 1 pago o dinero en cuenta.",
+        "3 cuotas sin interés: con tarjeta de crédito por Mercado Pago. Pagás el total de ese precio en 3 cuotas iguales, con costo financiero total efectivo anual (CFTEA) 0 % y tasa efectiva anual (TEA) 0 %."
+      ],
+      "cierre": ["Nunca vemos ni guardamos los datos de tu tarjeta: el pago se hace en Mercado Pago."]
+    },
+    {
+      "id": "garantias",
+      "titulo": "Garantías",
+      "contenido": "garantias",
+      "enlace": { "antes": "El texto completo está en ", "texto": "Garantías y cambios", "a": "/garantias", "despues": "." }
+    },
+    {
+      "id": "cambios",
+      "titulo": "Cambios y devoluciones",
+      "parrafos": [
+        "Podés arrepentirte de la compra dentro de los 10 días corridos desde que la recibiste, sin dar motivos y sin costo para vos, con el botón de arrepentimiento. Te damos un código al instante y te respondemos dentro de las 24 horas."
+      ],
+      "enlace": { "texto": "Ir al botón de arrepentimiento", "a": "/arrepentimiento" }
+    },
+    {
+      "id": "seguimiento",
+      "titulo": "Seguir mi compra",
+      "parrafos": ["No hace falta cuenta: con el email que usaste y el número de pedido ves el estado, el envío y el seguimiento."],
+      "enlace": { "texto": "Buscar mi compra", "a": "/seguimiento" }
+    },
+    {
+      "id": "contacto",
+      "titulo": "Contacto",
+      "contenido": "contacto"
+    }
+  ],
+  "contacto": {
+    "antes": "Respondé cualquier email que te mandamos, o escribinos a ",
+    "despues": ".",
+    "sinEmail": "Respondé cualquier email que te mandamos."
+  },
+  "garantias": [
+    "Todos los productos son nuevos, en su caja original y con la configuración de fábrica.",
+    "Cada producto tiene la garantía oficial de su marca. El plazo figura en la ficha del producto y nunca es menor a 6 meses, el mínimo que fija la Ley de Defensa del Consumidor para productos nuevos.",
+    "Si un producto falla dentro de la garantía, escribinos con el número de pedido y una descripción de la falla; si podés, sumá fotos o un video. Te decimos cómo seguir: según la marca, lo gestionamos nosotros o te derivamos al servicio técnico oficial, y te acompañamos hasta que se resuelva.",
+    "Si hace falta mandar el producto a revisar, el envío y el seguro no corren por tu cuenta. El tiempo que el producto esté en reparación se suma al plazo de la garantía.",
+    "Si la reparación no queda bien, podés elegir el cambio por otro producto igual, la devolución de lo que pagaste o una rebaja del precio.",
+    "La garantía no cubre golpes, líquidos, sobretensiones, mal uso ni equipos abiertos o modificados fuera del servicio técnico oficial."
+  ],
+  "cambios": [
+    "Podés arrepentirte de la compra dentro de los 10 días corridos desde que la recibiste, sin dar motivos y sin costo para vos, con el botón de arrepentimiento: te damos un código al instante y te respondemos dentro de las 24 horas. El producto tiene que volver como lo recibiste."
+  ]
+}
