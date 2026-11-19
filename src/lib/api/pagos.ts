@@ -51,6 +51,9 @@ export interface ConfiguracionDePagos {
   webhook_configurado: boolean;
 }
 
+/** Cómo se nombra cada medio de pago en el panel. */
+export const NOMBRE_DEL_MEDIO: Record<string, string> = { mercadopago: "Mercado Pago", mercadopago_cuotas: "Mercado Pago en 3 cuotas", transferencia: "Transferencia" };
+
 async function cabeceras(): Promise<Record<string, string>> {
   const {
     data: { session },

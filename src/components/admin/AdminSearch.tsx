@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { ALL_NAV_ITEMS, MODO_TIENDA } from "@/components/admin/layout/adminNavConfig";
 import {
   Search,
   Package,
@@ -337,12 +338,15 @@ export function AdminSearch({
                 <p className="text-[10px] font-bold uppercase tracking-widest text-[#444] mb-2">Sugerencias</p>
                 {[
                   { icon: Package, label: "Ir a Productos", tab: "products" },
-                  { icon: Users, label: "Ir a Clientes", tab: "clients" },
+                  { icon: Users, label: MODO_TIENDA === "consumidor" ? "Ir a Compradores" : "Ir a Clientes", tab: "clients" },
                   { icon: ClipboardList, label: "Ir a Pedidos", tab: "orders" },
                   { icon: FileText, label: "Ir a Facturas", tab: "invoices" },
                   { icon: Landmark, label: "Ir a Cotizaciones", tab: "quotes_admin" },
                   { icon: CreditCard, label: "Ir a Crédito y Pagos", tab: "credit" },
-                ].map(({ icon: Icon, label, tab }) => (
+                ]
+                  // Solo las pantallas que existen en este modo de tienda.
+                  .filter(({ tab }) => ALL_NAV_ITEMS.some((item) => item.id === tab))
+                  .map(({ icon: Icon, label, tab }) => (
                   <button
                     key={tab}
                     onClick={() => {

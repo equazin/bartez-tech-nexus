@@ -6,6 +6,7 @@ import { getRoleFromRequest } from "../_shared/roles.js";
 import { getSupabaseAdmin, getSupabaseClient } from "../_shared/supabaseServer.js";
 import { avisarAlComprador, avisarDespues, esTipoDeAviso, estadoDelMail } from "../_shared/avisos.js";
 import { cuotasDeLaPreferencia, esDeMercadoPago, MEDIOS_DE_LA_TIENDA } from "../_shared/medios.js";
+import { listarCompradores } from "./compradores.js";
 
 /**
  * Pagos de la tienda.
@@ -19,6 +20,7 @@ import { cuotasDeLaPreferencia, esDeMercadoPago, MEDIOS_DE_LA_TIENDA } from "../
  *   POST  ?recurso=reintegrar {pago_id, monto?} admin: reintegro total o parcial; el total cancela la compra que no salió,
  *                                               libera el stock y le avisa al comprador
  *   GET   ?recurso=mail&order_id&tipo           panel: cómo terminó un mail al comprador que salió después de responder
+ *   GET   ?recurso=compradores                  panel: quién compró, con sus compras, sus puntos y los mails que recibió
  *   GET/PATCH ?recurso=configuracion           admin: cuenta bancaria, medios activos, margen por medio y plazo de vencimiento
  *   GET/POST ?recurso=vencer                    admin o cron: vence los pedidos pendientes que pasaron el plazo
  */
@@ -149,6 +151,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await reintegrar(req, res);
       case "mail":
         return await mail(req, res);
+      case "compradores":
+        return await compradores(req, res);
       case "configuracion":
         return await configuracion(req, res);
       case "vencer":
@@ -438,6 +442,16 @@ async function cancelar(req: VercelRequest, res: VercelResponse) {
   await registrarActividad(userId, "cancelar_pedido", String(orderId), { motivo });
   avisarDespues(orderId, "cancelado", { motivo });
   return ok(res, { resultado: "cancelado", mail: "cancelado" });
+}
+
+// ── Panel: los compradores de la tienda ─────────────────────────────────────
+async function compradores(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== "GET") return methodNotAllowed(res, ["GET"]);
+  const { panel } = await quienPide(req);
+  if (!panel) return fail(res, "Solo para el panel", 403);
+  // Datos personales: que no queden guardados en ningún intermediario.
+  res.setHeader("Cache-Control", "no-store");
+  return ok(res, await listarCompradores());
 }
 
 // ── Panel: cómo terminó un mail que salió después de responder ──────────────

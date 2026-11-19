@@ -55,6 +55,7 @@ import { seguirMail } from "@/lib/api/mailsDelPanel";
 const SalesDashboard = lazy(() => import("@/components/admin/SalesDashboard").then(m => ({ default: m.SalesDashboard })));
 const TableroDeLaTienda = lazy(() => import("@/components/admin/tablero/TableroDeLaTienda").then(m => ({ default: m.TableroDeLaTienda })));
 const ClientCRM = lazy(() => import("@/components/admin/ClientCRM").then(m => ({ default: m.ClientCRM })));
+const CompradoresTab = lazy(() => import("@/components/admin/CompradoresTab").then(m => ({ default: m.CompradoresTab })));
 const SellerCRM = lazy(() => import("@/components/admin/SellerCRM").then(m => ({ default: m.SellerCRM })));
 const SellerManagementTab = lazy(() => import("@/components/admin/SellerManagementTab").then(m => ({ default: m.SellerManagementTab })));
 const AdminManagementTab = lazy(() => import("@/components/admin/AdminManagementTab").then(m => ({ default: m.AdminManagementTab })));
@@ -378,6 +379,13 @@ const Admin = () => {
   const [activeTab, setActiveTab] = useState<Tab>(getInitialAdminTab);
   const [activeModule, setActiveModule] = useState<ModuleId>(() => TAB_TO_MODULE[getInitialAdminTab()] ?? "top");
   const [crmSelectedClientId, setCrmSelectedClientId] = useState<string | null>(null);
+
+  /** Desde Compradores: abre la compra en Pedidos. Si la lista de pedidos todavía no la trae, queda en Pedidos. */
+  function verCompraEnPedidos(idDeLaCompra: number) {
+    const compra = orders.find((o) => String(o.id) === String(idDeLaCompra));
+    if (compra) setSelectedOrder(compra);
+    navigateTab("orders");
+  }
 
   function navigateTab(tab: Tab) {
     try {
@@ -2907,18 +2915,23 @@ async function handleCreateSeller() {
 
         {/* -- CLIENTES -- */}
         <KeepAliveTab active={activeTab === "clients"} id="clients">
-          <ClientCRM
-            clients={customerProfiles}
-            orders={orders}
-            products={products}
-            loading={loadingClients}
-            isDark={isDark}
-            selectedClientId={crmSelectedClientId}
-            onSave={saveClientFields}
-            onNewClient={() => { setShowNewClient(true); setCreateError(""); }}
-            onRefreshClients={fetchClients}
-            onRefreshOrders={fetchOrders}
-          />
+          {/* En la tienda no hay clientes mayoristas con ficha: la pestaña muestra a quienes compraron. */}
+          {MODO_TIENDA === "consumidor" ? (
+            <CompradoresTab onVerCompra={verCompraEnPedidos} />
+          ) : (
+            <ClientCRM
+              clients={customerProfiles}
+              orders={orders}
+              products={products}
+              loading={loadingClients}
+              isDark={isDark}
+              selectedClientId={crmSelectedClientId}
+              onSave={saveClientFields}
+              onNewClient={() => { setShowNewClient(true); setCreateError(""); }}
+              onRefreshClients={fetchClients}
+              onRefreshOrders={fetchOrders}
+            />
+          )}
 
             {/* Modal nuevo cliente */}
             {showNewClient && (

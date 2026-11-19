@@ -55,9 +55,12 @@ export function AdminSidebar({
   // Cada acceso lleva a una pestaña que exista en este modo de tienda: si la preferida es del portal mayorista
   // (cotizaciones, vendedores), va a la primera visible del módulo; si el módulo quedó vacío, el acceso no se muestra.
   const workspaceItems = WORKSPACE_ITEMS.flatMap((item) => {
-    const visibles = NAV_MODULES.find((m) => m.id === item.module)?.items.filter(canSeeItem) ?? [];
+    const modulo = NAV_MODULES.find((m) => m.id === item.module);
+    const visibles = modulo?.items.filter(canSeeItem) ?? [];
     if (visibles.length === 0) return [];
-    return [{ ...item, tab: visibles.some((v) => v.id === item.tab) ? item.tab : visibles[0].id }];
+    // El acceso de clientes toma el nombre del módulo: en la tienda es "Compradores".
+    const label = item.module === "clientes" && modulo ? modulo.label : item.label;
+    return [{ ...item, label, tab: visibles.some((v) => v.id === item.tab) ? item.tab : visibles[0].id }];
   });
 
   const content = (

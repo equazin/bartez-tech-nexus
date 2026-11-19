@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SurfaceCard } from "@/components/ui/surface-card";
-import { cancelarPedido, listarPagos, reintegrarPago, validarTransferencia, type LineaDeDespachoDirecto, type PagoDelPanel, type PedidoDeLaTienda } from "@/lib/api/pagos";
+import { cancelarPedido, listarPagos, NOMBRE_DEL_MEDIO, reintegrarPago, validarTransferencia, type LineaDeDespachoDirecto, type PagoDelPanel, type PedidoDeLaTienda } from "@/lib/api/pagos";
 import { seguirMail, type MailAlComprador } from "@/lib/api/mailsDelPanel";
 import { DespachoDirecto } from "./DespachoDirecto";
 import { EnviosZipnova } from "./EnviosZipnova";
@@ -25,7 +25,7 @@ const ESTADOS: Record<string, string> = {
   vencido: "Vencido",
 };
 
-const MEDIOS: Record<string, string> = { mercadopago: "Mercado Pago", mercadopago_cuotas: "Mercado Pago en 3 cuotas", transferencia: "Transferencia" };
+const MEDIOS = NOMBRE_DEL_MEDIO;
 
 function tonoDe(estado: string): "success" | "secondary" | "destructive" | "muted" {
   if (estado === "pagado" || estado === "entregado") return "success";

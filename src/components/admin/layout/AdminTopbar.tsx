@@ -2,7 +2,7 @@ import { Sun, Moon, LogOut, RefreshCw, LayoutDashboard, Bell, Search, UserCircle
 import { AdminSearch } from "@/components/admin/AdminSearch";
 import { NotificationBell } from "@/components/admin/NotificationBell";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { getModuleLabel, getTabLabel, type Tab, type ModuleId, type NavItem } from "./adminNavConfig";
+import { getModuleLabel, getTabLabel, MODO_TIENDA, type Tab, type ModuleId, type NavItem } from "./adminNavConfig";
 import type { ExchangeRate } from "@/context/CurrencyContext";
 
 interface SearchData {
@@ -167,7 +167,10 @@ export function AdminTopbar({
                 { icon: MessageSquare, label: "Nueva cotización", tab: "quotes_admin" as Tab },
                 { icon: Users, label: "Nuevo cliente", tab: "clients" as Tab },
                 { icon: Package, label: "Nuevo producto", tab: "products" as Tab },
-              ].map(({ icon: Icon, label, tab }) => (
+              ]
+                // En la tienda no hay cotizaciones ni alta de clientes: esas dos acciones son del portal mayorista.
+                .filter(({ tab }) => MODO_TIENDA === "mayorista" || (tab !== "quotes_admin" && tab !== "clients"))
+                .map(({ icon: Icon, label, tab }) => (
                 <button
                   key={tab}
                   type="button"

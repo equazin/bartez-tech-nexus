@@ -185,10 +185,25 @@ const TABS_MAYORISTAS = new Set<Tab>([
   "business_alerts", "exception_inbox",
 ]);
 
+/**
+ * Lo que cambia de nombre en la tienda: no hay clientes mayoristas con ficha, así que la pestaña de clientes muestra
+ * a quienes compraron (la pantalla Compradores).
+ */
+const NOMBRES_EN_LA_TIENDA: { modulos: Partial<Record<ModuleId, string>>; pestanas: Partial<Record<Tab, string>> } = {
+  modulos: { clientes: "Compradores" },
+  pestanas: { clients: "Compradores" },
+};
+
 export const NAV_MODULES: NavModule[] =
   MODO_TIENDA === "mayorista"
     ? NAV_MODULES_COMPLETOS
-    : NAV_MODULES_COMPLETOS.map((modulo) => ({ ...modulo, items: modulo.items.filter((item) => !TABS_MAYORISTAS.has(item.id)) })).filter((modulo) => modulo.items.length > 0);
+    : NAV_MODULES_COMPLETOS.map((modulo) => ({
+        ...modulo,
+        label: NOMBRES_EN_LA_TIENDA.modulos[modulo.id] ?? modulo.label,
+        items: modulo.items
+          .filter((item) => !TABS_MAYORISTAS.has(item.id))
+          .map((item) => ({ ...item, label: NOMBRES_EN_LA_TIENDA.pestanas[item.id] ?? item.label })),
+      })).filter((modulo) => modulo.items.length > 0);
 
 // ── Lookup helpers ─────────────────────────────────────────────────────────────
 
