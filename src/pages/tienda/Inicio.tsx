@@ -2,8 +2,12 @@ import { useEffect, useState, type DependencyList } from "react";
 import { Tienda } from "@/components/tienda/Tienda";
 import { SeccionDelInicioVista } from "@/components/tienda/SeccionesDelInicio";
 import { fotosPorCategoria, listarCategorias } from "@/lib/tienda/catalogo";
+import { recordarSecciones, seccionesConocidas, sonIguales } from "@/lib/tienda/datosDelInicio";
 import { SECCIONES_POR_DEFECTO, listarSeccionesDelInicio, type SeccionDelInicio } from "@/lib/tienda/seccionesInicio";
 import { usarSeo } from "@/lib/tienda/seo";
+
+/** Sin secciones cargadas en el panel, el inicio de siempre. */
+const conLasPorDefecto = (lista: SeccionDelInicio[]): SeccionDelInicio[] => (lista.length > 0 ? lista : SECCIONES_POR_DEFECTO);
 
 function useCarga<T>(cargar: () => Promise<T>, dependencias: DependencyList): T | null {
   const [valor, setValor] = useState<T | null>(null);
@@ -30,12 +34,21 @@ export default function Inicio() {
 
   const raices = useCarga(() => listarCategorias(), []);
   const fotos = useCarga(() => fotosPorCategoria(), []);
-  const [secciones, setSecciones] = useState<SeccionDelInicio[] | null>(null);
+  // Abierto por el inicio, las secciones ya vienen escritas en la página: se dibujan sin esperar a la base.
+  const [secciones, setSecciones] = useState<SeccionDelInicio[] | null>(() => {
+    const conocidas = seccionesConocidas();
+    return conocidas ? conLasPorDefecto(conocidas) : null;
+  });
 
   useEffect(() => {
     const cargar = () =>
       listarSeccionesDelInicio()
-        .then((lista) => setSecciones(lista.length > 0 ? lista : SECCIONES_POR_DEFECTO))
+        .then((lista) => {
+          recordarSecciones(lista);
+          const nuevas = conLasPorDefecto(lista);
+          // Si son las que ya están dibujadas, quedan como están: las secciones no vuelven a pedir sus productos.
+          setSecciones((actual) => (actual && sonIguales(actual, nuevas) ? actual : nuevas));
+        })
         .catch(() => setSecciones((actual) => actual ?? SECCIONES_POR_DEFECTO));
     cargar();
     // Al volver a la pestaña se releen: un cambio del panel se ve sin recargar.

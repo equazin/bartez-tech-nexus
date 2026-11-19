@@ -41,6 +41,7 @@ export function esImagenSubida(url: string | null): boolean {
   return Boolean(url && url.includes("/storage/v1/object/public/portadas/"));
 }
 
+/** Las mismas columnas las pide scripts/prerender.mjs para dejarlas escritas en el inicio: si cambian acá, cambiarlas allá. */
 export async function listarPortadasVigentes(): Promise<PortadaPublica[]> {
   const { data, error } = await supabase
     .from("tienda_portadas")

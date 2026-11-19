@@ -7,6 +7,7 @@ import { imagenPrincipal, listarProductosPorIds, type PrecioPorMedio, type Produ
 import { seleccionDe } from "@/lib/tienda/componentes";
 import { formatearPesos } from "@/lib/tienda/dinero";
 import { listarPcArmadas, type PcArmadaPublica } from "@/lib/tienda/pcArmadas";
+import { portadasConocidas, recordarPortadas, sonIguales } from "@/lib/tienda/datosDelInicio";
 import { esFondoDeImagen, esImagenSubida, listarPortadasVigentes, type PortadaPublica } from "@/lib/tienda/portadas";
 import { nombreCortoDeMedio, precioConMedio, preciosDe } from "@/lib/tienda/precios";
 import { useServicios } from "@/lib/tienda/servicios";
@@ -276,13 +277,17 @@ const SEGUNDOS_POR_PORTADA = 7;
  * pestaña recupera el foco, así un cambio del panel se ve sin recargar la tienda.
  */
 export function PortadaDelInicio() {
-  const [portadas, setPortadas] = useState<PortadaPublica[] | undefined>(undefined);
+  // Abierto por el inicio, las portadas ya vienen escritas en la página: la primera se dibuja sin esperar a la base.
+  const [portadas, setPortadas] = useState<PortadaPublica[] | undefined>(() => portadasConocidas());
   const [indice, setIndice] = useState(0);
   const [pausa, setPausa] = useState(false);
 
   const cargar = useCallback(() => {
     listarPortadasVigentes()
-      .then((lista) => setPortadas(lista))
+      .then((lista) => {
+        recordarPortadas(lista);
+        setPortadas((actual) => (actual && sonIguales(actual, lista) ? actual : lista));
+      })
       .catch(() => setPortadas((actual) => actual ?? []));
   }, []);
 

@@ -11,7 +11,7 @@
 // Los precios se refrescan con cada despliegue (el recálculo diario dispara uno si hay VERCEL_DEPLOY_HOOK_URL), y la
 // aplicación reescribe los datos estructurados de la ficha con el precio del momento. Sin credenciales de Supabase,
 // deja solo la base y el build sigue.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
@@ -31,6 +31,10 @@ const SEGMENTO_SIN_CATEGORIA = "productos";
 const ETIQUETA_DE_PRUEBA = "prueba";
 /** La base de la aplicación; con cleanUrls se sirve en /aplicacion. */
 const RESPALDO = "aplicacion.html";
+/** El id del <script> con los datos del inicio. Lo lee src/lib/tienda/datosDelInicio.ts: si cambia uno, cambiar el otro. */
+const ID_DE_LOS_DATOS_DEL_INICIO = "datos-del-inicio";
+/** Tope de módulos que se precargan en el inicio, por si el trozo del inicio importara medio sitio. */
+const MAXIMO_DE_MODULOS_PRECARGADOS = 12;
 /** La imagen que acompaña a un enlace compartido cuando la página no tiene una propia: la foto de portada. */
 const IMAGEN_DEL_SITIO = { ruta: "/portada/portada.jpg", ancho: 1600, alto: 1067 };
 // Direcciones de la aplicación que una categoría nunca puede pisar.
@@ -162,37 +166,85 @@ function fotoDeLaFicha(direccion) {
 }
 
 /**
+ * Las secciones y las portadas del inicio, con las mismas columnas y el mismo orden que pide la aplicación
+ * (src/lib/tienda/seccionesInicio.ts y portadas.ts). Van escritas en el HTML del inicio para que la aplicación
+ * dibuje la portada apenas arranca, sin esperar a esas dos consultas (las lee src/lib/tienda/datosDelInicio.ts).
+ * Si no se pueden leer, no devuelve nada y la aplicación las pide como siempre.
+ */
+async function datosDelInicio(supabase) {
+  try {
+    const [secciones, portadas] = await Promise.all([
+      supabase.from("tienda_secciones_inicio").select("id, tipo, titulo, bajada, config").order("orden"),
+      supabase.from("tienda_portadas").select("id, tipo, etiqueta, titulo, texto, boton, enlace, imagen_url, fondo, pc_armada_id, imagen_movil_url").order("orden"),
+    ]);
+    if (secciones.error || portadas.error) return null;
+    return { secciones: secciones.data ?? [], portadas: portadas.data ?? [] };
+  } catch {
+    return null;
+  }
+}
+
+/** El <script> con los datos del inicio. No se ejecuta: la aplicación lo lee como texto. */
+function datosEscritos(datos) {
+  if (!datos) return "";
+  return `    <script type="application/json" id="${ID_DE_LOS_DATOS_DEL_INICIO}">${JSON.stringify(datos).replace(/</g, "\\u003c")}</script>\n`;
+}
+
+/**
  * La primera portada del inicio, que es lo primero que se ve al entrar: su precarga para el <head> y la imagen
  * para el contenido inicial, así se ve antes de que arranque la aplicación. Las portadas con la imagen completa
  * usan una versión cuadrada en el celular; las de tipo banner, una sola imagen. Si el inicio no empieza con la
- * portada, o no se puede leer, no devuelve nada.
+ * portada, o no se pudo leer, no devuelve nada.
  */
-async function primeraPortadaDelInicio(supabase) {
+function primeraPortadaDelInicio(datos) {
   const nada = { cabeza: "", cuerpo: "" };
-  try {
-    const [{ data: secciones }, { data: portadas }] = await Promise.all([
-      supabase.from("tienda_secciones_inicio").select("tipo").order("orden").limit(1),
-      supabase.from("tienda_portadas").select("tipo, titulo, imagen_url, imagen_movil_url").order("orden").limit(1),
-    ]);
-    const primera = (portadas ?? [])[0];
-    if (!primera?.imagen_url) return nada;
-    if ((secciones ?? []).length > 0 && secciones[0].tipo !== "portada") return nada;
-    const estilo = 'style="display:block;width:100%;height:auto"';
-    const alt = escapar(primera.titulo ?? "");
-    if (primera.tipo !== "imagen" || !primera.imagen_movil_url) {
-      return {
-        cabeza: precargaDeImagen(primera.imagen_url),
-        cuerpo: `<img src="${escapar(primera.imagen_url)}" alt="${alt}" fetchpriority="high" ${estilo} />`,
-      };
-    }
+  const primera = datos?.portadas[0];
+  if (!primera?.imagen_url) return nada;
+  if (datos.secciones.length > 0 && datos.secciones[0].tipo !== "portada") return nada;
+  const estilo = 'style="display:block;width:100%;height:auto"';
+  const alt = escapar(primera.titulo ?? "");
+  if (primera.tipo !== "imagen" || !primera.imagen_movil_url) {
     return {
-      cabeza: precargaDeImagen(primera.imagen_movil_url, "(max-width: 767px)") + precargaDeImagen(primera.imagen_url, "(min-width: 768px)"),
-      cuerpo:
-        `<picture><source media="(min-width: 768px)" srcset="${escapar(primera.imagen_url)}" width="2400" height="830" />` +
-        `<img src="${escapar(primera.imagen_movil_url)}" alt="${alt}" width="1080" height="1080" fetchpriority="high" ${estilo} /></picture>`,
+      cabeza: precargaDeImagen(primera.imagen_url),
+      cuerpo: `<img src="${escapar(primera.imagen_url)}" alt="${alt}" fetchpriority="high" ${estilo} />`,
     };
+  }
+  return {
+    cabeza: precargaDeImagen(primera.imagen_movil_url, "(max-width: 767px)") + precargaDeImagen(primera.imagen_url, "(min-width: 768px)"),
+    cuerpo:
+      `<picture><source media="(min-width: 768px)" srcset="${escapar(primera.imagen_url)}" width="2400" height="830" />` +
+      `<img src="${escapar(primera.imagen_movil_url)}" alt="${alt}" width="1080" height="1080" fetchpriority="high" ${estilo} /></picture>`,
+  };
+}
+
+/**
+ * Los módulos que el inicio necesita además del arranque: su propio trozo (cada página se carga aparte) y lo que
+ * ese trozo importa. Con la precarga bajan junto con el arranque, en vez de pedirse recién cuando la aplicación ya
+ * corrió. Los nombres llevan la huella del build, así que se buscan en dist/assets; lo que la base ya trae no se
+ * repite. Si no encuentra el trozo, no agrega nada.
+ */
+function modulosDelInicio(base) {
+  try {
+    const carpeta = join(dist, "assets");
+    const archivos = new Set(readdirSync(carpeta));
+    const inicio = [...archivos].find((archivo) => /^Inicio-[\w-]+\.js$/.test(archivo));
+    if (!inicio) return "";
+    const vistos = new Set();
+    const cola = [inicio];
+    while (cola.length > 0 && vistos.size < MAXIMO_DE_MODULOS_PRECARGADOS) {
+      const actual = cola.shift();
+      if (vistos.has(actual) || !archivos.has(actual)) continue;
+      vistos.add(actual);
+      const codigo = readFileSync(join(carpeta, actual), "utf8");
+      // Solo los import fijos (import … from "./x.js" o import "./x.js"); los import("…") se cargan cuando hacen falta.
+      for (const [, nombre] of codigo.matchAll(/(?:\bfrom|\bimport)\s*["']\.\/([\w.-]+\.js)["']/g)) cola.push(nombre);
+    }
+    return [...vistos]
+      .filter((nombre) => !base.includes(`/assets/${nombre}`))
+      .map((nombre) => `    <link rel="modulepreload" crossorigin href="/assets/${nombre}" />\n`)
+      .join("");
   } catch {
-    return nada;
+    return "";
   }
 }
 
@@ -281,7 +333,8 @@ async function main() {
 
   // Inicio: las categorías con sus subcategorías, los destacados y las páginas fijas.
   const destacados = ordenados.filter((p) => p.destacado).slice(0, DESTACADOS_DEL_INICIO);
-  const portadaDelInicio = await primeraPortadaDelInicio(supabase);
+  const datosParaElInicio = await datosDelInicio(supabase);
+  const portadaDelInicio = primeraPortadaDelInicio(datosParaElInicio);
   const cuerpoDelInicio =
     `<main>${portadaDelInicio.cuerpo}<h1>${escapar(NOMBRE)}: notebooks, gaming, monitores, periféricos y componentes</h1><p>${escapar(DESCRIPCION)}</p>` +
     `<nav><ul>${raices
@@ -300,7 +353,8 @@ async function main() {
     },
     "sitio",
   );
-  writeFileSync(indice, armarPagina(base, { ruta: "/", extraHead: cabezaDelInicio + portadaDelInicio.cabeza, cuerpo: cuerpoDelInicio }));
+  const extraDelInicio = cabezaDelInicio + portadaDelInicio.cabeza + "\n" + datosEscritos(datosParaElInicio) + modulosDelInicio(base);
+  writeFileSync(indice, armarPagina(base, { ruta: "/", extraHead: extraDelInicio, cuerpo: cuerpoDelInicio }));
 
   // Categorías: una categoría principal lista también lo de sus subcategorías.
   for (const categoria of categorias) {

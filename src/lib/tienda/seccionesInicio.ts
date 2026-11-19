@@ -71,8 +71,14 @@ export const CLAVES_PARA_COMPARAR: Array<{ patron: RegExp; claves: string[] }> =
   { patron: /discos/, claves: ["Capacidad", "Interfaz", "Formato", "Velocidad de lectura"] },
 ];
 
+/** Una fila de tienda_secciones_inicio tal como llega de la base. */
+export type SeccionCruda = Omit<SeccionDelInicio, "bajada" | "config"> & { bajada: string | null; config: ConfigDeSeccion | null };
+
+export const normalizarSeccion = (x: SeccionCruda): SeccionDelInicio => ({ ...x, bajada: x.bajada ?? "", config: x.config ?? {} });
+
+/** Las mismas columnas las pide scripts/prerender.mjs para dejarlas escritas en el inicio: si cambian acá, cambiarlas allá. */
 export async function listarSeccionesDelInicio(): Promise<SeccionDelInicio[]> {
   const { data, error } = await supabase.from("tienda_secciones_inicio").select("id, tipo, titulo, bajada, config").order("orden");
   if (error) throw new Error(`No se pudieron leer las secciones del inicio: ${error.message}`);
-  return ((data ?? []) as Array<SeccionDelInicio & { config: ConfigDeSeccion | null }>).map((x) => ({ ...x, bajada: x.bajada ?? "", config: x.config ?? {} }));
+  return ((data ?? []) as SeccionCruda[]).map(normalizarSeccion);
 }
