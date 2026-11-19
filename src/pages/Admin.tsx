@@ -49,6 +49,7 @@ import type { PedidoDelTablero } from "@/lib/panel/ventas";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import { EmailNotificationService } from "@/lib/api/emailNotifications";
 import { patchOrder } from "@/lib/api/ordersApi";
+import { seguirMail } from "@/lib/api/mailsDelPanel";
 
 // Lazy loaded tabs
 const SalesDashboard = lazy(() => import("@/components/admin/SalesDashboard").then(m => ({ default: m.SalesDashboard })));
@@ -943,9 +944,10 @@ const Admin = () => {
     setSelectedOrder((prev) => (prev && String(prev.id) === String(idDelPedido) ? { ...prev, ...cambios } : prev));
     setOrders((prev) => prev.map((o) => (String(o.id) === String(idDelPedido) ? { ...o, ...cambios } : o)));
     const nombre = NOMBRE_DEL_PASO[estado];
-    const aviso = guardado.aviso;
-    if (aviso && aviso.enviado === false) alert(`La compra quedó ${nombre}, pero el mail al comprador no salió: ${aviso.motivo}`);
-    else toast.success(aviso ? `La compra quedó ${nombre}. Le mandamos el mail al comprador.` : `La compra quedó ${nombre}.`);
+    // El mail del paso sale después de responder: el panel no espera al servidor de correo y avisa cómo terminó.
+    const mail = guardado.mail_saliendo;
+    toast.success(mail ? `La compra quedó ${nombre}. El mail al comprador está saliendo.` : `La compra quedó ${nombre}.`);
+    if (mail) void seguirMail(idDelPedido, mail, selectedOrder.order_number ?? `#${String(idDelPedido).slice(-8)}`);
   }
 
   async function handlePasoDeLaCompra(paso: PasoDeLaCompra) {

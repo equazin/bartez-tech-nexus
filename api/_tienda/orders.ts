@@ -4,7 +4,7 @@ import { getRoleFromRequest, ensureWriteRole } from "../_shared/roles.js";
 import { createOrderSchema, updateOrderSchema, ORDER_STATUSES, type OrderStatus } from "../_shared/schemas.js";
 import { getSupabaseClient, getSupabaseAdmin } from "../_shared/supabaseServer.js";
 import { notifyOrderStatusChange } from "../_shared/notifications.js";
-import { avisarAlComprador, type ResultadoDelAviso, type TipoDeAviso } from "../_shared/avisos.js";
+import { avisarAlComprador, avisarDespues, type ResultadoDelAviso, type TipoDeAviso } from "../_shared/avisos.js";
 import type { ApiRole } from "../_shared/roles.js";
 
 /**
@@ -131,16 +131,27 @@ export interface PedidoActual {
  * También lo usan los avisos de Zipnova (api/_tienda/envios.ts) para pasar un pedido a enviado o entregado.
  * Con `sinAviso` el cambio a enviado o entregado no le manda el mail al comprador (el panel lo pide cuando se
  * destilda "Notificar al cliente"). `aviso` cuenta qué pasó con el mail, cuando el cambio manda uno.
+ * Con `avisoDespues` (el panel) el mail sale después de responder, para no esperar al servidor de correo:
+ * `mailSaliendo` dice cuál quedó saliendo y el panel pregunta después cómo terminó.
  */
 export async function cambiarEstadoDeLaTienda(
   pedido: PedidoActual,
   nuevo: EstadoDeLaTienda,
   resto: Record<string, unknown>,
   userId: string | null,
-  opciones: { sinAviso?: boolean } = {},
-): Promise<{ error?: string; estado?: number; data?: unknown; aviso?: ResultadoDelAviso }> {
+  opciones: { sinAviso?: boolean; avisoDespues?: boolean } = {},
+): Promise<{ error?: string; estado?: number; data?: unknown; aviso?: ResultadoDelAviso; mailSaliendo?: TipoDeAviso }> {
   const admin = getSupabaseAdmin();
   let aviso: ResultadoDelAviso | undefined;
+  let mailSaliendo: TipoDeAviso | undefined;
+  const avisar = async (tipo: TipoDeAviso, extra: { motivo?: string } = {}): Promise<void> => {
+    if (opciones.avisoDespues) {
+      avisarDespues(pedido.id, tipo, extra);
+      mailSaliendo = tipo;
+    } else {
+      aviso = await avisarAlComprador(pedido.id, tipo, extra);
+    }
+  };
   const actual = pedido.status as EstadoDeLaTienda;
   if (nuevo === "pagado") return { error: "Un pedido se marca pagado solo desde Pagos: por el aviso de Mercado Pago o confirmando la transferencia.", estado: 409 };
   if (nuevo === actual) return { error: `El pedido ya está "${actual}".`, estado: 409 };
@@ -163,7 +174,7 @@ export async function cambiarEstadoDeLaTienda(
       if (error) return { error: error.message, estado: 500 };
       await admin.from("orders").update({ status: "cancelado", cancelado_en: ahora, notes: motivo }).eq("id", pedido.id);
     }
-    aviso = await avisarAlComprador(pedido.id, "cancelado", { motivo });
+    await avisar("cancelado", { motivo });
   } else {
     if (nuevo === "preparando") patch.preparando_en = ahora;
     if (nuevo === "enviado") {
@@ -175,18 +186,18 @@ export async function cambiarEstadoDeLaTienda(
     if (nuevo === "entregado") patch.entregado_en = ahora;
     const { error } = await admin.from("orders").update(patch).eq("id", pedido.id);
     if (error) return { error: error.message, estado: 500 };
-    if (nuevo === "enviado" && !opciones.sinAviso) aviso = await avisarAlComprador(pedido.id, "enviado");
+    if (nuevo === "enviado" && !opciones.sinAviso) await avisar("enviado");
     if (nuevo === "entregado") {
       // Cupón para la próxima compra (si está activo en Marketing › Cupones): va en el email de entrega.
       const { error: errorCupon } = await admin.rpc("tienda_emitir_cupon_de_compra", { p_order_id: pedido.id });
       if (errorCupon) console.error("[orders] No se pudo emitir el cupón de la compra:", pedido.id, errorCupon.message);
-      if (!opciones.sinAviso) aviso = await avisarAlComprador(pedido.id, "entregado");
+      if (!opciones.sinAviso) await avisar("entregado");
     }
   }
 
   await admin.from("activity_logs").insert({ user_id: userId, action: "cambiar_estado_pedido", entity_type: "order", entity_id: String(pedido.id), metadata: { de: actual, a: nuevo } });
   const { data } = await admin.from("orders").select("*").eq("id", pedido.id).single();
-  return { data, aviso };
+  return { data, aviso, mailSaliendo };
 }
 
 async function updateOrder(req: VercelRequest, res: VercelResponse) {
@@ -233,9 +244,10 @@ async function updateOrder(req: VercelRequest, res: VercelResponse) {
         const userId = (await supabase.auth.getUser(bearer)).data.user?.id ?? null;
         // El transporte y el seguimiento que vienen en el mismo pedido se guardan con el cambio de estado:
         // así el mail de "en camino" ya sale con el número.
-        const resultado = await cambiarEstadoDeLaTienda(pedido, status, rest, userId, { sinAviso: sin_aviso === true });
+        // El mail del paso sale después de responder: `mail_saliendo` le dice al panel por cuál preguntar después.
+        const resultado = await cambiarEstadoDeLaTienda(pedido, status, rest, userId, { sinAviso: sin_aviso === true, avisoDespues: true });
         if (resultado.error) return fail(res, resultado.error, resultado.estado ?? 500);
-        return ok(res, resultado.aviso ? { ...(resultado.data as Record<string, unknown>), aviso: resultado.aviso } : resultado.data);
+        return ok(res, resultado.mailSaliendo ? { ...(resultado.data as Record<string, unknown>), mail_saliendo: resultado.mailSaliendo } : resultado.data);
       }
       const cambios = Object.fromEntries(Object.entries(rest).filter(([, valor]) => valor !== undefined));
       if (Object.keys(cambios).length === 0) return fail(res, "No hay datos para guardar: completá el transporte o el número de seguimiento.", 400);

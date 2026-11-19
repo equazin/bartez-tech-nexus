@@ -1,3 +1,5 @@
+import { waitUntil } from "@vercel/functions";
+
 import { createMailerTransport, getDefaultFromEmail, registroDelEnvio, sanitizeHeaderText } from "./mailer.js";
 import { pagoAcreditadoHTML, pedidoCanceladoHTML, pedidoEntregadoHTML, pedidoEnviadoHTML, pedidoReintegradoHTML, seguimientoCargadoHTML } from "./plantillas.js";
 import { getSupabaseAdmin } from "./supabaseServer.js";
@@ -7,12 +9,30 @@ import { esDeMercadoPago, nombreDelMedio } from "./medios.js";
  * Avisos al comprador de la tienda por cada paso del pedido. Cada aviso se anota en
  * avisos_al_comprador antes de salir: el mismo aviso no se manda dos veces, salvo que el panel
  * pida reenviarlo. Nunca tira: devuelve si el mail salió y, si no, por qué.
+ *
+ * Los pasos que marca el panel (pago confirmado, enviada, entregada, cancelada, reintegrada) no esperan al servidor
+ * de correo: el aviso sale después de responder (avisarDespues) y el panel pregunta a los pocos segundos cómo terminó
+ * (estadoDelMail). La anotación guarda `confirmado_en` cuando el servidor de correo aceptó el mail.
  */
 
 export type TipoDeAviso = "pago_acreditado" | "seguimiento" | "enviado" | "entregado" | "cancelado" | "reintegrado";
 
 /** Lo que pasó con un aviso. El panel lo muestra cuando el aviso se pidió a mano. */
 export type ResultadoDelAviso = { enviado: true } | { enviado: false; motivo: string };
+
+/** Cómo terminó un aviso que salió después de responder. */
+export type EstadoDelMail = "enviado" | "saliendo" | "fallo";
+
+export interface ExtraDelAviso {
+  motivo?: string | null;
+  /** Lo reintegrado, para el aviso de reintegro. Sin dato, el total de la compra. */
+  monto?: number;
+  /** Pedido a mano desde el panel: sale aunque ya se haya mandado. */
+  reenviar?: boolean;
+}
+
+/** Lo máximo que puede tardar un mail en salir antes de darlo por perdido: los topes del servidor de correo suman menos. */
+const TOPE_SALIENDO_MS = 45_000;
 
 interface PedidoParaAvisar {
   id: number;
@@ -70,17 +90,28 @@ function transporteDe(pedido: PedidoParaAvisar): string | null {
 
 const sucursalDe = (pedido: PedidoParaAvisar): string | null => (pedido.envio_detalle?.opcion === "sucursal" ? (pedido.envio_detalle.sucursal ?? null) : null);
 
-export async function avisarAlComprador(
-  orderId: number,
-  tipo: TipoDeAviso,
-  extra: {
-    motivo?: string | null;
-    /** Lo reintegrado, para el aviso de reintegro. Sin dato, el total de la compra. */
-    monto?: number;
-    /** Pedido a mano desde el panel: sale aunque ya se haya mandado. */
-    reenviar?: boolean;
-  } = {},
-): Promise<ResultadoDelAviso> {
+export const esTipoDeAviso = (valor: string): valor is TipoDeAviso => Object.prototype.hasOwnProperty.call(ASUNTOS, valor);
+
+/**
+ * Manda el aviso después de responder: quien lo pide no espera al servidor de correo, que tarda varios segundos.
+ * avisarAlComprador nunca tira, así que no queda una promesa rechazada sin atender.
+ */
+export function avisarDespues(orderId: number, tipo: TipoDeAviso, extra: ExtraDelAviso = {}): void {
+  waitUntil(avisarAlComprador(orderId, tipo, extra));
+}
+
+/** Cómo terminó un aviso que salió después de responder. Lo pregunta el panel a los pocos segundos. */
+export async function estadoDelMail(orderId: number, tipo: TipoDeAviso): Promise<EstadoDelMail> {
+  const { data, error } = await getSupabaseAdmin().from("avisos_al_comprador").select("enviado_en, confirmado_en").eq("order_id", orderId).eq("tipo", tipo).maybeSingle();
+  if (error) throw new Error(error.message);
+  const fila = data as { enviado_en: string; confirmado_en: string | null } | null;
+  // Sin anotación: el mail no salió (la anotación se borra cuando falla) o no había a quién mandárselo.
+  if (!fila) return "fallo";
+  if (fila.confirmado_en) return "enviado";
+  return Date.now() - new Date(fila.enviado_en).getTime() < TOPE_SALIENDO_MS ? "saliendo" : "fallo";
+}
+
+export async function avisarAlComprador(orderId: number, tipo: TipoDeAviso, extra: ExtraDelAviso = {}): Promise<ResultadoDelAviso> {
   try {
     const supabase = getSupabaseAdmin();
     const { data } = await supabase
@@ -205,6 +236,8 @@ export async function avisarAlComprador(
       await supabase.from("avisos_al_comprador").delete().eq("order_id", pedido.id).eq("tipo", tipo);
       throw e;
     }
+    // El servidor de correo lo aceptó: el panel, que no esperó, lo lee de acá.
+    await supabase.from("avisos_al_comprador").update({ confirmado_en: new Date().toISOString() }).eq("order_id", pedido.id).eq("tipo", tipo);
     // El aviso al admin es para preparar la compra: en un reenvío al comprador no hace falta.
     if (tipo === "pago_acreditado" && !extra.reenviar) await avisarAlAdmin(pedido, base);
     return { enviado: true };

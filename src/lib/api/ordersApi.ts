@@ -1,4 +1,5 @@
 import { backend, hasBackendUrl } from "./backend";
+import type { MailAlComprador } from "./mailsDelPanel";
 import { supabase } from "@/lib/supabase";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -42,7 +43,10 @@ export interface Order {
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
 
-/** Lo que pasó con un mail al comprador que se pidió desde el panel (solo compras de la tienda). */
+/**
+ * Lo que pasó con un mail al comprador que se pidió a mano desde el panel (solo compras de la tienda): el del
+ * seguimiento. El mail de cada paso sale después de responder y llega como `mail_saliendo` (ver seguirMail).
+ */
 export type AvisoAlComprador = { enviado: true } | { enviado: false; motivo: string };
 
 /** Los pasos de una compra de la tienda que se marcan a mano desde el panel. "Pagado" lo pone solo el pago. */
@@ -60,8 +64,8 @@ export async function patchOrder(payload: {
   reenviar_aviso?: boolean;
   /** Compras de la tienda: pasa la compra a enviada o entregada sin mandarle el mail al comprador. */
   sin_aviso?: boolean;
-}): Promise<Order & { aviso?: AvisoAlComprador }> {
-  return callVercelApi<Order & { aviso?: AvisoAlComprador }>("/api/orders", "PATCH", {
+}): Promise<Order & { aviso?: AvisoAlComprador; mail_saliendo?: MailAlComprador }> {
+  return callVercelApi<Order & { aviso?: AvisoAlComprador; mail_saliendo?: MailAlComprador }>("/api/orders", "PATCH", {
     id: payload.id,
     ...(payload.status ? { status: payload.status } : {}),
     ...(payload.notes !== undefined ? { notes: payload.notes } : {}),

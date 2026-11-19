@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { cancelarPedido, listarPagos, reintegrarPago, validarTransferencia, type LineaDeDespachoDirecto, type PagoDelPanel, type PedidoDeLaTienda } from "@/lib/api/pagos";
+import { seguirMail, type MailAlComprador } from "@/lib/api/mailsDelPanel";
 import { DespachoDirecto } from "./DespachoDirecto";
 import { EnviosZipnova } from "./EnviosZipnova";
 import { FacturasTienda } from "./FacturasTienda";
@@ -81,12 +82,14 @@ export function PagosTab() {
     return [p.order_number, p.comprador_nombre, p.comprador_email].some((v) => (v ?? "").toLowerCase().includes(texto));
   });
 
-  async function accion(id: number, tarea: () => Promise<unknown>, exito: string) {
-    setTrabajando(id);
+  /** El mail al comprador sale después de responder: el panel no espera al servidor de correo y avisa cómo terminó. */
+  async function accion(pedido: PedidoDeLaTienda, tarea: () => Promise<{ mail?: MailAlComprador }>, exito: string) {
+    setTrabajando(pedido.id);
     try {
-      await tarea();
+      const { mail } = await tarea();
       await recargar();
-      toast.success(exito);
+      toast.success(mail ? `${exito}. El mail al comprador está saliendo.` : exito);
+      if (mail) void seguirMail(pedido.id, mail, pedido.order_number);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "No se pudo completar.");
     } finally {
@@ -169,7 +172,7 @@ export function PagosTab() {
                   {isAdmin && (
                     <div className="flex flex-wrap gap-2">
                       {pedido.payment_method === "transferencia" && (pedido.status === "pendiente_pago" || pedido.status === "vencido") && (
-                        <Button size="sm" disabled={ocupado} onClick={() => accion(pedido.id, () => validarTransferencia(pedido.id), "Transferencia confirmada: el pedido quedó pagado")}>
+                        <Button size="sm" disabled={ocupado} onClick={() => accion(pedido, () => validarTransferencia(pedido.id), "Transferencia confirmada: el pedido quedó pagado")}>
                           Confirmar transferencia
                         </Button>
                       )}
@@ -178,7 +181,7 @@ export function PagosTab() {
                           size="sm"
                           variant="outline"
                           disabled={ocupado}
-                          onClick={() => accion(pedido.id, () => cancelarPedido(pedido.id, "Cancelado desde el panel."), "Pedido cancelado y stock liberado")}
+                          onClick={() => accion(pedido, () => cancelarPedido(pedido.id, "Cancelado desde el panel."), "Pedido cancelado y stock liberado")}
                         >
                           Cancelar pedido
                         </Button>
@@ -197,7 +200,7 @@ export function PagosTab() {
                       onSubmit={(e) => {
                         e.preventDefault();
                         const monto = reintegro.monto.trim() === "" ? null : Number(reintegro.monto.replace(",", "."));
-                        void accion(pedido.id, () => reintegrarPago(reintegro.pago.id, monto, reintegro.motivo), "Reintegro hecho").then(() => setReintegro(null));
+                        void accion(pedido, () => reintegrarPago(reintegro.pago.id, monto, reintegro.motivo), "Reintegro hecho").then(() => setReintegro(null));
                       }}
                     >
                       <Input inputMode="decimal" placeholder="Monto (vacío: todo)" value={reintegro.monto} onChange={(e) => setReintegro({ ...reintegro, monto: e.target.value })} />

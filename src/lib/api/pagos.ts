@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import type { MailAlComprador } from "./mailsDelPanel";
 
 export interface PedidoDeLaTienda {
   id: number;
@@ -57,8 +58,13 @@ async function cabeceras(): Promise<Record<string, string>> {
   return { "Content-Type": "application/json", ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) };
 }
 
-export async function llamarPagos<T>(recurso: string, init: { method?: "GET" | "POST" | "PATCH"; body?: unknown } = {}): Promise<T> {
-  const respuesta = await fetch(`/api/pagos?recurso=${encodeURIComponent(recurso)}`, {
+export async function llamarPagos<T>(
+  recurso: string,
+  init: { method?: "GET" | "POST" | "PATCH"; body?: unknown; consulta?: Record<string, string | number> } = {},
+): Promise<T> {
+  const consulta = new URLSearchParams({ recurso });
+  for (const [clave, valor] of Object.entries(init.consulta ?? {})) consulta.set(clave, String(valor));
+  const respuesta = await fetch(`/api/pagos?${consulta.toString()}`, {
     method: init.method ?? "GET",
     headers: await cabeceras(),
     body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
@@ -69,10 +75,13 @@ export async function llamarPagos<T>(recurso: string, init: { method?: "GET" | "
 }
 
 export const listarPagos = () => llamarPagos<{ pedidos: PedidoDeLaTienda[]; pagos: PagoDelPanel[]; despachos?: LineaDeDespachoDirecto[] }>("lista");
-export const validarTransferencia = (orderId: number) => llamarPagos<{ resultado: string }>("validar", { method: "POST", body: { order_id: orderId } });
-export const cancelarPedido = (orderId: number, motivo: string) => llamarPagos<{ resultado: string }>("cancelar", { method: "POST", body: { order_id: orderId, motivo } });
+/** `mail`: el aviso al comprador que quedó saliendo después de responder (ver seguirMail). */
+export const validarTransferencia = (orderId: number) =>
+  llamarPagos<{ resultado: string; mail?: MailAlComprador }>("validar", { method: "POST", body: { order_id: orderId } });
+export const cancelarPedido = (orderId: number, motivo: string) =>
+  llamarPagos<{ resultado: string; mail?: MailAlComprador }>("cancelar", { method: "POST", body: { order_id: orderId, motivo } });
 export const reintegrarPago = (pagoId: number, monto: number | null, motivo: string) =>
-  llamarPagos<{ resultado: string; monto: number; aviso?: { enviado: true } | { enviado: false; motivo: string } }>("reintegrar", {
+  llamarPagos<{ resultado: string; monto: number; mail?: MailAlComprador }>("reintegrar", {
     method: "POST",
     body: { pago_id: pagoId, monto, motivo },
   });

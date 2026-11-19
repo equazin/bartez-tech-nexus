@@ -4,7 +4,7 @@ import { fail, methodNotAllowed, ok } from "../_shared/http.js";
 import { configuracionDeMercadoPago, crearPreferencia, firmaValida, obtenerPago, reintegrar as reintegrarEnMercadoPago } from "../_shared/mercadopago.js";
 import { getRoleFromRequest } from "../_shared/roles.js";
 import { getSupabaseAdmin, getSupabaseClient } from "../_shared/supabaseServer.js";
-import { avisarAlComprador, type ResultadoDelAviso } from "../_shared/avisos.js";
+import { avisarAlComprador, avisarDespues, esTipoDeAviso, estadoDelMail } from "../_shared/avisos.js";
 import { cuotasDeLaPreferencia, esDeMercadoPago, MEDIOS_DE_LA_TIENDA } from "../_shared/medios.js";
 
 /**
@@ -18,7 +18,8 @@ import { cuotasDeLaPreferencia, esDeMercadoPago, MEDIOS_DE_LA_TIENDA } from "../
  *   POST  ?recurso=cancelar {order_id, motivo}  admin: cancela un pedido pendiente y libera el stock
  *   POST  ?recurso=reintegrar {pago_id, monto?} admin: reintegro total o parcial; el total cancela la compra que no salió,
  *                                               libera el stock y le avisa al comprador
- *   GET/PATCH ?recurso=configuracion            admin: cuenta bancaria, medios activos, margen por medio y plazo de vencimiento
+ *   GET   ?recurso=mail&order_id&tipo           panel: cómo terminó un mail al comprador que salió después de responder
+ *   GET/PATCH ?recurso=configuracion           admin: cuenta bancaria, medios activos, margen por medio y plazo de vencimiento
  *   GET/POST ?recurso=vencer                    admin o cron: vence los pedidos pendientes que pasaron el plazo
  */
 
@@ -146,6 +147,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await cancelar(req, res);
       case "reintegrar":
         return await reintegrar(req, res);
+      case "mail":
+        return await mail(req, res);
       case "configuracion":
         return await configuracion(req, res);
       case "vencer":
@@ -416,8 +419,9 @@ async function validar(req: VercelRequest, res: VercelResponse) {
   const { error } = await supabase.rpc("tienda_marcar_pagado", { p_order_id: p.id });
   if (error) throw new Error(error.message);
   await registrarActividad(userId, "validar_transferencia", String(p.id), { total: p.total, estado_anterior: p.status });
-  await avisarAlComprador(p.id, "pago_acreditado");
-  return ok(res, { resultado: "acreditado" });
+  // El mail sale después de responder: el panel no espera al servidor de correo y pregunta después cómo terminó.
+  avisarDespues(p.id, "pago_acreditado");
+  return ok(res, { resultado: "acreditado", mail: "pago_acreditado" });
 }
 
 async function cancelar(req: VercelRequest, res: VercelResponse) {
@@ -432,8 +436,19 @@ async function cancelar(req: VercelRequest, res: VercelResponse) {
   if (error) throw new Error(error.message);
   if (!data) return fail(res, "Solo se cancela un pedido pendiente de pago.", 409);
   await registrarActividad(userId, "cancelar_pedido", String(orderId), { motivo });
-  await avisarAlComprador(orderId, "cancelado", { motivo });
-  return ok(res, { resultado: "cancelado" });
+  avisarDespues(orderId, "cancelado", { motivo });
+  return ok(res, { resultado: "cancelado", mail: "cancelado" });
+}
+
+// ── Panel: cómo terminó un mail que salió después de responder ──────────────
+async function mail(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== "GET") return methodNotAllowed(res, ["GET"]);
+  const { panel } = await quienPide(req);
+  if (!panel) return fail(res, "Solo para el panel", 403);
+  const orderId = Number(req.query.order_id);
+  const tipo = String(req.query.tipo ?? "");
+  if (!Number.isInteger(orderId) || !esTipoDeAviso(tipo)) return fail(res, "Falta el pedido o el tipo de mail.");
+  return ok(res, { estado: await estadoDelMail(orderId, tipo) });
 }
 
 async function reintegrar(req: VercelRequest, res: VercelResponse) {
@@ -473,7 +488,6 @@ async function reintegrar(req: VercelRequest, res: VercelResponse) {
   // Reintegro total (decisión de Nico del 18/11/2026: si se vende algo que el mayorista ya no tiene, se reintegra
   // siempre). Una compra que todavía no salió, pagada o en preparación, queda cancelada acá mismo y devuelve el stock
   // que tenía reservado. Una compra enviada o entregada conserva su estado: ahí el reintegro es una devolución.
-  let aviso: ResultadoDelAviso | undefined;
   if (total) {
     const { data: pedidoCrudo } = await supabase.from("orders").select("status, notes").eq("id", fila.order_id).maybeSingle();
     const pedido = pedidoCrudo as { status: string; notes: string | null } | null;
@@ -488,10 +502,11 @@ async function reintegrar(req: VercelRequest, res: VercelResponse) {
         : { status: "reintegrado" };
       await supabase.from("orders").update(cambios).eq("id", fila.order_id);
     }
-    aviso = await avisarAlComprador(fila.order_id, "reintegrado", { motivo: motivo || null, monto: reintegrado });
+    // El mail sale después de responder; el panel pregunta después cómo terminó.
+    avisarDespues(fila.order_id, "reintegrado", { motivo: motivo || null, monto: reintegrado });
   }
   await registrarActividad(userId, "reintegrar", String(fila.order_id), { pago_id: fila.id, monto, total, proveedor: fila.proveedor, motivo });
-  return ok(res, { resultado: total ? "reintegrado" : "reintegro_parcial", monto, aviso });
+  return ok(res, { resultado: total ? "reintegrado" : "reintegro_parcial", monto, ...(total ? { mail: "reintegrado" } : {}) });
 }
 
 async function configuracion(req: VercelRequest, res: VercelResponse) {
