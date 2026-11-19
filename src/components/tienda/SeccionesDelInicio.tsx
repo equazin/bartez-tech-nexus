@@ -29,7 +29,7 @@ import {
 } from "@/lib/tienda/catalogo";
 import { formatearPesos } from "@/lib/tienda/dinero";
 import { datosClaveConEtiqueta, paresDeFicha } from "@/lib/tienda/ficha";
-import { useContenidoLegal } from "@/lib/tienda/legal";
+import { enlaceDeWhatsApp, useContenidoLegal } from "@/lib/tienda/legal";
 import { PortadaDelInicio } from "@/components/tienda/PortadaDestacada";
 import { CLAVES_PARA_COMPARAR, MAXIMO_EN_CARRUSEL, MAXIMO_EN_GRILLA, type ConfigDeSeccion, type SeccionDelInicio } from "@/lib/tienda/seccionesInicio";
 import { cn } from "@/lib/utils";
@@ -488,7 +488,7 @@ function Marcas({ titulo }: { titulo: string }) {
 
 function Ayuda() {
   const { datos_legales: datos } = useContenidoLegal();
-  const numero = datos.telefono?.replace(/\D/g, "") ?? "";
+  const whatsapp = enlaceDeWhatsApp(datos.telefono);
   return (
     <Bloque etiqueta="Ayuda">
       <div className="flex flex-wrap items-center justify-between gap-5 rounded-2xl border border-border bg-card px-7 py-6">
@@ -497,12 +497,12 @@ function Ayuda() {
           <div className="flex flex-col gap-1">
             <p className="text-lg font-bold">¿Dudás entre dos modelos?</p>
             <p className="text-[15px] text-muted-foreground">
-              {numero ? `Escribinos por WhatsApp al ${datos.telefono}. Te contestamos con la ficha en la mano.` : "Mirá cómo comprar, pagar y recibir, o escribinos y te contestamos con la ficha en la mano."}
+              {whatsapp ? `Escribinos por WhatsApp al ${datos.telefono}. Te contestamos con la ficha en la mano.` : "Mirá cómo comprar, pagar y recibir, o escribinos y te contestamos con la ficha en la mano."}
             </p>
           </div>
         </div>
-        {numero ? (
-          <a href={`https://wa.me/${numero}`} target="_blank" rel="noopener noreferrer" className="flex h-11 items-center rounded-xl border border-foreground px-5 text-[15px] font-bold hover:bg-secondary">
+        {whatsapp ? (
+          <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="flex h-11 items-center rounded-xl border border-foreground px-5 text-[15px] font-bold hover:bg-secondary">
             Escribinos
           </a>
         ) : (

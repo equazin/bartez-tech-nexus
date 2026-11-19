@@ -151,10 +151,20 @@ export function useContenidoLegal(): ContenidoLegalLeido {
   return leido;
 }
 
-/** El enlace de WhatsApp del teléfono de la tienda, o null si no hay teléfono cargado. */
+const LARGO_DEL_NUMERO_NACIONAL = 10;
+
+/**
+ * El enlace de WhatsApp del teléfono de la tienda, o null si no hay teléfono o no se puede llevar con seguridad al
+ * formato que pide WhatsApp para la Argentina: 549 + código de área + número, sin 0 ni 15. "341 510 4902" pasa a
+ * 5493415104902. Mejor sin enlace que con un enlace a otro número. scripts/prerender.mjs hace la misma cuenta.
+ */
 export function enlaceDeWhatsApp(telefono: string | null): string | null {
-  const numero = telefono?.replace(/\D/g, "") ?? "";
-  return numero ? `https://wa.me/${numero}` : null;
+  const digitos = (telefono ?? "").replace(/\D/g, "");
+  const sinCero = digitos.startsWith("0") ? digitos.slice(1) : digitos;
+  if (sinCero.length === LARGO_DEL_NUMERO_NACIONAL) return `https://wa.me/549${sinCero}`;
+  if (sinCero.startsWith("549") && sinCero.length === LARGO_DEL_NUMERO_NACIONAL + 3) return `https://wa.me/${sinCero}`;
+  if (sinCero.startsWith("54") && sinCero.length === LARGO_DEL_NUMERO_NACIONAL + 2) return `https://wa.me/549${sinCero.slice(2)}`;
+  return null;
 }
 
 /** "Lunes a viernes, de 9 a 18" pasa a "lunes a viernes, de 9 a 18", para seguir una frase. */

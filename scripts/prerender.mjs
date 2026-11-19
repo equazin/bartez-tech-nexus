@@ -311,8 +311,19 @@ function datosDeLaTienda(legal) {
   return Object.values(tienda).some(Boolean) ? tienda : null;
 }
 
-/** El número del teléfono de la tienda para un enlace de WhatsApp, o "" si no hay teléfono. */
-const numeroDeWhatsApp = (tienda) => (tienda?.telefono ?? "").replace(/\D/g, "");
+/**
+ * El número del teléfono de la tienda como lo pide WhatsApp para la Argentina (549 + código de área + número, sin 0
+ * ni 15), o "" si no hay teléfono o no se puede armar con seguridad. La misma cuenta que enlaceDeWhatsApp, en
+ * src/lib/tienda/legal.ts.
+ */
+function numeroDeWhatsApp(tienda) {
+  const digitos = (tienda?.telefono ?? "").replace(/\D/g, "");
+  const sinCero = digitos.startsWith("0") ? digitos.slice(1) : digitos;
+  if (sinCero.length === 10) return `549${sinCero}`;
+  if (sinCero.startsWith("549") && sinCero.length === 13) return sinCero;
+  if (sinCero.startsWith("54") && sinCero.length === 12) return `549${sinCero.slice(2)}`;
+  return "";
+}
 
 /** Los datos de la tienda en una línea, para el pie de cada página y para Quiénes somos. */
 function datosEnLinea(tienda) {
