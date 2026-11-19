@@ -34,7 +34,7 @@ const RESPALDO = "aplicacion.html";
 /** El id del <script> con los datos del inicio. Lo lee src/lib/tienda/datosDelInicio.ts: si cambia uno, cambiar el otro. */
 const ID_DE_LOS_DATOS_DEL_INICIO = "datos-del-inicio";
 /** Tope de módulos que se precargan en el inicio, por si el trozo del inicio importara medio sitio. */
-const MAXIMO_DE_MODULOS_PRECARGADOS = 12;
+const MAXIMO_DE_MODULOS_PRECARGADOS = 30;
 /** La imagen que acompaña a un enlace compartido cuando la página no tiene una propia: la foto de portada. */
 const IMAGEN_DEL_SITIO = { ruta: "/portada/portada.jpg", ancho: 1600, alto: 1067 };
 // Direcciones de la aplicación que una categoría nunca puede pisar.
@@ -233,16 +233,14 @@ function modulosDelInicio(base) {
     const cola = [inicio];
     while (cola.length > 0 && vistos.size < MAXIMO_DE_MODULOS_PRECARGADOS) {
       const actual = cola.shift();
-      if (vistos.has(actual) || !archivos.has(actual)) continue;
+      // Lo que la base ya precarga (el arranque y sus librerías) no se repite ni cuenta para el tope.
+      if (vistos.has(actual) || !archivos.has(actual) || base.includes(`/assets/${actual}`)) continue;
       vistos.add(actual);
       const codigo = readFileSync(join(carpeta, actual), "utf8");
       // Solo los import fijos (import … from "./x.js" o import "./x.js"); los import("…") se cargan cuando hacen falta.
       for (const [, nombre] of codigo.matchAll(/(?:\bfrom|\bimport)\s*["']\.\/([\w.-]+\.js)["']/g)) cola.push(nombre);
     }
-    return [...vistos]
-      .filter((nombre) => !base.includes(`/assets/${nombre}`))
-      .map((nombre) => `    <link rel="modulepreload" crossorigin href="/assets/${nombre}" />\n`)
-      .join("");
+    return [...vistos].map((nombre) => `    <link rel="modulepreload" crossorigin href="/assets/${nombre}" />\n`).join("");
   } catch {
     return "";
   }
