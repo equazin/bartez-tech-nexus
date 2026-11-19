@@ -102,7 +102,8 @@ function buildRouteSchema(seo: RouteSeoConfig, canonicalUrl: string) {
     "@id": `${SITE_URL}/#organization`,
     name: "Teqo",
     url: SITE_URL,
-    logo: `${SITE_URL}/android-chrome-512x512.png`,
+    // El logo cuadrado de la marca (1000 × 1000, el mismo símbolo del favicon). Es el mismo que declara el prerender.
+    logo: `${SITE_URL}/logo-teqo-cuadrado.png`,
     contactPoint: {
       "@type": "ContactPoint",
       contactType: "customer service",

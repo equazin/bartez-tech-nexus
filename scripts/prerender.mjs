@@ -179,7 +179,8 @@ function organizacion(tienda = null) {
     "@id": `${sitio}/#organization`,
     name: NOMBRE,
     url: sitio,
-    logo: `${sitio}/android-chrome-512x512.png`,
+    // El logo cuadrado de la marca (1000 × 1000, el mismo símbolo del favicon). Es el mismo que declara RouteSeo.tsx.
+    logo: `${sitio}/logo-teqo-cuadrado.png`,
     ...(tienda?.email ? { email: tienda.email } : {}),
     ...(tienda?.cuit ? { taxID: tienda.cuit } : {}),
     ...(tienda?.domicilio ? { address: direccionPostal(tienda.domicilio) } : {}),
