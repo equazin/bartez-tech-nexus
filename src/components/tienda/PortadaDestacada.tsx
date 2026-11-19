@@ -146,7 +146,7 @@ function Lema() {
     <div className="flex min-h-[460px] min-w-0 flex-[2_1_560px] flex-col justify-center gap-4 rounded-2xl bg-placa-foto p-7 text-texto-placa md:p-12 lg:min-h-0">
       <p className="text-[13px] font-bold uppercase tracking-[0.12em] text-primary">Notebooks · Gaming · Monitores · Componentes</p>
       <h1 className="font-display text-[48px] font-extrabold uppercase leading-[0.95] md:text-[68px]">Subí tu mundo.</h1>
-      <p className="max-w-[520px] text-lg leading-relaxed">Equipos de fábrica, elegidos y explicados, con el precio final a la vista y envío al mismo precio en todo el país.</p>
+      <p className="max-w-[520px] text-lg leading-relaxed">Equipos de fábrica, elegidos y explicados, con el precio final a la vista y envío a todo el país.</p>
     </div>
   );
 }

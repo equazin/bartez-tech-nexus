@@ -12,7 +12,7 @@ import { alternarServicio, cambiarCantidad, quitarDelCarrito } from "@/lib/tiend
 import { useCarritoDetallado } from "@/lib/tienda/carritoDetallado";
 import { imagenPrincipal, rutaDelProducto, type ProductoPublico } from "@/lib/tienda/catalogo";
 import { formatearPesos } from "@/lib/tienda/dinero";
-import { cotizarEnvio, textoDeDemora, type CotizacionDeEnvio } from "@/lib/tienda/envios";
+import { cotizarEnvio, resumenDelEnvio, type CotizacionDeEnvio } from "@/lib/tienda/envios";
 import { datosClave } from "@/lib/tienda/ficha";
 import { MEDIO_CON_CUOTAS, nombreCortoDeMedio, precioConMedio } from "@/lib/tienda/precios";
 import { complementosDe } from "@/lib/tienda/sugerencias";
@@ -123,7 +123,19 @@ export default function Carrito() {
   const medioActual = medios.some((m) => m.id === medio) ? medio : (medios[0]?.id ?? medio);
   const subtotalDelMedio = subtotalPorMedio[medioActual] ?? subtotal;
   const total = subtotalDelMedio + (costoEnvio ?? 0);
-  const textoEnvio = envio === null ? "Cotizando" : !envio.disponible ? "A confirmar" : envio.gratis ? "Sin cargo" : formatearPesos(envio.precio ?? 0);
+  const resumenEnvio = resumenDelEnvio(envio);
+  const textoEnvio = resumenEnvio.costo;
+  // Lo que se cotiza según el destino todavía no está en el total: el carrito lo dice en vez de prometer que "el
+  // total que ves acá es el que vas a pagar".
+  const faltaElEnvio = envio !== null && !resumenEnvio.costoFirme;
+  const notaDelEnvio =
+    envio === null
+      ? "A domicilio, a todo el país."
+      : faltaElEnvio
+        ? "El costo y el plazo dependen del destino: los ves en el paso del envío, antes de pagar. El total de acá todavía no lo incluye."
+        : resumenEnvio.igualEnTodoElPais
+          ? "Un solo servicio, el mismo para todo el país. El total que ves acá es el que vas a pagar."
+          : "El total que ves acá es el que vas a pagar. El plazo lo ves en el paso del envío.";
 
   return (
     <Tienda>
@@ -229,10 +241,10 @@ export default function Carrito() {
             <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card px-5 py-[18px]">
               <p className="text-[15px] font-bold">Envío a domicilio</p>
               <div className="flex items-center justify-between gap-3 rounded-xl bg-background px-3.5 py-3 text-sm">
-                <span>{envio?.disponible ? `${textoDeDemora(envio)} desde que se acredita el pago` : "El plazo se confirma al comprar"}</span>
-                <strong className="tabular-nums">{textoEnvio}</strong>
+                <span>{resumenEnvio.plazo}</span>
+                <strong className="whitespace-nowrap tabular-nums">{textoEnvio}</strong>
               </div>
-              <p className="text-[13px] text-muted-foreground">Un solo servicio, el mismo para todo el país. El total que ves acá es el que vas a pagar.</p>
+              <p className="text-[13px] text-muted-foreground">{notaDelEnvio}</p>
             </div>
           </section>
 
@@ -272,7 +284,7 @@ export default function Carrito() {
               </div>
             </div>
             <div className="flex items-baseline justify-between gap-3 border-t border-border pt-3.5">
-              <span className="font-bold">Total</span>
+              <span className="font-bold">{faltaElEnvio ? "Total sin envío" : "Total"}</span>
               <span className="text-[30px] font-bold tracking-[-0.02em] tabular-nums">{formatearPesos(total)}</span>
             </div>
             {medioActual === MEDIO_CON_CUOTAS ? (

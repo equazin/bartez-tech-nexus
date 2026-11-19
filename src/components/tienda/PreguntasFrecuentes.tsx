@@ -2,8 +2,9 @@ import { Link } from "react-router-dom";
 
 const PREGUNTAS = [
   {
-    pregunta: "¿El envío cuesta lo mismo en todo el país?",
-    respuesta: "Sí. La tarifa es nacional: el mismo precio y el mismo plazo en cualquier provincia. Lo ves en el carrito antes de pagar.",
+    pregunta: "¿Cuánto sale el envío?",
+    respuesta:
+      "Depende del producto. Si tiene una tarifa fija, es la misma en cualquier provincia y figura en su ficha. Si no, se calcula según el destino cuando cargás tu dirección, antes de pagar.",
   },
   {
     pregunta: "¿Puedo pagar en cuotas?",

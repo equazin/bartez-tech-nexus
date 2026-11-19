@@ -62,7 +62,7 @@ export default function SistemaDeDiseno() {
             <p className="text-[28px] font-bold leading-[34px] tracking-[-0.5px]">Notebooks gamer</p>
             <p className="text-[20px] font-bold leading-[26px]">Ficha técnica</p>
             <p className="text-[18px] leading-[28px]">Tecnología para trabajar, crear y jugar.</p>
-            <p className="text-base leading-6">Envío a todo el país, al mismo precio en cualquier provincia.</p>
+            <p className="text-base leading-6">Envío a domicilio a todo el país.</p>
             <p className="text-sm leading-5 text-muted-foreground">Precio final con IVA incluido.</p>
             <p className="text-xs font-bold uppercase leading-4 tracking-[1px]">Nuevo ingreso</p>
             <p className="text-[28px] font-bold leading-8 tabular-nums">$ 1.299.999</p>

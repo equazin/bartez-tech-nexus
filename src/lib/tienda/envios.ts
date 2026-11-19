@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { formatearPesos } from "@/lib/tienda/dinero";
 
 export interface CotizacionDeEnvio {
   precio: number | null;
@@ -14,9 +15,10 @@ export interface ItemDeEnvio {
 }
 
 /**
- * La misma tarifa para todo el país. Lo que despacha Teqo se cotiza por peso; lo que despacha un mayorista
- * directo (New Bytes) paga su tarifa plana, una por pedido; si el carrito mezcla los dos, se cobra solo el
- * envío más alto. Se cotiza con el RPC público y el servidor lo recalcula al confirmar.
+ * Lo que se sabe del envío antes de tener el destino (ficha y carrito). Lo que despacha un mayorista directo
+ * (New Bytes) paga su tarifa fija, igual en todo el país, una por pedido. Lo que despacha Teqo se cotiza con el
+ * transporte según el destino: acá sale sin costo ni plazo ("no disponible"), salvo que el envío sea sin cargo.
+ * El servidor vuelve a calcular todo al confirmar la compra.
  */
 export async function cotizarEnvio(items: ItemDeEnvio[], subtotal: number): Promise<CotizacionDeEnvio> {
   const { data, error } = await supabase.rpc("tienda_cotizar_envio_carrito", { p_items: items, p_subtotal: subtotal });
@@ -76,7 +78,34 @@ export function textoDeDemora(cotizacion: Pick<CotizacionDeEnvio, "demora_dias_m
   return `Llega en ${min} a ${max} días hábiles`;
 }
 
-/** Las 24 jurisdicciones, para el formulario de envío. El precio es el mismo en todas. */
+export interface ResumenDelEnvio {
+  /** El costo, "Sin cargo", "A calcular" (depende del destino) o "Cotizando". */
+  costo: string;
+  /** Cuándo llega, o de qué depende. */
+  plazo: string;
+  /** El costo ya es el definitivo: no cambia con el destino. */
+  costoFirme: boolean;
+  /** El costo y el plazo son los mismos en cualquier provincia: solo entonces la tienda lo dice. */
+  igualEnTodoElPais: boolean;
+}
+
+/**
+ * Cómo contar el envío en la ficha y en el carrito, antes de que el comprador cargue su dirección. No promete lo
+ * que no se sabe: si el costo depende del destino dice "A calcular", nunca un importe ni un plazo.
+ */
+export function resumenDelEnvio(cotizacion: CotizacionDeEnvio | null): ResumenDelEnvio {
+  if (!cotizacion) return { costo: "Cotizando", plazo: "Consultando el envío", costoFirme: false, igualEnTodoElPais: false };
+  if (!cotizacion.disponible) return { costo: "A calcular", plazo: "Depende de tu dirección", costoFirme: false, igualEnTodoElPais: false };
+  const demora = textoDeDemora(cotizacion);
+  return {
+    costo: cotizacion.gratis ? "Sin cargo" : formatearPesos(cotizacion.precio ?? 0),
+    plazo: demora ? `${demora} desde que se acredita el pago` : "El plazo depende de tu dirección",
+    costoFirme: true,
+    igualEnTodoElPais: demora !== "",
+  };
+}
+
+/** Las 24 jurisdicciones, para el formulario de envío. */
 export const PROVINCIAS = [
   "Buenos Aires",
   "Ciudad Autónoma de Buenos Aires",

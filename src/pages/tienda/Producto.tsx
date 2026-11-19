@@ -13,8 +13,7 @@ import { Bloque, EncabezadoDeSeccion } from "@/components/tienda/Seccion";
 import { EstadoDeStock, GrillaProductos, agregarYAvisar, compararYAvisar } from "@/components/tienda/TarjetaProducto";
 import { encontrarCategoria, imagenesDe, listarCategorias, obtenerProducto, rutaDeCategoria, type ProductoPublico } from "@/lib/tienda/catalogo";
 import { useComparador } from "@/lib/tienda/comparador";
-import { formatearPesos } from "@/lib/tienda/dinero";
-import { cotizarEnvio, textoDeDemora, type CotizacionDeEnvio } from "@/lib/tienda/envios";
+import { cotizarEnvio, resumenDelEnvio, type CotizacionDeEnvio } from "@/lib/tienda/envios";
 import { datosClaveConEtiqueta, esNotebook, paresDeFicha, valorDe } from "@/lib/tienda/ficha";
 import { complementosDe, parecidosA } from "@/lib/tienda/sugerencias";
 import { pasoDeCategoria } from "@/lib/tienda/armador";
@@ -105,8 +104,16 @@ function Envio({ producto }: { producto: ProductoPublico }) {
     };
   }, [producto.id, producto.peso_kg, producto.precio_final_ars]);
 
-  const precio = !cotizacion ? "Cotizando" : !cotizacion.disponible ? "A confirmar" : cotizacion.gratis ? "Sin cargo" : formatearPesos(cotizacion.precio ?? 0);
-  const demora = cotizacion?.disponible ? textoDeDemora(cotizacion) : "";
+  const envio = resumenDelEnvio(cotizacion);
+  // Solo se dice "el mismo precio y el mismo plazo" cuando es cierto: con tarifa fija. Lo que se cotiza según el
+  // destino lo avisa, en vez de mostrar un costo o un plazo que no se conocen todavía.
+  const nota = !cotizacion
+    ? "A domicilio, a todo el país."
+    : !envio.costoFirme
+      ? "El costo y el plazo dependen del destino. Los ves al cargar tu dirección, antes de pagar."
+      : envio.igualEnTodoElPais
+        ? "El mismo precio y el mismo plazo en cualquier provincia."
+        : `${cotizacion.gratis ? "Sin cargo a cualquier provincia" : "El mismo precio en cualquier provincia"}. El plazo lo ves al cargar tu dirección, antes de pagar.`;
 
   return (
     <div className="flex flex-col gap-2.5 rounded-2xl border border-border bg-card px-5 py-[18px]">
@@ -115,10 +122,10 @@ function Envio({ producto }: { producto: ProductoPublico }) {
         <p className="text-[15px] font-bold">Envío a domicilio</p>
       </div>
       <div className="flex items-center justify-between gap-3 rounded-xl bg-background px-3.5 py-3 text-sm">
-        <span>{demora ? `${demora} desde que se acredita el pago` : "Plazo a confirmar"}</span>
-        <strong className="tabular-nums">{precio}</strong>
+        <span>{envio.plazo}</span>
+        <strong className="whitespace-nowrap tabular-nums">{envio.costo}</strong>
       </div>
-      <p className="text-[13px] text-muted-foreground">El mismo precio y el mismo plazo en cualquier provincia.</p>
+      <p className="text-[13px] text-muted-foreground">{nota}</p>
     </div>
   );
 }
@@ -366,7 +373,7 @@ export default function Producto() {
           <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-5">
             <p className="font-display text-[15px] font-bold uppercase tracking-[0.08em]">Envío a todo el país</p>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Llega a tu domicilio con el mismo precio y el mismo plazo en cualquier provincia. Te mandamos el seguimiento por mail.
+              Llega a tu domicilio en cualquier provincia. El costo y el plazo los ves antes de pagar, y te mandamos el seguimiento por mail.
             </p>
           </div>
           <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-5">
