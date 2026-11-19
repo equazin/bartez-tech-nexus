@@ -406,7 +406,12 @@ function AccesoPorUso({ nodo, titulo, fotos }: { nodo: CategoriaPublica; titulo:
   const desde = useCarga(() => precioDesde(idsConDescendientes(nodo)), [nodo.id]);
   const foto = fotos ? fotoDeCategoria(nodo, fotos) : null;
   return (
-    <Link to={`/${nodo.slug}`} className="flex min-w-0 flex-[1_1_420px] items-center gap-5 rounded-2xl border border-border bg-card p-7 transition-colors hover:border-input">
+    // En el celular la foto va arriba y el texto abajo, a todo el ancho: lado a lado al texto le quedaban unos 110 px
+    // y la descripción bajaba en renglones de dos palabras. Desde 640 px, la foto vuelve al costado.
+    <Link
+      to={`/${nodo.slug}`}
+      className="flex min-w-0 flex-[1_1_420px] flex-col-reverse gap-4 rounded-2xl border border-border bg-card p-6 transition-colors hover:border-input sm:flex-row sm:items-center sm:gap-5 sm:p-7"
+    >
       <div className="flex flex-1 flex-col gap-2">
         <span className="font-display text-[26px] font-bold uppercase leading-none">{titulo}</span>
         <span className="text-[15px] leading-snug text-muted-foreground">
@@ -416,8 +421,8 @@ function AccesoPorUso({ nodo, titulo, fotos }: { nodo: CategoriaPublica; titulo:
         <span className="text-sm font-bold">Ver {nodo.nombre.toLowerCase()} →</span>
       </div>
       {foto && (
-        <span className="flex h-[130px] w-[150px] shrink-0 items-center justify-center rounded-xl bg-placa-foto">
-          <FotoDeProducto src={foto} loading="lazy" className="max-h-[110px] max-w-[130px] object-contain mix-blend-multiply" />
+        <span className="flex h-[150px] w-full shrink-0 items-center justify-center rounded-xl bg-placa-foto sm:h-[130px] sm:w-[150px]">
+          <FotoDeProducto src={foto} loading="lazy" className="max-h-[126px] max-w-[80%] object-contain mix-blend-multiply sm:max-h-[110px] sm:max-w-[130px]" />
         </span>
       )}
     </Link>

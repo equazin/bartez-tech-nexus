@@ -53,7 +53,9 @@ export function ChipsDeDatos({ datos, className }: { datos: string[]; className?
   return (
     <ul className={cn("flex flex-wrap gap-1.5", className)} aria-label="Datos clave">
       {datos.map((dato) => (
-        <li key={dato} className="rounded-chip bg-secondary px-2 py-1 text-xs leading-none">
+        // Cada etiqueta ocupa un renglón: si el dato es largo ("Core 5 120U (10 núcleos, 12 hilos…)") se corta con
+        // puntos suspensivos en vez de bajar en tres renglones dentro de la píldora. El dato entero queda en `title`.
+        <li key={dato} title={dato} className="max-w-full truncate rounded-chip bg-secondary px-2 py-1 text-xs leading-none">
           {dato}
         </li>
       ))}
