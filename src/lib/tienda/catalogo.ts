@@ -272,6 +272,33 @@ function armarArbol(filas: FilaDeCategoria[]): CategoriaPublica[] {
 }
 
 let categoriasEnMemoria: Promise<CategoriaPublica[]> | null = null;
+/** Las categorías que ya se saben sin esperar a la base. `undefined`: todavía no se miró si la página las trae escritas. */
+let categoriasSabidas: CategoriaPublica[] | null | undefined;
+
+/** El id del <script> con las categorías que scripts/prerender.mjs deja en las páginas de categoría: si cambia uno, cambiar el otro. */
+const ID_DE_LAS_CATEGORIAS = "datos-de-categorias";
+
+function categoriasEscritas(): CategoriaPublica[] | null {
+  if (typeof document === "undefined") return null;
+  try {
+    const texto = document.getElementById(ID_DE_LAS_CATEGORIAS)?.textContent;
+    const filas: unknown = texto ? JSON.parse(texto) : null;
+    return Array.isArray(filas) && filas.length > 0 ? armarArbol(filas as FilaDeCategoria[]) : null;
+  } catch {
+    // Sin categorías escritas, o ilegibles: se piden a la base como siempre.
+    return null;
+  }
+}
+
+/**
+ * Las categorías sin esperar a la base: las que la página trae escritas (las páginas de categoría, con los datos del
+ * último despliegue) o las últimas que se leyeron en esta visita. Null si todavía no se saben. Con esto el primer
+ * dibujo de una categoría ya tiene el título, la descripción y las subcategorías, y nada salta cuando responde la base.
+ */
+export function categoriasConocidas(): CategoriaPublica[] | null {
+  if (categoriasSabidas === undefined) categoriasSabidas = categoriasEscritas();
+  return categoriasSabidas;
+}
 
 export function listarCategorias(): Promise<CategoriaPublica[]> {
   if (!categoriasEnMemoria) {
@@ -282,7 +309,9 @@ export function listarCategorias(): Promise<CategoriaPublica[]> {
           categoriasEnMemoria = null;
           throw new Error(`No se pudieron cargar las categorías: ${error.message}`);
         }
-        return armarArbol((data ?? []) as FilaDeCategoria[]);
+        const arbol = armarArbol((data ?? []) as FilaDeCategoria[]);
+        categoriasSabidas = arbol;
+        return arbol;
       });
   }
   return categoriasEnMemoria;

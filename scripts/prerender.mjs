@@ -33,6 +33,8 @@ const ETIQUETA_DE_PRUEBA = "prueba";
 const RESPALDO = "aplicacion.html";
 /** El id del <script> con los datos del inicio. Lo lee src/lib/tienda/datosDelInicio.ts: si cambia uno, cambiar el otro. */
 const ID_DE_LOS_DATOS_DEL_INICIO = "datos-del-inicio";
+/** El id del <script> con las categorías. Lo lee src/lib/tienda/catalogo.ts: si cambia uno, cambiar el otro. */
+const ID_DE_LAS_CATEGORIAS = "datos-de-categorias";
 /** Tope de módulos que se precargan en el inicio, por si el trozo del inicio importara medio sitio. */
 const MAXIMO_DE_MODULOS_PRECARGADOS = 30;
 /** La imagen que acompaña a un enlace compartido cuando la página no tiene una propia: la foto de portada. */
@@ -355,6 +357,10 @@ async function main() {
   writeFileSync(indice, armarPagina(base, { ruta: "/", extraHead: extraDelInicio, cuerpo: cuerpoDelInicio }));
 
   // Categorías: una categoría principal lista también lo de sus subcategorías.
+  // Cada página de categoría lleva escritas las categorías tal como las devuelve la base (las mismas filas que pide la
+  // aplicación): así el título, la descripción y las subcategorías se dibujan de entrada y el listado no se corre
+  // cuando responde la base. Las lee src/lib/tienda/catalogo.ts (categoriasConocidas).
+  const categoriasEscritas = `    <script type="application/json" id="${ID_DE_LAS_CATEGORIAS}">${JSON.stringify(categoriasCrudas ?? []).replace(/</g, "\\u003c")}</script>\n`;
   for (const categoria of categorias) {
     const ids = idsDe(categoria);
     const suyos = ordenados.filter((p) => p.categoria_id !== null && p.categoria_id !== undefined && ids.has(Number(p.categoria_id))).slice(0, PRODUCTOS_POR_CATEGORIA);
@@ -386,7 +392,7 @@ async function main() {
           }
         : {}),
     };
-    const extraHead = jsonLd(coleccion, "categoria") + jsonLd(migasDe(cadena), "migas");
+    const extraHead = jsonLd(coleccion, "categoria") + jsonLd(migasDe(cadena), "migas") + categoriasEscritas;
     escribirPagina(ruta, armarPagina(base, { titulo: categoria.nombre, descripcion, ruta, extraHead, cuerpo }));
     urls.push(sitio + ruta);
   }

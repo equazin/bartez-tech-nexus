@@ -8,6 +8,7 @@ import { NoEncontrado } from "@/components/tienda/NoEncontrado";
 import { ListadoFiltrable } from "@/components/tienda/ListadoFiltrable";
 import { PreguntasFrecuentes } from "@/components/tienda/PreguntasFrecuentes";
 import {
+  categoriasConocidas,
   encontrarCategoria,
   fotoDeCategoria,
   fotosPorCategoria,
@@ -31,7 +32,13 @@ function accesosDe(nodo: CategoriaPublica, migas: CategoriaPublica[]): { lista: 
 
 export default function Categoria() {
   const { categoria: slug = "" } = useParams<{ categoria: string }>();
-  const [raices, setRaices] = useState<CategoriaPublica[] | null>(null);
+  // Las categorías vienen escritas en la página (o ya se leyeron en esta visita): el título, la descripción y las
+  // subcategorías se dibujan de entrada y el listado no se corre cuando responde la base.
+  // Si las conocidas no traen esta categoría (se creó después del último despliegue), se espera a la base.
+  const [raices, setRaices] = useState<CategoriaPublica[] | null>(() => {
+    const conocidas = categoriasConocidas();
+    return conocidas && encontrarCategoria(conocidas, slug) ? conocidas : null;
+  });
   const [fotos, setFotos] = useState<Map<number, string>>(new Map());
   const [productos, setProductos] = useState<ProductoPublico[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -92,6 +99,9 @@ export default function Categoria() {
   }
 
   const accesos = nodo ? accesosDe(nodo, migas) : { lista: [], madre: null };
+  // La categoría ya sabe cuántos productos tiene: se muestra de entrada y después vale la cantidad cargada.
+  const cantidadEsperada = nodo?.cantidad;
+  const cantidad = cargando ? cantidadEsperada : productos.length;
 
   return (
     <Tienda>
@@ -103,7 +113,11 @@ export default function Categoria() {
             <h1 className="font-display text-[36px] font-bold uppercase leading-none md:text-[44px]">{nodo?.nombre ?? "Categoría"}</h1>
             {nodo?.descripcion && <p className="text-base leading-relaxed text-muted-foreground">{nodo.descripcion}</p>}
           </div>
-          {!cargando && <span className="text-[15px] text-muted-foreground">{productos.length === 1 ? "1 producto" : `${productos.length} productos`}</span>}
+          {/* Mientras cargan los productos dice la cantidad que trae la categoría; sin ese dato ocupa su lugar sin verse.
+              En el celular va en un renglón propio: si apareciera después, correría todo lo de abajo. */}
+          <span className={cn("text-[15px] text-muted-foreground", cantidad === undefined && "invisible")} aria-hidden={cantidad === undefined || undefined}>
+            {cantidad === 1 ? "1 producto" : `${cantidad ?? 0} productos`}
+          </span>
         </div>
 
         {accesos.lista.length > 0 && (
@@ -156,7 +170,7 @@ export default function Categoria() {
           </Link>
         )}
 
-        <ListadoFiltrable productos={productos} cargando={cargando} error={error} textoVacio="Todavía no hay productos en esta categoría." />
+        <ListadoFiltrable productos={productos} cargando={cargando} error={error} textoVacio="Todavía no hay productos en esta categoría." cantidadEsperada={cantidadEsperada} />
       </div>
       <PreguntasFrecuentes />
     </Tienda>

@@ -159,10 +159,17 @@ interface Props {
   textoVacio?: string;
   /** El orden cuando la URL no dice otro: "nuevos" en Nuevos ingresos, "destacados" en el resto. */
   ordenInicial?: OrdenDelCatalogo;
+  /**
+   * Cuántos productos se esperan, si se sabe antes de cargarlos (una categoría lo sabe). Con el dato, la barra dice
+   * la cantidad de entrada y no cambia de ancho al llegar los productos: en el celular ese cambio corría la grilla.
+   */
+  cantidadEsperada?: number;
 }
 
+const textoDeCantidad = (cantidad: number): string => (cantidad === 1 ? "1 producto" : `${cantidad} productos`);
+
 /** Filtros a la izquierda, barra con orden y filtros activos, grilla con comparador y "Ver más". */
-export function ListadoFiltrable({ productos, cargando, error, textoVacio = "Todavía no hay productos acá.", ordenInicial = "destacados" }: Props) {
+export function ListadoFiltrable({ productos, cargando, error, textoVacio = "Todavía no hay productos acá.", ordenInicial = "destacados", cantidadEsperada }: Props) {
   const [parametros, setParametros] = useSearchParams();
   const seleccion = useMemo(() => leerSeleccion(parametros), [parametros]);
   const ordenParametro = parametros.get("orden");
@@ -210,7 +217,7 @@ export function ListadoFiltrable({ productos, cargando, error, textoVacio = "Tod
       <section aria-label="Resultados" className="flex min-w-0 flex-1 flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card px-3.5 py-2.5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-bold">{cargando ? "Cargando" : filtrados.length === 1 ? "1 producto" : `${filtrados.length} productos`}</span>
+            <span className="text-sm font-bold">{cargando ? (cantidadEsperada === undefined ? "Cargando" : textoDeCantidad(cantidadEsperada)) : textoDeCantidad(filtrados.length)}</span>
             <ChipsActivos seleccion={seleccion} onCambiar={cambiar} />
           </div>
           <label className="flex items-center gap-2.5 text-sm text-muted-foreground">
