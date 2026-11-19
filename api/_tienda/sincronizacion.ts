@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
+import { huellaDelCatalogo, pedirDespliegueDespues } from "../_shared/despliegue.js";
 import { consultarDolarBna, type TipoDeDolar } from "../_shared/dolarBna.js";
 import { camposDeElit, hayCredencialesDeElit, productoPorId, productosCambiadosDesde, type ProductoElit } from "../_shared/elitServidor.js";
 import { fail, methodNotAllowed, ok } from "../_shared/http.js";
@@ -71,6 +72,10 @@ interface Corrida {
   descripciones?: ResultadoDeDescripciones;
   /** Desde cuándo pedirle cambios a ELIT en la próxima corrida; solo avanza cuando la consulta terminó completa. */
   elit_hasta?: string;
+  /** El resumen de precios y stock con el que terminó la corrida (ver api/_shared/despliegue.ts). */
+  huella?: string;
+  /** Si se pidió rehacer las páginas escritas: "pedido" cuando cambió algún precio o el stock de algún producto. */
+  despliegue?: "pedido" | "sin_cambios" | "sin_dato";
 }
 
 interface FilaDeProveedor {
@@ -223,6 +228,14 @@ async function correr(req: VercelRequest, res: VercelResponse) {
   if (error) errorRecalculo = error.message;
   else recalculados = Number(data ?? 0);
 
+  // Las páginas escritas guardan el precio y el stock del último despliegue. Si desde la corrida anterior cambió
+  // alguno (por esta sincronización, por una venta o por una edición en el panel), se rehacen: así lo que lee Google
+  // en la ficha coincide con el feed, que sale de la base en el momento. La primera vez no hay con qué comparar y
+  // se rehacen igual.
+  const huella = await huellaDelCatalogo();
+  const despliegue: Corrida["despliegue"] = huella === null ? "sin_dato" : anterior?.huella === huella ? "sin_cambios" : "pedido";
+  if (despliegue === "pedido") pedirDespliegueDespues("sincronizacion");
+
   // Lo que entró de New Bytes sin descripción la toma acá, si queda tiempo.
   const descripcionesNuevas =
     config.newbytes.activa && hayCredencialesDeNewBytes() && Date.now() - inicio < 25_000 ? await completarDescripcionesNewBytes(50_000 - (Date.now() - inicio)) : undefined;
@@ -238,6 +251,9 @@ async function correr(req: VercelRequest, res: VercelResponse) {
     ...(errorRecalculo ? { error_recalculo: errorRecalculo } : {}),
     ...(descripcionesNuevas ? { descripciones: descripcionesNuevas } : {}),
     elit_hasta: completa ? new Date(inicio).toISOString() : anterior?.elit_hasta,
+    // Sin dato nuevo se conserva la huella anterior, para volver a comparar en la próxima corrida.
+    ...(huella ?? anterior?.huella ? { huella: huella ?? anterior?.huella } : {}),
+    despliegue,
   };
   const { error: errorAlGuardar } = await getSupabaseAdmin()
     .from("tienda_configuracion")

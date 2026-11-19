@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 import { consultarCuotas, hayMercadoPago, SIN_DATOS } from "../_shared/cuotas.js";
+import { pedirDespliegueDespues } from "../_shared/despliegue.js";
 import { fail, methodNotAllowed, ok } from "../_shared/http.js";
 import { getRoleFromRequest } from "../_shared/roles.js";
 import { getSupabaseAdmin, getSupabaseClient } from "../_shared/supabaseServer.js";
@@ -47,17 +48,6 @@ async function quienPide(req: VercelRequest): Promise<{ admin: boolean; userId: 
   const token = bearer?.startsWith("Bearer ") ? bearer.slice(7) : undefined;
   const userId = token ? ((await supabase.auth.getUser(token)).data.user?.id ?? null) : null;
   return { admin: rol === "admin", userId };
-}
-
-/** Con VERCEL_DEPLOY_HOOK_URL, un cambio de precios dispara un despliegue que vuelve a prerenderizar las fichas. */
-async function pedirDespliegue(motivo: string): Promise<void> {
-  const hook = process.env.VERCEL_DEPLOY_HOOK_URL?.trim();
-  if (!hook) return;
-  try {
-    await fetch(hook, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ motivo }) });
-  } catch (e: unknown) {
-    console.error("[precios] No se pudo pedir el despliegue:", e instanceof Error ? e.message : e);
-  }
 }
 
 function esElCron(req: VercelRequest): boolean {
@@ -136,7 +126,8 @@ async function dolar(req: VercelRequest, res: VercelResponse) {
     configuracionGuardada = null;
     const { data: recalculados, error: errorRecalculo } = await supabase.rpc("recalcular_precios");
     if (errorRecalculo) throw new Error(`Se guardó el dólar pero falló el recálculo: ${errorRecalculo.message}`);
-    void pedirDespliegue("dolar");
+    // Un dólar nuevo cambia todos los precios: las páginas escritas se rehacen (ver api/_shared/despliegue.ts).
+    pedirDespliegueDespues("dolar");
     return ok(res, { ...(await estadoDelDolar()), recalculados: Number(recalculados ?? 0) });
   }
 
@@ -200,6 +191,7 @@ async function recalcular(req: VercelRequest, res: VercelResponse) {
   }
   const { data, error } = await getSupabaseAdmin().rpc("recalcular_precios");
   if (error) throw new Error(`No se pudieron recalcular los precios: ${error.message}`);
-  void pedirDespliegue("recalculo");
+  // El recálculo diario rehace siempre las páginas escritas: así nunca pasan más de un día sin refrescarse.
+  pedirDespliegueDespues("recalculo");
   return ok(res, { recalculados: Number(data ?? 0), en: new Date().toISOString() });
 }
