@@ -23,27 +23,32 @@ const PASOS = ["Carrito", "Tus datos", "Envío", "Pago"];
 
 function Pasos() {
   return (
-    <ol aria-label="Pasos de la compra" className="grid grid-cols-4 gap-1.5 sm:gap-2">
-      {PASOS.map((paso, i) => (
-        <li
-          key={paso}
-          aria-current={i === 0 ? "step" : undefined}
-          className={cn(
-            "flex h-10 min-w-0 items-center gap-1.5 rounded-xl border bg-card px-2 text-xs sm:h-[52px] sm:gap-2.5 sm:px-3.5 sm:text-[15px]",
-            i === 0 ? "border-foreground font-bold" : "border-border text-muted-foreground",
-          )}
-        >
-          <span
+    // En el celular los cuatro nombres no entran en una fila y quedaban cortados ("Car…", "Tus …"): el paso actual
+    // muestra su nombre y los demás solo el número (el nombre sigue estando para quien usa lector de pantalla).
+    <ol aria-label="Pasos de la compra" className="flex gap-1.5 sm:grid sm:grid-cols-4 sm:gap-2">
+      {PASOS.map((paso, i) => {
+        const actual = i === 0;
+        return (
+          <li
+            key={paso}
+            aria-current={actual ? "step" : undefined}
             className={cn(
-              "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs sm:h-7 sm:w-7 sm:text-sm",
-              i === 0 ? "bg-primary text-primary-foreground" : "border border-input",
+              "flex h-10 min-w-0 items-center gap-1.5 rounded-xl border bg-card px-2 text-xs sm:h-[52px] sm:gap-2.5 sm:px-3.5 sm:text-[15px]",
+              actual ? "flex-1 border-foreground font-bold" : "border-border text-muted-foreground",
             )}
           >
-            {i + 1}
-          </span>
-          <span className="truncate">{paso}</span>
-        </li>
-      ))}
+            <span
+              className={cn(
+                "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs sm:h-7 sm:w-7 sm:text-sm",
+                actual ? "bg-primary text-primary-foreground" : "border border-input",
+              )}
+            >
+              {i + 1}
+            </span>
+            <span className={cn(actual ? "truncate" : "sr-only sm:not-sr-only sm:truncate")}>{paso}</span>
+          </li>
+        );
+      })}
     </ol>
   );
 }
@@ -247,7 +252,8 @@ export default function Carrito() {
                       medioActual === m.id ? "bg-foreground text-background" : "hover:bg-secondary",
                     )}
                   >
-                    <span className="text-sm font-bold leading-tight">{nombreCortoDeMedio(m)}</span>
+                    {/* En el celular va un punto más chico: "Transferencia" no entraba en su casillero. */}
+                    <span className="text-xs font-bold leading-tight sm:text-sm">{nombreCortoDeMedio(m)}</span>
                     <span className={cn("text-xs tabular-nums", medioActual === m.id ? "text-background/80" : "text-muted-foreground")}>
                       {formatearPesos((subtotalPorMedio[m.id] ?? subtotal) + (costoEnvio ?? 0))}
                     </span>

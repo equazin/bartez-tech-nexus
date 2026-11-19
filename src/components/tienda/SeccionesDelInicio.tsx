@@ -128,7 +128,8 @@ export function Portada({ raices, fotos }: { raices: CategoriaPublica[] | null; 
               >
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
                   <span className="font-display text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{a.rotulo}</span>
-                  <span className="font-display text-[28px] font-bold uppercase leading-none">{a.titulo}</span>
+                  {/* En el celular va más chico: una palabra larga ("componentes") pisaba la foto de al lado. */}
+                  <span className="font-display text-[24px] font-bold uppercase leading-none sm:text-[28px]">{a.titulo}</span>
                   <span className="text-sm leading-snug text-muted-foreground">{a.texto}</span>
                   <span className="text-sm font-bold">{a.enlace} →</span>
                 </div>

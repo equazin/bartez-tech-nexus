@@ -29,6 +29,16 @@
     background: hsl(var(--primary) / 0.3);
     color: hsl(var(--foreground));
   }
+
+  /* En el celular los campos van con letra de 16 px: con menos, Safari en iPhone agranda la página al tocar el campo
+     y no la vuelve a achicar. Vale para toda la aplicación (tienda y panel); el alto de cada campo no cambia. */
+  @media (max-width: 767px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    select,
+    textarea {
+      font-size: max(1rem, 16px) !important;
+    }
+  }
 }
 
 @layer utilities {

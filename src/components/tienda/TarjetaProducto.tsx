@@ -106,13 +106,15 @@ export function TarjetaProducto({ producto, conComparar = false }: PropsDeTarjet
       {conComparar ? (
         <div className="flex flex-col gap-2">
           <EstadoDeStock producto={producto} />
-          <div className="flex gap-2">
+          {/* En una tarjeta angosta (dos por fila en el celular) los dos botones no entran lado a lado: pasan a ir uno
+              debajo del otro, a todo el ancho, en vez de apretarse hasta cortar el texto. */}
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               aria-pressed={comparando}
               onClick={() => compararYAvisar(producto)}
               className={cn(
-                "flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-input text-[13px] font-bold transition-colors",
+                "flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-input px-2 text-[13px] font-bold transition-colors",
                 comparando ? "bg-accent" : "hover:bg-secondary",
               )}
             >
@@ -123,7 +125,7 @@ export function TarjetaProducto({ producto, conComparar = false }: PropsDeTarjet
               type="button"
               disabled={!producto.hay_stock || producto.precio_final_ars === null}
               onClick={() => agregarYAvisar(producto)}
-              className="h-10 flex-1 rounded-xl bg-primary text-[13px] font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground"
+              className="h-10 min-w-[4.75rem] flex-1 rounded-xl bg-primary px-3 text-[13px] font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground"
             >
               Agregar
             </button>
