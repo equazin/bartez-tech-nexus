@@ -30,7 +30,7 @@ function FranjaDeServicio() {
     <div className="border-b border-border bg-background">
       <div className="container mx-auto flex flex-wrap items-center justify-between gap-x-6 gap-y-1 px-4 py-1.5 text-xs sm:text-[13px]">
         <p className="hidden flex-wrap gap-x-5 gap-y-0.5 text-muted-foreground sm:flex">
-          <span>Envío a domicilio a todo el país</span>
+          <span>Envío a domicilio a todo el país, salvo Tierra del Fuego</span>
           <span className="hidden sm:inline">Precio final con IVA incluido</span>
         </p>
         <nav aria-label="Ayuda" className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-1 sm:w-auto sm:justify-start">

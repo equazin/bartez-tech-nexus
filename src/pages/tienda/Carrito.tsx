@@ -130,11 +130,11 @@ export default function Carrito() {
   const faltaElEnvio = envio !== null && !resumenEnvio.costoFirme;
   const notaDelEnvio =
     envio === null
-      ? "A domicilio, a todo el país."
+      ? "A domicilio, a todo el país salvo Tierra del Fuego."
       : faltaElEnvio
         ? "El costo y el plazo dependen del destino: los ves en el paso del envío, antes de pagar. El total de acá todavía no lo incluye."
         : resumenEnvio.igualEnTodoElPais
-          ? "Un solo servicio, el mismo para todo el país. El total que ves acá es el que vas a pagar."
+          ? "Un solo servicio, el mismo para todos los destinos. El total que ves acá es el que vas a pagar."
           : "El total que ves acá es el que vas a pagar. El plazo lo ves en el paso del envío.";
 
   return (

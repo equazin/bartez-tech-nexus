@@ -25,7 +25,9 @@ hasta que se toca; lo nuevo se escribe en español.
   El rojo marca la acción principal y no compite en todo; sobre grafito, el texto funcional va en blanco y el rojo
   solo en titulares grandes. Fuentes servidas desde la propia web.
 - Envíos iguales para todo el país: nada de entrega en el día, moto ni retiro en una ciudad, y la interfaz no
-  destaca ninguna ciudad.
+  destaca ninguna ciudad. Única excepción (decisión de Nico del 19/11/2026): no se envía a Tierra del Fuego. El
+  bloqueo sale de la clave `envio_sin_cobertura` de la configuración y los textos dicen "a todo el país, salvo
+  Tierra del Fuego"; si cambia uno, cambia el otro.
 - Precios siempre finales con IVA incluido; mostrar contado y cuotas. Se calculan en servidor, nunca en el navegador.
 - Solo configuraciones de fábrica: nunca ofrecer ampliar memoria o disco.
 - Un pedido se marca pagado SOLO por webhook firmado y verificado de Mercado Pago (o por validación manual

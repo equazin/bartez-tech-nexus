@@ -22,7 +22,7 @@ const url = process.env.VITE_SUPABASE_URL?.trim();
 const clave = process.env.VITE_SUPABASE_ANON_KEY?.trim();
 const sitio = (process.env.VITE_SITE_URL?.trim() || "https://DOMINIO-DE-TEQO-A-CONFIRMAR").replace(/\/$/, "");
 const NOMBRE = "Teqo";
-const DESCRIPCION = "Tecnología para trabajar, crear y jugar, con envío a todo el país y precios finales con IVA incluido.";
+const DESCRIPCION = "Tecnología para trabajar, crear y jugar, con envío a domicilio y precios finales con IVA incluido.";
 const MAXIMO_DE_PRODUCTOS = 20_000;
 const PRODUCTOS_POR_CATEGORIA = 60;
 const DESTACADOS_DEL_INICIO = 12;
@@ -596,7 +596,7 @@ async function main() {
       .join("")}</ul></nav>` +
     (destacados.length > 0 ? `<h2>Destacados</h2><ul>${destacados.map(itemDeProducto).join("")}</ul>` : "") +
     `<ul>${fijas.map((f) => `<li>${enlaceA(f.ruta, f.titulo)}</li>`).join("")}</ul>` +
-    `<p>Envío a domicilio a todo el país. Precios finales con IVA incluido.</p></main>`;
+    `<p>Envío a domicilio a todo el país, salvo Tierra del Fuego. Precios finales con IVA incluido.</p></main>`;
   const cabezaDelInicio = jsonLd(
     {
       "@context": "https://schema.org",
@@ -619,10 +619,10 @@ async function main() {
     const cadena = cadenaDe(categoria);
     const ruta = `/${categoria.slug}`;
     const propia = typeof categoria.descripcion === "string" ? categoria.descripcion.trim() : "";
-    const descripcion = propia || `${categoria.nombre} con envío a todo el país y precios finales con IVA incluido.`;
+    const descripcion = propia || `${categoria.nombre} con envío a domicilio y precios finales con IVA incluido.`;
     const cuerpo =
       `<main>${migasEnlazadas(cadena.slice(0, -1))}<h1>${escapar(categoria.nombre)}</h1>` +
-      `<p>${escapar(categoria.cantidad)} productos con envío a todo el país y precio final con IVA incluido.</p>` +
+      `<p>${escapar(categoria.cantidad)} productos con envío a domicilio y precio final con IVA incluido.</p>` +
       (propia ? `<p>${escapar(propia)}</p>` : "") +
       (hijas.length > 0 ? `<ul>${hijas.map((h) => `<li>${enlaceA(`/${h.slug}`, h.nombre)}</li>`).join("")}</ul>` : "") +
       `<ul>${suyos.map(itemDeProducto).join("")}</ul></main>`;
@@ -669,7 +669,7 @@ async function main() {
     const imagen = imagenDe(p);
     const categoria = p.categoria_slug ? (categoriaPorSlug.get(p.categoria_slug) ?? null) : null;
     const cadena = categoria ? cadenaDe(categoria) : [];
-    const descripcion = p.descripcion_corta?.trim() || `${p.nombre} con envío a todo el país y precio final con IVA incluido.`;
+    const descripcion = p.descripcion_corta?.trim() || `${p.nombre} con envío a domicilio y precio final con IVA incluido.`;
     const specs = Object.entries(p.specs ?? {}).filter(([, v]) => typeof v === "string" || typeof v === "number");
     const producto = {
       "@context": "https://schema.org",
@@ -705,7 +705,7 @@ async function main() {
       p.precio_final_ars !== null ? `${escapar(formatoPesos.format(p.precio_final_ars))} · precio final con IVA incluido` : "Precio a confirmar"
     } · ${p.hay_stock ? "En stock" : "Sin stock"}</p><p>${escapar(descripcion)}</p>${
       specs.length > 0 ? `<table>${specs.map(([k, v]) => `<tr><th>${escapar(k)}</th><td>${escapar(v)}</td></tr>`).join("")}</table>` : ""
-    }<p>Envío a domicilio a todo el país. Configuración de fábrica.</p></main>`;
+    }<p>Envío a domicilio a todo el país, salvo Tierra del Fuego. Configuración de fábrica.</p></main>`;
     escribirPagina(ruta, armarPagina(base, { titulo: p.nombre, descripcion, ruta, extraHead, cuerpo, imagen, tipo: "product" }));
     urls.push(sitio + ruta);
     fichas += 1;

@@ -108,12 +108,12 @@ function Envio({ producto }: { producto: ProductoPublico }) {
   // Solo se dice "el mismo precio y el mismo plazo" cuando es cierto: con tarifa fija. Lo que se cotiza según el
   // destino lo avisa, en vez de mostrar un costo o un plazo que no se conocen todavía.
   const nota = !cotizacion
-    ? "A domicilio, a todo el país."
+    ? "A domicilio, a todo el país salvo Tierra del Fuego."
     : !envio.costoFirme
       ? "El costo y el plazo dependen del destino. Los ves al cargar tu dirección, antes de pagar."
       : envio.igualEnTodoElPais
-        ? "El mismo precio y el mismo plazo en cualquier provincia."
-        : `${cotizacion.gratis ? "Sin cargo a cualquier provincia" : "El mismo precio en cualquier provincia"}. El plazo lo ves al cargar tu dirección, antes de pagar.`;
+        ? "El mismo precio y el mismo plazo para todos los destinos."
+        : `${cotizacion.gratis ? "Sin cargo para todos los destinos" : "El mismo precio para todos los destinos"}. El plazo lo ves al cargar tu dirección, antes de pagar.`;
 
   return (
     <div className="flex flex-col gap-2.5 rounded-2xl border border-border bg-card px-5 py-[18px]">
@@ -220,7 +220,7 @@ export default function Producto() {
     };
   }, [producto]);
 
-  usarSeo(producto?.nombre ?? null, producto?.descripcion_corta ?? (producto ? `${producto.nombre} con envío a todo el país y precio final con IVA incluido.` : null));
+  usarSeo(producto?.nombre ?? null, producto?.descripcion_corta ?? (producto ? `${producto.nombre} con envío a domicilio y precio final con IVA incluido.` : null));
   // Precio y stock del momento para Google: los del prerender son los del último despliegue.
   usarDatosEstructurados("producto", producto ? datosDelProducto(producto) : null);
   usarNoIndexar(Boolean(producto?.tags?.includes(ETIQUETA_DE_PRUEBA)));
@@ -371,9 +371,9 @@ export default function Producto() {
 
         <section id="envio-y-garantia" className="grid grid-cols-1 scroll-mt-6 gap-4 md:grid-cols-3">
           <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-5">
-            <p className="font-display text-[15px] font-bold uppercase tracking-[0.08em]">Envío a todo el país</p>
+            <p className="font-display text-[15px] font-bold uppercase tracking-[0.08em]">Envío a domicilio</p>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Llega a tu domicilio en cualquier provincia. El costo y el plazo los ves antes de pagar, y te mandamos el seguimiento por mail.
+              Llega a tu domicilio en todo el país, salvo Tierra del Fuego. El costo y el plazo los ves antes de pagar, y te mandamos el seguimiento por mail.
             </p>
           </div>
           <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-5">

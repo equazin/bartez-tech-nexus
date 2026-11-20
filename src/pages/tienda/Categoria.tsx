@@ -66,7 +66,7 @@ export default function Categoria() {
   const migas = useMemo(() => (raices && nodo ? rutaDeCategoria(raices, nodo.id) : []), [raices, nodo]);
   const claveIds = ids.join(",");
 
-  usarSeo(nodo ? nodo.nombre : null, nodo ? (nodo.descripcion ?? `${nodo.nombre} con envío a todo el país y precios finales con IVA incluido.`) : null);
+  usarSeo(nodo ? nodo.nombre : null, nodo ? (nodo.descripcion ?? `${nodo.nombre} con envío a domicilio y precios finales con IVA incluido.`) : null);
 
   useEffect(() => {
     if (!nodo) return;

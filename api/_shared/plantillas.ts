@@ -34,7 +34,7 @@ function base(titulo: string, cuerpo: string): string {
           ${cuerpo}
         </td></tr>
         <tr><td style="padding:16px 28px 24px;font-size:12px;line-height:18px;color:#676B73;border-top:1px solid #D5D7DC;">
-          Teqo · Subí tu mundo. · Envío a domicilio a todo el país.
+          Teqo · Subí tu mundo. · Envío a domicilio a todo el país, salvo Tierra del Fuego.
         </td></tr>
       </table>
     </td></tr>

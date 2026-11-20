@@ -4,7 +4,7 @@ const PREGUNTAS = [
   {
     pregunta: "¿Cuánto sale el envío?",
     respuesta:
-      "Depende del producto. Si tiene una tarifa fija, es la misma en cualquier provincia y figura en su ficha. Si no, se calcula según el destino cuando cargás tu dirección, antes de pagar.",
+      "Depende del producto. Si tiene una tarifa fija, es la misma para todos los destinos y figura en su ficha. Si no, se calcula según el destino cuando cargás tu dirección, antes de pagar. Por ahora no enviamos a Tierra del Fuego.",
   },
   {
     pregunta: "¿Puedo pagar en cuotas?",

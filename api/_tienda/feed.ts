@@ -243,7 +243,7 @@ function itemDe(p: ProductoDelFeed, datos: DatosDelFeed): string | null {
   const id = sku && sku.length <= LARGO_DEL_ID ? sku : String(p.id);
   const lista = Number(p.precio_lista_ars);
   const enOferta = p.oferta === true && Number.isFinite(lista) && lista > precio;
-  const descripcion = (p.descripcion ?? "").trim() || (p.descripcion_corta ?? "").trim() || `${nombre} con envío a todo el país y precio final con IVA incluido.`;
+  const descripcion = (p.descripcion ?? "").trim() || (p.descripcion_corta ?? "").trim() || `${nombre} con envío a domicilio y precio final con IVA incluido.`;
   const ficha = fichaDe(p);
   const color = colorDe(ficha);
   const rubro = rubroDe(p.categoria_id === null ? null : Number(p.categoria_id), datos.categorias);
@@ -409,7 +409,7 @@ async function armarFeed(sitio: string): Promise<{ xml: string; cantidad: number
     `  <channel>\n` +
     `    <title>${escapar(NOMBRE)}</title>\n` +
     `    <link>${escapar(sitio)}</link>\n` +
-    `    <description>${escapar("Catálogo de Teqo: precios finales con IVA incluido y envío a todo el país.")}</description>\n` +
+    `    <description>${escapar("Catálogo de Teqo: precios finales con IVA incluido y envío a domicilio.")}</description>\n` +
     `${items.join("\n")}\n` +
     `  </channel>\n` +
     `</rss>\n`;

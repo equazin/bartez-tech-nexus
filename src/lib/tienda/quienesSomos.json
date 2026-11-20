@@ -2,7 +2,7 @@
   "titulo": "Quiénes somos",
   "descripcion": "Teqo es una tienda online argentina de notebooks, gaming, monitores, periféricos y componentes: cómo trabajamos, de dónde sale tu pedido y cómo contactarnos.",
   "etiqueta": "Notebooks · Gaming · Monitores · Componentes",
-  "bajada": "Teqo es una tienda online argentina de notebooks, gaming, monitores, periféricos y componentes. Vendemos solo por internet y enviamos a domicilio a todo el país.",
+  "bajada": "Teqo es una tienda online argentina de notebooks, gaming, monitores, periféricos y componentes. Vendemos solo por internet y enviamos a domicilio a todo el país, salvo Tierra del Fuego.",
   "comoTrabajamos": {
     "titulo": "Cómo trabajamos",
     "tarjetas": [

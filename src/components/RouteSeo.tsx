@@ -14,7 +14,7 @@ const SITE_URL = ((import.meta.env.VITE_SITE_URL as string | undefined) ?? "http
 // misma. Con "/" acá, todo el catálogo se declaraba copia del inicio.
 const DEFAULT_SEO: RouteSeoConfig = {
   title: "Teqo | Notebooks, gaming, monitores y periféricos",
-  description: "Tecnología para trabajar, crear y jugar, con envío a todo el país y precios finales con IVA incluido.",
+  description: "Tecnología para trabajar, crear y jugar, con envío a domicilio y precios finales con IVA incluido.",
 };
 
 /** Páginas de la tienda que son de cada comprador: nunca se indexan. */

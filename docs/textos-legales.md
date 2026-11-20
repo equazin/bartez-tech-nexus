@@ -78,7 +78,7 @@ Por cada compra emitimos factura B a nombre de quien figura en el pedido. La fac
 
 7. Envíos
 
-Enviamos a todo el país con la misma propuesta. El costo y el plazo estimado se muestran antes de confirmar la compra y dependen del producto, del peso del pedido y del destino.
+Enviamos a todo el país, salvo Tierra del Fuego, con la misma propuesta. El costo y el plazo estimado se muestran antes de confirmar la compra y dependen del producto, del peso del pedido y del destino.
 
 Algunos productos los despacha directamente nuestro proveedor. En esos casos, el plazo y el seguimiento se informan en el pedido. Si tu compra incluye productos que salen de distintos lugares, pueden llegar en envíos separados.
 

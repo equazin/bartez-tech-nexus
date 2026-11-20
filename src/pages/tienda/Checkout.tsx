@@ -366,7 +366,7 @@ export default function Checkout() {
 
           <section className="space-y-4">
             <h2 className="text-[20px] font-bold leading-[26px]">2. Envío</h2>
-            <p className="text-sm text-muted-foreground">Mandamos a todo el país. El costo depende del código postal y del tamaño del paquete.</p>
+            <p className="text-sm text-muted-foreground">Mandamos a todo el país, salvo Tierra del Fuego. El costo depende del código postal y del tamaño del paquete.</p>
             {misDatos && misDatos.direcciones.length > 0 && (
               <Campo etiqueta="Tus direcciones guardadas">
                 <select

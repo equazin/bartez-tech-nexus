@@ -89,7 +89,7 @@ export function datosDelProducto(p: ProductoPublico): Record<string, unknown> {
     "@type": "Product",
     name: p.nombre,
     ...(imagenes.length > 0 ? { image: imagenes } : {}),
-    description: p.descripcion_corta?.trim() || `${p.nombre} con envío a todo el país y precio final con IVA incluido.`,
+    description: p.descripcion_corta?.trim() || `${p.nombre} con envío a domicilio y precio final con IVA incluido.`,
     ...(p.sku ? { sku: p.sku } : {}),
     ...(p.marca ? { brand: { "@type": "Brand", name: p.marca } } : {}),
     ...(p.precio_final_ars !== null

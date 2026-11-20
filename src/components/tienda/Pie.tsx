@@ -56,7 +56,7 @@ export function Pie() {
             <img src="/marca/teqo-encendido-fondo-oscuro.svg" alt="teqo." width={2083} height={966} className="h-10 w-auto self-start" />
             <p className="font-display text-xl font-bold uppercase">Subí tu mundo.</p>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Notebooks, gaming, monitores, periféricos y componentes. Envío a domicilio a todo el país.
+              Notebooks, gaming, monitores, periféricos y componentes. Envío a domicilio a todo el país, salvo Tierra del Fuego.
             </p>
             <div className="flex flex-wrap gap-2 pt-1">
               <span className="rounded-chip border border-border px-3 py-1.5 text-[13px]">Mercado Pago</span>

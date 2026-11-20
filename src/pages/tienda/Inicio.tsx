@@ -30,7 +30,7 @@ function useCarga<T>(cargar: () => Promise<T>, dependencias: DependencyList): T 
 
 /** El inicio: las secciones activas del panel, en su orden. Sin secciones cargadas, el inicio de siempre. */
 export default function Inicio() {
-  usarSeo("Notebooks, gaming, monitores, periféricos y componentes", "Tecnología para trabajar, crear y jugar, con envío a todo el país y precios finales con IVA incluido.");
+  usarSeo("Notebooks, gaming, monitores, periféricos y componentes", "Tecnología para trabajar, crear y jugar, con envío a domicilio y precios finales con IVA incluido.");
 
   const raices = useCarga(() => listarCategorias(), []);
   const fotos = useCarga(() => fotosPorCategoria(), []);
