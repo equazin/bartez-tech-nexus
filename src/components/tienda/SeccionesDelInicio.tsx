@@ -5,7 +5,7 @@
 import { FotoDeProducto } from "@/components/tienda/FotoDeProducto";
 import { useEffect, useMemo, useRef, useState, type DependencyList, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Check, ChevronLeft, ChevronRight, CreditCard, MessageCircle, Receipt, RotateCcw, Truck } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, CreditCard, MessageCircle, Receipt, RotateCcw, Truck, type LucideIcon } from "lucide-react";
 import { Bloque, EncabezadoDeSeccion } from "@/components/tienda/Seccion";
 import { ChipsDeDatos, EstadoDeStock, GrillaProductos, TarjetaProducto, agregarYAvisar } from "@/components/tienda/TarjetaProducto";
 import { PreciosDelProducto } from "@/components/tienda/Precio";
@@ -55,9 +55,10 @@ function useCarga<T>(cargar: () => Promise<T>, dependencias: DependencyList): T 
   return valor;
 }
 
-const PROMESAS = [
+/** `enCelular`: el título que se muestra en el celular, donde la promesa va sin su descripción. */
+const PROMESAS: Array<{ icono: LucideIcon; titulo: string; enCelular?: string; texto: string }> = [
   { icono: Truck, titulo: "Envío a domicilio", texto: "A todo el país, salvo Tierra del Fuego. El costo lo ves antes de pagar." },
-  { icono: Receipt, titulo: "Precio final", texto: "Con IVA incluido, sin sorpresas al pagar." },
+  { icono: Receipt, titulo: "Precio final", enCelular: "Precio final con IVA", texto: "Con IVA incluido, sin sorpresas al pagar." },
   { icono: CreditCard, titulo: "3 cuotas sin interés", texto: "Con tarjeta de crédito por Mercado Pago, o contado por transferencia." },
   { icono: RotateCcw, titulo: "10 días para arrepentirte", texto: "Desde que lo recibís, sin registrarte." },
 ];
@@ -84,7 +85,25 @@ function idsDe(raices: CategoriaPublica[] | null, slug: string): number[] {
   return nodo ? idsConDescendientes(nodo) : [];
 }
 
-export function Portada({ raices, fotos }: { raices: CategoriaPublica[] | null; fotos: Map<number, string> | null }) {
+interface AccesoDeLaPortada {
+  clave: string;
+  rotulo: string;
+  titulo: ReactNode;
+  texto: string;
+  /** En el celular la tarjeta es angosta: un texto y un enlace más cortos. */
+  textoCorto?: string;
+  enlace: string;
+  enlaceCorto?: string;
+  ruta: string;
+  foto: string | null;
+}
+
+/**
+ * Los dos accesos de la portada: monitores para jugar y PC y componentes. En el celular son dos tarjetas chicas lado
+ * a lado, con la foto arriba, y el inicio las muestra después de la sección que sigue a la portada (`aparte`); desde
+ * 768 px son dos tarjetas anchas dentro de la portada, con la foto al costado.
+ */
+export function AccesosDeLaPortada({ raices, fotos, aparte = false }: { raices: CategoriaPublica[] | null; fotos: Map<number, string> | null; aparte?: boolean }) {
   const jugar = raices ? encontrarCategoria(raices, "monitores-para-jugar") : null;
   const componentes = raices ? encontrarCategoria(raices, "pc-y-componentes") : null;
   const desdeJugar = useCarga(() => (jugar ? precioDesde(idsConDescendientes(jugar)) : Promise.resolve(null)), [jugar?.id]);
@@ -100,6 +119,7 @@ export function Portada({ raices, fotos }: { raices: CategoriaPublica[] | null; 
       ),
       texto: desdeJugar ? `Monitores para jugar desde ${formatearPesos(desdeJugar)}.` : "Monitores para jugar, con el dato que importa a la vista.",
       enlace: "Ver monitores para jugar",
+      enlaceCorto: "Ver monitores",
       ruta: `/${jugar.slug}`,
       foto: fotos ? fotoDeCategoria(jugar, fotos) : null,
     },
@@ -108,48 +128,72 @@ export function Portada({ raices, fotos }: { raices: CategoriaPublica[] | null; 
       rotulo: "Nuevo en Teqo",
       titulo: <>PC y componentes</>,
       texto: "Placas de video, procesadores, memorias, discos, fuentes y gabinetes.",
+      textoCorto: "Placas de video, procesadores, memorias y más.",
       enlace: "Ver componentes",
       ruta: `/${componentes.slug}`,
       foto: fotos ? fotoDeCategoria(componentes, fotos) : null,
     },
-  ].filter(Boolean) as Array<{ clave: string; rotulo: string; titulo: ReactNode; texto: string; enlace: string; ruta: string; foto: string | null }>;
+  ].filter(Boolean) as AccesoDeLaPortada[];
 
+  if (accesos.length === 0) return null;
+
+  const tarjetas = (
+    <div className="grid min-w-0 grid-cols-2 gap-3 md:gap-4">
+      {accesos.map((a) => (
+        <Link
+          key={a.clave}
+          to={a.ruta}
+          className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-3 transition-colors hover:border-input md:min-h-[170px] md:flex-row md:items-center md:gap-4 md:p-6"
+        >
+          {/* La foto va primero para quedar arriba en el celular; en pantalla ancha pasa al costado derecho. */}
+          {a.foto && (
+            <span className="flex h-24 w-full shrink-0 items-center justify-center rounded-xl bg-placa-foto md:order-last md:h-[140px] md:w-[140px]">
+              <FotoDeProducto src={a.foto} className="max-h-[84px] max-w-[84px] object-contain mix-blend-multiply md:max-h-[120px] md:max-w-[120px]" />
+            </span>
+          )}
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <span className="font-display text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{a.rotulo}</span>
+            <span className="font-display text-[20px] font-bold uppercase leading-none md:text-[28px]">{a.titulo}</span>
+            <span className="text-[13px] leading-snug text-muted-foreground md:text-sm">
+              <span className="md:hidden">{a.textoCorto ?? a.texto}</span>
+              <span className="hidden md:inline">{a.texto}</span>
+            </span>
+            {/* `mt-auto`: en el celular los dos enlaces quedan a la misma altura aunque un texto ocupe más renglones. */}
+            <span className="mt-auto text-[13px] font-bold md:text-sm">
+              <span className="md:hidden">{a.enlaceCorto ?? a.enlace}</span>
+              <span className="hidden md:inline">{a.enlace}</span> →
+            </span>
+          </div>
+        </Link>
+      ))}
+    </div>
+  );
+
+  return aparte ? <Bloque etiqueta="Accesos">{tarjetas}</Bloque> : tarjetas;
+}
+
+/**
+ * La portada del inicio: el carrusel, los accesos y las promesas. Con `accesosAparte` los accesos no van acá: el
+ * inicio los muestra más abajo (en el celular, después de la sección que sigue a la portada).
+ */
+export function Portada({ raices, fotos, accesosAparte = false }: { raices: CategoriaPublica[] | null; fotos: Map<number, string> | null; accesosAparte?: boolean }) {
   return (
-    <Bloque className="pt-6" etiqueta="Portada">
+    <Bloque className="gap-4 pt-6 md:gap-5" etiqueta="Portada">
       <div className="flex flex-col gap-4">
         <PortadaDelInicio />
-        {accesos.length > 0 && (
-          <div className="grid grid-cols-1 min-w-0 gap-4 md:grid-cols-2">
-            {accesos.map((a) => (
-              <Link
-                key={a.clave}
-                to={a.ruta}
-                className="flex min-h-[170px] items-center gap-4 rounded-2xl border border-border bg-card p-6 transition-colors hover:border-input"
-              >
-                <div className="flex min-w-0 flex-1 flex-col gap-2">
-                  <span className="font-display text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{a.rotulo}</span>
-                  {/* En el celular va más chico: una palabra larga ("componentes") pisaba la foto de al lado. */}
-                  <span className="font-display text-[24px] font-bold uppercase leading-none sm:text-[28px]">{a.titulo}</span>
-                  <span className="text-sm leading-snug text-muted-foreground">{a.texto}</span>
-                  <span className="text-sm font-bold">{a.enlace} →</span>
-                </div>
-                {a.foto && (
-                  <span className="flex h-[140px] w-[140px] shrink-0 items-center justify-center rounded-xl bg-placa-foto">
-                    <FotoDeProducto src={a.foto} className="max-h-[120px] max-w-[120px] object-contain mix-blend-multiply" />
-                  </span>
-                )}
-              </Link>
-            ))}
-          </div>
-        )}
+        {!accesosAparte && <AccesosDeLaPortada raices={raices} fotos={fotos} />}
       </div>
-      <ul className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 xl:grid-cols-4">
-        {PROMESAS.map(({ icono: Icono, titulo, texto }) => (
-          <li key={titulo} className="flex items-center gap-3.5 bg-card px-5 py-[18px]">
-            <Icono className="h-7 w-7 shrink-0" strokeWidth={1.8} aria-hidden />
+      {/* En el celular, un bloque de dos por dos solo con el título; desde 640 px vuelve la descripción. */}
+      <ul className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border xl:grid-cols-4">
+        {PROMESAS.map(({ icono: Icono, titulo, enCelular, texto }) => (
+          <li key={titulo} className="flex min-h-[60px] items-center gap-2.5 bg-card px-3 py-2.5 sm:gap-3.5 sm:px-5 sm:py-[18px]">
+            <Icono className="h-[22px] w-[22px] shrink-0 sm:h-7 sm:w-7" strokeWidth={1.8} aria-hidden />
             <div>
-              <p className="text-[15px] font-bold">{titulo}</p>
-              <p className="text-[13px] text-muted-foreground">{texto}</p>
+              <p className="text-sm font-bold leading-[18px] sm:text-[15px] sm:leading-normal">
+                <span className="sm:hidden">{enCelular ?? titulo}</span>
+                <span className="hidden sm:inline">{titulo}</span>
+              </p>
+              <p className="hidden text-[13px] text-muted-foreground sm:block">{texto}</p>
             </div>
           </li>
         ))}
@@ -533,11 +577,24 @@ function PorUso({ raices, fotos }: { raices: CategoriaPublica[] | null; fotos: M
   );
 }
 
-/** Una sección del inicio según su tipo y su configuración del panel. */
-export function SeccionDelInicioVista({ seccion, raices, fotos }: { seccion: SeccionDelInicio; raices: CategoriaPublica[] | null; fotos: Map<number, string> | null }) {
+/**
+ * Una sección del inicio según su tipo y su configuración del panel. `accesosAparte` solo cuenta para la portada: el
+ * inicio lo pasa en el celular, donde muestra los accesos más abajo con `AccesosDeLaPortada`.
+ */
+export function SeccionDelInicioVista({
+  seccion,
+  raices,
+  fotos,
+  accesosAparte = false,
+}: {
+  seccion: SeccionDelInicio;
+  raices: CategoriaPublica[] | null;
+  fotos: Map<number, string> | null;
+  accesosAparte?: boolean;
+}) {
   switch (seccion.tipo) {
     case "portada":
-      return <Portada raices={raices} fotos={fotos} />;
+      return <Portada raices={raices} fotos={fotos} accesosAparte={accesosAparte} />;
     case "categorias":
       return <QueEstasBuscando raices={raices} fotos={fotos} titulo={seccion.titulo || "Qué estás buscando"} slugs={seccion.config.slugs} />;
     case "productos":

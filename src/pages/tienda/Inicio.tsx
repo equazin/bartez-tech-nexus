@@ -1,8 +1,9 @@
-import { useEffect, useState, type DependencyList } from "react";
+import { Fragment, useEffect, useState, type DependencyList } from "react";
 import { Tienda } from "@/components/tienda/Tienda";
-import { SeccionDelInicioVista } from "@/components/tienda/SeccionesDelInicio";
+import { AccesosDeLaPortada, SeccionDelInicioVista } from "@/components/tienda/SeccionesDelInicio";
 import { fotosPorCategoria, listarCategorias } from "@/lib/tienda/catalogo";
 import { recordarSecciones, seccionesConocidas, sonIguales } from "@/lib/tienda/datosDelInicio";
+import { useEsCelular } from "@/lib/tienda/pantalla";
 import { SECCIONES_POR_DEFECTO, listarSeccionesDelInicio, type SeccionDelInicio } from "@/lib/tienda/seccionesInicio";
 import { usarSeo } from "@/lib/tienda/seo";
 
@@ -59,11 +60,22 @@ export default function Inicio() {
     return () => document.removeEventListener("visibilitychange", alVolver);
   }, []);
 
+  // En el celular los accesos de la portada (monitores para jugar y componentes) van después de la sección que le
+  // sigue, que como está cargado el inicio son los destacados: así los primeros productos con precio aparecen antes.
+  // Si la portada es la última sección, quedan debajo de ella. En pantalla ancha siguen dentro de la portada.
+  const esCelular = useEsCelular();
+  const lista = secciones ?? [];
+  const indiceDeLaPortada = lista.findIndex((s) => s.tipo === "portada");
+  const accesosDespuesDe = indiceDeLaPortada === -1 ? -1 : Math.min(indiceDeLaPortada + 1, lista.length - 1);
+
   return (
     <Tienda>
       <div className="flex flex-col gap-14 pb-4">
-        {(secciones ?? []).map((s) => (
-          <SeccionDelInicioVista key={s.id} seccion={s} raices={raices} fotos={fotos} />
+        {lista.map((s, indice) => (
+          <Fragment key={s.id}>
+            <SeccionDelInicioVista seccion={s} raices={raices} fotos={fotos} accesosAparte={esCelular} />
+            {esCelular && indice === accesosDespuesDe && <AccesosDeLaPortada raices={raices} fotos={fotos} aparte />}
+          </Fragment>
         ))}
       </div>
     </Tienda>
