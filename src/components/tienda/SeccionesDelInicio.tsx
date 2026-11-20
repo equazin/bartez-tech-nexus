@@ -262,7 +262,10 @@ function SeccionDeProductos({ raices, seccion }: { raices: CategoriaPublica[] | 
   const [actual, setActual] = useState("todo");
   const pestana = pestanas.find((p) => p.id === actual) ?? pestanas[0];
   const productos = useProductosDeSeccion(raices, config, conPestanas ? pestana.ids : []);
-  const nodo = config.fuente === "categoria" && raices ? encontrarCategoria(raices, config.categoria ?? "") : null;
+  // De la categoría salen los productos (fuente "categoria") y el enlace para ver todos. Una fila elegida a mano
+  // también lleva ese enlace si tiene una categoría cargada.
+  const conCategoria = config.fuente === "categoria" || (config.fuente === "mano" && Boolean(config.categoria));
+  const nodo = conCategoria && raices ? encontrarCategoria(raices, config.categoria ?? "") : null;
   if (config.fuente === "categoria" && raices && (!nodo || nodo.cantidad === 0)) return null;
   if (productos && productos.length === 0 && !conPestanas) return null;
 
