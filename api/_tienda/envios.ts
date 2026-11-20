@@ -48,6 +48,57 @@ export interface DestinoDelEnvio {
   provincia: string;
 }
 
+/**
+ * Un destino al que la tienda no envía (configuración `envio_sin_cobertura`, una lista de estos). Se reconoce por el
+ * nombre de la provincia o por el código postal, para que no alcance con elegir otra provincia en el formulario.
+ * Sin la clave, o con la lista vacía, la tienda envía a todos lados.
+ */
+export interface DestinoSinCobertura {
+  provincia: string;
+  codigos_postales: Array<[number, number]>;
+}
+
+const CLAVE_SIN_COBERTURA = "envio_sin_cobertura";
+
+const sinAcentos = (texto: string): string => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
+
+function leerSinCobertura(crudo: unknown): DestinoSinCobertura[] {
+  if (!Array.isArray(crudo)) return [];
+  const lista: DestinoSinCobertura[] = [];
+  for (const fila of crudo as Array<Record<string, unknown>>) {
+    const provincia = String(fila?.provincia ?? "").trim();
+    if (!provincia) continue;
+    const rangos = Array.isArray(fila.codigos_postales) ? (fila.codigos_postales as unknown[]) : [];
+    const codigos_postales = rangos
+      .map((r) => (Array.isArray(r) ? [Number(r[0]), Number(r[1])] : [Number.NaN, Number.NaN]) as [number, number])
+      .filter(([desde, hasta]) => Number.isInteger(desde) && Number.isInteger(hasta) && desde <= hasta);
+    lista.push({ provincia, codigos_postales });
+  }
+  return lista;
+}
+
+/** Los destinos sin cobertura cargados en la configuración. Ante un error de lectura no se bloquea ninguna compra. */
+export async function destinosSinCobertura(supabase: Supabase): Promise<DestinoSinCobertura[]> {
+  const { data, error } = await supabase.from("tienda_configuracion").select("valor").eq("clave", CLAVE_SIN_COBERTURA).maybeSingle();
+  if (error) {
+    console.error("[envios] No se pudo leer la cobertura del envío:", error.message);
+    return [];
+  }
+  return leerSinCobertura((data as { valor?: unknown } | null)?.valor);
+}
+
+/** La provincia sin cobertura a la que corresponde ese destino, o null si la tienda envía ahí. */
+export function provinciaSinCobertura(reglas: DestinoSinCobertura[], destino: DestinoDelEnvio): string | null {
+  const provincia = sinAcentos(destino.provincia);
+  const codigo = Number(destino.codigo_postal);
+  const regla = reglas.find(
+    (r) => sinAcentos(r.provincia) === provincia || r.codigos_postales.some(([desde, hasta]) => codigo >= desde && codigo <= hasta),
+  );
+  return regla ? regla.provincia : null;
+}
+
+export const mensajeSinCobertura = (provincia: string): string => `Por ahora no enviamos a ${provincia}.`;
+
 export interface ItemDelEnvio {
   product_id: number;
   cantidad: number;
@@ -417,6 +468,8 @@ async function cotizar(req: VercelRequest, res: VercelResponse) {
   const subtotal = Math.max(numero(cuerpo.subtotal), 0);
   try {
     const supabase = getSupabaseAdmin();
+    const sinCobertura = provinciaSinCobertura(await destinosSinCobertura(supabase), destino);
+    if (sinCobertura) return ok(res, { opciones: [], error: mensajeSinCobertura(sinCobertura) });
     const guardada = await cotizacionReciente(supabase, items, subtotal, destino);
     if (guardada) return ok(res, { opciones: guardada.map(paraElPublico) });
     const opciones = await opcionesDeEnvio(supabase, items, subtotal, destino);

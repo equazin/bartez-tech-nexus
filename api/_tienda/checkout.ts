@@ -7,7 +7,7 @@ import { compraRecibidaHTML } from "../_shared/plantillas.js";
 import { pedidoDeLaTiendaSchema, type PedidoDeLaTienda } from "../_shared/schemas.js";
 import { getSupabaseAdmin } from "../_shared/supabaseServer.js";
 import { configuracionDeMercadoPago } from "../_shared/mercadopago.js";
-import { cotizacionReciente, opcionesDeEnvio } from "./envios.js";
+import { cotizacionReciente, destinosSinCobertura, mensajeSinCobertura, opcionesDeEnvio, provinciaSinCobertura } from "./envios.js";
 import { esDeMercadoPago } from "../_shared/medios.js";
 
 /**
@@ -300,6 +300,9 @@ async function crearPedido(
   // de 3 a 7 segundos, y repetirlo era la mayor parte de la espera al confirmar.
   const itemsDeEnvio = [...cantidades].map(([productoId, cantidad]) => ({ product_id: productoId, cantidad }));
   const destinoDelEnvio = { codigo_postal: pedido.envio.codigo_postal, localidad: pedido.envio.localidad, provincia: pedido.envio.provincia };
+  // Se mira antes de usar una cotización guardada: una de antes de cerrar ese destino no habilita la compra.
+  const sinCobertura = provinciaSinCobertura(await destinosSinCobertura(supabase), destinoDelEnvio);
+  if (sinCobertura) throw new Error(mensajeSinCobertura(sinCobertura));
   const opciones =
     (await cotizacionReciente(supabase, itemsDeEnvio, subtotal, destinoDelEnvio)) ??
     (await opcionesDeEnvio(supabase, itemsDeEnvio, subtotal, destinoDelEnvio).catch((e: unknown) => {
