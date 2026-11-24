@@ -75,6 +75,8 @@ export function TarjetaProducto({ producto, conComparar = false }: PropsDeTarjet
   const comparando = useComparador().some((p) => p.id === producto.id);
   const datos = datosClave(producto, 4);
   const hayOferta = typeof producto.precio_lista_ars === "number" && producto.precio_final_ars !== null && producto.precio_lista_ars > producto.precio_final_ars;
+  // Cuánto baja contra el precio anterior, en puntos enteros. Una rebaja de menos de 1 % se anuncia sin número.
+  const descuento = hayOferta ? Math.round((1 - (producto.precio_final_ars as number) / (producto.precio_lista_ars as number)) * 100) : 0;
 
   return (
     <article className={cn("flex min-w-0 flex-col gap-2.5 rounded-2xl border bg-card p-3 transition-colors hover:border-input", comparando ? "border-foreground" : "border-border")}>
@@ -90,7 +92,9 @@ export function TarjetaProducto({ producto, conComparar = false }: PropsDeTarjet
           )}
         </Link>
         <div className="pointer-events-none absolute left-2 top-2 flex flex-wrap gap-1.5">
-          {hayOferta && <span className="rounded-chip bg-primary px-2 py-1 text-[11px] font-bold text-primary-foreground">Oferta</span>}
+          {hayOferta && (
+            <span className="rounded-chip bg-primary px-2.5 py-1 text-xs font-bold tabular-nums text-primary-foreground">{descuento >= 1 ? `−${descuento} %` : "Oferta"}</span>
+          )}
           {producto.pocas_unidades && producto.hay_stock && <span className="rounded-chip bg-background px-2 py-1 text-[11px] font-bold">Últimas unidades</span>}
         </div>
       </div>

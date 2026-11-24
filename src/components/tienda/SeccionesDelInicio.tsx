@@ -241,7 +241,7 @@ function QueEstasBuscando({ raices, fotos, titulo, slugs }: { raices: CategoriaP
   );
 }
 
-/** Los productos de una sección: elegidos a mano, los marcados como destacados o los de una categoría. */
+/** Los productos de una sección: elegidos a mano, los marcados como destacados, los de una categoría o los que están en oferta. */
 function useProductosDeSeccion(raices: CategoriaPublica[] | null, config: ConfigDeSeccion, idsDeCategoria: number[] = []): ProductoPublico[] | null {
   const cantidad = Math.max(1, Math.min(config.cantidad ?? 6, config.formato === "carrusel" ? MAXIMO_EN_CARRUSEL : MAXIMO_EN_GRILLA));
   const fuente = config.fuente ?? "destacados";
@@ -253,6 +253,7 @@ function useProductosDeSeccion(raices: CategoriaPublica[] | null, config: Config
       const porId = new Map(lista.map((p) => [p.id, p]));
       return elegidos.map((id) => porId.get(id)).filter((p): p is ProductoPublico => Boolean(p) && Boolean(p?.hay_stock)).slice(0, cantidad);
     }
+    if (fuente === "ofertas") return (await listarProductos({ soloOfertas: true, orden: "destacados", porPagina: cantidad, soloConStock: true })).productos;
     if (fuente === "categoria" && idsCategoria.length === 0) return [];
     const r = await listarProductos({ categoriaIds: idsCategoria, orden: fuente === "destacados" ? "destacados" : (config.orden ?? "destacados"), porPagina: cantidad, soloConStock: true });
     return r.productos;
@@ -312,15 +313,17 @@ function SeccionDeProductos({ raices, seccion }: { raices: CategoriaPublica[] | 
   const nodo = conCategoria && raices ? encontrarCategoria(raices, config.categoria ?? "") : null;
   if (config.fuente === "categoria" && raices && (!nodo || nodo.cantidad === 0)) return null;
   if (productos && productos.length === 0 && !conPestanas) return null;
+  // La fila de ofertas lleva a la página con todas; las demás, a su categoría si tienen una.
+  const enlace = nodo
+    ? { texto: nodo.cantidad === 1 ? "Ver el producto" : `Ver los ${nodo.cantidad}`, ruta: `/${nodo.slug}` }
+    : config.fuente === "ofertas"
+      ? { texto: "Ver todas las ofertas", ruta: "/ofertas" }
+      : undefined;
 
   return (
     <Bloque etiqueta={seccion.titulo}>
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <EncabezadoDeSeccion
-          titulo={seccion.titulo}
-          bajada={seccion.bajada || undefined}
-          enlace={nodo ? { texto: nodo.cantidad === 1 ? "Ver el producto" : `Ver los ${nodo.cantidad}`, ruta: `/${nodo.slug}` } : undefined}
-        />
+        <EncabezadoDeSeccion titulo={seccion.titulo} bajada={seccion.bajada || undefined} enlace={enlace} />
         {conPestanas && (
           <div role="tablist" aria-label="Filtrar destacados" className="flex flex-wrap gap-2">
             {pestanas.map((p) => (

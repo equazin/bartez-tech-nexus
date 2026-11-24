@@ -7,7 +7,8 @@ import type { OrdenDelCatalogo } from "./catalogo";
  */
 
 export type TipoDeSeccion = "portada" | "categorias" | "productos" | "elegido" | "componentes" | "comparador" | "por_uso" | "marcas" | "ayuda";
-export type FuenteDeProductos = "mano" | "destacados" | "categoria";
+/** "ofertas": los productos con precio rebajado; la fila no aparece si no hay ninguno. */
+export type FuenteDeProductos = "mano" | "destacados" | "categoria" | "ofertas";
 export type FormatoDeFila = "grilla" | "carrusel";
 
 export interface ConfigDeSeccion {
@@ -49,6 +50,7 @@ const s = (id: string, tipo: TipoDeSeccion, titulo: string, config: ConfigDeSecc
 
 export const SECCIONES_POR_DEFECTO: SeccionDelInicio[] = [
   s("portada", "portada", "Portada"),
+  s("ofertas", "productos", "Ofertas", { fuente: "ofertas", formato: "carrusel", cantidad: 12 }, "Precio rebajado: ves el precio anterior tachado y el precio final con IVA."),
   s("categorias", "categorias", "Qué estás buscando", { slugs: [] }),
   s("destacados", "productos", "Destacados", { fuente: "destacados", formato: "grilla", cantidad: 6, pestanas: true }, "Elegidos por el equipo de Teqo esta semana."),
   s("elegido", "elegido", "Elegido de la semana"),

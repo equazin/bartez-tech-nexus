@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronDown, Cpu, LayoutGrid, Package, Search, ShoppingCart, UserRound } from "lucide-react";
+import { ChevronDown, Cpu, LayoutGrid, Package, Search, ShoppingCart, Tag, UserRound } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useCarritoDetallado } from "@/lib/tienda/carritoDetallado";
 import { encontrarCategoria, listarCategorias, rutaDeCategoria, type CategoriaPublica } from "@/lib/tienda/catalogo";
@@ -195,13 +195,13 @@ function MenuDeCategorias({ categorias }: { categorias: CategoriaPublica[] }) {
               );
             })}
             <li className="flex flex-wrap gap-2 py-4">
+              <Link to="/ofertas" className="flex h-10 items-center gap-2 rounded-chip bg-primary px-4 text-sm font-bold text-primary-foreground">
+                <Tag className="h-4 w-4" aria-hidden />
+                Ofertas
+              </Link>
               <Link to="/arma-tu-pc" className="flex h-10 items-center gap-2 rounded-chip border border-border px-4 text-sm font-bold">
                 <Cpu className="h-4 w-4 text-primary" aria-hidden />
                 Armá tu PC
-              </Link>
-              <Link to="/ofertas" className="flex h-10 items-center gap-2 rounded-chip border border-border px-4 text-sm font-bold">
-                <span className="h-2 w-2 rounded-full bg-primary" aria-hidden />
-                Ofertas
               </Link>
               <Link to="/nuevos-ingresos" className="flex h-10 items-center rounded-chip border border-border px-4 text-sm">
                 Nuevos ingresos
@@ -295,7 +295,17 @@ function NavegacionPorCategoria({ categorias }: { categorias: CategoriaPublica[]
   return (
     <div className="border-t border-border">
       <nav aria-label="Categorías" className="container mx-auto flex items-center justify-between gap-6 overflow-x-auto px-4 [scrollbar-width:none]">
-        <ul className="flex shrink-0 gap-1">
+        <ul className="flex shrink-0 items-center gap-1">
+          {/* Las ofertas van primero y en rojo: es lo único de la barra que no es una categoría y tiene que verse sin buscarlo. */}
+          <li className="pr-2">
+            <NavLink
+              to="/ofertas"
+              className="flex h-8 items-center gap-2 whitespace-nowrap rounded-chip bg-primary pl-3 pr-4 text-[15px] font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              <Tag className="h-4 w-4" aria-hidden />
+              Ofertas
+            </NavLink>
+          </li>
           {categorias.map((c) => {
             const activa = raizActual?.id === c.id;
             return (
@@ -319,12 +329,6 @@ function NavegacionPorCategoria({ categorias }: { categorias: CategoriaPublica[]
             <NavLink to="/arma-tu-pc" className="flex h-[46px] items-center gap-2 whitespace-nowrap px-3 text-[15px] font-bold">
               <Cpu className="h-4 w-4 text-primary" aria-hidden />
               Armá tu PC
-            </NavLink>
-          </li>
-          <li>
-            <NavLink to="/ofertas" className="flex h-[46px] items-center gap-2 whitespace-nowrap px-3 text-[15px] font-bold">
-              <span className="h-2 w-2 rounded-full bg-primary" aria-hidden />
-              Ofertas
             </NavLink>
           </li>
           <li>

@@ -48,7 +48,11 @@ const FUENTES: Array<{ id: FuenteDeProductos; nombre: string }> = [
   { id: "mano", nombre: "Elegidos a mano" },
   { id: "destacados", nombre: "Marcados como destacados" },
   { id: "categoria", nombre: "De una categoría" },
+  { id: "ofertas", nombre: "En oferta" },
 ];
+
+/** Las fuentes que solo valen para una fila de productos: la de componentes arma la PC con una categoría o con elegidos a mano. */
+const SOLO_PARA_FILAS: FuenteDeProductos[] = ["destacados", "ofertas"];
 
 const ORDENES: Array<{ id: NonNullable<ConfigDeSeccion["orden"]>; nombre: string }> = [
   { id: "destacados", nombre: "Destacados" },
@@ -72,7 +76,14 @@ async function leerSecciones(): Promise<Seccion[]> {
 function detalleDe(s: Seccion, categorias: Map<string, string>): string {
   const c = s.config;
   if (s.tipo === "productos" || s.tipo === "componentes") {
-    const fuente = c.fuente === "mano" ? `${(c.ids ?? []).length} elegidos a mano` : c.fuente === "categoria" ? (categorias.get(c.categoria ?? "") ?? "Sin categoría") : "Destacados";
+    const fuente =
+      c.fuente === "mano"
+        ? `${(c.ids ?? []).length} elegidos a mano`
+        : c.fuente === "categoria"
+          ? (categorias.get(c.categoria ?? "") ?? "Sin categoría")
+          : c.fuente === "ofertas"
+            ? "En oferta"
+            : "Destacados";
     return `${fuente} · ${c.formato === "carrusel" ? "carrusel" : "grilla"} de ${c.cantidad ?? 6}`;
   }
   if (s.tipo === "comparador") return `Compara ${(categorias.get(c.categoria ?? "") ?? "sin categoría").toLowerCase()}`;
@@ -312,7 +323,7 @@ export function SeccionesInicioTab() {
                 <div className="space-y-3 text-sm">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="w-[110px] font-medium">Qué productos</span>
-                    {FUENTES.filter((f) => borrador.tipo === "productos" || f.id !== "destacados").map((f) => (
+                    {FUENTES.filter((f) => borrador.tipo === "productos" || !SOLO_PARA_FILAS.includes(f.id)).map((f) => (
                       <button key={f.id} type="button" onClick={() => cambiarConfig({ fuente: f.id })} className={chip((borrador.config.fuente ?? "destacados") === f.id)}>
                         {f.nombre}
                       </button>

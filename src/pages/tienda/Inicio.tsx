@@ -61,8 +61,9 @@ export default function Inicio() {
   }, []);
 
   // En el celular los accesos de la portada (monitores para jugar y componentes) van después de la sección que le
-  // sigue, que como está cargado el inicio son los destacados: así los primeros productos con precio aparecen antes.
-  // Si la portada es la última sección, quedan debajo de ella. En pantalla ancha siguen dentro de la portada.
+  // sigue, que como está cargado el inicio son las ofertas: así los primeros productos con precio aparecen antes.
+  // Si esa fila no tiene productos no se dibuja, y los accesos quedan debajo de la portada, igual que si la portada
+  // fuera la última sección. En pantalla ancha siguen dentro de la portada.
   const esCelular = useEsCelular();
   const lista = secciones ?? [];
   const indiceDeLaPortada = lista.findIndex((s) => s.tipo === "portada");
