@@ -24,6 +24,25 @@ const MONEDA = "ARS";
 const CLAVE_DEL_PERMISO = "teqo:cookies";
 const EVENTO_DE_ABRIR_AVISO = "teqo:aviso-de-cookies";
 const ESTADOS_PAGADOS = ["pagado", "preparando", "enviado", "entregado"];
+const ESTADO_SIN_PAGAR = "pendiente_pago";
+const MEDIO_QUE_SE_PAGA_DESPUES = "transferencia";
+/** Lo que un anuncio o una campaña le agregan a la dirección de llegada para saber de qué clic vino la visita. */
+const PARAMETROS_DE_ANUNCIO = [
+  "gclid",
+  "gbraid",
+  "wbraid",
+  "gclsrc",
+  "gad_source",
+  "gad_campaignid",
+  "dclid",
+  "fbclid",
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_term",
+  "utm_content",
+  "utm_id",
+] as const;
 
 type Permiso = "si" | "no";
 
@@ -46,6 +65,32 @@ declare global {
 
 let permisoEnMemoria: Permiso | null = null;
 let activada = false;
+let llegadaDesdeAnuncio: ReadonlyArray<readonly [string, string]> = [];
+let compraEnEspera: PedidoPublico | null = null;
+
+/**
+ * Se llama una vez, al cargar la página: recuerda solo en memoria (ni cookie ni almacenamiento) los parámetros de anuncio
+ * con los que llegó la visita. Quien acepta las cookies después de pasar a otra página ya no los tiene en la dirección,
+ * y sin ellos Google no puede saber que la compra vino de ese clic.
+ */
+export function recordarLlegadaDesdeAnuncio(): void {
+  const parametros = new URLSearchParams(window.location.search);
+  llegadaDesdeAnuncio = PARAMETROS_DE_ANUNCIO.flatMap((nombre) => {
+    const valor = parametros.get(nombre);
+    return valor ? [[nombre, valor] as const] : [];
+  });
+}
+
+/** Al activarse la medición en otra página que la de llegada, les devuelve esos parámetros a la dirección: de ahí los leen las etiquetas. */
+function reponerLlegadaDesdeAnuncio(): void {
+  if (llegadaDesdeAnuncio.length === 0) return;
+  const actuales = new URLSearchParams(window.location.search);
+  if (!PARAMETROS_DE_ANUNCIO.some((nombre) => actuales.has(nombre))) {
+    const conAnuncio = new URLSearchParams([...actuales.entries(), ...llegadaDesdeAnuncio.map(([nombre, valor]) => [nombre, valor])]);
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}?${conAnuncio.toString()}${window.location.hash}`);
+  }
+  llegadaDesdeAnuncio = [];
+}
 
 export function permisoDeCookies(): Permiso | null {
   if (permisoEnMemoria) return permisoEnMemoria;
@@ -95,6 +140,7 @@ function activar(intentos = 0): void {
     return;
   }
   activada = true;
+  reponerLlegadaDesdeAnuncio();
   window.dataLayer = window.dataLayer ?? [];
   // Tiene que empujar el objeto `arguments`: es lo que entienden las etiquetas de Google.
   window.gtag = function gtag() {
@@ -109,6 +155,7 @@ function activar(intentos = 0): void {
     cargarScript(`https://www.googletagmanager.com/gtag/js?id=${CUENTAS.googleAds.id}`);
   }
   if (CUENTAS.pixelDeMeta) iniciarPixel(CUENTAS.pixelDeMeta);
+  medirCompraEnEspera();
 }
 
 /** Se llama al montar cada página de la tienda: activa la medición si ya hay permiso. */
@@ -204,11 +251,35 @@ export function medirInicioDeCheckout(lineas: LineaDetallada[], valor: number): 
 }
 
 /**
- * La compra se cuenta cuando la página la muestra pagada, una sola vez por pedido en este navegador. El número de
- * pedido va como id: Google y Meta no cuentan dos veces el mismo. El valor no incluye el envío.
+ * Cuándo una compra ya se cuenta. Con Mercado Pago, cuando el pago está acreditado: el comprador vuelve a la página de
+ * la compra y la ve pagada. Por transferencia, desde que hace el pedido: el pago se confirma después, sin el comprador
+ * en la página, y esperar a verla pagada era no contarla casi nunca. Si esa transferencia no llega, queda contada igual:
+ * lo que se cobró de verdad está en el panel.
+ */
+function seCuenta(pedido: PedidoPublico): boolean {
+  if (ESTADOS_PAGADOS.includes(pedido.estado)) return true;
+  return pedido.estado === ESTADO_SIN_PAGAR && pedido.medio_pago === MEDIO_QUE_SE_PAGA_DESPUES;
+}
+
+/** Si la persona acepta las cookies con la compra en pantalla, se cuenta en ese momento. */
+function medirCompraEnEspera(): void {
+  if (!compraEnEspera) return;
+  const pedido = compraEnEspera;
+  compraEnEspera = null;
+  medirCompra(pedido);
+}
+
+/**
+ * La compra se cuenta una sola vez por pedido en este navegador, cuando la página de la compra la muestra en un estado
+ * que ya cuenta (ver `seCuenta`). El número de pedido va como id: Google y Meta no cuentan dos veces el mismo. El valor
+ * no incluye el envío.
  */
 export function medirCompra(pedido: PedidoPublico): void {
-  if (!activada || !ESTADOS_PAGADOS.includes(pedido.estado)) return;
+  if (!seCuenta(pedido)) return;
+  if (!activada) {
+    compraEnEspera = pedido;
+    return;
+  }
   const clave = `teqo:compra-medida:${pedido.numero}`;
   try {
     if (window.localStorage.getItem(clave)) return;
