@@ -12,7 +12,6 @@ import { PreciosDelProducto } from "@/components/tienda/Precio";
 import { TablaComparativa } from "@/components/tienda/TablaComparativa";
 import {
   categoriasPlanas,
-  descuentoDe,
   encontrarCategoria,
   fotoDeCategoria,
   fotosPorCategoria,
@@ -21,6 +20,7 @@ import {
   listarCategorias,
   listarDestacados,
   listarMarcasDeCategoria,
+  listarMayoresOfertas,
   listarProductos,
   listarProductosPorIds,
   precioDesde,
@@ -242,9 +242,6 @@ function QueEstasBuscando({ raices, fotos, titulo, slugs }: { raices: CategoriaP
   );
 }
 
-/** Cuántas ofertas se traen para ordenarlas por descuento antes de quedarse con las que entran en la fila. */
-const MAXIMO_DE_OFERTAS = 100;
-
 /** Los productos de una sección: elegidos a mano, los marcados como destacados, los de una categoría o los que están en oferta. */
 function useProductosDeSeccion(raices: CategoriaPublica[] | null, config: ConfigDeSeccion, idsDeCategoria: number[] = []): ProductoPublico[] | null {
   const cantidad = Math.max(1, Math.min(config.cantidad ?? 6, config.formato === "carrusel" ? MAXIMO_EN_CARRUSEL : MAXIMO_EN_GRILLA));
@@ -257,11 +254,8 @@ function useProductosDeSeccion(raices: CategoriaPublica[] | null, config: Config
       const porId = new Map(lista.map((p) => [p.id, p]));
       return elegidos.map((id) => porId.get(id)).filter((p): p is ProductoPublico => Boolean(p) && Boolean(p?.hay_stock)).slice(0, cantidad);
     }
-    if (fuente === "ofertas") {
-      // Primero las que más bajan; entre las que bajan lo mismo queda el orden de siempre (destacadas y por nombre).
-      const todas = (await listarProductos({ soloOfertas: true, orden: "destacados", porPagina: MAXIMO_DE_OFERTAS, soloConStock: true })).productos;
-      return [...todas].sort((a, b) => descuentoDe(b) - descuentoDe(a)).slice(0, cantidad);
-    }
+    // Primero las que más bajan; entre las que bajan lo mismo queda el orden de siempre (destacadas y por nombre).
+    if (fuente === "ofertas") return listarMayoresOfertas(cantidad);
     if (fuente === "categoria" && idsCategoria.length === 0) return [];
     const r = await listarProductos({ categoriaIds: idsCategoria, orden: fuente === "destacados" ? "destacados" : (config.orden ?? "destacados"), porPagina: cantidad, soloConStock: true });
     return r.productos;

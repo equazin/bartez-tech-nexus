@@ -192,6 +192,36 @@ export async function listarDestacados(limite = 8): Promise<ProductoPublico[]> {
   return (data ?? []) as unknown as ProductoPublico[];
 }
 
+/** Hasta cuántas ofertas se comparan para saber cuáles bajan más. */
+const TOPE_DE_OFERTAS = 1000;
+
+/**
+ * Las ofertas con stock que más bajan, de mayor a menor descuento; entre las que bajan lo mismo, primero las
+ * destacadas y después por nombre. La base no guarda el porcentaje: se traen los precios de todas las ofertas,
+ * se eligen las que entran y recién ahí se piden sus fichas, para no bajar todas las ofertas enteras.
+ */
+export async function listarMayoresOfertas(cantidad: number): Promise<ProductoPublico[]> {
+  const { data, error } = await supabase
+    .from("tienda_productos")
+    .select("id, precio_final_ars, precio_lista_ars")
+    .eq("oferta", true)
+    .eq("hay_stock", true)
+    .order("destacado", { ascending: false })
+    .order("nombre", { ascending: true })
+    .limit(TOPE_DE_OFERTAS);
+  if (error) throw new Error(`No se pudieron cargar las ofertas: ${error.message}`);
+  const precios = (data ?? []) as unknown as Array<Pick<ProductoPublico, "id" | "precio_final_ars" | "precio_lista_ars">>;
+  const ids = [...precios]
+    .sort((a, b) => descuentoDe(b) - descuentoDe(a))
+    .slice(0, cantidad)
+    .map((p) => p.id);
+  if (ids.length === 0) return [];
+  const { data: fichas, error: errorDeFichas } = await supabase.from("tienda_productos").select(COLUMNAS).in("id", ids);
+  if (errorDeFichas) throw new Error(`No se pudieron cargar las ofertas: ${errorDeFichas.message}`);
+  const porId = new Map(((fichas ?? []) as unknown as ProductoPublico[]).map((p) => [p.id, p]));
+  return ids.map((id) => porId.get(id)).filter((p): p is ProductoPublico => Boolean(p));
+}
+
 /** El precio más bajo de un grupo de categorías, para los accesos "desde $ X" de la portada. */
 export async function precioDesde(categoriaIds: number[]): Promise<number | null> {
   if (categoriaIds.length === 0) return null;
