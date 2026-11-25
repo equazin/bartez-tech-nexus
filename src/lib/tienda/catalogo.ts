@@ -96,6 +96,13 @@ export function imagenPrincipal(producto: Pick<ProductoPublico, "imagenes" | "im
   return imagenesDe(producto)[0] ?? null;
 }
 
+/** Cuánto baja un producto en oferta contra su precio anterior, en puntos enteros; 0 si no está en oferta. */
+export function descuentoDe(producto: Pick<ProductoPublico, "precio_final_ars" | "precio_lista_ars">): number {
+  const { precio_final_ars: final, precio_lista_ars: lista } = producto;
+  if (typeof lista !== "number" || typeof final !== "number" || lista <= final) return 0;
+  return Math.round((1 - final / lista) * 100);
+}
+
 export function rutaDelProducto(producto: Pick<ProductoPublico, "slug" | "categoria_slug">): string {
   return `/${producto.categoria_slug ?? SEGMENTO_SIN_CATEGORIA}/${producto.slug}`;
 }

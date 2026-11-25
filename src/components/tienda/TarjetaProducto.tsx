@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { agregarAlCarrito } from "@/lib/tienda/carrito";
-import { imagenPrincipal, rutaDelProducto, type ProductoPublico } from "@/lib/tienda/catalogo";
+import { descuentoDe, imagenPrincipal, rutaDelProducto, type ProductoPublico } from "@/lib/tienda/catalogo";
 import { alternarComparacion, useComparador } from "@/lib/tienda/comparador";
 import { datosClave } from "@/lib/tienda/ficha";
 import { cn } from "@/lib/utils";
@@ -75,8 +75,8 @@ export function TarjetaProducto({ producto, conComparar = false }: PropsDeTarjet
   const comparando = useComparador().some((p) => p.id === producto.id);
   const datos = datosClave(producto, 4);
   const hayOferta = typeof producto.precio_lista_ars === "number" && producto.precio_final_ars !== null && producto.precio_lista_ars > producto.precio_final_ars;
-  // Cuánto baja contra el precio anterior, en puntos enteros. Una rebaja de menos de 1 % se anuncia sin número.
-  const descuento = hayOferta ? Math.round((1 - (producto.precio_final_ars as number) / (producto.precio_lista_ars as number)) * 100) : 0;
+  // Una rebaja de menos de 1 % se anuncia sin número.
+  const descuento = descuentoDe(producto);
 
   return (
     <article className={cn("flex min-w-0 flex-col gap-2.5 rounded-2xl border bg-card p-3 transition-colors hover:border-input", comparando ? "border-foreground" : "border-border")}>
