@@ -17,7 +17,7 @@ const CUENTAS: {
   etiquetaDeGoogle: "GTM-T8QHTQQ9",
   analytics: "G-7NED1ZZ7HY",
   googleAds: { id: "AW-18558961251", compra: "2YTPCOmKgLMdEOOMzZFF" },
-  pixelDeMeta: null,
+  pixelDeMeta: "1942363966741671",
 };
 
 const MONEDA = "ARS";
