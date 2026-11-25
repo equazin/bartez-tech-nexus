@@ -1,4 +1,4 @@
-import type { OrdenDelCatalogo, ProductoPublico } from "./catalogo";
+import { descuentoDe, type OrdenDelCatalogo, type ProductoPublico } from "./catalogo";
 import { paresDeFicha, valorCorto, valorDe } from "./ficha";
 
 /**
@@ -111,6 +111,12 @@ export function ordenarProductos(productos: ProductoPublico[], orden: OrdenDelCa
       return copia.sort((a, b) => b.id - a.id);
     case "nombre":
       return copia.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+    case "descuento":
+      // Primero lo que más baja; entre los que bajan lo mismo, el orden de siempre.
+      return copia.sort(
+        (a, b) =>
+          descuentoDe(b) - descuentoDe(a) || Number(b.destacado) - Number(a.destacado) || Number(b.hay_stock) - Number(a.hay_stock) || a.nombre.localeCompare(b.nombre, "es"),
+      );
     case "destacados":
     default:
       return copia.sort(

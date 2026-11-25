@@ -227,7 +227,7 @@ export function ListadoFiltrable({ productos, cargando, error, textoVacio = "Tod
               onChange={(e) => cambiarOrden(e.target.value)}
               className="h-10 rounded-xl border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              {ORDENES.map((o) => (
+              {ORDENES.filter((o) => o.valor !== "descuento" || orden === "descuento" || productos.some((p) => p.oferta)).map((o) => (
                 <option key={o.valor} value={o.valor}>
                   {o.etiqueta}
                 </option>

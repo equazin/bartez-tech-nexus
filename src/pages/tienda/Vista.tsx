@@ -58,7 +58,7 @@ export default function Vista({ tipo }: { tipo: TipoDeVista }) {
           <h1 className="font-display text-[36px] font-bold uppercase leading-none md:text-[44px]">{textos.titulo}</h1>
           <p className="text-base leading-relaxed text-muted-foreground">{textos.bajada}</p>
         </div>
-        <ListadoFiltrable productos={productos} cargando={cargando} error={error} textoVacio={textos.vacio} ordenInicial={tipo === "nuevos" ? "nuevos" : "destacados"} />
+        <ListadoFiltrable productos={productos} cargando={cargando} error={error} textoVacio={textos.vacio} ordenInicial={tipo === "nuevos" ? "nuevos" : "descuento"} />
       </div>
       <PreguntasFrecuentes />
     </Tienda>

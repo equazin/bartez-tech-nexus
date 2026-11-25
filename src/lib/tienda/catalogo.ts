@@ -67,10 +67,12 @@ interface FilaDeCategoria {
   descripcion: string | null;
 }
 
-export type OrdenDelCatalogo = "destacados" | "precio_asc" | "precio_desc" | "nombre" | "nuevos";
+export type OrdenDelCatalogo = "destacados" | "descuento" | "precio_asc" | "precio_desc" | "nombre" | "nuevos";
 
+/** "descuento" solo se ofrece en las listas que tienen algún producto en oferta. */
 export const ORDENES: Array<{ valor: OrdenDelCatalogo; etiqueta: string }> = [
   { valor: "destacados", etiqueta: "Destacados" },
+  { valor: "descuento", etiqueta: "Mayor descuento" },
   { valor: "precio_asc", etiqueta: "Menor precio" },
   { valor: "precio_desc", etiqueta: "Mayor precio" },
   { valor: "nuevos", etiqueta: "Nuevos ingresos" },
@@ -120,6 +122,9 @@ function conOrden<T extends { order: (columna: string, opciones?: { ascending?: 
       return consulta.order("nombre", { ascending: true });
     case "nuevos":
       return consulta.order("id", { ascending: false });
+    case "descuento":
+      // La base no guarda el porcentaje: trae primero lo que está en oferta y la página termina de ordenar por cuánto baja.
+      return consulta.order("oferta", { ascending: false }).order("destacado", { ascending: false }).order("nombre", { ascending: true });
     case "destacados":
     default:
       return consulta.order("destacado", { ascending: false }).order("nombre", { ascending: true });
