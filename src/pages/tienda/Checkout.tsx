@@ -23,7 +23,7 @@ import { formatearPesos } from "@/lib/tienda/dinero";
 import { PROVINCIAS, cotizarEnvioADestino, textoDeDemora, type OpcionDeEnvio } from "@/lib/tienda/envios";
 import { MEDIOS_DE_PAGO, crearPedido, type MedioDePago, type MedioDisponible } from "@/lib/tienda/pedidos";
 import { crearPreferencia, listarMedios } from "@/lib/tienda/pagos";
-import { CUOTAS_SIN_INTERES, MEDIO_CON_CUOTAS, esDeMercadoPago, precioConMedio, valorDeLaCuota } from "@/lib/tienda/precios";
+import { CUOTAS_SIN_INTERES, MEDIO_CON_CUOTAS, esCobroEnLinea, precioConMedio, proveedorEnLinea, valorDeLaCuota } from "@/lib/tienda/precios";
 import { usarSeo } from "@/lib/tienda/seo";
 import { guardarToken } from "@/lib/tienda/tokenDeCompra";
 import { cn } from "@/lib/utils";
@@ -279,9 +279,9 @@ export default function Checkout() {
           direcciones: conDireccionPrincipal(misDatos?.direcciones ?? [], direccion),
         }).catch(() => undefined);
       }
-      // Con Mercado Pago se va directo a pagar, sin pasar por la página de la compra. Si Mercado Pago no responde,
+      // Con Mercado Pago, Mobbex u Openpay se va directo a pagar, sin pasar por la página de la compra. Si no responde,
       // esa página tiene el botón para pagar.
-      if (esDeMercadoPago(f.medio_pago)) {
+      if (esCobroEnLinea(f.medio_pago)) {
         setAbriendoElPago(true);
         const [enlaceDePago] = await Promise.all([crearPreferencia(creado.id, creado.token).catch(() => null), datosGuardados]);
         if (enlaceDePago) {
@@ -576,7 +576,7 @@ export default function Checkout() {
             )}
             {errorDelServidor && <p className="rounded-xl bg-error-fondo p-3 text-sm text-danger">{errorDelServidor}</p>}
             <Button type="submit" size="lg" className="w-full" disabled={enviando || !listoParaComprar || !elegida || faltaSucursal}>
-              {abriendoElPago ? "Abriendo Mercado Pago" : enviando ? "Creando tu pedido" : "Confirmar la compra"}
+              {abriendoElPago ? `Abriendo ${proveedorEnLinea(f.medio_pago) ?? "el pago"}` : enviando ? "Creando tu pedido" : "Confirmar la compra"}
             </Button>
             <p className="text-xs text-muted-foreground">
               Al confirmar aceptás los <Link to="/terminos" className="underline">términos y condiciones</Link>. Podés arrepentirte dentro de los 10 días corridos de recibir el pedido.

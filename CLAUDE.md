@@ -31,7 +31,9 @@ hasta que se toca; lo nuevo se escribe en español.
 - Precios siempre finales con IVA incluido; mostrar contado y cuotas. Se calculan en servidor, nunca en el navegador.
 - Solo configuraciones de fábrica: nunca ofrecer ampliar memoria o disco.
 - Un pedido se marca pagado SOLO por webhook firmado y verificado de Mercado Pago (o por validación manual
-  registrada, para transferencias).
+  registrada, para transferencias). Mobbex y Openpay mandan avisos sin firma: por decisión de Nico del 27/11/2026,
+  su aviso lleva un código propio en la dirección y el pago se confirma consultándolo a la API del proveedor con las
+  credenciales de la tienda (estado, monto y moneda); nada del cuerpo del aviso marca un pedido como pagado.
 - Webhooks idempotentes: el mismo aviso dos veces no duplica nada.
 - Pagos: cada medio es un proveedor intercambiable que se activa por configuración; el checkout no depende de
   ninguno por nombre.

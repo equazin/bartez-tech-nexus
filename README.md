@@ -66,7 +66,9 @@ pedidos, los pagos y la auditoría.
 - Precios finales en pesos calculados en la base (`recalcular_precios`), con el dólar y el margen del panel; cuotas de
   Mercado Pago solo con sus datos (CFTEA y TEA).
 - Pagos: Mercado Pago Checkout Pro con aviso firmado (`api/pagos.ts`) y transferencia confirmada desde el panel; un
-  pedido se marca pagado solo por esos dos caminos. Envíos con una tarifa nacional por peso.
+  pedido se marca pagado solo por esos caminos. Mobbex y Openpay (BBVA) están programados y apagados hasta cargar sus
+  credenciales (`.env.example`) y activarlos en Transferencia y medios: su aviso no viene firmado y cada pago se
+  confirma consultándolo a la API del proveedor (`api/_shared/cobros.ts`). Envíos con una tarifa nacional por peso.
 - Panel en modo tienda (`VITE_MODO_TIENDA=consumidor`): Dólar y margen, Envíos, Pagos, Transferencia y medios, Legal.
   El portal mayorista de Bartez se borró; las pestañas mayoristas vuelven con `VITE_MODO_TIENDA=mayorista`.
 - Las rutas de la tienda (/api/checkout, /api/legal, /api/orders, /api/pagos y /api/precios) viven en `api/_tienda/` y salen

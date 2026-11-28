@@ -30,7 +30,7 @@ export interface LineaDeDespachoDirecto {
 export interface PagoDelPanel {
   id: number;
   order_id: number;
-  proveedor: "mercadopago" | "transferencia";
+  proveedor: "mercadopago" | "transferencia" | "mobbex" | "openpay";
   estado: string;
   monto: number;
   id_externo: string | null;
@@ -46,13 +46,22 @@ export interface ConfiguracionDePagos {
   pendiente_vence_horas: number | null;
   /** El plazo propio de Mercado Pago. Nulo: vale el general. */
   pendiente_vence_horas_mercadopago: number | null;
-  medios: Array<{ id: "mercadopago" | "mercadopago_cuotas" | "transferencia"; nombre: string; detalle: string; activo: boolean; orden: number; margen_porcentaje: number | string }>;
+  medios: Array<{ id: "mercadopago" | "mercadopago_cuotas" | "transferencia" | "mobbex" | "openpay"; nombre: string; detalle: string; activo: boolean; orden: number; margen_porcentaje: number | string }>;
   mercadopago_configurado: boolean;
   webhook_configurado: boolean;
+  /** Credenciales de Mobbex y de Openpay cargadas en el hosting. */
+  mobbex_configurado?: boolean;
+  openpay_configurado?: boolean;
 }
 
 /** Cómo se nombra cada medio de pago en el panel. */
-export const NOMBRE_DEL_MEDIO: Record<string, string> = { mercadopago: "Mercado Pago", mercadopago_cuotas: "Mercado Pago en 3 cuotas", transferencia: "Transferencia" };
+export const NOMBRE_DEL_MEDIO: Record<string, string> = {
+  mercadopago: "Mercado Pago",
+  mercadopago_cuotas: "Mercado Pago en 3 cuotas",
+  transferencia: "Transferencia",
+  mobbex: "Mobbex",
+  openpay: "Openpay",
+};
 
 async function cabeceras(): Promise<Record<string, string>> {
   const {

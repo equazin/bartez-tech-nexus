@@ -3,7 +3,7 @@ import { waitUntil } from "@vercel/functions";
 import { createMailerTransport, getDefaultFromEmail, registroDelEnvio, sanitizeHeaderText } from "./mailer.js";
 import { pagoAcreditadoHTML, pedidoCanceladoHTML, pedidoEntregadoHTML, pedidoEnviadoHTML, pedidoReintegradoHTML, seguimientoCargadoHTML } from "./plantillas.js";
 import { getSupabaseAdmin } from "./supabaseServer.js";
-import { esDeMercadoPago, nombreDelMedio } from "./medios.js";
+import { esCobroEnLinea, NOMBRE_DEL_PROVEEDOR, nombreDelMedio, proveedorDelMedio } from "./medios.js";
 
 /**
  * Avisos al comprador de la tienda por cada paso del pedido. Cada aviso se anota en
@@ -216,7 +216,8 @@ export async function avisarAlComprador(orderId: number, tipo: TipoDeAviso, extr
           nombre,
           motivo: extra.motivo ?? null,
           monto: new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(Number(extra.monto ?? pedido.total)),
-          porMercadoPago: esDeMercadoPago(pedido.payment_method ?? ""),
+          // Quién devolvió la plata: el proveedor que cobró (Mercado Pago, Mobbex u Openpay); nulo, por transferencia.
+          pagadoCon: esCobroEnLinea(pedido.payment_method) ? NOMBRE_DEL_PROVEEDOR[proveedorDelMedio(pedido.payment_method) ?? "mercadopago"] : null,
           cancelada: pedido.status === "reintegrado" || pedido.status === "cancelado",
           enlace,
         });

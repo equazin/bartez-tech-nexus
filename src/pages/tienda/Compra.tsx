@@ -9,7 +9,7 @@ import { formatearPesos } from "@/lib/tienda/dinero";
 import { crearPreferencia, datosDeTransferencia, type DatosDeTransferencia } from "@/lib/tienda/pagos";
 import { obtenerPedido, type PedidoPublico } from "@/lib/tienda/pedidos";
 import { medirCompra } from "@/lib/tienda/medicion";
-import { esDeMercadoPago } from "@/lib/tienda/precios";
+import { esCobroEnLinea, proveedorEnLinea } from "@/lib/tienda/precios";
 import { usarSeo } from "@/lib/tienda/seo";
 import { tokenGuardado } from "@/lib/tienda/tokenDeCompra";
 
@@ -25,7 +25,9 @@ const TITULO_DEL_ESTADO: Record<string, string> = {
 
 const CAJA_DE_AVISO = "rounded-2xl border border-border bg-secondary p-6 text-sm text-muted-foreground";
 
-function PagarConMercadoPago({ pedido, token, vuelta }: { pedido: PedidoPublico; token: string; vuelta: string | null }) {
+/** Mercado Pago, Mobbex u Openpay: el comprador paga en la página del proveedor y vuelve a la compra. */
+function PagarEnLinea({ pedido, token, vuelta }: { pedido: PedidoPublico; token: string; vuelta: string | null }) {
+  const proveedor = proveedorEnLinea(pedido.medio_pago) ?? "Mercado Pago";
   const [yendo, setYendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +37,7 @@ function PagarConMercadoPago({ pedido, token, vuelta }: { pedido: PedidoPublico;
     try {
       window.location.href = await crearPreferencia(pedido.id, token);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "No se pudo abrir Mercado Pago.");
+      setError(e instanceof Error ? e.message : `No se pudo abrir ${proveedor}.`);
       setYendo(false);
     }
   }
@@ -45,7 +47,7 @@ function PagarConMercadoPago({ pedido, token, vuelta }: { pedido: PedidoPublico;
       <p className="font-bold">Falta pagar {formatearPesos(pedido.total)}</p>
       {vuelta === "exito" || vuelta === "pendiente" ? (
         <p className="text-sm text-muted-foreground">
-          Estamos confirmando el pago con Mercado Pago. Cuando se acredite, esta página y tu email lo van a mostrar. Si ya pagaste, no vuelvas a pagar.
+          Estamos confirmando el pago con {proveedor}. Cuando se acredite, esta página y tu email lo van a mostrar. Si ya pagaste, no vuelvas a pagar.
         </p>
       ) : vuelta === "fallo" ? (
         <p className="text-sm text-muted-foreground">El pago no se completó. Podés intentar de nuevo con otra tarjeta o medio.</p>
@@ -53,7 +55,9 @@ function PagarConMercadoPago({ pedido, token, vuelta }: { pedido: PedidoPublico;
         <p className="text-sm text-muted-foreground">
           {pedido.medio_pago === "mercadopago_cuotas"
             ? "Pagás en Mercado Pago con tarjeta de crédito, en 3 cuotas sin interés, y volvés a la tienda."
-            : "Pagás en Mercado Pago con débito, crédito en 1 pago o dinero en cuenta, y volvés a la tienda."}
+            : pedido.medio_pago === "mercadopago"
+              ? "Pagás en Mercado Pago con débito, crédito en 1 pago o dinero en cuenta, y volvés a la tienda."
+              : `Pagás en ${proveedor} con tarjeta de débito o crédito y volvés a la tienda.`}
         </p>
       )}
       {pedido.vence_en && vuelta !== "exito" && vuelta !== "pendiente" && (
@@ -63,7 +67,7 @@ function PagarConMercadoPago({ pedido, token, vuelta }: { pedido: PedidoPublico;
       )}
       {vuelta !== "exito" && (
         <Button size="lg" onClick={pagar} disabled={yendo}>
-          {yendo ? "Abriendo Mercado Pago" : "Pagar con Mercado Pago"}
+          {yendo ? `Abriendo ${proveedor}` : `Pagar con ${proveedor}`}
         </Button>
       )}
       {error && <p className="text-sm text-danger">{error}</p>}
@@ -124,7 +128,10 @@ export default function Compra() {
   const { id = "" } = useParams<{ id: string }>();
   const [parametros] = useSearchParams();
   const token = parametros.get("t") ?? tokenGuardado(id) ?? "";
-  const vuelta = parametros.get("pago");
+  // Mercado Pago y Openpay vuelven con ?pago=exito|pendiente|fallo; Mobbex suma su propio status (200 es aprobado,
+  // 0 es que el comprador volvió sin pagar).
+  const estadoDeMobbex = parametros.get("status");
+  const vuelta = parametros.get("pago") ?? (estadoDeMobbex === null ? null : estadoDeMobbex === "200" ? "exito" : estadoDeMobbex === "0" || Number(estadoDeMobbex) >= 400 ? "fallo" : "pendiente");
   const [pedido, setPedido] = useState<PedidoPublico | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -214,11 +221,11 @@ export default function Compra() {
             con ese email para volver a verla.
           </p>
         </div>
-        {pedido.estado === "pendiente_pago" && esDeMercadoPago(pedido.medio_pago) && <PagarConMercadoPago pedido={pedido} token={token} vuelta={vuelta} />}
+        {pedido.estado === "pendiente_pago" && esCobroEnLinea(pedido.medio_pago) && <PagarEnLinea pedido={pedido} token={token} vuelta={vuelta} />}
         {pedido.estado === "pendiente_pago" && pedido.medio_pago === "transferencia" && <PagarPorTransferencia pedido={pedido} token={token} />}
         {pedido.estado === "vencido" && (
           <div className={CAJA_DE_AVISO}>
-            {esDeMercadoPago(pedido.medio_pago)
+            {esCobroEnLinea(pedido.medio_pago)
               ? "Venció el plazo para pagar y liberamos el stock. Si lo seguís queriendo, hacé la compra de nuevo. Si ya pagaste, no vuelvas a pagar: respondé el email de la compra y lo revisamos."
               : "Venció el plazo para pagar y liberamos el stock. Si ya transferiste, respondé el email de la compra con el comprobante y lo revisamos."}
           </div>
@@ -226,8 +233,8 @@ export default function Compra() {
         {/* Reintegrada: la compra no llegó a salir, se canceló y la plata ya volvió (por ejemplo, el proveedor se quedó sin stock). */}
         {pedido.estado === "reintegrado" && (
           <div className={CAJA_DE_AVISO}>
-            {esDeMercadoPago(pedido.medio_pago)
-              ? "Cancelamos esta compra y te devolvimos la plata por Mercado Pago, al mismo medio con el que pagaste. Cuándo la ves acreditada depende de Mercado Pago y de tu banco o tarjeta. El detalle está en el email del reintegro; si tenés dudas, respondelo."
+            {esCobroEnLinea(pedido.medio_pago)
+              ? `Cancelamos esta compra y te devolvimos la plata por ${proveedorEnLinea(pedido.medio_pago)}, al mismo medio con el que pagaste. Cuándo la ves acreditada depende de ${proveedorEnLinea(pedido.medio_pago)} y de tu banco o tarjeta. El detalle está en el email del reintegro; si tenés dudas, respondelo.`
               : "Cancelamos esta compra y te devolvimos la plata por transferencia bancaria. El detalle está en el email del reintegro; si tenés dudas, respondelo."}
           </div>
         )}

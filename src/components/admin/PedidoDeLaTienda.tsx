@@ -34,7 +34,13 @@ interface PagoDelPedido {
   detalle: { comision?: number | null; neto_recibido?: number | null } | null;
 }
 
-const MEDIOS: Record<string, string> = { mercadopago: "Mercado Pago en 1 pago", mercadopago_cuotas: "Mercado Pago en 3 cuotas sin interés", transferencia: "Transferencia" };
+const MEDIOS: Record<string, string> = {
+  mercadopago: "Mercado Pago en 1 pago",
+  mercadopago_cuotas: "Mercado Pago en 3 cuotas sin interés",
+  transferencia: "Transferencia",
+  mobbex: "Mobbex",
+  openpay: "Openpay",
+};
 const ESTADOS_DE_PAGO: Record<string, string> = {
   pendiente: "pendiente",
   aprobado: "acreditado",

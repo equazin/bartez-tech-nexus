@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
-export type MedioDePago = "mercadopago" | "mercadopago_cuotas" | "transferencia";
+export type MedioDePago = "mercadopago" | "mercadopago_cuotas" | "transferencia" | "mobbex" | "openpay";
 
 export interface MedioDisponible {
   id: MedioDePago;

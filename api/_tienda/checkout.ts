@@ -6,9 +6,8 @@ import { createMailerTransport, getDefaultFromEmail, registroDelEnvio, sanitizeH
 import { compraRecibidaHTML } from "../_shared/plantillas.js";
 import { pedidoDeLaTiendaSchema, type PedidoDeLaTienda } from "../_shared/schemas.js";
 import { getSupabaseAdmin } from "../_shared/supabaseServer.js";
-import { configuracionDeMercadoPago } from "../_shared/mercadopago.js";
+import { medioConfigurado } from "../_shared/cobros.js";
 import { cotizacionReciente, destinosSinCobertura, mensajeSinCobertura, opcionesDeEnvio, provinciaSinCobertura } from "./envios.js";
-import { esDeMercadoPago } from "../_shared/medios.js";
 
 /**
  * POST /api/checkout · crea el pedido de un invitado.
@@ -189,7 +188,8 @@ async function crearPedido(
     supabase.from("product_suppliers").select("product_id, supplier_id, is_preferred, active, cost_price, suppliers(name)").in("product_id", ids),
   ]);
   const medioLeido = medio as { activo?: boolean; margen_porcentaje?: number | string | null } | null;
-  const medioActivo = Boolean(medioLeido?.activo) && (!esDeMercadoPago(pedido.medio_pago) || configuracionDeMercadoPago() !== null);
+  // Un medio activo cobra solo si tiene sus credenciales cargadas (Mercado Pago, Mobbex u Openpay).
+  const medioActivo = Boolean(medioLeido?.activo) && medioConfigurado(pedido.medio_pago);
   if (!medioActivo) throw new Error("Ese medio de pago no está disponible. Elegí otro.");
   // El margen sobre el costo lo pone el medio (Configuración › Transferencia y medios). precio_final_ars ya es
   // costo con IVA (más una regla de precios u oferta, si hay), así que el margen del medio se aplica encima.
@@ -265,9 +265,11 @@ async function crearPedido(
     const pcCompleta = servicios.some((s) => s.solo_con_pc) ? await carritoConPcCompleta(supabase, ids) : true;
     for (const s of servicios) {
       if (s.solo_con_pc && !pcCompleta) throw new Error(`"${s.nombre}" se ofrece solo con una PC completa en el carrito.`);
-      // Sin precio propio en cuotas, el servicio vale lo mismo que con Mercado Pago en 1 pago (como en la vista pública).
+      // Sin precio propio en cuotas, Mobbex u Openpay, el servicio vale lo mismo que con Mercado Pago en 1 pago (como en
+      // la vista pública, servicio_precio_con_medio).
       const precios = s.precios ?? {};
-      const precio = Number(precios[pedido.medio_pago] ?? (pedido.medio_pago === "mercadopago_cuotas" ? precios.mercadopago : undefined));
+      const conTarjeta = pedido.medio_pago === "mercadopago_cuotas" || pedido.medio_pago === "mobbex" || pedido.medio_pago === "openpay";
+      const precio = Number(precios[pedido.medio_pago] ?? (conTarjeta ? precios.mercadopago : undefined));
       if (!Number.isFinite(precio) || precio <= 0) throw new Error(`"${s.nombre}" no tiene precio con ese medio de pago.`);
       const precioFinal = aDosDecimales(precio);
       const iva = Number(s.iva_rate ?? 21);

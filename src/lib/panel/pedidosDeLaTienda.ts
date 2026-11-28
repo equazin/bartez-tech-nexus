@@ -20,6 +20,8 @@ export const NOMBRE_DEL_MEDIO: Record<string, string> = {
   transferencia: "Transferencia",
   mercadopago: "Mercado Pago en 1 pago",
   mercadopago_cuotas: "Mercado Pago en 3 cuotas",
+  mobbex: "Mobbex",
+  openpay: "Openpay",
 };
 
 export const nombreDelMedio = (medio: string | null | undefined): string => NOMBRE_DEL_MEDIO[medio ?? ""] ?? medio ?? "Sin medio";

@@ -5,14 +5,17 @@ import { configuracionDeMercadoPago, crearPreferencia, firmaValida, obtenerPago,
 import { getRoleFromRequest } from "../_shared/roles.js";
 import { getSupabaseAdmin, getSupabaseClient } from "../_shared/supabaseServer.js";
 import { avisarAlComprador, avisarDespues, esTipoDeAviso, estadoDelMail } from "../_shared/avisos.js";
-import { cuotasDeLaPreferencia, esDeMercadoPago, MEDIOS_DE_LA_TIENDA } from "../_shared/medios.js";
+import { cobroEnLinea, codigoDelAviso, codigoDelAvisoValido, medioConfigurado, type CobroEnLinea } from "../_shared/cobros.js";
+import { cuotasDeLaPreferencia, esDeMercadoPago, MEDIOS_DE_LA_TIENDA, NOMBRE_DEL_PROVEEDOR, proveedorDelMedio, type ProveedorDePago } from "../_shared/medios.js";
 import { listarCompradores } from "./compradores.js";
 
 /**
  * Pagos de la tienda.
  *   GET   ?recurso=medios                       público: los medios activos (Mercado Pago solo si está configurado)
- *   POST  ?recurso=preferencia {id, token}      público: el enlace de pago de Mercado Pago para una compra
+ *   POST  ?recurso=preferencia {id, token}      público: el enlace de pago de la compra (Mercado Pago, Mobbex u Openpay)
  *   POST  ?recurso=aviso                        Mercado Pago: el aviso firmado; el único camino a "pagado" para ese medio
+ *   POST  ?recurso=aviso-cobro&proveedor&pago&c Mobbex y Openpay: el aviso no viene firmado; con el código propio de la
+ *                                               dirección se consulta el estado al proveedor (único camino a "pagado")
  *   GET   ?recurso=transferencia&id&token       público: la cuenta para transferir y el plazo
  *   GET   ?recurso=lista                        panel: pedidos de la tienda con sus pagos
  *   POST  ?recurso=validar {order_id}           admin: confirma una transferencia (único camino a "pagado" para ese medio)
@@ -35,6 +38,7 @@ interface PedidoParaPagar {
   payment_method: string | null;
   comprador_email: string | null;
   comprador_nombre: string | null;
+  comprador_documento: string | null;
   token_acceso: string | null;
   created_at: string;
 }
@@ -42,7 +46,7 @@ interface PedidoParaPagar {
 interface FilaDePago {
   id: number;
   order_id: number;
-  proveedor: "mercadopago" | "transferencia";
+  proveedor: ProveedorDePago;
   estado: string;
   monto: number;
   id_externo: string | null;
@@ -116,7 +120,7 @@ async function pedidoConToken(id: unknown, token: unknown): Promise<PedidoParaPa
   if (!Number.isInteger(numero) || typeof token !== "string" || !/^[0-9a-f]{48}$/.test(token)) throw new Error("La compra no es válida.");
   const { data, error } = await getSupabaseAdmin()
     .from("orders")
-    .select("id, order_number, total, status, payment_method, comprador_email, comprador_nombre, token_acceso, created_at")
+    .select("id, order_number, total, status, payment_method, comprador_email, comprador_nombre, comprador_documento, token_acceso, created_at")
     .eq("id", numero)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -139,6 +143,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await preferencia(req, res);
       case "aviso":
         return await aviso(req, res);
+      case "aviso-cobro":
+        return await avisoDeCobro(req, res);
       case "transferencia":
         return await transferencia(req, res);
       case "lista":
@@ -172,9 +178,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 async function mediosActivos(): Promise<Array<{ id: string; nombre: string; detalle: string }>> {
   const { data, error } = await getSupabaseAdmin().from("medios_de_pago").select("id, nombre, detalle, activo, orden").order("orden");
   if (error) throw new Error(error.message);
-  const hayMercadoPago = configuracionDeMercadoPago() !== null;
+  // Un medio activo que todavía no tiene sus credenciales cargadas no se ofrece.
   return ((data ?? []) as Array<{ id: string; nombre: string; detalle: string; activo: boolean }>)
-    .filter((m) => m.activo && (!esDeMercadoPago(m.id) || hayMercadoPago))
+    .filter((m) => m.activo && medioConfigurado(m.id))
     .map(({ id, nombre, detalle }) => ({ id, nombre, detalle }));
 }
 
@@ -188,8 +194,6 @@ async function medios(req: VercelRequest, res: VercelResponse) {
 async function preferencia(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
   if (excedeLaTasa(`preferencia|${ipDe(req)}`, 20)) return fail(res, "Demasiados intentos. Esperá un minuto.", 429);
-  const config = configuracionDeMercadoPago();
-  if (!config) return fail(res, "Mercado Pago no está disponible en este momento.", 503);
   const cuerpo = (req.body ?? {}) as { id?: unknown; token?: unknown };
   let pedido: PedidoParaPagar;
   try {
@@ -198,6 +202,10 @@ async function preferencia(req: VercelRequest, res: VercelResponse) {
     return fail(res, e instanceof Error ? e.message : "La compra no es válida.", 404);
   }
   if (pedido.status !== "pendiente_pago") return fail(res, "Esta compra ya no está pendiente de pago.", 409);
+  const proveedor = proveedorDelMedio(pedido.payment_method);
+  if (proveedor === "mobbex" || proveedor === "openpay") return await enlaceDeCobro(res, pedido, proveedor);
+  const config = configuracionDeMercadoPago();
+  if (!config) return fail(res, "Mercado Pago no está disponible en este momento.", 503);
   if (!esDeMercadoPago(pedido.payment_method)) return fail(res, "Esta compra no se paga con Mercado Pago.", 409);
   // El plazo se mira antes de devolver un enlace ya creado: Mercado Pago rechaza una preferencia vencida.
   const venceEn = await venceEnDe(pedido);
@@ -328,6 +336,134 @@ async function aviso(req: VercelRequest, res: VercelResponse) {
   const { error: errorAviso } = await supabase
     .from("avisos_recibidos")
     .insert({ proveedor: "mercadopago", id_externo: claveDelAviso, cuerpo: { type: tipo, action: cuerpo.action ?? null, data_id: dataId, estado: pago.estado, referencia: pago.referencia }, resultado });
+  if (errorAviso && !/duplicate|unique/i.test(errorAviso.message)) throw new Error(errorAviso.message);
+  return ok(res, { resultado });
+}
+
+// ── Mobbex y Openpay: el enlace de pago ─────────────────────────────────────
+// Sus avisos no vienen firmados (decisión de Nico del 27/11/2026): la dirección del aviso lleva un código propio y
+// el estado siempre se consulta al proveedor con las credenciales de la tienda (ver _shared/cobros.ts).
+async function enlaceDeCobro(res: VercelResponse, pedido: PedidoParaPagar, proveedor: "mobbex" | "openpay") {
+  const cobro = cobroEnLinea(proveedor);
+  if (!cobro) return fail(res, `${NOMBRE_DEL_PROVEEDOR[proveedor]} no está disponible en este momento.`, 503);
+  const venceEn = await venceEnDe(pedido);
+  if (venceEn && venceEn.getTime() < Date.now()) return fail(res, "Venció el plazo para pagar esta compra.", 409);
+
+  const supabase = getSupabaseAdmin();
+  const { data: existente } = await supabase
+    .from("pagos")
+    .select("id, referencia, detalle")
+    .eq("order_id", pedido.id)
+    .eq("proveedor", proveedor)
+    .eq("estado", "pendiente")
+    .order("creado_en", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const previo = existente as { id: number; referencia: string | null; detalle: Record<string, unknown> | null } | null;
+  // Un enlace ya creado sirve mientras le queden unos minutos; si no, se crea otro para el mismo pago.
+  const venceElEnlace = typeof previo?.detalle?.enlace_vence === "string" ? Date.parse(previo.detalle.enlace_vence) : Number.NaN;
+  if (previo?.referencia && typeof previo.detalle?.url === "string" && venceElEnlace - Date.now() > 5 * 60_000) return ok(res, { url: previo.detalle.url });
+
+  let pagoId = previo?.id;
+  if (!pagoId) {
+    const { data: creado, error } = await supabase
+      .from("pagos")
+      .insert({ order_id: pedido.id, proveedor, estado: "pendiente", monto: pedido.total, moneda: "ARS" })
+      .select("id")
+      .single();
+    if (error || !creado) throw new Error(`No se pudo anotar el intento de pago: ${error?.message ?? ""}`);
+    pagoId = (creado as { id: number }).id;
+  }
+
+  // El enlace dura lo que le queda al plazo para pagar (entre 10 minutos y 2 días); sin plazo, 2 horas.
+  const minutos = venceEn ? Math.min(Math.max(Math.floor((venceEn.getTime() - Date.now()) / 60_000), 10), 2880) : 120;
+  const base = sitio();
+  const creado = await cobro.crear({
+    pagoId,
+    numero: pedido.order_number,
+    total: Number(pedido.total),
+    email: pedido.comprador_email ?? "",
+    nombre: pedido.comprador_nombre ?? "",
+    documento: (pedido.comprador_documento ?? "").replace(/\D/g, ""),
+    vuelta: `${base}/compra/${pedido.id}?t=${pedido.token_acceso}`,
+    aviso: `${base}/api/pagos?recurso=aviso-cobro&proveedor=${proveedor}&pago=${pagoId}&c=${codigoDelAviso(cobro, pagoId)}`,
+    minutos,
+  });
+  await supabase
+    .from("pagos")
+    .update({
+      referencia: creado.referencia,
+      detalle: { ...(previo?.detalle ?? {}), ...creado.detalle, url: creado.url, enlace_vence: new Date(Date.now() + minutos * 60_000).toISOString() },
+      actualizado_en: new Date().toISOString(),
+    })
+    .eq("id", pagoId);
+  return ok(res, { url: creado.url });
+}
+
+// ── Mobbex y Openpay: el aviso ──────────────────────────────────────────────
+// Nada del cuerpo del aviso se usa: sin el código propio se descarta, y con el código se pregunta el estado al
+// proveedor. Idempotente: el mismo estado de la misma operación se procesa una sola vez (avisos_recibidos).
+async function avisoDeCobro(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
+  const proveedor = String(req.query.proveedor ?? "");
+  const cobro: CobroEnLinea | null = proveedor === "mobbex" || proveedor === "openpay" ? cobroEnLinea(proveedor) : null;
+  if (!cobro) return fail(res, "Ese medio no está configurado", 503);
+  const pagoId = Number(req.query.pago);
+  const codigo = String(req.query.c ?? "");
+  if (!Number.isInteger(pagoId) || pagoId <= 0 || !codigoDelAvisoValido(cobro, pagoId, codigo)) {
+    console.warn("[pagos] aviso de cobro sin código válido", proveedor, String(req.query.pago ?? ""));
+    return fail(res, "Aviso no válido", 401);
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data: filaCruda } = await supabase
+    .from("pagos")
+    .select("id, order_id, proveedor, estado, monto, id_externo, referencia, detalle, reintegrado_monto, reintegro_clave")
+    .eq("id", pagoId)
+    .maybeSingle();
+  const fila = filaCruda as FilaDePago | null;
+  if (!fila || fila.proveedor !== cobro.id || !fila.referencia) return ok(res, { resultado: "ignorado_referencia" });
+
+  const estado = await cobro.consultar(fila.referencia);
+  const claveDelAviso = `${estado.idExterno ?? fila.referencia}:${estado.estado}`;
+  const { data: yaVisto } = await supabase.from("avisos_recibidos").select("id").eq("proveedor", cobro.id).eq("id_externo", claveDelAviso).maybeSingle();
+  if (yaVisto) return ok(res, { resultado: "repetido" });
+
+  let resultado = "registrado";
+  const montoCoincide = estado.monto !== null && Math.abs(estado.monto - Number(fila.monto)) < 1 && (estado.moneda === null || estado.moneda === "ARS");
+  const yaAprobado = fila.estado === "aprobado";
+  // Un pago aprobado no vuelve atrás por un aviso posterior: un reintegro o un contracargo se revisa a mano.
+  await supabase
+    .from("pagos")
+    .update({
+      id_externo: estado.idExterno ?? undefined,
+      estado: yaAprobado ? "aprobado" : estado.estado,
+      cuotas: estado.cuotas ?? undefined,
+      detalle: { ...fila.detalle, ...estado.detalle, moneda: estado.moneda, monto_informado: estado.monto },
+      nota: !montoCoincide && estado.estado === "aprobado" ? "revisar: el monto o la moneda no coinciden con el pedido" : undefined,
+      aprobado_en: estado.estado === "aprobado" && !yaAprobado ? new Date().toISOString() : undefined,
+      actualizado_en: new Date().toISOString(),
+    })
+    .eq("id", fila.id);
+
+  if (estado.estado === "aprobado" && montoCoincide) {
+    const { data: marcado, error } = await supabase.rpc("tienda_marcar_pagado", { p_order_id: fila.order_id });
+    if (error) throw new Error(`El pago está aprobado pero no se pudo marcar el pedido: ${error.message}`);
+    resultado = marcado ? "acreditado" : "ya_pagado";
+    if (marcado) await avisarAlComprador(fila.order_id, "pago_acreditado");
+  } else if (estado.estado === "aprobado") {
+    resultado = "revisar_monto";
+  } else if (yaAprobado && estado.estado !== "pendiente") {
+    await supabase
+      .from("orders")
+      .update({ notes: `${cobro.nombre} informa el pago ${estado.idExterno ?? fila.referencia} como ${estado.estado}: revisar.` })
+      .eq("id", fila.order_id);
+    resultado = "revisar_estado";
+  }
+
+  const { error: errorAviso } = await supabase
+    .from("avisos_recibidos")
+    .insert({ proveedor: cobro.id, id_externo: claveDelAviso, cuerpo: { pago: fila.id, referencia: fila.referencia, estado: estado.estado, detalle: estado.detalle }, resultado });
   if (errorAviso && !/duplicate|unique/i.test(errorAviso.message)) throw new Error(errorAviso.message);
   return ok(res, { resultado });
 }
@@ -594,6 +730,8 @@ async function configuracion(req: VercelRequest, res: VercelResponse) {
     medios: mediosCrudos ?? [],
     mercadopago_configurado: configuracionDeMercadoPago() !== null,
     webhook_configurado: Boolean(configuracionDeMercadoPago()?.secreto),
+    mobbex_configurado: cobroEnLinea("mobbex") !== null,
+    openpay_configurado: cobroEnLinea("openpay") !== null,
   });
 }
 

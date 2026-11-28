@@ -244,7 +244,8 @@ export function pedidoReintegradoHTML(params: {
   nombre: string;
   motivo: string | null;
   monto: string;
-  porMercadoPago: boolean;
+  /** El proveedor que cobró (Mercado Pago, Mobbex u Openpay); nulo si se pagó por transferencia. */
+  pagadoCon: string | null;
   cancelada: boolean;
   enlace: string;
 }): string {
@@ -253,8 +254,8 @@ export function pedidoReintegradoHTML(params: {
   const cuerpo = `
     ${parrafo(`Hola ${escapar(params.nombre)}, ${queda}${params.motivo ? `: ${escapar(params.motivo)}` : "."}`)}
     ${parrafo(
-      params.porMercadoPago
-        ? `Te devolvimos <strong>${escapar(params.monto)}</strong> por Mercado Pago, al mismo medio con el que pagaste. Cuándo lo ves acreditado depende de Mercado Pago y de tu banco o tarjeta.`
+      params.pagadoCon
+        ? `Te devolvimos <strong>${escapar(params.monto)}</strong> por ${escapar(params.pagadoCon)}, al mismo medio con el que pagaste. Cuándo lo ves acreditado depende de ${escapar(params.pagadoCon)} y de tu banco o tarjeta.`
         : `Te devolvimos <strong>${escapar(params.monto)}</strong> por transferencia bancaria.`,
     )}
     ${boton(params.enlace, "Ver mi compra")}

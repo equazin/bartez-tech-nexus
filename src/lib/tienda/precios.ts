@@ -14,6 +14,14 @@ export const CUOTAS_SIN_INTERES = 3;
 
 export const esDeMercadoPago = (medio: string | null | undefined): boolean => medio === "mercadopago" || medio === MEDIO_CON_CUOTAS;
 
+/** Quién cobra cada medio que se paga afuera de la tienda y vuelve (todos menos la transferencia). */
+const COBRA_EN_LINEA: Record<string, string> = { mercadopago: "Mercado Pago", mercadopago_cuotas: "Mercado Pago", mobbex: "Mobbex", openpay: "Openpay" };
+
+/** El nombre de quien cobra el medio (Mercado Pago, Mobbex u Openpay); nulo para la transferencia. */
+export const proveedorEnLinea = (medio: string | null | undefined): string | null => COBRA_EN_LINEA[medio ?? ""] ?? null;
+
+export const esCobroEnLinea = (medio: string | null | undefined): boolean => proveedorEnLinea(medio) !== null;
+
 /** Lo que vale cada cuota sin interés, con centavos. */
 export const valorDeLaCuota = (total: number): number => Math.round((total / CUOTAS_SIN_INTERES) * 100) / 100;
 
@@ -21,6 +29,8 @@ const NOMBRES_CORTOS: Record<string, string> = {
   transferencia: "Transferencia",
   mercadopago: "Mercado Pago",
   mercadopago_cuotas: `${CUOTAS_SIN_INTERES} cuotas sin interés`,
+  mobbex: "Mobbex",
+  openpay: "Openpay",
 };
 
 export function nombreCortoDeMedio(medio: Pick<PrecioPorMedio, "id" | "nombre">): string {

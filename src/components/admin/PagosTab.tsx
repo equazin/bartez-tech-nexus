@@ -218,7 +218,9 @@ export function PagosTab() {
                         <span>
                           {reintegro.pago.proveedor === "mercadopago"
                             ? "El reintegro total devuelve la plata por Mercado Pago, cancela la compra si todavía no salió, libera el stock y le avisa al comprador por mail con el motivo."
-                            : "Primero transferile la plata al comprador. Al anotar el reintegro total, la compra queda cancelada si todavía no salió, se libera el stock y le llega el mail con el motivo."}
+                            : reintegro.pago.proveedor === "mobbex" || reintegro.pago.proveedor === "openpay"
+                              ? `Primero hacé la devolución en la consola de ${reintegro.pago.proveedor === "mobbex" ? "Mobbex" : "Openpay"}. Al anotar el reintegro total, la compra queda cancelada si todavía no salió, se libera el stock y le llega el mail con el motivo.`
+                              : "Primero transferile la plata al comprador. Al anotar el reintegro total, la compra queda cancelada si todavía no salió, se libera el stock y le llega el mail con el motivo."}
                         </span>
                       </div>
                     </form>

@@ -137,7 +137,7 @@ export function TransferenciaTab() {
       <SurfaceCard className="space-y-4">
         <div>
           <h2 className="text-lg font-bold">Medios de pago</h2>
-          <p className="mt-1 text-sm text-muted-foreground">El checkout ofrece solo los activos. Mercado Pago necesita además las credenciales en el hosting.</p>
+          <p className="mt-1 text-sm text-muted-foreground">El checkout ofrece solo los activos. Mercado Pago, Mobbex y Openpay necesitan además sus credenciales en el hosting; antes de activarlos, cargá el margen que cubra su comisión.</p>
         </div>
         <ul className="divide-y divide-border rounded-xl border border-border">
           {config.medios.map((medio) => (
@@ -148,6 +148,13 @@ export function TransferenciaTab() {
                 {(medio.id === "mercadopago" || medio.id === "mercadopago_cuotas") && (
                   <span className={`block text-xs ${config.mercadopago_configurado ? "text-success" : "text-danger"}`}>
                     {config.mercadopago_configurado ? (config.webhook_configurado ? "Credenciales y secreto del aviso cargados" : "Falta el secreto del aviso: los pagos no se acreditan") : "Faltan las credenciales en el hosting"}
+                  </span>
+                )}
+                {(medio.id === "mobbex" || medio.id === "openpay") && (
+                  <span className={`block text-xs ${(medio.id === "mobbex" ? config.mobbex_configurado : config.openpay_configurado) ? "text-success" : "text-danger"}`}>
+                    {(medio.id === "mobbex" ? config.mobbex_configurado : config.openpay_configurado)
+                      ? "Credenciales cargadas. Cada pago se confirma consultándolo con esas credenciales."
+                      : "Faltan las credenciales en el hosting: aunque esté activo, el checkout no lo ofrece"}
                   </span>
                 )}
                 {medio.id === "mercadopago" && <span className="block text-xs text-muted-foreground">Mercado Pago deja pagar en 1 sola cuota.</span>}

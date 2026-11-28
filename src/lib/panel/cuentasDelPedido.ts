@@ -60,6 +60,9 @@ export const IVA_GENERAL = 0.21;
 
 export const esDeMercadoPago = (medio: string | null | undefined): boolean => medio === "mercadopago" || medio === "mercadopago_cuotas";
 
+/** Los medios que cobran comisión por venta (todos menos la transferencia). */
+export const cobraComision = (medio: string | null | undefined): boolean => esDeMercadoPago(medio) || medio === "mobbex" || medio === "openpay";
+
 export function costoDelEnvio(p: Pick<PedidoParaCuentas, "envio_detalle" | "shipping_cost">): { monto: number | null; origen: string } {
   const detalle = p.envio_detalle ?? null;
   if (typeof detalle?.costo === "number") return { monto: detalle.costo, origen: detalle.zipnova ? "cotización de Zipnova" : "tarifa del envío" };
@@ -95,7 +98,7 @@ export function cuentasDelPedido(pedido: PedidoParaCuentas, comisionInformada: n
   const descuentoNeto = subtotal > 0 ? descuento * (ventaProductosNeta / subtotal) : descuento / (1 + IVA_GENERAL);
   const envioCobrado = Number(pedido.shipping_cost ?? 0);
   const envio = costoDelEnvio(pedido);
-  const comision = esDeMercadoPago(pedido.payment_method) ? (comisionInformada ?? null) : 0;
+  const comision = cobraComision(pedido.payment_method) ? (comisionInformada ?? null) : 0;
 
   const cobrado = Number(pedido.total);
   const cobradoNeto = ventaProductosNeta + envioCobrado / (1 + IVA_GENERAL) - descuentoNeto;

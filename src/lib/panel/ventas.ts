@@ -4,7 +4,7 @@
  * cuenta. La ganancia es la misma del detalle del pedido (cuentasDelPedido).
  */
 
-import { cuentasDelPedido, esDeMercadoPago, IVA_GENERAL, type DetalleDelEnvio, type LineaDeLaTienda } from "./cuentasDelPedido";
+import { cobraComision, cuentasDelPedido, IVA_GENERAL, type DetalleDelEnvio, type LineaDeLaTienda } from "./cuentasDelPedido";
 import { estaPagado, nombreDelMedio } from "./pedidosDeLaTienda";
 import { diaDeArgentina } from "./periodos";
 
@@ -122,7 +122,7 @@ export function resumirVentas(pedidos: readonly PedidoDelTablero[], pagos: Reado
     cobradoNeto += cuentas.cobradoNeto - reintegradoNeto;
     ganancia += cuentas.gananciaNeta - reintegradoNeto;
     if (cuentas.sinCosto > 0) conLineasSinCosto += 1;
-    if (esDeMercadoPago(pedido.payment_method) && cuentas.comision === null) sinComision += 1;
+    if (cobraComision(pedido.payment_method) && cuentas.comision === null) sinComision += 1;
 
     const medio = pedido.payment_method ?? "sin_medio";
     const delMedio = porMedio.get(medio) ?? { medio, etiqueta: nombreDelMedio(pedido.payment_method), compras: 0, cobrado: 0 };
